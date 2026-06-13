@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/SGV.Dominio/SGV.Dominio.csproj" />
+  <Project Path="src/SGV.Aplicacion/SGV.Aplicacion.csproj" />
+  <Project Path="src/SGV.Infraestructura/SGV.Infraestructura.csproj" />
+  <Project Path="tests/SGV.Tests/SGV.Tests.csproj" />
+</Solution>
