@@ -20,9 +20,23 @@ public sealed class PersonaConfiguracion : IEntityTypeConfiguration<Persona>
         builder.Property(e => e.NumeroDocumento).HasMaxLength(50);
         builder.Property(e => e.Telefono).HasMaxLength(50);
 
-        builder.HasIndex(e => e.Legajo).IsUnique().HasFilter("[Legajo] IS NOT NULL AND [IsDeleted] = 0");
-        builder.HasIndex(e => e.Email).IsUnique().HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
-        builder.HasIndex(e => new { e.TipoDocumento, e.NumeroDocumento }).IsUnique().HasFilter("[TipoDocumento] IS NOT NULL AND [NumeroDocumento] IS NOT NULL AND [IsDeleted] = 0");
+        // MySQL does not support filtered indexes. Use generated columns that
+        // are NULL when the value is absent or the record is soft-deleted.
+        builder.Property<string?>("ActiveLegajoUnique")
+            .HasComputedColumnSql("CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActiveLegajoUnique").IsUnique();
+
+        builder.Property<string?>("ActiveEmailUnique")
+            .HasComputedColumnSql("CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActiveEmailUnique").IsUnique();
+
+        builder.Property<string?>("ActiveDocumentoUnique")
+            .HasComputedColumnSql("CASE WHEN `TipoDocumento` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumento`, ':', `NumeroDocumento`) ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActiveDocumentoUnique").IsUnique();
+
         builder.HasIndex(e => new { e.Apellidos, e.Nombres });
     }
 }

@@ -9,7 +9,7 @@ public sealed class UnidadOrganizativaConfiguracion : IEntityTypeConfiguration<U
     public void Configure(EntityTypeBuilder<UnidadOrganizativa> builder)
     {
         builder.ToTable("UnidadesOrganizativas", table =>
-            table.HasCheckConstraint("CK_UnidadesOrganizativas_UnidadPadre", "[UnidadPadreId] IS NULL OR [UnidadPadreId] <> [Id]"));
+            table.HasCheckConstraint("CK_UnidadesOrganizativas_UnidadPadre", "`UnidadPadreId` IS NULL OR `UnidadPadreId` <> `Id`"));
         builder.ConfigurarId();
         builder.ConfigurarAuditoria();
 
@@ -23,7 +23,11 @@ public sealed class UnidadOrganizativaConfiguracion : IEntityTypeConfiguration<U
             .HasForeignKey(e => e.UnidadPadreId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(e => e.Codigo).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Property<string?>("ActiveCodigoUnique")
+            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActiveCodigoUnique").IsUnique();
+
         builder.HasIndex(e => e.UnidadPadreId);
         builder.HasIndex(e => e.Nombre);
     }

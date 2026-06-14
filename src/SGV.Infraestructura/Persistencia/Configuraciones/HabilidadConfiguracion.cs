@@ -17,7 +17,11 @@ public sealed class HabilidadConfiguracion : IEntityTypeConfiguration<Habilidad>
         builder.Property(e => e.Categoria).HasMaxLength(100);
         builder.Property(e => e.Descripcion).HasMaxLength(1000);
 
-        builder.HasIndex(e => e.Codigo).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Property<string?>("ActiveCodigoUnique")
+            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActiveCodigoUnique").IsUnique();
+
         builder.HasIndex(e => e.Categoria);
     }
 }

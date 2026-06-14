@@ -1,12 +1,14 @@
 schema: spec-driven
 
 context: |
-  Tech stack: C# 12, .NET 9, ASP.NET Core, Entity Framework Core 9.0, SQL Server
+  Tech stack: C# 14, .NET 10, ASP.NET Core, Entity Framework Core 9.x, Pomelo MySQL 8
   Architecture: Clean Architecture (Dominio / Aplicacion / Infraestructura)
   Nullable: enabled
   ImplicitUsings: enabled
   Conventions: PascalCase for public members, camelCase for locals/params, Async suffix for async methods
   Domain: Sistema de Gestión de Vacantes (SGV) — recruitment, applications, skill compatibility, organizational structure
+  Provider: Pomelo.EntityFrameworkCore.MySql 9.0.0 (SQL Server is NOT supported)
+  EF Core packages: pinned to 9.x (Pomelo 9 requires EF relational >= 9.0.0 && < 9.0.999)
 
 strict_tdd: true
 

@@ -9,7 +9,7 @@ public sealed class OcupacionConfiguracion : IEntityTypeConfiguration<Ocupacion>
     public void Configure(EntityTypeBuilder<Ocupacion> builder)
     {
         builder.ToTable("Ocupaciones", table =>
-            table.HasCheckConstraint("CK_Ocupaciones_Fechas", "[FechaFin] IS NULL OR [FechaFin] >= [FechaInicio]"));
+            table.HasCheckConstraint("CK_Ocupaciones_Fechas", "`FechaFin` IS NULL OR `FechaFin` >= `FechaInicio`"));
         builder.ConfigurarId();
         builder.ConfigurarAuditoria();
 
@@ -26,8 +26,19 @@ public sealed class OcupacionConfiguracion : IEntityTypeConfiguration<Ocupacion>
             .HasForeignKey(e => e.PuestoId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(e => e.PuestoId).IsUnique().HasFilter("[FechaFin] IS NULL AND [IsDeleted] = 0");
-        builder.HasIndex(e => e.PersonaId).IsUnique().HasFilter("[FechaFin] IS NULL AND [IsDeleted] = 0");
+        // MySQL does not support filtered indexes. Use generated columns that
+        // are NULL when the ocupacion is not active (ended or soft-deleted) so
+        // the unique index enforces one active ocupacion per puesto/persona.
+        builder.Property<int?>("ActivePuestoIdUnique")
+            .HasComputedColumnSql("CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActivePuestoIdUnique").IsUnique();
+
+        builder.Property<int?>("ActivePersonaIdUnique")
+            .HasComputedColumnSql("CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActivePersonaIdUnique").IsUnique();
+
         builder.HasIndex(e => new { e.PuestoId, e.FechaInicio, e.FechaFin });
         builder.HasIndex(e => new { e.PersonaId, e.FechaInicio, e.FechaFin });
     }

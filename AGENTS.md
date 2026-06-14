@@ -2,41 +2,44 @@
 
 ## Estructura del Proyecto y Organización
 
-Este repositorio actualmente contiene artefactos de planificación para SGV, no código de aplicación.
+Este repositorio contiene la solución .NET 10 para SGV (Sistema de Gestión de Vacantes) con Clean Architecture.
 
+- `src/SGV.Dominio/`: modelo de dominio y reglas de negocio.
+- `src/SGV.Aplicacion/`: lógica de aplicación y servicios.
+- `src/SGV.Infraestructura/`: persistencia EF Core con Pomelo/MySQL 8, migraciones y configuraciones.
+- `tests/SGV.Tests/`: pruebas xUnit para dominio, aplicación y persistencia.
 - `openspec/config.yaml`: configuración de OpenSpec para trabajo guiado por especificaciones.
 - `openspec/changes/<nombre-del-cambio>/`: cambios propuestos con `proposal.md`, `design.md`, `tasks.md` y especificaciones delta.
-- `openspec/changes/<nombre-del-cambio>/specs/<capacidad>/spec.md`: escenarios de requisitos para una capacidad.
-- `.codex/skills/`: habilidades locales de Codex usadas por colaboradores y agentes.
-
-Cuando comience la implementación, ubica el código fuente en una estructura clara como `src/`, las pruebas en `tests/` y las migraciones cerca del proyecto de infraestructura.
+- `docs/`: documentación técnica y scripts de migración SQL.
 
 ## Comandos de Construcción, Prueba y Desarrollo
 
-Todavía no existe una aplicación construible. Comandos útiles para el estado actual:
-
-- `rg --files`: lista rápidamente los archivos del workspace.
-- `git status --short`: muestra cambios pendientes.
-- `openspec status --change <nombre-del-cambio>`: revisa el avance de OpenSpec cuando el CLI esté instalado.
-- `openspec validate --change <nombre-del-cambio>`: valida un cambio antes de implementarlo cuando esté disponible.
-
-No agregues comandos de compilación hasta que exista la solución .NET. Cuando se incorpore, documenta comandos exactos como `dotnet build`, `dotnet test` y los comandos de migraciones.
+- `dotnet build`: compila toda la solución.
+- `dotnet test`: ejecuta las pruebas xUnit.
+- `dotnet test --collect:"XPlat Code Coverage"`: ejecuta pruebas con cobertura.
+- `dotnet ef migrations add <Nombre> --project src/SGV.Infraestructura/SGV.Infraestructura.csproj --startup-project src/SGV.Infraestructura/SGV.Infraestructura.csproj --output-dir Persistencia/Migraciones`: genera una nueva migración.
+- `dotnet ef migrations script --project src/SGV.Infraestructura/SGV.Infraestructura.csproj --startup-project src/SGV.Infraestructura/SGV.Infraestructura.csproj --idempotent --output docs/migracion-inicial-sgv.sql`: genera el script SQL idempotente.
 
 ## Estilo de Código y Convenciones de Nombres
 
-Usa Markdown conciso con encabezados descriptivos para documentos de planificación. Nombra los cambios OpenSpec en formato kebab case, por ejemplo `design-sgv-database`. Mantén las carpetas de capacidades en minúsculas y con nombres específicos, como `sgv-database`.
-
-Para futuro código .NET, usa convenciones estándar de C#: indentación de cuatro espacios, PascalCase para tipos y miembros públicos, camelCase para variables locales y parámetros, y métodos asíncronos terminados en `Async`.
+Se usan convenciones estándar de C#: indentación de cuatro espacios, PascalCase para tipos y miembros públicos, camelCase para variables locales y parámetros, y métodos asíncronos terminados en `Async`. Los cambios OpenSpec se nombran en kebab case.
 
 ## Guías de Pruebas
 
-Todavía no hay marco de pruebas configurado. La implementación futura debe incluir pruebas unitarias para reglas de dominio, pruebas de persistencia para mapeos y restricciones de EF Core, y pruebas de migración contra SQL Server. Nombra las pruebas por comportamiento, por ejemplo `CalcularCompatibilidad_DevuelveCoincidenciaParcial_CuandoFaltaNivelObligatorio`.
+Las pruebas usan xUnit 2.9.2. Se incluyen pruebas unitarias para reglas de dominio, pruebas de persistencia para mapeos y restricciones de EF Core con Pomelo/MySQL, y pruebas de compatibilidad de habilidades. Las migraciones se generan contra MySQL 8.
+
+## Stack Técnico
+
+- .NET 10 (`net10.0`), SDK 10.0.300
+- Entity Framework Core 9.x (paquetes relacionales en 9.x)
+- Pomelo Entity Framework Core MySql 9.0.0
+- MySQL 8 como proveedor de base de datos
+- ASP.NET Core Identity con EF Core
+- xUnit 2.9.2 para pruebas
 
 ## Confirmaciones y Solicitudes de Cambio
 
-El repositorio aún no tiene historial de confirmaciones, por lo que no existe una convención local establecida. Usa mensajes breves en imperativo, opcionalmente con alcance, como `docs: agregar guia del repositorio` o `spec: definir requisitos de vacantes`.
-
-Las solicitudes de cambio deben incluir resumen, artefactos OpenSpec modificados, resultados de validación, issues o decisiones vinculadas, y capturas solo cuando haya cambios de UI.
+Usa mensajes breves en imperativo con conventional commits, por ejemplo `feat: agregar modelo de vacantes` o `fix: corregir indice unico MySQL`.
 
 ## Instrucciones para Agentes
 
