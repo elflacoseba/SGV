@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Seguridad;
+using SGV.Infraestructura;
 using SGV.Infraestructura.Persistencia;
 using SGV.Api.Seguridad;
 
@@ -32,6 +33,9 @@ builder.Services.AddDbContext<SgvDbContext>((sp, options) =>
 
 // Anonymous / system user for audit trail
 builder.Services.AddScoped<IUsuarioActual, UsuarioActualAnonimo>();
+
+// Infrastructure services (repositories, UoW, query services)
+builder.Services.AddInfraestructuraServicios();
 
 var app = builder.Build();
 

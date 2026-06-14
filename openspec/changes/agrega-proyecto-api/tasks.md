@@ -32,16 +32,16 @@ Chain strategy: stacked-to-develop
 
 ## Phase 2: Application Contracts
 
-- [ ] 2.1 RED: add `tests/SGV.Tests/Aplicacion/Organizacion/*ServicioConsultaTests.cs` and `Habilidades/HabilidadesServicioConsultaTests.cs` for list/detail, empty collection, and not-found behavior.
-- [ ] 2.2 GREEN: create `src/SGV.Aplicacion/Comun/Persistencia/IReadOnlyRepository.cs` and `IUnitOfWork.cs` with async/cancellation contracts.
-- [ ] 2.3 GREEN: create DTOs, repository interfaces, and read services under `src/SGV.Aplicacion/Organizacion/Consultas/*` and `src/SGV.Aplicacion/Habilidades/Consultas/*`.
-- [ ] 2.4 REFACTOR: keep service mappings consumer-safe and remove audit/internal fields from all DTO contracts.
+- [x] 2.1 RED: add `tests/SGV.Tests/Aplicacion/Organizacion/*ServicioConsultaTests.cs` and `Habilidades/HabilidadesServicioConsultaTests.cs` for list/detail, empty collection, and not-found behavior.
+- [x] 2.2 GREEN: create `src/SGV.Aplicacion/Comun/Persistencia/IReadOnlyRepository.cs` and `IUnitOfWork.cs` with async/cancellation contracts.
+- [x] 2.3 GREEN: create DTOs, repository interfaces, and read services under `src/SGV.Aplicacion/Organizacion/Consultas/*` and `src/SGV.Aplicacion/Habilidades/Consultas/*`.
+- [x] 2.4 REFACTOR: keep service mappings consumer-safe and remove audit/internal fields from all DTO contracts.
 
 ## Phase 3: Infrastructure Read Model
 
-- [ ] 3.1 RED: add MySQL integration tests in `tests/SGV.Tests/Persistencia/*RepositoryTests.cs` covering `IsDeleted`, `IsActive`, and `Puesto` related summaries.
-- [ ] 3.2 GREEN: implement `ReadOnlyRepository`, `UnitOfWork`, and entity repositories in `src/SGV.Infraestructura/Persistencia/Repositorios/` using `AsNoTracking` and entity-specific includes/order.
-- [ ] 3.3 GREEN: create `src/SGV.Infraestructura/DependencyInjection.cs` and register repositories/services/UoW/interceptor-compatible dependencies.
+- [x] 3.1 RED: add MySQL integration tests in `tests/SGV.Tests/Persistencia/*RepositoryTests.cs` covering `IsDeleted`, `IsActive`, and `Puesto` related summaries.
+- [x] 3.2 GREEN: implement `ReadOnlyRepository`, `UnitOfWork`, and entity repositories in `src/SGV.Infraestructura/Persistencia/Repositorios/` using `AsNoTracking` and entity-specific includes/order.
+- [x] 3.3 GREEN: create `src/SGV.Infraestructura/DependencyInjection.cs` and register repositories/services/UoW/interceptor-compatible dependencies.
 
 ## Phase 4: API Endpoints
 
