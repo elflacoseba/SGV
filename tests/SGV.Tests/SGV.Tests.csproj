@@ -3,6 +3,7 @@
     <ProjectReference Include="..\..\src\SGV.Dominio\SGV.Dominio.csproj" />
     <ProjectReference Include="..\..\src\SGV.Aplicacion\SGV.Aplicacion.csproj" />
     <ProjectReference Include="..\..\src\SGV.Infraestructura\SGV.Infraestructura.csproj" />
+    <ProjectReference Include="..\..\src\SGV.Api\SGV.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -10,6 +11,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
   </ItemGroup>
 
   <PropertyGroup>
