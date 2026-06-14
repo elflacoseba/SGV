@@ -1,20 +1,43 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Tech stack: C# 12, .NET 9, ASP.NET Core, Entity Framework Core 9.0, SQL Server
+  Architecture: Clean Architecture (Dominio / Aplicacion / Infraestructura)
+  Nullable: enabled
+  ImplicitUsings: enabled
+  Conventions: PascalCase for public members, camelCase for locals/params, Async suffix for async methods
+  Domain: Sistema de Gestión de Vacantes (SGV) — recruitment, applications, skill compatibility, organizational structure
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+strict_tdd: true
+
+testing:
+  runner: xUnit 2.9.2
+  command: dotnet test
+  coverage: coverlet 6.0.2
+  coverage_command: dotnet test --collect:"XPlat Code Coverage"
+  layers:
+    unit: xUnit
+  quality:
+    linter: false
+    type_checker: false
+    formatter: false
+
+rules:
+  proposal:
+    - Keep proposals concise and focused on the change scope
+    - Always include a "Non-goals" section
+  spec:
+    - Write scenarios in Given/When/Then format
+    - Each scenario must be independently testable
+  design:
+    - Follow Clean Architecture principles
+    - Reference specific projects in the solution
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - Each task must be independently testable
+  apply:
+    - Run dotnet build before creating commits
+    - Run dotnet test before marking apply complete
+  verify:
+    - All tests must pass before archiving
+    - Verify behavior matches spec scenarios
