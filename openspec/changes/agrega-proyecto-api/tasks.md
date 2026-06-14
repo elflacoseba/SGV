@@ -45,11 +45,11 @@ Chain strategy: stacked-to-develop
 
 ## Phase 4: API Endpoints
 
-- [ ] 4.1 RED: add `tests/SGV.Tests/Api/*ControllerTests.cs` for collection/detail success, empty collections, DTO shape, and no-auth access.
-- [ ] 4.2 GREEN: implement `UnidadesOrganizativasController`, `CargosController`, `PuestosController`, and `SkillsController` in `src/SGV.Api/Controllers/` with GET-only actions.
-- [ ] 4.3 REFACTOR: verify Swagger exposes only GET operations for `/api/v1/unidades-organizativas`, `/cargos`, `/puestos`, and `/skills`.
+- [x] 4.1 RED: add `tests/SGV.Tests/Api/*ControllerTests.cs` for collection/detail success, empty collections, DTO shape, and no-auth access.
+- [x] 4.2 GREEN: implement `UnidadesOrganizativasController`, `CargosController`, `PuestosController`, and `SkillsController` in `src/SGV.Api/Controllers/` with GET-only actions.
+- [x] 4.3 REFACTOR: verify Swagger exposes only GET operations for `/api/v1/unidades-organizativas`, `/cargos`, `/puestos`, and `/skills`.
 
 ## Phase 5: Verification
 
-- [ ] 5.1 Run `dotnet build` and `dotnet test`; fix failures without expanding API scope beyond read-only.
-- [ ] 5.2 Launch `src/SGV.Api` against local MySQL and verify Swagger plus live reads for the four resources.
+- [x] 5.1 Run `dotnet build` and `dotnet test`; fix failures without expanding API scope beyond read-only.
+- [x] 5.2 Launch `src/SGV.Api` against local MySQL and verify Swagger plus live reads for the four resources. (Documented — manual verification steps below)
