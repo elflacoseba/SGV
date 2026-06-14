@@ -1,49 +1,49 @@
-# Tasks: Update to .NET 10 and Replace SQL Server with MySQL/Pomelo
+# Tareas: Actualización a .NET 10 y reemplazo de SQL Server por MySQL/Pomelo
 
-## Review Workload Forecast
+## Pronóstico de carga de revisión
 
-| Field | Value |
+| Campo | Valor |
 |-------|-------|
-| Estimated changed lines | 900-1600 |
-| 400-line budget risk | High |
-| Chained PRs recommended | Yes |
-| Suggested split | PR 1 runtime/package retarget → PR 2 provider/tests/modeling → PR 3 migrations/docs |
-| Delivery strategy | ask-on-risk |
-| Chain strategy | pending |
+| Líneas cambiadas estimadas | 900-1600 |
+| Riesgo de presupuesto de 400 líneas | Alto |
+| Chained PRs recomendados | Sí |
+| División sugerida | PR 1 redirección runtime/paquetes → PR 2 proveedor/tests/modelado → PR 3 migraciones/docs |
+| Estrategia de entrega | ask-on-risk |
+| Estrategia de cadena | pendiente |
 
-Decision needed before apply: Yes
-Chained PRs recommended: Yes
-Chain strategy: pending
-400-line budget risk: High
+Decisión necesaria antes de apply: Sí
+Chained PRs recomendados: Sí
+Estrategia de cadena: pendiente
+Riesgo de presupuesto de 400 líneas: Alto
 
-### Suggested Work Units
+### Unidades de trabajo sugeridas
 
-| Unit | Goal | Likely PR | Notes |
+| Unidad | Objetivo | PR probable | Notas |
 |------|------|-----------|-------|
-| 1 | Retarget SDK/TFMs and pin EF 9.x | PR 1 | Single reviewable foundation with restore/build/test smoke |
-| 2 | Prove and implement Pomelo/MySQL provider behavior | PR 2 | Depends on PR 1; keep RED/GREEN/REFACTOR tests with model changes |
-| 3 | Replace migrations and update docs/config guidance | PR 3 | Depends on PR 2; generated migration diff likely dominates size |
+| 1 | Redirigir SDK/TFMs y fijar EF 9.x | PR 1 | Base única revisable con smoke de restore/Build/test |
+| 2 | Probar e implementar comportamiento del proveedor Pomelo/MySQL | PR 2 | Depende del PR 1; mantener tests RED/GREEN/REFACTOR con cambios de modelo |
+| 3 | Reemplazar migraciones y actualizar guía de docs/config | PR 3 | Depende del PR 2; el diff de migración generado probablemente domine el tamaño |
 
-## Phase 1: Foundation
+## Fase 1: Fundación
 
-- [ ] 1.1 Update `global.json`, `src/SGV.Dominio/SGV.Dominio.csproj`, `src/SGV.Aplicacion/SGV.Aplicacion.csproj`, `src/SGV.Infraestructura/SGV.Infraestructura.csproj`, and `tests/SGV.Tests/SGV.Tests.csproj` to `net10.0`.
-- [ ] 1.2 Replace `Microsoft.EntityFrameworkCore.SqlServer` with `Pomelo.EntityFrameworkCore.MySql` in `src/SGV.Infraestructura/SGV.Infraestructura.csproj`, keeping EF/Identity/Design packages on 9.x.
-- [ ] 1.3 Verify restore/build package resolution on `SGV.slnx` so EF relational dependencies stay 9.x under .NET 10.
+- [ ] 1.1 Actualizar `global.json`, `src/SGV.Dominio/SGV.Dominio.csproj`, `src/SGV.Aplicacion/SGV.Aplicacion.csproj`, `src/SGV.Infraestructura/SGV.Infraestructura.csproj` y `tests/SGV.Tests/SGV.Tests.csproj` a `net10.0`.
+- [ ] 1.2 Reemplazar `Microsoft.EntityFrameworkCore.SqlServer` por `Pomelo.EntityFrameworkCore.MySql` en `src/SGV.Infraestructura/SGV.Infraestructura.csproj`, manteniendo paquetes EF/Identity/Design en 9.x.
+- [ ] 1.3 Verificar resolución de paquetes restore/Build en `SGV.slnx` para que las dependencias EF relational permanezcan en 9.x bajo .NET 10.
 
-## Phase 2: RED
+## Fase 2: RED
 
-- [ ] 2.1 Extend `tests/SGV.Tests/Persistencia/ModeloPersistenciaTests.cs` with failing assertions for Pomelo provider selection and MySQL-safe uniqueness/filter behavior from the spec scenarios.
-- [ ] 2.2 Add a failing migration/script verification test in `tests/SGV.Tests/Persistencia/ModeloPersistenciaTests.cs` or a sibling persistence test file for MySQL-compatible artifacts.
-- [ ] 2.3 Mark or gate the real-provider test path in `tests/SGV.Tests/Persistencia/` so MySQL 8 verification is explicit when the server is unavailable.
+- [ ] 2.1 Extender `tests/SGV.Tests/Persistencia/ModeloPersistenciaTests.cs` con aserciones fallidas para selección de proveedor Pomelo y comportamiento de unicidad/filtros seguro para MySQL desde los escenarios de spec.
+- [ ] 2.2 Agregar un test fallido de verificación de migración/script en `tests/SGV.Tests/Persistencia/ModeloPersistenciaTests.cs` o en un archivo de test de persistencia hermano para artefactos compatibles con MySQL.
+- [ ] 2.3 Marcar o condicionar la ruta de test de proveedor real en `tests/SGV.Tests/Persistencia/` para que la verificación MySQL 8 sea explícita cuando el servidor no esté disponible.
 
-## Phase 3: GREEN
+## Fase 3: GREEN
 
-- [ ] 3.1 Update `src/SGV.Infraestructura/Persistencia/SgvDbContextFactory.cs` to use `UseMySql`, `ConnectionStrings:Default`, and `Database:ServerVersion` with a fixed MySQL 8 server version.
-- [ ] 3.2 Refactor SQL Server-specific EF modeling in `src/SGV.Infraestructura/Persistencia/Configuraciones/CargoConfiguracion.cs`, `PuestoConfiguracion.cs`, `PostulanteConfiguracion.cs`, `UnidadOrganizativaConfiguracion.cs`, and related files that use `HasFilter`/check SQL fragments.
-- [ ] 3.3 Replace `src/SGV.Infraestructura/Persistencia/Migraciones/20260613022804_InicialSgvo*.cs`, `20260613022933_AgregarDatosSemillaBase*.cs`, and `SgvDbContextModelSnapshot.cs` with a fresh Pomelo baseline.
+- [ ] 3.1 Actualizar `src/SGV.Infraestructura/Persistencia/SgvDbContextFactory.cs` para usar `UseMySql`, `ConnectionStrings:Default` y `Database:ServerVersion` con una versión fija de servidor MySQL 8.
+- [ ] 3.2 Refactorizar modelado EF específico de SQL Server en `src/SGV.Infraestructura/Persistencia/Configuraciones/CargoConfiguracion.cs`, `PuestoConfiguracion.cs`, `PostulanteConfiguracion.cs`, `UnidadOrganizativaConfiguracion.cs` y archivos relacionados que usan fragmentos SQL `HasFilter`/check.
+- [ ] 3.3 Reemplazar `src/SGV.Infraestructura/Persistencia/Migraciones/20260613022804_InicialSgvo*.cs`, `20260613022933_AgregarDatosSemillaBase*.cs` y `SgvDbContextModelSnapshot.cs` por una línea base Pomelo nueva.
 
-## Phase 4: REFACTOR + Verify
+## Fase 4: REFACTOR + Verificar
 
-- [ ] 4.1 Clean persistence tests and supporting infrastructure in `tests/SGV.Tests/Persistencia/ModeloPersistenciaTests.cs` and `src/SGV.Infraestructura/Persistencia/SgvDbContext.cs` after GREEN passes, without changing behavior.
-- [ ] 4.2 Update `docs/migracion-inicial-sgv.sql`, `docs/decisiones-implementacion.md`, `AGENTS.md`, and `openspec/config.yaml` to state .NET 10 + MySQL/Pomelo + EF Core 9.x.
-- [ ] 4.3 Run a repository-wide SQL Server reference sweep and verify `dotnet test` covers the modified `sgv-database` scenarios before handing off to `sdd-apply`.
+- [ ] 4.1 Limpiar tests de persistencia e infraestructura de soporte en `tests/SGV.Tests/Persistencia/ModeloPersistenciaTests.cs` y `src/SGV.Infraestructura/Persistencia/SgvDbContext.cs` después de que GREEN pase, sin cambiar comportamiento.
+- [ ] 4.2 Actualizar `docs/migracion-inicial-sgv.sql`, `docs/decisiones-implementacion.md`, `AGENTS.md` y `openspec/config.yaml` para indicar .NET 10 + MySQL/Pomelo + EF Core 9.x.
+- [ ] 4.3 Ejecutar un barrido de referencias SQL Server en todo el repositorio y verificar que `dotnet test` cubre los escenarios modificados de `sgv-database` antes de transferir a `sdd-apply`.

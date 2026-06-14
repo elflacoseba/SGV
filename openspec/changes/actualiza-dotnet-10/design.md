@@ -1,22 +1,22 @@
-# Design: Update to .NET 10 and Replace SQL Server with MySQL/Pomelo
+# Diseño: Actualización a .NET 10 y reemplazo de SQL Server por MySQL/Pomelo
 
-## Technical Approach
+## Enfoque técnico
 
-Retarget the four SGV projects (`SGV.Dominio`, `SGV.Aplicacion`, `SGV.Infraestructura`, `SGV.Tests`) to `net10.0`, align `global.json` to a .NET 10 SDK, and keep all EF Core-related packages on compatible `9.x` versions. Replace SQL Server as the active persistence provider with Pomelo/MySQL in infrastructure, migrations, generated SQL documentation, OpenSpec, and repository guidance. Business/domain behavior stays unchanged.
+Redirigir los cuatro proyectos de SGV (`SGV.Dominio`, `SGV.Aplicacion`, `SGV.Infraestructura`, `SGV.Tests`) a `net10.0`, alinear `global.json` con un SDK de .NET 10 y mantener todos los paquetes relacionados con EF Core en versiones `9.x` compatibles. Reemplazar SQL Server como proveedor de persistencia activo por Pomelo/MySQL en infraestructura, migraciones, documentación SQL generada, OpenSpec y guía del repositorio. El comportamiento de negocio/dominio se mantiene sin cambios.
 
-Evidence: only `SGV.Infraestructura` owns EF packages/provider configuration; `SgvDbContextFactory` uses `UseSqlServer`; migrations/snapshot and `docs/migracion-inicial-sgv.sql` are SQL Server-specific; several EF configurations use SQL Server filtered-index/check SQL syntax.
+Evidencia: solo `SGV.Infraestructura` posee paquetes EF y configuración de proveedor; `SgvDbContextFactory` usa `UseSqlServer`; las migraciones/snapshot y `docs/migracion-inicial-sgv.sql` son específicos de SQL Server; varias configuraciones de EF usan sintaxis SQL de índices filtrados/check propia de SQL Server.
 
-## Architecture Decisions
+## Decisiones de arquitectura
 
-| Decision | Alternatives considered | Rationale |
+| Decisión | Alternativas consideradas | Justificación |
 |---|---|---|
-| Target `net10.0` for every project and pin SDK in `global.json` to a team-approved .NET 10 SDK. | Keep `net9.0`; remove `global.json`. | Scope requires .NET 10 everywhere; pinning avoids accidental SDK drift while keeping restore/build reproducible. |
-| Keep `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore`, and `Pomelo.EntityFrameworkCore.MySql` on `9.x`. | Upgrade EF packages to 10.x. | Pomelo 9 depends on EF relational `>= 9.0.0 && < 9.0.999`; EF 10 would break provider compatibility. |
-| Use Pomelo as the only active provider via `UseMySql` and a configured MySQL 8 server version. | Keep SQL Server side-by-side; use provider auto-detection everywhere. | Proposal rejects SQL Server support. A fixed server version keeps design-time migrations deterministic. |
-| Replace current SQL Server migrations/snapshot with a fresh MySQL/Pomelo migration baseline. | Edit SQL Server migrations in place; add a cross-provider data migration. | Existing artifacts are provider-specific and the repo appears pre-production. A clean provider baseline is safer than hand-translating SQL Server annotations. If production data exists, export/import is an operational task outside this change. |
-| Adapt filtered unique constraints to MySQL-compatible modeling. | Preserve `.HasFilter(...)` SQL Server predicates. | MySQL does not support SQL Server filtered indexes. Preserve business rules through generated-column indexes or provider-specific equivalent patterns validated against MySQL. |
+| Apuntar a `net10.0` en todos los proyectos y fijar el SDK en `global.json` a un SDK de .NET 10 aprobado por el equipo. | Mantener `net9.0`; eliminar `global.json`. | El alcance requiere .NET 10 en todos lados; fijar el SDK evita deriva accidental de versiones y mantiene restore/Build reproducibles. |
+| Mantener `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore` y `Pomelo.EntityFrameworkCore.MySql` en `9.x`. | Actualizar paquetes EF a 10.x. | Pomelo 9 depende de EF relational `>= 9.0.0 && < 9.0.999`; EF 10 rompería la compatibilidad del proveedor. |
+| Usar Pomelo como único proveedor activo mediante `UseMySql` y una versión configurada de servidor MySQL 8. | Mantener SQL Server en paralelo; usar autodetección de proveedor en todos lados. | La propuesta rechaza el soporte de SQL Server. Una versión fija de servidor mantiene deterministas las migraciones en tiempo de diseño. |
+| Reemplazar las migraciones/snapshot actuales de SQL Server por una línea base nueva de migración MySQL/Pomelo. | Editar las migraciones SQL Server en sitio; agregar una migración de datos cross-provider. | Los artefactos existentes son específicos del proveedor y el repositorio parece estar en preproducción. Una línea base limpia del proveedor es más segura que traducir manualmente anotaciones de SQL Server. Si existen datos productivos, exportar/importar es una tarea operativa fuera de este cambio. |
+| Adaptar restricciones únicas filtradas a un modelado compatible con MySQL. | Preservar predicados SQL Server `.HasFilter(...)`. | MySQL no soporta índices filtrados de SQL Server. Preservar reglas de negocio mediante índices sobre columnas generadas o patrones equivalentes específicos del proveedor validados contra MySQL. |
 
-## Data Flow
+## Flujo de datos
 
 ```text
 Tests / app host
@@ -26,52 +26,52 @@ Tests / app host
   -> MySQL schema generated from EF Core 9 model and Pomelo migrations
 ```
 
-## File Changes
+## Cambios en archivos
 
-| File | Action | Description |
+| Archivo | Acción | Descripción |
 |---|---|---|
-| `global.json` | Modify | Pin/select .NET 10 SDK; keep intentional roll-forward policy. |
-| `src/*/*.csproj`, `tests/SGV.Tests/SGV.Tests.csproj` | Modify | Change TFMs to `net10.0`; keep test packages unless verification proves an update is required. |
-| `src/SGV.Infraestructura/SGV.Infraestructura.csproj` | Modify | Remove `Microsoft.EntityFrameworkCore.SqlServer`; add `Pomelo.EntityFrameworkCore.MySql` 9.x; keep EF/Identity EF 9.x. |
-| `src/SGV.Infraestructura/Persistencia/SgvDbContextFactory.cs` | Modify | Replace `UseSqlServer` localdb string with `UseMySql` using a MySQL connection string and fixed MySQL 8 server version. |
-| `src/SGV.Infraestructura/Persistencia/Configuraciones/*.cs` | Modify | Replace SQL Server filter/check SQL fragments with MySQL-compatible expressions; preserve existing domain constraints. |
-| `src/SGV.Infraestructura/Persistencia/Migraciones/*` | Replace | Remove SQL Server-specific migrations/snapshot and generate Pomelo/MySQL artifacts. |
-| `docs/migracion-inicial-sgv.sql`, `docs/decisiones-implementacion.md`, `AGENTS.md` | Modify | Replace SQL Server/.NET 9 guidance with MySQL/Pomelo/.NET 10 guidance. |
-| `openspec/config.yaml`, `openspec/specs/sgv-database/spec.md` | Modify | Update source-of-truth stack and provider requirement. |
-| `tests/SGV.Tests/Persistencia/ModeloPersistenciaTests.cs` | Modify | Assert provider-compatible constraints and migration model behavior, not SQL Server syntax. |
+| `global.json` | Modificar | Fijar/seleccionar SDK de .NET 10; mantener la política de roll-forward intencional. |
+| `src/*/*.csproj`, `tests/SGV.Tests/SGV.Tests.csproj` | Modificar | Cambiar TFMs a `net10.0`; mantener paquetes de test salvo que la verificación demuestre que se requiere una actualización. |
+| `src/SGV.Infraestructura/SGV.Infraestructura.csproj` | Modificar | Eliminar `Microsoft.EntityFrameworkCore.SqlServer`; agregar `Pomelo.EntityFrameworkCore.MySql` 9.x; mantener EF/Identity EF 9.x. |
+| `src/SGV.Infraestructura/Persistencia/SgvDbContextFactory.cs` | Modificar | Reemplazar la cadena localdb de `UseSqlServer` por `UseMySql` usando una cadena de conexión MySQL y una versión fija de servidor MySQL 8. |
+| `src/SGV.Infraestructura/Persistencia/Configuraciones/*.cs` | Modificar | Reemplazar fragmentos SQL de filtros/checks de SQL Server por expresiones compatibles con MySQL; preservar las restricciones de dominio existentes. |
+| `src/SGV.Infraestructura/Persistencia/Migraciones/*` | Reemplazar | Eliminar migraciones/snapshot específicos de SQL Server y generar artefactos Pomelo/MySQL. |
+| `docs/migracion-inicial-sgv.sql`, `docs/decisiones-implementacion.md`, `AGENTS.md` | Modificar | Reemplazar guía de SQL Server/.NET 9 por guía de MySQL/Pomelo/.NET 10. |
+| `openspec/config.yaml`, `openspec/specs/sgv-database/spec.md` | Modificar | Actualizar el stack fuente de verdad y el requisito de proveedor. |
+| `tests/SGV.Tests/Persistencia/ModeloPersistenciaTests.cs` | Modificar | Validar restricciones compatibles con el proveedor y comportamiento del modelo de migración, no sintaxis de SQL Server. |
 
-## Interfaces / Contracts
+## Interfaces / Contratos
 
-No public domain contracts change. Persistence configuration contract becomes:
+No cambian contratos públicos de dominio. El contrato de configuración de persistencia pasa a ser:
 
-- `ConnectionStrings:Default`: MySQL connection string.
-- `Database:ServerVersion`: MySQL version used by Pomelo for SQL generation, defaulting to MySQL 8.0 in development.
+- `ConnectionStrings:Default`: cadena de conexión MySQL.
+- `Database:ServerVersion`: versión de MySQL usada por Pomelo para generación SQL, con valor predeterminado MySQL 8.0 en desarrollo.
 
-## Testing Strategy
+## Estrategia de Testing
 
-| Layer | What to Test | Approach |
+| Capa | Qué probar | Enfoque |
 |---|---|---|
-| Build/restore | `net10.0` and package graph | `dotnet restore`, `dotnet build`; inspect resolved EF/Pomelo versions remain 9.x. |
-| Unit | Domain/application behavior | Existing xUnit tests unchanged except TFM. |
-| Persistence model | MySQL-compatible model, indexes, constraints, migrations | Update model tests; add migration/script generation verification against Pomelo. |
-| Integration | Real provider behavior | Prefer ephemeral MySQL 8 container/local instance for `dotnet test`; skip or mark explicitly when MySQL is unavailable. |
+| Build/restore | `net10.0` y grafo de paquetes | `dotnet restore`, `dotnet build`; inspeccionar que las versiones EF/Pomelo resueltas permanezcan en 9.x. |
+| Unit | Comportamiento de dominio/aplicación | Tests xUnit existentes sin cambios salvo TFM. |
+| Modelo de persistencia | Modelo, índices, restricciones y migraciones compatibles con MySQL | Actualizar tests de modelo; agregar verificación de generación de migración/script contra Pomelo. |
+| Integración | Comportamiento real del proveedor | Preferir contenedor/instancia local efímera de MySQL 8 para `dotnet test`; omitir o marcar explícitamente cuando MySQL no esté disponible. |
 
-## Migration / Rollout
+## Migración / Rollout
 
-1. Retarget TFMs and package references.
-2. Replace provider configuration and MySQL-specific constraint/index modeling.
-3. Regenerate Pomelo migrations/snapshot and SQL script from the EF model.
-4. Update OpenSpec/docs and run repository search for SQL Server references.
-5. Verify restore/build/tests and, when available, apply migrations to a clean MySQL database.
+1. Redirigir TFMs y referencias de paquetes.
+2. Reemplazar configuración de proveedor y modelado de restricciones/índices específicos de MySQL.
+3. Regenerar migraciones/snapshot Pomelo y script SQL desde el modelo EF.
+4. Actualizar OpenSpec/docs y ejecutar búsqueda en el repositorio de referencias a SQL Server.
+5. Verificar restore/Build/tests y, cuando esté disponible, aplicar migraciones sobre una base MySQL limpia.
 
-Rollback: revert the implementation commits to restore `net9.0`, SQL Server packages/provider, previous migrations/snapshot, docs, and specs. If MySQL schema was applied, drop/recreate the MySQL database from backup or discard the clean test database.
+Rollback: revertir los Commits de implementación para restaurar `net9.0`, paquetes/proveedor SQL Server, migraciones/snapshot previos, docs y specs. Si se aplicó el esquema MySQL, eliminar/recrear la base MySQL desde backup o descartar la base limpia de test.
 
-## Risks
+## Riesgos
 
-- MySQL filtered-index gap can weaken uniqueness rules if modeled casually; tests must prove equivalent behavior.
-- Pomelo/EF version drift to 10.x will break compatibility; package verification is mandatory.
-- Exact MySQL server version and CI database availability are not defined yet; design assumes MySQL 8.x and local/ephemeral verification.
+- La brecha de índices filtrados de MySQL puede debilitar reglas de unicidad si se modela de manera superficial; los tests deben probar comportamiento equivalente.
+- La deriva de versiones Pomelo/EF hacia 10.x romperá la compatibilidad; la verificación de paquetes es obligatoria.
+- La versión exacta del servidor MySQL y la disponibilidad de base de datos en CI aún no están definidas; el diseño asume MySQL 8.x y verificación local/efímera.
 
-## Open Questions
+## Preguntas abiertas
 
-- [ ] Which exact MySQL 8.x version should CI and local development standardize on?
+- [ ] ¿En qué versión exacta de MySQL 8.x deberían estandarizarse CI y el desarrollo local?

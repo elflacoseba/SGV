@@ -1,69 +1,69 @@
-# Proposal: Update to .NET 10 and Replace SQL Server with MySQL/Pomelo
+# Propuesta: Actualización a .NET 10 y reemplazo de SQL Server por MySQL/Pomelo
 
-## Intent
+## Intención
 
-Move SGV to .NET 10 and switch persistence from SQL Server to MySQL/Pomelo. EF Core-related packages must remain on 9.x because Pomelo 9 requires EF Core relational packages `< 9.0.999`.
+Mover SGV a .NET 10 y cambiar la persistencia de SQL Server a MySQL/Pomelo. Los paquetes relacionados con EF Core deben permanecer en 9.x porque Pomelo 9 requiere paquetes relacionales EF Core `< 9.0.999`.
 
-## Scope
+## Alcance
 
-### In Scope
-- Retarget all .NET projects to `net10.0` and align SDK configuration.
-- Replace SQL Server provider, configuration, migrations, docs, and specs with MySQL/Pomelo.
-- Keep `Microsoft.EntityFrameworkCore*`, Identity EF Core, and Pomelo packages on 9.x, not 10.x.
+### En alcance
+- Redirigir todos los proyectos .NET a `net10.0` y alinear la configuración SDK.
+- Reemplazar proveedor SQL Server, configuración, migraciones, docs y specs por MySQL/Pomelo.
+- Mantener `Microsoft.EntityFrameworkCore*`, Identity EF Core y paquetes Pomelo en 9.x, no 10.x.
 
-### Out of Scope
-- Upgrading EF Core packages to 10.x.
-- Redesigning the SGV domain model or changing business behavior.
-- Production hosting, backup automation, or cloud provisioning.
+### Fuera de alcance
+- Actualizar paquetes EF Core a 10.x.
+- Rediseñar el modelo de dominio SGV o cambiar comportamiento de negocio.
+- Hosting productivo, automatización de backups o aprovisionamiento cloud.
 
-## Non-goals
+## No objetivos
 
-- Do not preserve SQL Server as an active supported provider.
-- Do not rewrite archived OpenSpec audit artifacts unless a later phase requires notes.
+- No preservar SQL Server como proveedor activo soportado.
+- No reescribir artefactos archivados de auditoría OpenSpec salvo que una fase posterior requiera notas.
 
-## Capabilities
+## Capacidades
 
-### New Capabilities
-- None.
+### Nuevas capacidades
+- Ninguna.
 
-### Modified Capabilities
-- `sgv-database`: update compatibility from SQL Server/.NET 9 to MySQL/Pomelo on .NET 10 while preserving EF Core 9.x.
+### Capacidades modificadas
+- `sgv-database`: actualizar compatibilidad de SQL Server/.NET 9 a MySQL/Pomelo sobre .NET 10 preservando EF Core 9.x.
 
-## Approach
+## Enfoque
 
-Retarget projects and SDK settings, replace `Microsoft.EntityFrameworkCore.SqlServer` and `UseSqlServer`, then regenerate or replace provider-specific migrations/snapshot. Update active OpenSpec config/specs and docs to state .NET 10, MySQL/Pomelo, and EF Core 9.x.
+Redirigir proyectos y configuración SDK, reemplazar `Microsoft.EntityFrameworkCore.SqlServer` y `UseSqlServer`, luego regenerar o reemplazar migraciones/snapshot específicos del proveedor. Actualizar configuración/specs activas de OpenSpec y docs para indicar .NET 10, MySQL/Pomelo y EF Core 9.x.
 
-## Affected Areas
+## Áreas afectadas
 
-| Area | Impact | Description |
+| Área | Impacto | Descripción |
 |------|--------|-------------|
-| `global.json`, `*.csproj` | Modified | .NET 10 TFM/SDK alignment; EF packages stay 9.x. |
-| `src/SGV.Infraestructura/` | Modified | Pomelo package, DbContext provider, migrations. |
-| `tests/SGV.Tests/` | Modified | Retargeting and persistence verification updates. |
-| `openspec/config.yaml`, `openspec/specs/sgv-database/spec.md` | Modified | Replace stale .NET 9/SQL Server assumptions. |
-| `docs/`, `AGENTS.md` | Modified | Replace current SQL Server guidance. |
+| `global.json`, `*.csproj` | Modificado | Alineación TFM/SDK de .NET 10; paquetes EF permanecen en 9.x. |
+| `src/SGV.Infraestructura/` | Modificado | Paquete Pomelo, proveedor DbContext, migraciones. |
+| `tests/SGV.Tests/` | Modificado | Redirección TFM y actualizaciones de verificación de persistencia. |
+| `openspec/config.yaml`, `openspec/specs/sgv-database/spec.md` | Modificado | Reemplazar supuestos obsoletos de .NET 9/SQL Server. |
+| `docs/`, `AGENTS.md` | Modificado | Reemplazar guía actual de SQL Server. |
 
-## Risks
+## Riesgos
 
-| Risk | Likelihood | Mitigation |
+| Riesgo | Probabilidad | Mitigación |
 |------|------------|------------|
-| EF 10 installed accidentally | Medium | Pin packages to 9.x and verify dependencies. |
-| Provider migration changes schema | High | Review migrations/snapshot and run MySQL-compatible tests. |
-| SQL Server references remain | Medium | Search repository for SQL Server/provider terms before verification. |
+| EF 10 instalado accidentalmente | Media | Fijar paquetes en 9.x y verificar dependencias. |
+| La migración de proveedor cambia el esquema | Alta | Revisar migraciones/snapshot y ejecutar tests compatibles con MySQL. |
+| Permanecen referencias a SQL Server | Media | Buscar términos de SQL Server/proveedor en el repositorio antes de la verificación. |
 
-## Rollback Plan
+## Plan de Rollback
 
-Revert the change commit(s): restore `net9.0`, SQL Server package/provider configuration, previous migrations/snapshot, and prior OpenSpec/docs references. If MySQL migration was applied, restore from the pre-migration backup or recreate from the previous SQL Server baseline.
+Revertir el/los Commit(s) del cambio: restaurar `net9.0`, paquete/proveedor SQL Server, configuración, migraciones/snapshot previos y referencias OpenSpec/docs anteriores. Si se aplicó la migración MySQL, restaurar desde el backup previo a la migración o recrear desde la línea base previa de SQL Server.
 
-## Dependencies
+## Dependencias
 
-- .NET 10 SDK available in development and CI.
-- `Pomelo.EntityFrameworkCore.MySql` 9.x and compatible EF Core 9.x packages.
-- MySQL verification target or test connection strategy.
+- SDK .NET 10 disponible en desarrollo y CI.
+- `Pomelo.EntityFrameworkCore.MySql` 9.x y paquetes EF Core 9.x compatibles.
+- Objetivo de verificación MySQL o estrategia de conexión de test.
 
-## Success Criteria
+## Criterios de éxito
 
-- [ ] All projects target `net10.0`; EF Core-related packages remain on 9.x.
-- [ ] SQL Server provider/configuration/migration assumptions are replaced with Pomelo/MySQL.
-- [ ] `sgv-database` spec reflects MySQL/Pomelo on .NET 10 with EF Core 9.x.
-- [ ] Build and test verification pass for the updated solution.
+- [ ] Todos los proyectos apuntan a `net10.0`; los paquetes relacionados con EF Core permanecen en 9.x.
+- [ ] Supuestos de proveedor/configuración/migración de SQL Server son reemplazados por Pomelo/MySQL.
+- [ ] La spec `sgv-database` refleja MySQL/Pomelo sobre .NET 10 con EF Core 9.x.
+- [ ] La verificación de Build y tests pasa para la solución actualizada.
