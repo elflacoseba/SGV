@@ -9,7 +9,7 @@ public sealed class NivelHabilidadConfiguracion : IEntityTypeConfiguration<Nivel
     public void Configure(EntityTypeBuilder<NivelHabilidad> builder)
     {
         builder.ToTable("NivelesHabilidad", table =>
-            table.HasCheckConstraint("CK_NivelesHabilidad_ValorNumerico", "[ValorNumerico] BETWEEN 1 AND 4"));
+            table.HasCheckConstraint("CK_NivelesHabilidad_ValorNumerico", "`ValorNumerico` BETWEEN 1 AND 4"));
         builder.ConfigurarId();
 
         builder.Property(e => e.Codigo).HasMaxLength(50).IsRequired();

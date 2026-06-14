@@ -28,6 +28,8 @@ public sealed class VacanteConfiguracion : IEntityTypeConfiguration<Vacante>
         builder.HasIndex(e => e.PuestoId);
         builder.HasIndex(e => e.EstadoVacanteId);
         builder.HasIndex(e => e.FechaApertura);
-        builder.HasIndex(e => new { e.EstadoVacanteId, e.FechaApertura }).HasFilter("[FechaCierre] IS NULL");
+        // MySQL does not support filtered indexes. The composite index
+        // covers the query pattern; application logic enforces FechaCierre.
+        builder.HasIndex(e => new { e.EstadoVacanteId, e.FechaApertura });
     }
 }

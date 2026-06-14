@@ -9,7 +9,7 @@ public sealed class PuestoConfiguracion : IEntityTypeConfiguration<Puesto>
     public void Configure(EntityTypeBuilder<Puesto> builder)
     {
         builder.ToTable("Puestos", table =>
-            table.HasCheckConstraint("CK_Puestos_PuestoSuperior", "[PuestoSuperiorId] IS NULL OR [PuestoSuperiorId] <> [Id]"));
+            table.HasCheckConstraint("CK_Puestos_PuestoSuperior", "`PuestoSuperiorId` IS NULL OR `PuestoSuperiorId` <> `Id`"));
         builder.ConfigurarId();
         builder.ConfigurarAuditoria();
 
@@ -32,7 +32,11 @@ public sealed class PuestoConfiguracion : IEntityTypeConfiguration<Puesto>
             .HasForeignKey(e => e.PuestoSuperiorId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(e => e.Codigo).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Property<string?>("ActiveCodigoUnique")
+            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActiveCodigoUnique").IsUnique();
+
         builder.HasIndex(e => e.UnidadOrganizativaId);
         builder.HasIndex(e => e.CargoId);
         builder.HasIndex(e => e.PuestoSuperiorId);

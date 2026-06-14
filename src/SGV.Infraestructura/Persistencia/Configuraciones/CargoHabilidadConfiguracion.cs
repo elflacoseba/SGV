@@ -9,7 +9,7 @@ public sealed class CargoHabilidadConfiguracion : IEntityTypeConfiguration<Cargo
     public void Configure(EntityTypeBuilder<CargoHabilidad> builder)
     {
         builder.ToTable("CargoHabilidades", table =>
-            table.HasCheckConstraint("CK_CargoHabilidades_Ponderacion", "[Ponderacion] > 0"));
+            table.HasCheckConstraint("CK_CargoHabilidades_Ponderacion", "`Ponderacion` > 0"));
         builder.ConfigurarId();
 
         builder.Property(e => e.Ponderacion).HasPrecision(5, 2);

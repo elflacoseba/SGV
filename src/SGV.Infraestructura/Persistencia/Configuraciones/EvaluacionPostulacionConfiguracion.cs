@@ -10,9 +10,9 @@ public sealed class EvaluacionPostulacionConfiguracion : IEntityTypeConfiguratio
     {
         builder.ToTable("EvaluacionesPostulacion", table =>
         {
-            table.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeTecnico", "[PuntajeTecnico] IS NULL OR ([PuntajeTecnico] >= 0 AND [PuntajeTecnico] <= 100)");
-            table.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeEntrevista", "[PuntajeEntrevista] IS NULL OR ([PuntajeEntrevista] >= 0 AND [PuntajeEntrevista] <= 100)");
-            table.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeCompatibilidad", "[PuntajeCompatibilidad] IS NULL OR ([PuntajeCompatibilidad] >= 0 AND [PuntajeCompatibilidad] <= 100)");
+            table.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeTecnico", "`PuntajeTecnico` IS NULL OR (`PuntajeTecnico` >= 0 AND `PuntajeTecnico` <= 100)");
+            table.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeEntrevista", "`PuntajeEntrevista` IS NULL OR (`PuntajeEntrevista` >= 0 AND `PuntajeEntrevista` <= 100)");
+            table.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeCompatibilidad", "`PuntajeCompatibilidad` IS NULL OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)");
         });
         builder.ConfigurarId();
         builder.ConfigurarAuditoria();

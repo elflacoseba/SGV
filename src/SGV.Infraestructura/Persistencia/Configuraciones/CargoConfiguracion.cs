@@ -17,7 +17,14 @@ public sealed class CargoConfiguracion : IEntityTypeConfiguration<Cargo>
         builder.Property(e => e.Nivel).HasMaxLength(50);
         builder.Property(e => e.Descripcion).HasMaxLength(1000);
 
-        builder.HasIndex(e => e.Codigo).IsUnique().HasFilter("[IsDeleted] = 0");
+        // MySQL does not support filtered indexes. Use a generated column
+        // that is NULL for soft-deleted rows so the unique index allows
+        // multiple deleted records while enforcing uniqueness among active ones.
+        builder.Property<string?>("ActiveCodigoUnique")
+            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActiveCodigoUnique").IsUnique();
+
         builder.HasIndex(e => e.Nombre);
     }
 }

@@ -9,7 +9,7 @@ public sealed class PostulacionConfiguracion : IEntityTypeConfiguration<Postulac
     public void Configure(EntityTypeBuilder<Postulacion> builder)
     {
         builder.ToTable("Postulaciones", table =>
-            table.HasCheckConstraint("CK_Postulaciones_PuntajeCompatibilidad", "[PuntajeCompatibilidad] IS NULL OR ([PuntajeCompatibilidad] >= 0 AND [PuntajeCompatibilidad] <= 100)"));
+            table.HasCheckConstraint("CK_Postulaciones_PuntajeCompatibilidad", "`PuntajeCompatibilidad` IS NULL OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)"));
         builder.ConfigurarId();
         builder.ConfigurarAuditoria();
 

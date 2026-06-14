@@ -24,7 +24,13 @@ public sealed class PostulanteConfiguracion : IEntityTypeConfiguration<Postulant
             .HasForeignKey(e => e.PersonaId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(e => e.PersonaId).IsUnique().HasFilter("[PersonaId] IS NOT NULL AND [IsDeleted] = 0");
+        // MySQL does not support filtered indexes. Use a generated column
+        // that is NULL when PersonaId is NULL or the record is soft-deleted.
+        builder.Property<Guid?>("ActivePersonaIdUnique")
+            .HasComputedColumnSql("CASE WHEN `PersonaId` IS NOT NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END")
+            .IsRequired(false);
+        builder.HasIndex("ActivePersonaIdUnique").IsUnique();
+
         builder.HasIndex(e => new { e.Apellidos, e.Nombres });
         builder.HasIndex(e => e.Email);
     }
