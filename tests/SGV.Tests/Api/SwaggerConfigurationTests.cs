@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
@@ -60,5 +61,48 @@ public sealed class SwaggerConfigurationTests
         Assert.DoesNotContain("security", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("bearer", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("oauth2", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SwaggerDocument_ListsAllReadOnlyEndpoints()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        var actualPaths = new HashSet<string>();
+        foreach (var path in paths.EnumerateObject())
+        {
+            actualPaths.Add(path.Name);
+        }
+
+        Assert.Contains("/api/v1/unidades-organizativas", actualPaths);
+        Assert.Contains("/api/v1/cargos", actualPaths);
+        Assert.Contains("/api/v1/puestos", actualPaths);
+        Assert.Contains("/api/v1/skills", actualPaths);
+    }
+
+    [Fact]
+    public async Task SwaggerDocument_OnlyExposesGetOperations()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        foreach (var path in paths.EnumerateObject())
+        {
+            foreach (var operation in path.Value.EnumerateObject())
+            {
+                Assert.Equal("get", operation.Name, ignoreCase: true);
+            }
+        }
     }
 }

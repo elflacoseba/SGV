@@ -8,34 +8,62 @@ namespace SGV.Tests.Persistencia;
 public sealed class UnidadOrganizativaRepositoryTests
 {
     [MySqlFact]
-    public async Task ListAllAsync_ExcluyeEntidadesEliminadas()
+    public async Task ListAllAsync_ExcluyeEntidadesInactivasYEliminadas()
     {
         await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var visible = RepositoryTestData.CreateUnidadOrganizativa("UO-VISIBLE");
+        var inactive = RepositoryTestData.CreateUnidadOrganizativa("UO-INACTIVE", isActive: false);
+        var deleted = RepositoryTestData.CreateUnidadOrganizativa("UO-DELETED", isDeleted: true);
 
-        // Ensure test entity does not exist
-        var repo = new UnidadOrganizativaRepository(context);
-        var entidades = await repo.ListAllAsync(default);
+        await context.UnidadesOrganizativas.AddRangeAsync([visible, inactive, deleted]);
+        await context.SaveChangesAsync();
 
-        // Seed data should include UnidadesOrganizativas that are not deleted
-        Assert.All(entidades, e => Assert.False(e.IsDeleted));
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            var entidades = await repo.ListAllAsync(default);
+
+            Assert.Contains(entidades, entidad => entidad.Id == visible.Id);
+            Assert.DoesNotContain(entidades, entidad => entidad.Id == inactive.Id);
+            Assert.DoesNotContain(entidades, entidad => entidad.Id == deleted.Id);
+            Assert.All(entidades, entidad =>
+            {
+                Assert.True(entidad.IsActive);
+                Assert.False(entidad.IsDeleted);
+            });
+        }
+        finally
+        {
+            context.UnidadesOrganizativas.RemoveRange(visible, inactive, deleted);
+            await context.SaveChangesAsync();
+        }
     }
 
     [MySqlFact]
     public async Task GetByIdAsync_RetornaEntidadCuandoExiste()
     {
         await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var expected = RepositoryTestData.CreateUnidadOrganizativa("UO-BY-ID");
 
-        var repo = new UnidadOrganizativaRepository(context);
-        var entidades = await repo.ListAllAsync(default);
+        await context.UnidadesOrganizativas.AddAsync(expected);
+        await context.SaveChangesAsync();
 
-        if (entidades.Count > 0)
+        try
         {
-            var primera = entidades[0];
-            var encontrada = await repo.GetByIdAsync(primera.Id, default);
+            var repo = new UnidadOrganizativaRepository(context);
+            var encontrada = await repo.GetByIdAsync(expected.Id, default);
 
             Assert.NotNull(encontrada);
-            Assert.Equal(primera.Id, encontrada!.Id);
-            Assert.Equal(primera.Codigo, encontrada.Codigo);
+            Assert.Equal(expected.Id, encontrada!.Id);
+            Assert.Equal(expected.Codigo, encontrada.Codigo);
+            Assert.Equal(expected.Nombre, encontrada.Nombre);
+            Assert.True(encontrada.IsActive);
+            Assert.False(encontrada.IsDeleted);
+        }
+        finally
+        {
+            context.UnidadesOrganizativas.Remove(expected);
+            await context.SaveChangesAsync();
         }
     }
 
