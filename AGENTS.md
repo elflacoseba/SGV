@@ -41,3 +41,4 @@ Las solicitudes de cambio deben incluir resumen, artefactos OpenSpec modificados
 ## Instrucciones para Agentes
 
 Antes de editar, revisa los artefactos OpenSpec existentes y preserva cambios del usuario. No implementes código de base de datos ante una solicitud solo de planificación. Si el CLI de OpenSpec no está disponible, crea manualmente los archivos esperados e informa que no se pudo ejecutar la validación.
+Toda la salida de información debe ser generada en español.
