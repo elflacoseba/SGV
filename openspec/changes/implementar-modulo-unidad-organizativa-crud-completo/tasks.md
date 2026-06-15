@@ -31,12 +31,12 @@ Chain strategy: pending
 
 ## Phase 2: Application & Persistence Core
 
-- [ ] 2.1 Create `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaRequests.cs` with request records for create, update, parent change, and delete intent.
-- [ ] 2.2 Create `src/SGV.Aplicacion/Organizacion/Comandos/IUnidadOrganizativaServicioComandos.cs` defining typed results and errors.
-- [ ] 2.3 Create `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaServicioComandos.cs` with validation, duplicate-code pre-checks, and descendant-cycle rejection.
-- [ ] 2.4 Modify `src/SGV.Aplicacion/Organizacion/Consultas/IUnidadOrganizativaRepository.cs` to add write-specific members.
-- [ ] 2.5 Modify `src/SGV.Infraestructura/Persistencia/Repositorios/UnidadOrganizativaRepository.cs` for tracked create/update/delete, duplicate checks, and descendant traversal.
-- [ ] 2.6 Modify `src/SGV.Infraestructura/DependencyInjection.cs` to register the command service and repository contract.
+- [x] 2.1 Create `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaRequests.cs` with request records for create, update, parent change, and delete intent.
+- [x] 2.2 Create `src/SGV.Aplicacion/Organizacion/Comandos/IUnidadOrganizativaServicioComandos.cs` defining typed results and errors.
+- [x] 2.3 Create `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaServicioComandos.cs` with validation, duplicate-code pre-checks, and descendant-cycle rejection.
+- [x] 2.4 Modify `src/SGV.Aplicacion/Organizacion/Consultas/IUnidadOrganizativaRepository.cs` to add write-specific members.
+- [x] 2.5 Modify `src/SGV.Infraestructura/Persistencia/Repositorios/UnidadOrganizativaRepository.cs` for tracked create/update/delete, duplicate checks, and descendant traversal.
+- [x] 2.6 Modify `src/SGV.Infraestructura/DependencyInjection.cs` to register the command service and repository contract.
 
 ## Phase 3: API Integration
 
@@ -46,8 +46,8 @@ Chain strategy: pending
 
 ## Phase 4: Testing
 
-- [ ] 4.1 Create `tests/SGV.Tests/Aplicacion/Organizacion/UnidadOrganizativaServicioComandosTests.cs` (RED): failing tests for validation, duplicate code, cycles, and no-commit failures.
-- [ ] 4.2 Make command-service tests pass (GREEN) and refactor.
+- [x] 4.1 Create `tests/SGV.Tests/Aplicacion/Organizacion/UnidadOrganizativaServicioComandosTests.cs` (RED): failing tests for validation, duplicate code, cycles, and no-commit failures.
+- [x] 4.2 Make command-service tests pass (GREEN) and refactor.
 - [ ] 4.3 Modify `tests/SGV.Tests/Persistencia/UnidadOrganizativaRepositoryTests.cs` to cover MySQL writes, soft-delete code reuse, active-code uniqueness, and hierarchy checks.
 - [ ] 4.4 Modify `tests/SGV.Tests/Api/UnidadesOrganizativasControllerTests.cs` to assert CRUD status codes and response contracts using a fake command service.
 - [ ] 4.5 Modify `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs` to register the fake command service for API tests.
@@ -55,5 +55,5 @@ Chain strategy: pending
 
 ## Phase 5: Verification & Rollout
 
-- [ ] 5.1 Run `dotnet build` and `dotnet test` and fix any failures.
+- [x] 5.1 Run `dotnet build` and `dotnet test` and fix any failures.
 - [ ] 5.2 Verify no EF migration drift; create a separate migration slice if the current snapshot differs from the design assumptions.

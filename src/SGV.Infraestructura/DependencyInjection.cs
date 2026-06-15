@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Infraestructura.Persistencia.Repositorios;
 
@@ -13,7 +14,7 @@ namespace SGV.Infraestructura;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers read-only repositories, query services, and Unit of Work.
+    /// Registers repositories, query services, command services, and Unit of Work.
     /// </summary>
     public static IServiceCollection AddInfraestructuraServicios(this IServiceCollection services)
     {
@@ -31,6 +32,9 @@ public static class DependencyInjection
         services.AddScoped<ICargoServicioConsulta, CargoServicioConsulta>();
         services.AddScoped<IPuestoServicioConsulta, PuestoServicioConsulta>();
         services.AddScoped<IHabilidadServicioConsulta, HabilidadServicioConsulta>();
+
+        // Command services (application layer)
+        services.AddScoped<IUnidadOrganizativaServicioComandos, UnidadOrganizativaServicioComandos>();
 
         return services;
     }

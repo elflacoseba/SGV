@@ -78,13 +78,31 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
 {
     public List<UnidadOrganizativa> Datos { get; set; } = [];
 
+    public Task AddAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException();
+
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException();
+
+    public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException();
+
     public Task<UnidadOrganizativa?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
     }
 
+    public Task<UnidadOrganizativa?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException();
+
+    public Task<bool> IsDescendantAsync(Guid candidateDescendantId, Guid ancestorId, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException();
+
     public Task<IReadOnlyList<UnidadOrganizativa>> ListAllAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult<IReadOnlyList<UnidadOrganizativa>>(Datos.ToList());
     }
+
+    public Task UpdateAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException();
 }
