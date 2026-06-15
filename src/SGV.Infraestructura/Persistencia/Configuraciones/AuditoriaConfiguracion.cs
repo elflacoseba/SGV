@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Auditoria;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class AuditoriaConfiguracion : IEntityTypeConfiguration<Auditoria>
+public sealed class AuditoriaConfiguracion : IEntityTypeConfiguration<AuditoriaEntity>
 {
-    public void Configure(EntityTypeBuilder<Auditoria> builder)
+    public void Configure(EntityTypeBuilder<AuditoriaEntity> builder)
     {
         builder.ToTable("Auditorias");
         builder.ConfigurarId();

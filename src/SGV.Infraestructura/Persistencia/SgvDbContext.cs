@@ -1,13 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using SGV.Dominio.Auditoria;
-using SGV.Dominio.Habilidades;
-using SGV.Dominio.Ocupaciones;
-using SGV.Dominio.Organizacion;
-using SGV.Dominio.Personas;
-using SGV.Dominio.Seleccion;
-using SGV.Dominio.Vacantes;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia;
 
@@ -18,41 +12,41 @@ public sealed class SgvDbContext : IdentityDbContext<IdentityUser>
     {
     }
 
-    public DbSet<UnidadOrganizativa> UnidadesOrganizativas => Set<UnidadOrganizativa>();
+    public DbSet<UnidadOrganizativaEntity> UnidadesOrganizativas => Set<UnidadOrganizativaEntity>();
 
-    public DbSet<Cargo> Cargos => Set<Cargo>();
+    public DbSet<CargoEntity> Cargos => Set<CargoEntity>();
 
-    public DbSet<Habilidad> Habilidades => Set<Habilidad>();
+    public DbSet<HabilidadEntity> Habilidades => Set<HabilidadEntity>();
 
-    public DbSet<NivelHabilidad> NivelesHabilidad => Set<NivelHabilidad>();
+    public DbSet<NivelHabilidadEntity> NivelesHabilidad => Set<NivelHabilidadEntity>();
 
-    public DbSet<CargoHabilidad> CargoHabilidades => Set<CargoHabilidad>();
+    public DbSet<CargoHabilidadEntity> CargoHabilidades => Set<CargoHabilidadEntity>();
 
-    public DbSet<Persona> Personas => Set<Persona>();
+    public DbSet<PersonaEntity> Personas => Set<PersonaEntity>();
 
-    public DbSet<PersonaHabilidad> PersonaHabilidades => Set<PersonaHabilidad>();
+    public DbSet<PersonaHabilidadEntity> PersonaHabilidades => Set<PersonaHabilidadEntity>();
 
-    public DbSet<Puesto> Puestos => Set<Puesto>();
+    public DbSet<PuestoEntity> Puestos => Set<PuestoEntity>();
 
-    public DbSet<Ocupacion> Ocupaciones => Set<Ocupacion>();
+    public DbSet<OcupacionEntity> Ocupaciones => Set<OcupacionEntity>();
 
-    public DbSet<EstadoVacante> EstadosVacante => Set<EstadoVacante>();
+    public DbSet<EstadoVacanteEntity> EstadosVacante => Set<EstadoVacanteEntity>();
 
-    public DbSet<Vacante> Vacantes => Set<Vacante>();
+    public DbSet<VacanteEntity> Vacantes => Set<VacanteEntity>();
 
-    public DbSet<HistorialEstadoVacante> HistorialEstadosVacante => Set<HistorialEstadoVacante>();
+    public DbSet<HistorialEstadoVacanteEntity> HistorialEstadosVacante => Set<HistorialEstadoVacanteEntity>();
 
-    public DbSet<Postulante> Postulantes => Set<Postulante>();
+    public DbSet<PostulanteEntity> Postulantes => Set<PostulanteEntity>();
 
-    public DbSet<EstadoPostulacion> EstadosPostulacion => Set<EstadoPostulacion>();
+    public DbSet<EstadoPostulacionEntity> EstadosPostulacion => Set<EstadoPostulacionEntity>();
 
-    public DbSet<Postulacion> Postulaciones => Set<Postulacion>();
+    public DbSet<PostulacionEntity> Postulaciones => Set<PostulacionEntity>();
 
-    public DbSet<HistorialEstadoPostulacion> HistorialEstadosPostulacion => Set<HistorialEstadoPostulacion>();
+    public DbSet<HistorialEstadoPostulacionEntity> HistorialEstadosPostulacion => Set<HistorialEstadoPostulacionEntity>();
 
-    public DbSet<EvaluacionPostulacion> EvaluacionesPostulacion => Set<EvaluacionPostulacion>();
+    public DbSet<EvaluacionPostulacionEntity> EvaluacionesPostulacion => Set<EvaluacionPostulacionEntity>();
 
-    public DbSet<Auditoria> Auditorias => Set<Auditoria>();
+    public DbSet<AuditoriaEntity> Auditorias => Set<AuditoriaEntity>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

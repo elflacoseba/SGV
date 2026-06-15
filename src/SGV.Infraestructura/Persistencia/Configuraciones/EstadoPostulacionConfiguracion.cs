@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Seleccion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class EstadoPostulacionConfiguracion : IEntityTypeConfiguration<EstadoPostulacion>
+public sealed class EstadoPostulacionConfiguracion : IEntityTypeConfiguration<EstadoPostulacionEntity>
 {
-    public void Configure(EntityTypeBuilder<EstadoPostulacion> builder)
+    public void Configure(EntityTypeBuilder<EstadoPostulacionEntity> builder)
     {
         builder.ToTable("EstadosPostulacion");
         builder.ConfigurarId();

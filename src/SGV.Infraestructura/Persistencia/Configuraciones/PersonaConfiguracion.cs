@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Personas;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class PersonaConfiguracion : IEntityTypeConfiguration<Persona>
+public sealed class PersonaConfiguracion : IEntityTypeConfiguration<PersonaEntity>
 {
-    public void Configure(EntityTypeBuilder<Persona> builder)
+    public void Configure(EntityTypeBuilder<PersonaEntity> builder)
     {
         builder.ToTable("Personas");
         builder.ConfigurarId();

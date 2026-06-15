@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Habilidades;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class NivelHabilidadConfiguracion : IEntityTypeConfiguration<NivelHabilidad>
+public sealed class NivelHabilidadConfiguracion : IEntityTypeConfiguration<NivelHabilidadEntity>
 {
-    public void Configure(EntityTypeBuilder<NivelHabilidad> builder)
+    public void Configure(EntityTypeBuilder<NivelHabilidadEntity> builder)
     {
         builder.ToTable("NivelesHabilidad", table =>
             table.HasCheckConstraint("CK_NivelesHabilidad_ValorNumerico", "`ValorNumerico` BETWEEN 1 AND 4"));

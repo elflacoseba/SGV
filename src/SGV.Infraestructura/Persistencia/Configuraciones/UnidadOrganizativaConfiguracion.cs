@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class UnidadOrganizativaConfiguracion : IEntityTypeConfiguration<UnidadOrganizativa>
+public sealed class UnidadOrganizativaConfiguracion : IEntityTypeConfiguration<UnidadOrganizativaEntity>
 {
-    public void Configure(EntityTypeBuilder<UnidadOrganizativa> builder)
+    public void Configure(EntityTypeBuilder<UnidadOrganizativaEntity> builder)
     {
         builder.ToTable("UnidadesOrganizativas", table =>
             table.HasCheckConstraint("CK_UnidadesOrganizativas_UnidadPadre", "`UnidadPadreId` IS NULL OR `UnidadPadreId` <> `Id`"));

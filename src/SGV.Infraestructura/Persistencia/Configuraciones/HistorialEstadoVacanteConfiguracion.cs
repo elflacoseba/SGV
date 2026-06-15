@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Vacantes;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class HistorialEstadoVacanteConfiguracion : IEntityTypeConfiguration<HistorialEstadoVacante>
+public sealed class HistorialEstadoVacanteConfiguracion : IEntityTypeConfiguration<HistorialEstadoVacanteEntity>
 {
-    public void Configure(EntityTypeBuilder<HistorialEstadoVacante> builder)
+    public void Configure(EntityTypeBuilder<HistorialEstadoVacanteEntity> builder)
     {
         builder.ToTable("HistorialEstadosVacante");
         builder.ConfigurarId();
