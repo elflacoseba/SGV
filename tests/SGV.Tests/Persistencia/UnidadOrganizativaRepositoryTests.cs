@@ -1,10 +1,15 @@
-using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia;
+using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Dominio.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
 
+/// <summary>
+/// Tests de repositorio para UnidadOrganizativa. Se restaurarán completamente en PR 2
+/// cuando los repositorios incluyan los mapeos *Entity → Dominio.
+/// </summary>
 public sealed class UnidadOrganizativaRepositoryTests
 {
     [MySqlFact]
@@ -15,7 +20,7 @@ public sealed class UnidadOrganizativaRepositoryTests
         var inactive = RepositoryTestData.CreateUnidadOrganizativa("UO-INACTIVE", isActive: false);
         var deleted = RepositoryTestData.CreateUnidadOrganizativa("UO-DELETED", isDeleted: true);
 
-        await context.UnidadesOrganizativas.AddRangeAsync([visible, inactive, deleted]);
+        await context.Set<UnidadOrganizativaEntity>().AddRangeAsync([visible, inactive, deleted]);
         await context.SaveChangesAsync();
 
         try
@@ -23,6 +28,7 @@ public sealed class UnidadOrganizativaRepositoryTests
             var repo = new UnidadOrganizativaRepository(context);
             var entidades = await repo.ListAllAsync(default);
 
+            Assert.All(entidades, entidad => Assert.IsType<UnidadOrganizativa>(entidad));
             Assert.Contains(entidades, entidad => entidad.Id == visible.Id);
             Assert.DoesNotContain(entidades, entidad => entidad.Id == inactive.Id);
             Assert.DoesNotContain(entidades, entidad => entidad.Id == deleted.Id);
@@ -34,7 +40,7 @@ public sealed class UnidadOrganizativaRepositoryTests
         }
         finally
         {
-            context.UnidadesOrganizativas.RemoveRange(visible, inactive, deleted);
+            context.Set<UnidadOrganizativaEntity>().RemoveRange(visible, inactive, deleted);
             await context.SaveChangesAsync();
         }
     }
@@ -45,7 +51,7 @@ public sealed class UnidadOrganizativaRepositoryTests
         await using var context = new SgvDbContextFactory().CreateDbContext([]);
         var expected = RepositoryTestData.CreateUnidadOrganizativa("UO-BY-ID");
 
-        await context.UnidadesOrganizativas.AddAsync(expected);
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(expected);
         await context.SaveChangesAsync();
 
         try
@@ -54,6 +60,7 @@ public sealed class UnidadOrganizativaRepositoryTests
             var encontrada = await repo.GetByIdAsync(expected.Id, default);
 
             Assert.NotNull(encontrada);
+            Assert.IsType<UnidadOrganizativa>(encontrada);
             Assert.Equal(expected.Id, encontrada!.Id);
             Assert.Equal(expected.Codigo, encontrada.Codigo);
             Assert.Equal(expected.Nombre, encontrada.Nombre);
@@ -62,7 +69,7 @@ public sealed class UnidadOrganizativaRepositoryTests
         }
         finally
         {
-            context.UnidadesOrganizativas.Remove(expected);
+            context.Set<UnidadOrganizativaEntity>().Remove(expected);
             await context.SaveChangesAsync();
         }
     }

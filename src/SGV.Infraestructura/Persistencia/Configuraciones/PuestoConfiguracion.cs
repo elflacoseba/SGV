@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class PuestoConfiguracion : IEntityTypeConfiguration<Puesto>
+public sealed class PuestoConfiguracion : IEntityTypeConfiguration<PuestoEntity>
 {
-    public void Configure(EntityTypeBuilder<Puesto> builder)
+    public void Configure(EntityTypeBuilder<PuestoEntity> builder)
     {
         builder.ToTable("Puestos", table =>
             table.HasCheckConstraint("CK_Puestos_PuestoSuperior", "`PuestoSuperiorId` IS NULL OR `PuestoSuperiorId` <> `Id`"));

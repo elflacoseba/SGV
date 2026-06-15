@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Habilidades;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class HabilidadConfiguracion : IEntityTypeConfiguration<Habilidad>
+public sealed class HabilidadConfiguracion : IEntityTypeConfiguration<HabilidadEntity>
 {
-    public void Configure(EntityTypeBuilder<Habilidad> builder)
+    public void Configure(EntityTypeBuilder<HabilidadEntity> builder)
     {
         builder.ToTable("Habilidades");
         builder.ConfigurarId();

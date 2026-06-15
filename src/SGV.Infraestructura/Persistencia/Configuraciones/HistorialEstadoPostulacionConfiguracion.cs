@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Seleccion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class HistorialEstadoPostulacionConfiguracion : IEntityTypeConfiguration<HistorialEstadoPostulacion>
+public sealed class HistorialEstadoPostulacionConfiguracion : IEntityTypeConfiguration<HistorialEstadoPostulacionEntity>
 {
-    public void Configure(EntityTypeBuilder<HistorialEstadoPostulacion> builder)
+    public void Configure(EntityTypeBuilder<HistorialEstadoPostulacionEntity> builder)
     {
         builder.ToTable("HistorialEstadosPostulacion");
         builder.ConfigurarId();

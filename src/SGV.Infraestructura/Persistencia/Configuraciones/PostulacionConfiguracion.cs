@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Seleccion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class PostulacionConfiguracion : IEntityTypeConfiguration<Postulacion>
+public sealed class PostulacionConfiguracion : IEntityTypeConfiguration<PostulacionEntity>
 {
-    public void Configure(EntityTypeBuilder<Postulacion> builder)
+    public void Configure(EntityTypeBuilder<PostulacionEntity> builder)
     {
         builder.ToTable("Postulaciones", table =>
             table.HasCheckConstraint("CK_Postulaciones_PuntajeCompatibilidad", "`PuntajeCompatibilidad` IS NULL OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)"));

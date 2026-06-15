@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Seleccion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class EvaluacionPostulacionConfiguracion : IEntityTypeConfiguration<EvaluacionPostulacion>
+public sealed class EvaluacionPostulacionConfiguracion : IEntityTypeConfiguration<EvaluacionPostulacionEntity>
 {
-    public void Configure(EntityTypeBuilder<EvaluacionPostulacion> builder)
+    public void Configure(EntityTypeBuilder<EvaluacionPostulacionEntity> builder)
     {
         builder.ToTable("EvaluacionesPostulacion", table =>
         {

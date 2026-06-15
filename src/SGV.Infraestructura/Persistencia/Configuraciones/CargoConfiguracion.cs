@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class CargoConfiguracion : IEntityTypeConfiguration<Cargo>
+public sealed class CargoConfiguracion : IEntityTypeConfiguration<CargoEntity>
 {
-    public void Configure(EntityTypeBuilder<Cargo> builder)
+    public void Configure(EntityTypeBuilder<CargoEntity> builder)
     {
         builder.ToTable("Cargos");
         builder.ConfigurarId();

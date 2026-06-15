@@ -1,10 +1,15 @@
-using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia;
+using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Dominio.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
 
+/// <summary>
+/// Tests de repositorio para Puesto. Se restaurarán completamente en PR 2
+/// cuando los repositorios incluyan los mapeos *Entity → Dominio.
+/// </summary>
 public sealed class PuestoRepositoryTests
 {
     [MySqlFact]
@@ -17,9 +22,9 @@ public sealed class PuestoRepositoryTests
         var inactive = RepositoryTestData.CreatePuesto("PUESTO-INACTIVE", unidad, cargo, isActive: false);
         var deleted = RepositoryTestData.CreatePuesto("PUESTO-DELETED", unidad, cargo, isDeleted: true);
 
-        await context.UnidadesOrganizativas.AddAsync(unidad);
-        await context.Cargos.AddAsync(cargo);
-        await context.Puestos.AddRangeAsync([visible, inactive, deleted]);
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<PuestoEntity>().AddRangeAsync([visible, inactive, deleted]);
         await context.SaveChangesAsync();
 
         try
@@ -27,6 +32,7 @@ public sealed class PuestoRepositoryTests
             var repo = new PuestoRepository(context);
             var entidades = await repo.ListAllAsync(default);
 
+            Assert.All(entidades, entidad => Assert.IsType<Puesto>(entidad));
             Assert.Contains(entidades, entidad => entidad.Id == visible.Id);
             Assert.DoesNotContain(entidades, entidad => entidad.Id == inactive.Id);
             Assert.DoesNotContain(entidades, entidad => entidad.Id == deleted.Id);
@@ -38,9 +44,9 @@ public sealed class PuestoRepositoryTests
         }
         finally
         {
-            context.Puestos.RemoveRange(visible, inactive, deleted);
-            context.Cargos.Remove(cargo);
-            context.UnidadesOrganizativas.Remove(unidad);
+            context.Set<PuestoEntity>().RemoveRange(visible, inactive, deleted);
+            context.Set<CargoEntity>().Remove(cargo);
+            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
             await context.SaveChangesAsync();
         }
     }
@@ -53,9 +59,9 @@ public sealed class PuestoRepositoryTests
         var cargo = RepositoryTestData.CreateCargo("PUESTO-CARGO-REL");
         var visible = RepositoryTestData.CreatePuesto("PUESTO-REL", unidad, cargo);
 
-        await context.UnidadesOrganizativas.AddAsync(unidad);
-        await context.Cargos.AddAsync(cargo);
-        await context.Puestos.AddAsync(visible);
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<PuestoEntity>().AddAsync(visible);
         await context.SaveChangesAsync();
 
         try
@@ -64,8 +70,11 @@ public sealed class PuestoRepositoryTests
             var entidades = await repo.ListAllAsync(default);
 
             var encontrado = Assert.Single(entidades, entidad => entidad.Id == visible.Id);
+            Assert.IsType<Puesto>(encontrado);
             Assert.NotNull(encontrado.UnidadOrganizativa);
             Assert.NotNull(encontrado.Cargo);
+            Assert.IsType<UnidadOrganizativa>(encontrado.UnidadOrganizativa);
+            Assert.IsType<Cargo>(encontrado.Cargo);
             Assert.Equal(unidad.Id, encontrado.UnidadOrganizativaId);
             Assert.Equal(unidad.Nombre, encontrado.UnidadOrganizativa.Nombre);
             Assert.Equal(cargo.Id, encontrado.CargoId);
@@ -73,9 +82,9 @@ public sealed class PuestoRepositoryTests
         }
         finally
         {
-            context.Puestos.Remove(visible);
-            context.Cargos.Remove(cargo);
-            context.UnidadesOrganizativas.Remove(unidad);
+            context.Set<PuestoEntity>().Remove(visible);
+            context.Set<CargoEntity>().Remove(cargo);
+            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
             await context.SaveChangesAsync();
         }
     }
@@ -88,9 +97,9 @@ public sealed class PuestoRepositoryTests
         var cargo = RepositoryTestData.CreateCargo("PUESTO-CARGO-BY-ID");
         var expected = RepositoryTestData.CreatePuesto("PUESTO-BY-ID", unidad, cargo);
 
-        await context.UnidadesOrganizativas.AddAsync(unidad);
-        await context.Cargos.AddAsync(cargo);
-        await context.Puestos.AddAsync(expected);
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<PuestoEntity>().AddAsync(expected);
         await context.SaveChangesAsync();
 
         try
@@ -99,9 +108,12 @@ public sealed class PuestoRepositoryTests
             var encontrada = await repo.GetByIdAsync(expected.Id, default);
 
             Assert.NotNull(encontrada);
+            Assert.IsType<Puesto>(encontrada);
             Assert.Equal(expected.Id, encontrada!.Id);
             Assert.NotNull(encontrada.UnidadOrganizativa);
             Assert.NotNull(encontrada.Cargo);
+            Assert.IsType<UnidadOrganizativa>(encontrada.UnidadOrganizativa);
+            Assert.IsType<Cargo>(encontrada.Cargo);
             Assert.Equal(unidad.Id, encontrada.UnidadOrganizativaId);
             Assert.Equal(unidad.Nombre, encontrada.UnidadOrganizativa.Nombre);
             Assert.Equal(cargo.Id, encontrada.CargoId);
@@ -109,9 +121,9 @@ public sealed class PuestoRepositoryTests
         }
         finally
         {
-            context.Puestos.Remove(expected);
-            context.Cargos.Remove(cargo);
-            context.UnidadesOrganizativas.Remove(unidad);
+            context.Set<PuestoEntity>().Remove(expected);
+            context.Set<CargoEntity>().Remove(cargo);
+            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
             await context.SaveChangesAsync();
         }
     }

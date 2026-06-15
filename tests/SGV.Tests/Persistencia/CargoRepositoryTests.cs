@@ -1,10 +1,14 @@
-using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Dominio.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
 
+/// <summary>
+/// Tests de repositorio para Cargo. Se restaurarán completamente en PR 2
+/// cuando los repositorios mapeen de *Entity a tipos de Dominio.
+/// </summary>
 public sealed class CargoRepositoryTests
 {
     [MySqlFact]
@@ -17,6 +21,7 @@ public sealed class CargoRepositoryTests
 
         // Seed data includes active Cargos that are not deleted
         Assert.NotEmpty(entidades);
+        Assert.All(entidades, entidad => Assert.IsType<Cargo>(entidad));
         Assert.All(entidades, e => Assert.False(e.IsDeleted));
     }
 

@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Ocupaciones;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class OcupacionConfiguracion : IEntityTypeConfiguration<Ocupacion>
+public sealed class OcupacionConfiguracion : IEntityTypeConfiguration<OcupacionEntity>
 {
-    public void Configure(EntityTypeBuilder<Ocupacion> builder)
+    public void Configure(EntityTypeBuilder<OcupacionEntity> builder)
     {
         builder.ToTable("Ocupaciones", table =>
             table.HasCheckConstraint("CK_Ocupaciones_Fechas", "`FechaFin` IS NULL OR `FechaFin` >= `FechaInicio`"));

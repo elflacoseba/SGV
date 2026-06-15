@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using SGV.Aplicacion.Seguridad;
-using SGV.Dominio.Auditoria;
-using SGV.Dominio.Comun;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia;
 
@@ -42,7 +41,7 @@ public sealed class AuditoriaSaveChangesInterceptor : SaveChangesInterceptor
 
         var ahora = DateTime.UtcNow;
         var entradas = context.ChangeTracker.Entries()
-            .Where(e => e.Entity is EntidadBase and not Auditoria)
+            .Where(e => e.Entity is EntityBase and not AuditoriaEntity)
             .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .ToList();
 
@@ -53,14 +52,14 @@ public sealed class AuditoriaSaveChangesInterceptor : SaveChangesInterceptor
             var auditoria = CrearAuditoria(entrada, ahora);
             if (auditoria is not null)
             {
-                context.Set<Auditoria>().Add(auditoria);
+                context.Set<AuditoriaEntity>().Add(auditoria);
             }
         }
     }
 
     private void AplicarAuditoriaTecnica(EntityEntry entrada, DateTime ahora)
     {
-        if (entrada.Entity is not EntidadAuditable auditable)
+        if (entrada.Entity is not AuditableEntityBase auditable)
         {
             return;
         }
@@ -84,9 +83,9 @@ public sealed class AuditoriaSaveChangesInterceptor : SaveChangesInterceptor
         }
     }
 
-    private Auditoria? CrearAuditoria(EntityEntry entrada, DateTime ahora)
+    private AuditoriaEntity? CrearAuditoria(EntityEntry entrada, DateTime ahora)
     {
-        var entidadId = entrada.Property(nameof(EntidadBase.Id)).CurrentValue?.ToString();
+        var entidadId = entrada.Property(nameof(EntityBase.Id)).CurrentValue?.ToString();
         if (string.IsNullOrWhiteSpace(entidadId))
         {
             return null;
@@ -95,20 +94,36 @@ public sealed class AuditoriaSaveChangesInterceptor : SaveChangesInterceptor
         var operacion = entrada.State switch
         {
             EntityState.Added => "Alta",
-            EntityState.Modified when entrada.Entity is EntidadAuditable { IsDeleted: true } => "BajaLogica",
+            EntityState.Modified when entrada.Entity is AuditableEntityBase { IsDeleted: true } => "BajaLogica",
             EntityState.Modified => "Modificacion",
             EntityState.Deleted => "BajaLogica",
             _ => "Desconocida"
         };
 
-        var auditoria = new Auditoria(_usuarioActual.UserId, ahora, entrada.Metadata.ClrType.Name, entidadId, operacion);
-        auditoria.RegistrarValores(
-            SerializarValores(entrada, usarOriginales: true),
-            SerializarValores(entrada, usarOriginales: false),
-            SerializarPropiedadesCambiadas(entrada),
-            _usuarioActual.CorrelationId);
+        var auditoria = new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = _usuarioActual.UserId,
+            OccurredAt = ahora,
+            EntityName = ObtenerNombreLogicoEntidad(entrada.Metadata.ClrType.Name),
+            EntityId = entidadId,
+            Operation = operacion,
+            OldValuesJson = SerializarValores(entrada, usarOriginales: true),
+            NewValuesJson = SerializarValores(entrada, usarOriginales: false),
+            ChangedPropertiesJson = SerializarPropiedadesCambiadas(entrada),
+            CorrelationId = _usuarioActual.CorrelationId
+        };
 
         return auditoria;
+    }
+
+    private static string ObtenerNombreLogicoEntidad(string clrTypeName)
+    {
+        const string entitySuffix = "Entity";
+
+        return clrTypeName.EndsWith(entitySuffix, StringComparison.Ordinal)
+            ? clrTypeName[..^entitySuffix.Length]
+            : clrTypeName;
     }
 
     private static string? SerializarValores(EntityEntry entrada, bool usarOriginales)

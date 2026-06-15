@@ -1,10 +1,14 @@
-using SGV.Dominio.Habilidades;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Dominio.Habilidades;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
 
+/// <summary>
+/// Tests de repositorio para Habilidad. Se restaurarán completamente en PR 2
+/// cuando los repositorios mapeen de *Entity a tipos de Dominio.
+/// </summary>
 public sealed class HabilidadRepositoryTests
 {
     [MySqlFact]
@@ -17,6 +21,7 @@ public sealed class HabilidadRepositoryTests
 
         // Seed data includes active Habilidades that are not deleted
         Assert.NotEmpty(entidades);
+        Assert.All(entidades, entidad => Assert.IsType<Habilidad>(entidad));
         Assert.All(entidades, e => Assert.False(e.IsDeleted));
     }
 

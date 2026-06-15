@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Seleccion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class PostulanteConfiguracion : IEntityTypeConfiguration<Postulante>
+public sealed class PostulanteConfiguracion : IEntityTypeConfiguration<PostulanteEntity>
 {
-    public void Configure(EntityTypeBuilder<Postulante> builder)
+    public void Configure(EntityTypeBuilder<PostulanteEntity> builder)
     {
         builder.ToTable("Postulantes");
         builder.ConfigurarId();

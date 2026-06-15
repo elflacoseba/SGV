@@ -1,9 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
-using SGV.Dominio.Habilidades;
-using SGV.Dominio.Organizacion;
-using SGV.Dominio.Seleccion;
-using SGV.Dominio.Vacantes;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia;
 
@@ -50,42 +47,42 @@ internal static class DatosSemilla
             CrearRol("EvaluadorSeleccion"),
             CrearRol("Lector"));
 
-        builder.Entity<NivelHabilidad>().HasData(
-            new NivelHabilidad("Basico", "Básico", 1, 1) { Id = NivelBasicoId },
-            new NivelHabilidad("Intermedio", "Intermedio", 2, 2) { Id = NivelIntermedioId },
-            new NivelHabilidad("Avanzado", "Avanzado", 3, 3) { Id = NivelAvanzadoId },
-            new NivelHabilidad("Experto", "Experto", 4, 4) { Id = NivelExpertoId });
+        builder.Entity<NivelHabilidadEntity>().HasData(
+            new NivelHabilidadEntity { Id = NivelBasicoId, Codigo = "Basico", Nombre = "Básico", ValorNumerico = 1, Orden = 1 },
+            new NivelHabilidadEntity { Id = NivelIntermedioId, Codigo = "Intermedio", Nombre = "Intermedio", ValorNumerico = 2, Orden = 2 },
+            new NivelHabilidadEntity { Id = NivelAvanzadoId, Codigo = "Avanzado", Nombre = "Avanzado", ValorNumerico = 3, Orden = 3 },
+            new NivelHabilidadEntity { Id = NivelExpertoId, Codigo = "Experto", Nombre = "Experto", ValorNumerico = 4, Orden = 4 });
 
-        builder.Entity<EstadoVacante>().HasData(
-            new EstadoVacante("Abierta", "Abierta", 1, false) { Id = VacanteAbiertaId },
-            new EstadoVacante("EnSeleccion", "En Selección", 2, false) { Id = VacanteEnSeleccionId },
-            new EstadoVacante("Cubierta", "Cubierta", 3, true) { Id = VacanteCubiertaId },
-            new EstadoVacante("Cancelada", "Cancelada", 4, true) { Id = VacanteCanceladaId });
+        builder.Entity<EstadoVacanteEntity>().HasData(
+            new EstadoVacanteEntity { Id = VacanteAbiertaId, Codigo = "Abierta", Nombre = "Abierta", Orden = 1, EsTerminal = false },
+            new EstadoVacanteEntity { Id = VacanteEnSeleccionId, Codigo = "EnSeleccion", Nombre = "En Selección", Orden = 2, EsTerminal = false },
+            new EstadoVacanteEntity { Id = VacanteCubiertaId, Codigo = "Cubierta", Nombre = "Cubierta", Orden = 3, EsTerminal = true },
+            new EstadoVacanteEntity { Id = VacanteCanceladaId, Codigo = "Cancelada", Nombre = "Cancelada", Orden = 4, EsTerminal = true });
 
-        builder.Entity<EstadoPostulacion>().HasData(
-            new EstadoPostulacion("Postulado", "Postulado", 1, false, false) { Id = PostulacionPostuladoId },
-            new EstadoPostulacion("Preseleccionado", "Preseleccionado", 2, false, false) { Id = PostulacionPreseleccionadoId },
-            new EstadoPostulacion("Entrevistado", "Entrevistado", 3, false, false) { Id = PostulacionEntrevistadoId },
-            new EstadoPostulacion("Aprobado", "Aprobado", 4, false, false) { Id = PostulacionAprobadoId },
-            new EstadoPostulacion("Rechazado", "Rechazado", 5, true, false) { Id = PostulacionRechazadoId },
-            new EstadoPostulacion("Contratado", "Contratado", 6, true, true) { Id = PostulacionContratadoId });
+        builder.Entity<EstadoPostulacionEntity>().HasData(
+            new EstadoPostulacionEntity { Id = PostulacionPostuladoId, Codigo = "Postulado", Nombre = "Postulado", Orden = 1, EsTerminal = false, EsTerminalPositivo = false },
+            new EstadoPostulacionEntity { Id = PostulacionPreseleccionadoId, Codigo = "Preseleccionado", Nombre = "Preseleccionado", Orden = 2, EsTerminal = false, EsTerminalPositivo = false },
+            new EstadoPostulacionEntity { Id = PostulacionEntrevistadoId, Codigo = "Entrevistado", Nombre = "Entrevistado", Orden = 3, EsTerminal = false, EsTerminalPositivo = false },
+            new EstadoPostulacionEntity { Id = PostulacionAprobadoId, Codigo = "Aprobado", Nombre = "Aprobado", Orden = 4, EsTerminal = false, EsTerminalPositivo = false },
+            new EstadoPostulacionEntity { Id = PostulacionRechazadoId, Codigo = "Rechazado", Nombre = "Rechazado", Orden = 5, EsTerminal = true, EsTerminalPositivo = false },
+            new EstadoPostulacionEntity { Id = PostulacionContratadoId, Codigo = "Contratado", Nombre = "Contratado", Orden = 6, EsTerminal = true, EsTerminalPositivo = true });
 
-        builder.Entity<Cargo>().HasData(
-            new Cargo("DECANO", "Decano", "Directivo") { Id = CargoDecanoId },
-            new Cargo("SECRETARIO", "Secretario", "Directivo") { Id = CargoSecretarioId },
-            new Cargo("DIRECTOR", "Director", "Conducción media") { Id = CargoDirectorId },
-            new Cargo("JEFE_DEPARTAMENTO", "Jefe de Departamento", "Conducción media") { Id = CargoJefeDepartamentoId },
-            new Cargo("ADMINISTRATIVO", "Administrativo", "Operativo") { Id = CargoAdministrativoId },
-            new Cargo("PROFESOR", "Profesor", "Académico") { Id = CargoProfesorId });
+        builder.Entity<CargoEntity>().HasData(
+            new CargoEntity { Id = CargoDecanoId, Codigo = "DECANO", Nombre = "Decano", Nivel = "Directivo", IsActive = true },
+            new CargoEntity { Id = CargoSecretarioId, Codigo = "SECRETARIO", Nombre = "Secretario", Nivel = "Directivo", IsActive = true },
+            new CargoEntity { Id = CargoDirectorId, Codigo = "DIRECTOR", Nombre = "Director", Nivel = "Conducción media", IsActive = true },
+            new CargoEntity { Id = CargoJefeDepartamentoId, Codigo = "JEFE_DEPARTAMENTO", Nombre = "Jefe de Departamento", Nivel = "Conducción media", IsActive = true },
+            new CargoEntity { Id = CargoAdministrativoId, Codigo = "ADMINISTRATIVO", Nombre = "Administrativo", Nivel = "Operativo", IsActive = true },
+            new CargoEntity { Id = CargoProfesorId, Codigo = "PROFESOR", Nombre = "Profesor", Nivel = "Académico", IsActive = true });
 
-        builder.Entity<Habilidad>().HasData(
-            new Habilidad("LIDERAZGO", "Liderazgo", "Conducción") { Id = HabilidadLiderazgoId },
-            new Habilidad("GESTION_PERSONAL", "Gestión de Personal", "Conducción") { Id = HabilidadGestionPersonalId },
-            new Habilidad("SQL_SERVER", "SQL Server", "Técnica") { Id = HabilidadSqlServerId },
-            new Habilidad("EF_CORE", "Entity Framework Core", "Técnica") { Id = HabilidadEfCoreId },
-            new Habilidad("DOTNET", "Programación .NET", "Técnica") { Id = HabilidadDotNetId },
-            new Habilidad("ADMINISTRACION_PUBLICA", "Administración Pública", "Dominio") { Id = HabilidadAdministracionPublicaId },
-            new Habilidad("DOCENCIA_UNIVERSITARIA", "Docencia Universitaria", "Académica") { Id = HabilidadDocenciaUniversitariaId });
+        builder.Entity<HabilidadEntity>().HasData(
+            new HabilidadEntity { Id = HabilidadLiderazgoId, Codigo = "LIDERAZGO", Nombre = "Liderazgo", Categoria = "Conducción", IsActive = true },
+            new HabilidadEntity { Id = HabilidadGestionPersonalId, Codigo = "GESTION_PERSONAL", Nombre = "Gestión de Personal", Categoria = "Conducción", IsActive = true },
+            new HabilidadEntity { Id = HabilidadSqlServerId, Codigo = "SQL_SERVER", Nombre = "SQL Server", Categoria = "Técnica", IsActive = true },
+            new HabilidadEntity { Id = HabilidadEfCoreId, Codigo = "EF_CORE", Nombre = "Entity Framework Core", Categoria = "Técnica", IsActive = true },
+            new HabilidadEntity { Id = HabilidadDotNetId, Codigo = "DOTNET", Nombre = "Programación .NET", Categoria = "Técnica", IsActive = true },
+            new HabilidadEntity { Id = HabilidadAdministracionPublicaId, Codigo = "ADMINISTRACION_PUBLICA", Nombre = "Administración Pública", Categoria = "Dominio", IsActive = true },
+            new HabilidadEntity { Id = HabilidadDocenciaUniversitariaId, Codigo = "DOCENCIA_UNIVERSITARIA", Nombre = "Docencia Universitaria", Categoria = "Académica", IsActive = true });
     }
 
     private static IdentityRole CrearRol(string nombre)

@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using SGV.Dominio.Habilidades;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Configuraciones;
 
-public sealed class CargoHabilidadConfiguracion : IEntityTypeConfiguration<CargoHabilidad>
+public sealed class CargoHabilidadConfiguracion : IEntityTypeConfiguration<CargoHabilidadEntity>
 {
-    public void Configure(EntityTypeBuilder<CargoHabilidad> builder)
+    public void Configure(EntityTypeBuilder<CargoHabilidadEntity> builder)
     {
         builder.ToTable("CargoHabilidades", table =>
             table.HasCheckConstraint("CK_CargoHabilidades_Ponderacion", "`Ponderacion` > 0"));
