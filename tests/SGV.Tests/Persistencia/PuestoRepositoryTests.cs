@@ -1,10 +1,14 @@
-using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia;
+using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
 
+/// <summary>
+/// Tests de repositorio para Puesto. Se restaurarán completamente en PR 2
+/// cuando los repositorios incluyan los mapeos *Entity → Dominio.
+/// </summary>
 public sealed class PuestoRepositoryTests
 {
     [MySqlFact]
@@ -17,9 +21,9 @@ public sealed class PuestoRepositoryTests
         var inactive = RepositoryTestData.CreatePuesto("PUESTO-INACTIVE", unidad, cargo, isActive: false);
         var deleted = RepositoryTestData.CreatePuesto("PUESTO-DELETED", unidad, cargo, isDeleted: true);
 
-        await context.UnidadesOrganizativas.AddAsync(unidad);
-        await context.Cargos.AddAsync(cargo);
-        await context.Puestos.AddRangeAsync([visible, inactive, deleted]);
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<PuestoEntity>().AddRangeAsync([visible, inactive, deleted]);
         await context.SaveChangesAsync();
 
         try
@@ -38,9 +42,9 @@ public sealed class PuestoRepositoryTests
         }
         finally
         {
-            context.Puestos.RemoveRange(visible, inactive, deleted);
-            context.Cargos.Remove(cargo);
-            context.UnidadesOrganizativas.Remove(unidad);
+            context.Set<PuestoEntity>().RemoveRange(visible, inactive, deleted);
+            context.Set<CargoEntity>().Remove(cargo);
+            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
             await context.SaveChangesAsync();
         }
     }
@@ -53,9 +57,9 @@ public sealed class PuestoRepositoryTests
         var cargo = RepositoryTestData.CreateCargo("PUESTO-CARGO-REL");
         var visible = RepositoryTestData.CreatePuesto("PUESTO-REL", unidad, cargo);
 
-        await context.UnidadesOrganizativas.AddAsync(unidad);
-        await context.Cargos.AddAsync(cargo);
-        await context.Puestos.AddAsync(visible);
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<PuestoEntity>().AddAsync(visible);
         await context.SaveChangesAsync();
 
         try
@@ -73,9 +77,9 @@ public sealed class PuestoRepositoryTests
         }
         finally
         {
-            context.Puestos.Remove(visible);
-            context.Cargos.Remove(cargo);
-            context.UnidadesOrganizativas.Remove(unidad);
+            context.Set<PuestoEntity>().Remove(visible);
+            context.Set<CargoEntity>().Remove(cargo);
+            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
             await context.SaveChangesAsync();
         }
     }
@@ -88,9 +92,9 @@ public sealed class PuestoRepositoryTests
         var cargo = RepositoryTestData.CreateCargo("PUESTO-CARGO-BY-ID");
         var expected = RepositoryTestData.CreatePuesto("PUESTO-BY-ID", unidad, cargo);
 
-        await context.UnidadesOrganizativas.AddAsync(unidad);
-        await context.Cargos.AddAsync(cargo);
-        await context.Puestos.AddAsync(expected);
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<PuestoEntity>().AddAsync(expected);
         await context.SaveChangesAsync();
 
         try
@@ -109,9 +113,9 @@ public sealed class PuestoRepositoryTests
         }
         finally
         {
-            context.Puestos.Remove(expected);
-            context.Cargos.Remove(cargo);
-            context.UnidadesOrganizativas.Remove(unidad);
+            context.Set<PuestoEntity>().Remove(expected);
+            context.Set<CargoEntity>().Remove(cargo);
+            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
             await context.SaveChangesAsync();
         }
     }

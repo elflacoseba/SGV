@@ -1,10 +1,13 @@
-using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
 
+/// <summary>
+/// Tests de repositorio para Cargo. Se restaurarán completamente en PR 2
+/// cuando los repositorios mapeen de *Entity a tipos de Dominio.
+/// </summary>
 public sealed class CargoRepositoryTests
 {
     [MySqlFact]

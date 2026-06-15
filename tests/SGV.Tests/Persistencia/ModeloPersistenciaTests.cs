@@ -3,10 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
-using SGV.Dominio.Ocupaciones;
-using SGV.Dominio.Organizacion;
-using SGV.Dominio.Seleccion;
 using SGV.Infraestructura.Persistencia;
+using SGV.Infraestructura.Persistencia.Entidades;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -45,7 +43,7 @@ public sealed class ModeloPersistenciaTests
     [Fact]
     public void Modelo_ConfiguraColumnaGeneradaUnicaParaOcupacionVigentePorPuesto()
     {
-        var entidad = _contexto.Model.FindEntityType(typeof(Ocupacion));
+        var entidad = _contexto.Model.FindEntityType(typeof(OcupacionEntity));
 
         var generatedProperty = entidad!.FindProperty("ActivePuestoIdUnique");
         Assert.NotNull(generatedProperty);
@@ -64,7 +62,7 @@ public sealed class ModeloPersistenciaTests
     [Fact]
     public void Modelo_ConfiguraColumnaGeneradaUnicaParaCodigoPuestoActivo()
     {
-        var entidad = _contexto.Model.FindEntityType(typeof(Puesto));
+        var entidad = _contexto.Model.FindEntityType(typeof(PuestoEntity));
 
         var generatedProperty = entidad!.FindProperty("ActiveCodigoUnique");
         Assert.NotNull(generatedProperty);
@@ -82,10 +80,11 @@ public sealed class ModeloPersistenciaTests
     [Fact]
     public void Modelo_ConfiguraPostulacionUnicaPorVacanteYPostulante()
     {
-        var entidad = _contexto.Model.FindEntityType(typeof(Postulacion));
+        var entidad = _contexto.Model.FindEntityType(typeof(PostulacionEntity));
 
         var indice = entidad!.GetIndexes()
-            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(Postulacion.VacanteId), nameof(Postulacion.PostulanteId)]));
+            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual(
+                [nameof(PostulacionEntity.VacanteId), nameof(PostulacionEntity.PostulanteId)]));
 
         Assert.True(indice.IsUnique);
     }
@@ -173,6 +172,83 @@ public sealed class ModeloPersistenciaTests
             Assert.NotNull(instance.UpOperations);
             Assert.NotNull(instance.DownOperations);
         }
+    }
+
+    /// <summary>
+    /// Verifica que las tablas de aplicación SGV se mapeen a tipos *Entity
+    /// de Infraestructura, no a tipos del Dominio.
+    /// </summary>
+    [Fact]
+    public void Modelo_EntidadesSgvUsanTiposEntity()
+    {
+        var entityTypes = _contexto.Model.GetEntityTypes()
+            .Where(e => e.ClrType.Namespace == typeof(CargoEntity).Namespace)
+            .Select(e => e.ClrType)
+            .ToList();
+
+        // Verificar que los tipos esperados están mapeados como Entity
+        Assert.Contains(entityTypes, t => t == typeof(CargoEntity));
+        Assert.Contains(entityTypes, t => t == typeof(PuestoEntity));
+        Assert.Contains(entityTypes, t => t == typeof(UnidadOrganizativaEntity));
+        Assert.Contains(entityTypes, t => t == typeof(OcupacionEntity));
+        Assert.Contains(entityTypes, t => t == typeof(HabilidadEntity));
+        Assert.Contains(entityTypes, t => t == typeof(NivelHabilidadEntity));
+        Assert.Contains(entityTypes, t => t == typeof(CargoHabilidadEntity));
+        Assert.Contains(entityTypes, t => t == typeof(PersonaEntity));
+        Assert.Contains(entityTypes, t => t == typeof(PersonaHabilidadEntity));
+        Assert.Contains(entityTypes, t => t == typeof(VacanteEntity));
+        Assert.Contains(entityTypes, t => t == typeof(EstadoVacanteEntity));
+        Assert.Contains(entityTypes, t => t == typeof(HistorialEstadoVacanteEntity));
+        Assert.Contains(entityTypes, t => t == typeof(PostulanteEntity));
+        Assert.Contains(entityTypes, t => t == typeof(EstadoPostulacionEntity));
+        Assert.Contains(entityTypes, t => t == typeof(PostulacionEntity));
+        Assert.Contains(entityTypes, t => t == typeof(HistorialEstadoPostulacionEntity));
+        Assert.Contains(entityTypes, t => t == typeof(EvaluacionPostulacionEntity));
+        Assert.Contains(entityTypes, t => t == typeof(AuditoriaEntity));
+    }
+
+    /// <summary>
+    /// Verifica que los tipos del Dominio NO están siendo mapeados
+    /// directamente por EF (el Core del refactor).
+    /// </summary>
+    [Fact]
+    public void Modelo_DomainTypesNoEstanMapeados()
+    {
+        var entityTypes = _contexto.Model.GetEntityTypes()
+            .Select(e => e.ClrType)
+            .ToList();
+
+        // Los tipos Identity de AspNetCore deben seguir mapeados
+        // El resto de tipos de Dominio NO deben estar en el modelo
+        foreach (var type in entityTypes)
+        {
+            if (type.Namespace?.StartsWith("Microsoft.AspNetCore.Identity") == true)
+                continue;
+
+            Assert.DoesNotContain("SGV.Dominio", type.Namespace);
+        }
+    }
+
+    /// <summary>
+    /// Verifica que las tablas Identity (AspNet*) siguen mapeadas
+    /// a sus propios tipos de Identity, sin cambios.
+    /// </summary>
+    [Fact]
+    public void Modelo_IdentityMantieneTiposFramework()
+    {
+        var entityTypes = _contexto.Model.GetEntityTypes();
+
+        var identityTypes = entityTypes
+            .Where(e => e.ClrType.Namespace?.StartsWith("Microsoft.AspNetCore.Identity") == true)
+            .Select(e => e.ClrType)
+            .ToList();
+
+        Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityRole));
+        Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityUser));
+        Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>));
+        Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityUserClaim<string>));
+        Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityUserLogin<string>));
+        Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityUserToken<string>));
     }
 
     [MySqlFact]

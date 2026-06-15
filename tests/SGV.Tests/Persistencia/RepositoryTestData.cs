@@ -1,57 +1,59 @@
-using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Tests.Persistencia;
 
+/// <summary>
+/// Crea datos de prueba para tests de repositorio usando tipos *Entity.
+/// Los mapeos a tipos de Dominio se realizan en los repositorios (PR 2).
+/// </summary>
 internal static class RepositoryTestData
 {
-    public static UnidadOrganizativa CreateUnidadOrganizativa(string prefix, bool isActive = true, bool isDeleted = false)
+    public static UnidadOrganizativaEntity CreateUnidadOrganizativa(string prefix, bool isActive = true, bool isDeleted = false)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        var unidad = new UnidadOrganizativa($"{prefix}-{suffix}", $"{prefix} {suffix}", "TEST");
-
-        if (!isActive)
+        var unidad = new UnidadOrganizativaEntity
         {
-            unidad.Desactivar();
-        }
-
-        if (isDeleted)
-        {
-            unidad.IsDeleted = true;
-            unidad.DeletedAt = DateTime.UtcNow;
-        }
+            Id = Guid.NewGuid(),
+            Codigo = $"{prefix}-{suffix}",
+            Nombre = $"{prefix} {suffix}",
+            TipoUnidad = "TEST",
+            IsActive = isActive,
+            IsDeleted = isDeleted
+        };
 
         return unidad;
     }
 
-    public static Cargo CreateCargo(string prefix)
+    public static CargoEntity CreateCargo(string prefix)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        return new Cargo($"{prefix}-{suffix}", $"{prefix} {suffix}", "TEST");
+        return new CargoEntity
+        {
+            Id = Guid.NewGuid(),
+            Codigo = $"{prefix}-{suffix}",
+            Nombre = $"{prefix} {suffix}",
+            Nivel = "TEST",
+            IsActive = true
+        };
     }
 
-    public static Puesto CreatePuesto(
+    public static PuestoEntity CreatePuesto(
         string prefix,
-        UnidadOrganizativa unidadOrganizativa,
-        Cargo cargo,
+        UnidadOrganizativaEntity unidadOrganizativa,
+        CargoEntity cargo,
         bool isActive = true,
         bool isDeleted = false)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        var puesto = new Puesto(unidadOrganizativa.Id, cargo.Id, $"{prefix}-{suffix}", $"{prefix} {suffix}");
-
-        if (!isActive)
+        return new PuestoEntity
         {
-            typeof(Puesto)
-                .GetProperty(nameof(Puesto.IsActive))!
-                .SetValue(puesto, false);
-        }
-
-        if (isDeleted)
-        {
-            puesto.IsDeleted = true;
-            puesto.DeletedAt = DateTime.UtcNow;
-        }
-
-        return puesto;
+            Id = Guid.NewGuid(),
+            UnidadOrganizativaId = unidadOrganizativa.Id,
+            CargoId = cargo.Id,
+            Codigo = $"{prefix}-{suffix}",
+            Nombre = $"{prefix} {suffix}",
+            IsActive = isActive,
+            IsDeleted = isDeleted
+        };
     }
 }
