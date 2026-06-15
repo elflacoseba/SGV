@@ -1,6 +1,7 @@
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Dominio.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -31,6 +32,7 @@ public sealed class PuestoRepositoryTests
             var repo = new PuestoRepository(context);
             var entidades = await repo.ListAllAsync(default);
 
+            Assert.All(entidades, entidad => Assert.IsType<Puesto>(entidad));
             Assert.Contains(entidades, entidad => entidad.Id == visible.Id);
             Assert.DoesNotContain(entidades, entidad => entidad.Id == inactive.Id);
             Assert.DoesNotContain(entidades, entidad => entidad.Id == deleted.Id);
@@ -68,8 +70,11 @@ public sealed class PuestoRepositoryTests
             var entidades = await repo.ListAllAsync(default);
 
             var encontrado = Assert.Single(entidades, entidad => entidad.Id == visible.Id);
+            Assert.IsType<Puesto>(encontrado);
             Assert.NotNull(encontrado.UnidadOrganizativa);
             Assert.NotNull(encontrado.Cargo);
+            Assert.IsType<UnidadOrganizativa>(encontrado.UnidadOrganizativa);
+            Assert.IsType<Cargo>(encontrado.Cargo);
             Assert.Equal(unidad.Id, encontrado.UnidadOrganizativaId);
             Assert.Equal(unidad.Nombre, encontrado.UnidadOrganizativa.Nombre);
             Assert.Equal(cargo.Id, encontrado.CargoId);
@@ -103,9 +108,12 @@ public sealed class PuestoRepositoryTests
             var encontrada = await repo.GetByIdAsync(expected.Id, default);
 
             Assert.NotNull(encontrada);
+            Assert.IsType<Puesto>(encontrada);
             Assert.Equal(expected.Id, encontrada!.Id);
             Assert.NotNull(encontrada.UnidadOrganizativa);
             Assert.NotNull(encontrada.Cargo);
+            Assert.IsType<UnidadOrganizativa>(encontrada.UnidadOrganizativa);
+            Assert.IsType<Cargo>(encontrada.Cargo);
             Assert.Equal(unidad.Id, encontrada.UnidadOrganizativaId);
             Assert.Equal(unidad.Nombre, encontrada.UnidadOrganizativa.Nombre);
             Assert.Equal(cargo.Id, encontrada.CargoId);

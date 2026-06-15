@@ -1,34 +1,45 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Dominio.Comun;
+using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Repositorios;
 
 /// <summary>
-/// Generic read-only repository with AsNoTracking and soft-delete filtering.
+/// Repositorio genérico de solo lectura que consulta entidades de persistencia
+/// y devuelve modelos de Dominio sin seguimiento.
 /// </summary>
-/// <typeparam name="T">Domain entity type. Must inherit from EntidadAuditable for soft-delete support.</typeparam>
-public class ReadOnlyRepository<T>(SgvDbContext context) : IReadOnlyRepository<T>
-    where T : EntidadAuditable
+/// <typeparam name="TPersistence">Tipo de entidad mapeada por EF Core.</typeparam>
+/// <typeparam name="TDomain">Tipo de entidad del Dominio expuesto por el repositorio.</typeparam>
+public abstract class ReadOnlyRepository<TPersistence, TDomain>(SgvDbContext context) : IReadOnlyRepository<TDomain>
+    where TPersistence : AuditableEntityBase
+    where TDomain : EntidadAuditable
 {
     protected SgvDbContext Context => context;
 
     /// <summary>
-    /// Base query with AsNoTracking and IsDeleted filter.
-    /// Entity-specific repositories can add Include/ThenInclude via <see cref="AgregarIncludes"/>.
+    /// Consulta base con <see cref="EntityFrameworkQueryableExtensions.AsNoTracking{TEntity}(IQueryable{TEntity})"/>
+    /// y filtro de borrado lógico.
     /// </summary>
-    protected virtual IQueryable<T> Query => Context
-        .Set<T>()
+    protected virtual IQueryable<TPersistence> Query => Context
+        .Set<TPersistence>()
         .AsNoTracking()
         .Where(e => !e.IsDeleted);
 
-    public virtual async Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Convierte la entidad de persistencia en el modelo de Dominio equivalente.
+    /// </summary>
+    protected abstract TDomain MapToDomain(TPersistence entity);
+
+    public virtual async Task<TDomain?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await Query.FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
+        var entity = await Query.FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
+        return entity is null ? null : MapToDomain(entity);
     }
 
-    public virtual async Task<IReadOnlyList<T>> ListAllAsync(CancellationToken cancellationToken = default)
+    public virtual async Task<IReadOnlyList<TDomain>> ListAllAsync(CancellationToken cancellationToken = default)
     {
-        return await Query.ToListAsync(cancellationToken);
+        var entities = await Query.ToListAsync(cancellationToken);
+        return entities.Select(MapToDomain).ToArray();
     }
 }

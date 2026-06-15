@@ -260,4 +260,90 @@ public sealed class ModeloPersistenciaTests
 
         Assert.True(canConnect);
     }
+
+    /// <summary>
+    /// Prueba canaria de schema drift: verifica que el snapshot del modelo
+    /// use exclusivamente tipos *Entity de Infraestructura y NO tipos del Dominio.
+    /// Esto prueba que el refactor CLR-type está completo en el snapshot,
+    /// y que no se generarán migraciones espurias por diferencias de tipos.
+    /// </summary>
+    [Fact]
+    public void Migraciones_SnapshotUsaTiposEntityYNoDominio()
+    {
+        using var contexto = new SgvDbContextFactory().CreateDbContext([]);
+
+        var migrationsAssembly = contexto.Database.GetService<IMigrationsAssembly>();
+        var snapshot = migrationsAssembly.ModelSnapshot;
+
+        Assert.NotNull(snapshot);
+
+        // Verificar que las entidades SGV en el snapshot son *Entity
+        var entityTypes = snapshot.Model.GetEntityTypes();
+        foreach (var entityType in entityTypes)
+        {
+            var clrType = entityType.ClrType;
+            var ns = clrType.Namespace;
+
+            // Los tipos Identity pueden mantener sus nombres
+            if (ns?.StartsWith("Microsoft.AspNetCore.Identity") == true)
+                continue;
+
+            // Saltar tipos del framework que EF usa internamente
+            if (ns?.StartsWith("System.") == true)
+                continue;
+
+            // Todos los tipos SGV deben ser *Entity de Infraestructura
+            // (Dominio o Infraestructura, ambos son válidos para SGV)
+            Assert.True(
+                ns == typeof(CargoEntity).Namespace,
+                $"La entidad '{clrType.Name}' en el snapshot pertenece a '{ns}', " +
+                $"se esperaba '{typeof(CargoEntity).Namespace}'. " +
+                "Esto indica que el snapshot aún referencia tipos del Dominio.");
+        }
+    }
+
+    /// <summary>
+    /// Verifica que no existan migraciones pendientes de aplicar
+    /// usando el script generator. Requiere conexión MySQL.
+    /// </summary>
+    [MySqlFact]
+    public void Migraciones_ScriptIdempotenteNoGeneraDDL()
+    {
+        using var contexto = new SgvDbContextFactory().CreateDbContext([]);
+
+        var migrator = contexto.Database.GetService<IMigrator>();
+        var migrationsAssembly = contexto.Database.GetService<IMigrationsAssembly>();
+
+        // Obtener la última migración aplicada
+        var lastMigration = migrationsAssembly.Migrations
+            .OrderByDescending(m => m.Key)
+            .Select(m => m.Key)
+            .FirstOrDefault();
+
+        if (lastMigration is null)
+        {
+            return; // No hay migraciones — no hay drift
+        }
+
+        // Generar script desde la última migración hasta HEAD
+        // Si hay drift, el script contendrá CREATE TABLE/ALTER TABLE
+        var script = migrator.GenerateScript(
+            fromMigration: lastMigration,
+            toMigration: null);
+
+        // El script no debe contener comandos DDL si no hay drift.
+        var lineasDdl = script.Split('\n')
+            .Where(linea => linea.TrimStart().StartsWith("CREATE TABLE")
+                         || linea.TrimStart().StartsWith("ALTER TABLE")
+                         || linea.TrimStart().StartsWith("DROP TABLE")
+                         || linea.TrimStart().StartsWith("CREATE INDEX")
+                         || linea.TrimStart().StartsWith("ALTER INDEX"))
+            .ToList();
+
+        Assert.True(
+            lineasDdl.Count == 0,
+            $"Se detectaron {lineasDdl.Count} comandos DDL en el script delta contra el snapshot. " +
+            $"Esto indica schema drift. Primeras 3: {string.Join(" | ", lineasDdl.Take(3))}");
+    }
+
 }

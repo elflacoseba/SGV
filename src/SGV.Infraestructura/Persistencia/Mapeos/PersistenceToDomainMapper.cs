@@ -1,0 +1,115 @@
+using System.Reflection;
+using SGV.Dominio.Comun;
+using SGV.Dominio.Habilidades;
+using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Entidades;
+
+namespace SGV.Infraestructura.Persistencia.Mapeos;
+
+/// <summary>
+/// Mapeos explícitos de entidades de persistencia a entidades del Dominio
+/// para preservar el contrato actual de los repositorios.
+/// </summary>
+internal static class PersistenceToDomainMapper
+{
+    public static Cargo ToDomain(CargoEntity entity)
+    {
+        var cargo = new Cargo(entity.Codigo, entity.Nombre, entity.Nivel, entity.Descripcion)
+        {
+            Id = entity.Id,
+            CreatedAt = entity.CreatedAt,
+            CreatedByUserId = entity.CreatedByUserId,
+            UpdatedAt = entity.UpdatedAt,
+            UpdatedByUserId = entity.UpdatedByUserId,
+            IsDeleted = entity.IsDeleted,
+            DeletedAt = entity.DeletedAt,
+            DeletedByUserId = entity.DeletedByUserId
+        };
+
+        SetProperty(cargo, nameof(Cargo.IsActive), entity.IsActive);
+        return cargo;
+    }
+
+    public static Habilidad ToDomain(HabilidadEntity entity)
+    {
+        var habilidad = new Habilidad(entity.Codigo, entity.Nombre, entity.Categoria, entity.Descripcion)
+        {
+            Id = entity.Id,
+            CreatedAt = entity.CreatedAt,
+            CreatedByUserId = entity.CreatedByUserId,
+            UpdatedAt = entity.UpdatedAt,
+            UpdatedByUserId = entity.UpdatedByUserId,
+            IsDeleted = entity.IsDeleted,
+            DeletedAt = entity.DeletedAt,
+            DeletedByUserId = entity.DeletedByUserId
+        };
+
+        SetProperty(habilidad, nameof(Habilidad.IsActive), entity.IsActive);
+        return habilidad;
+    }
+
+    public static UnidadOrganizativa ToDomain(UnidadOrganizativaEntity entity)
+    {
+        var unidad = new UnidadOrganizativa(entity.Codigo, entity.Nombre, entity.TipoUnidad, entity.UnidadPadreId)
+        {
+            Id = entity.Id,
+            CreatedAt = entity.CreatedAt,
+            CreatedByUserId = entity.CreatedByUserId,
+            UpdatedAt = entity.UpdatedAt,
+            UpdatedByUserId = entity.UpdatedByUserId,
+            IsDeleted = entity.IsDeleted,
+            DeletedAt = entity.DeletedAt,
+            DeletedByUserId = entity.DeletedByUserId
+        };
+
+        unidad.CambiarDatos(entity.Codigo, entity.Nombre, entity.TipoUnidad, entity.Descripcion);
+        unidad.DefinirVigencia(entity.VigenteDesde, entity.VigenteHasta);
+        SetProperty(unidad, nameof(UnidadOrganizativa.IsActive), entity.IsActive);
+
+        if (entity.UnidadPadre is not null)
+        {
+            SetProperty(unidad, nameof(UnidadOrganizativa.UnidadPadre), ToDomain(entity.UnidadPadre));
+        }
+
+        return unidad;
+    }
+
+    public static Puesto ToDomain(PuestoEntity entity)
+    {
+        var puesto = new Puesto(entity.UnidadOrganizativaId, entity.CargoId, entity.Codigo, entity.Nombre, entity.PuestoSuperiorId)
+        {
+            Id = entity.Id,
+            CreatedAt = entity.CreatedAt,
+            CreatedByUserId = entity.CreatedByUserId,
+            UpdatedAt = entity.UpdatedAt,
+            UpdatedByUserId = entity.UpdatedByUserId,
+            IsDeleted = entity.IsDeleted,
+            DeletedAt = entity.DeletedAt,
+            DeletedByUserId = entity.DeletedByUserId
+        };
+
+        puesto.CambiarDatos(entity.Codigo, entity.Nombre, entity.Descripcion);
+        SetProperty(puesto, nameof(Puesto.IsActive), entity.IsActive);
+
+        if (entity.UnidadOrganizativa is not null)
+        {
+            SetProperty(puesto, nameof(Puesto.UnidadOrganizativa), ToDomain(entity.UnidadOrganizativa));
+        }
+
+        if (entity.Cargo is not null)
+        {
+            SetProperty(puesto, nameof(Puesto.Cargo), ToDomain(entity.Cargo));
+        }
+
+        return puesto;
+    }
+
+    private static void SetProperty<T>(T target, string propertyName, object? value)
+        where T : EntidadBase
+    {
+        var property = typeof(T).GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"No se encontró la propiedad '{propertyName}' en {typeof(T).Name}.");
+
+        property.SetValue(target, value);
+    }
+}

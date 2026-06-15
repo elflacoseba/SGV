@@ -1,6 +1,7 @@
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Dominio.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -27,6 +28,7 @@ public sealed class UnidadOrganizativaRepositoryTests
             var repo = new UnidadOrganizativaRepository(context);
             var entidades = await repo.ListAllAsync(default);
 
+            Assert.All(entidades, entidad => Assert.IsType<UnidadOrganizativa>(entidad));
             Assert.Contains(entidades, entidad => entidad.Id == visible.Id);
             Assert.DoesNotContain(entidades, entidad => entidad.Id == inactive.Id);
             Assert.DoesNotContain(entidades, entidad => entidad.Id == deleted.Id);
@@ -58,6 +60,7 @@ public sealed class UnidadOrganizativaRepositoryTests
             var encontrada = await repo.GetByIdAsync(expected.Id, default);
 
             Assert.NotNull(encontrada);
+            Assert.IsType<UnidadOrganizativa>(encontrada);
             Assert.Equal(expected.Id, encontrada!.Id);
             Assert.Equal(expected.Codigo, encontrada.Codigo);
             Assert.Equal(expected.Nombre, encontrada.Nombre);

@@ -255,7 +255,7 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Auditoria.Auditoria", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.AuditoriaEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -305,7 +305,136 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.ToTable("Auditorias", (string)null);
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Habilidades.CargoHabilidad", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.CargoEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ActiveCodigoUnique")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("varchar(255)")
+                        .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Nivel")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActiveCodigoUnique")
+                        .IsUnique();
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("Nombre");
+
+                    b.ToTable("Cargos", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000001"),
+                            Codigo = "DECANO",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Nivel = "Directivo",
+                            Nombre = "Decano"
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000002"),
+                            Codigo = "SECRETARIO",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Nivel = "Directivo",
+                            Nombre = "Secretario"
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000003"),
+                            Codigo = "DIRECTOR",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Nivel = "Conducción media",
+                            Nombre = "Director"
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000004"),
+                            Codigo = "JEFE_DEPARTAMENTO",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Nivel = "Conducción media",
+                            Nombre = "Jefe de Departamento"
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000005"),
+                            Codigo = "ADMINISTRATIVO",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Nivel = "Operativo",
+                            Nombre = "Administrativo"
+                        },
+                        new
+                        {
+                            Id = new Guid("40000000-0000-0000-0000-000000000006"),
+                            Codigo = "PROFESOR",
+                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            IsActive = true,
+                            IsDeleted = false,
+                            Nivel = "Académico",
+                            Nombre = "Profesor"
+                        });
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.CargoHabilidadEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -341,7 +470,235 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         });
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Habilidades.Habilidad", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.EstadoPostulacionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<bool>("EsTerminal")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("EsTerminalPositivo")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("EstadosPostulacion", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000001"),
+                            Codigo = "Postulado",
+                            EsTerminal = false,
+                            EsTerminalPositivo = false,
+                            Nombre = "Postulado",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000002"),
+                            Codigo = "Preseleccionado",
+                            EsTerminal = false,
+                            EsTerminalPositivo = false,
+                            Nombre = "Preseleccionado",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000003"),
+                            Codigo = "Entrevistado",
+                            EsTerminal = false,
+                            EsTerminalPositivo = false,
+                            Nombre = "Entrevistado",
+                            Orden = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000004"),
+                            Codigo = "Aprobado",
+                            EsTerminal = false,
+                            EsTerminalPositivo = false,
+                            Nombre = "Aprobado",
+                            Orden = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000005"),
+                            Codigo = "Rechazado",
+                            EsTerminal = true,
+                            EsTerminalPositivo = false,
+                            Nombre = "Rechazado",
+                            Orden = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-0000-0000-0000-000000000006"),
+                            Codigo = "Contratado",
+                            EsTerminal = true,
+                            EsTerminalPositivo = true,
+                            Nombre = "Contratado",
+                            Orden = 6
+                        });
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.EstadoVacanteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<bool>("EsTerminal")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("EstadosVacante", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            Codigo = "Abierta",
+                            EsTerminal = false,
+                            Nombre = "Abierta",
+                            Orden = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
+                            Codigo = "EnSeleccion",
+                            EsTerminal = false,
+                            Nombre = "En Selección",
+                            Orden = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
+                            Codigo = "Cubierta",
+                            EsTerminal = true,
+                            Nombre = "Cubierta",
+                            Orden = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-0000-0000-0000-000000000004"),
+                            Codigo = "Cancelada",
+                            EsTerminal = true,
+                            Nombre = "Cancelada",
+                            Orden = 4
+                        });
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.EvaluacionPostulacionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<DateTime>("EvaluadoAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("EvaluadoByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<Guid>("PostulacionId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal?>("PuntajeCompatibilidad")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("PuntajeEntrevista")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("PuntajeTecnico")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("Recomendacion")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EvaluadoAt");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("PostulacionId");
+
+                    b.ToTable("EvaluacionesPostulacion", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeCompatibilidad", "`PuntajeCompatibilidad` IS NULL OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)");
+
+                            t.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeEntrevista", "`PuntajeEntrevista` IS NULL OR (`PuntajeEntrevista` >= 0 AND `PuntajeEntrevista` <= 100)");
+
+                            t.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeTecnico", "`PuntajeTecnico` IS NULL OR (`PuntajeTecnico` >= 0 AND `PuntajeTecnico` <= 100)");
+                        });
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.HabilidadEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -480,7 +837,79 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         });
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Habilidades.NivelHabilidad", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.HistorialEstadoPostulacionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ChangedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<Guid?>("EstadoAnteriorId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("EstadoNuevoId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<Guid>("PostulacionId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstadoAnteriorId");
+
+                    b.HasIndex("EstadoNuevoId");
+
+                    b.HasIndex("PostulacionId", "ChangedAt");
+
+                    b.ToTable("HistorialEstadosPostulacion", (string)null);
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.HistorialEstadoVacanteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ChangedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<Guid?>("EstadoAnteriorId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("EstadoNuevoId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<Guid>("VacanteId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstadoAnteriorId");
+
+                    b.HasIndex("EstadoNuevoId");
+
+                    b.HasIndex("VacanteId", "ChangedAt");
+
+                    b.ToTable("HistorialEstadosVacante", (string)null);
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.NivelHabilidadEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -549,7 +978,7 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         });
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Ocupaciones.Ocupacion", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.OcupacionEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -629,297 +1058,7 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         });
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Organizacion.Cargo", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("ActiveCodigoUnique")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("varchar(255)")
-                        .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DeletedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<string>("Descripcion")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Nivel")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("UpdatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActiveCodigoUnique")
-                        .IsUnique();
-
-                    b.HasIndex("IsDeleted");
-
-                    b.HasIndex("Nombre");
-
-                    b.ToTable("Cargos", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000001"),
-                            Codigo = "DECANO",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            Nivel = "Directivo",
-                            Nombre = "Decano"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000002"),
-                            Codigo = "SECRETARIO",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            Nivel = "Directivo",
-                            Nombre = "Secretario"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000003"),
-                            Codigo = "DIRECTOR",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            Nivel = "Conducción media",
-                            Nombre = "Director"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000004"),
-                            Codigo = "JEFE_DEPARTAMENTO",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            Nivel = "Conducción media",
-                            Nombre = "Jefe de Departamento"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000005"),
-                            Codigo = "ADMINISTRATIVO",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            Nivel = "Operativo",
-                            Nombre = "Administrativo"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000006"),
-                            Codigo = "PROFESOR",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            IsActive = true,
-                            IsDeleted = false,
-                            Nivel = "Académico",
-                            Nombre = "Profesor"
-                        });
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Organizacion.Puesto", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("ActiveCodigoUnique")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("varchar(255)")
-                        .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END");
-
-                    b.Property<Guid>("CargoId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DeletedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<string>("Descripcion")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<Guid?>("PuestoSuperiorId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<Guid>("UnidadOrganizativaId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("UpdatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActiveCodigoUnique")
-                        .IsUnique();
-
-                    b.HasIndex("CargoId");
-
-                    b.HasIndex("IsDeleted");
-
-                    b.HasIndex("PuestoSuperiorId");
-
-                    b.HasIndex("UnidadOrganizativaId");
-
-                    b.ToTable("Puestos", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_Puestos_PuestoSuperior", "`PuestoSuperiorId` IS NULL OR `PuestoSuperiorId` <> `Id`");
-                        });
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Organizacion.UnidadOrganizativa", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("ActiveCodigoUnique")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("varchar(255)")
-                        .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DeletedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<string>("Descripcion")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<string>("TipoUnidad")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<Guid?>("UnidadPadreId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("UpdatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<DateOnly?>("VigenteDesde")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("VigenteHasta")
-                        .HasColumnType("date");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActiveCodigoUnique")
-                        .IsUnique();
-
-                    b.HasIndex("IsDeleted");
-
-                    b.HasIndex("Nombre");
-
-                    b.HasIndex("UnidadPadreId");
-
-                    b.ToTable("UnidadesOrganizativas", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_UnidadesOrganizativas_UnidadPadre", "`UnidadPadreId` IS NULL OR `UnidadPadreId` <> `Id`");
-                        });
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Personas.Persona", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PersonaEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -1014,7 +1153,7 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.ToTable("Personas", (string)null);
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Personas.PersonaHabilidad", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PersonaHabilidadEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -1047,208 +1186,7 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.ToTable("PersonaHabilidades", (string)null);
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Seleccion.EstadoPostulacion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<bool>("EsTerminal")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("EsTerminalPositivo")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<int>("Orden")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Codigo")
-                        .IsUnique();
-
-                    b.ToTable("EstadosPostulacion", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000001"),
-                            Codigo = "Postulado",
-                            EsTerminal = false,
-                            EsTerminalPositivo = false,
-                            Nombre = "Postulado",
-                            Orden = 1
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000002"),
-                            Codigo = "Preseleccionado",
-                            EsTerminal = false,
-                            EsTerminalPositivo = false,
-                            Nombre = "Preseleccionado",
-                            Orden = 2
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000003"),
-                            Codigo = "Entrevistado",
-                            EsTerminal = false,
-                            EsTerminalPositivo = false,
-                            Nombre = "Entrevistado",
-                            Orden = 3
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000004"),
-                            Codigo = "Aprobado",
-                            EsTerminal = false,
-                            EsTerminalPositivo = false,
-                            Nombre = "Aprobado",
-                            Orden = 4
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000005"),
-                            Codigo = "Rechazado",
-                            EsTerminal = true,
-                            EsTerminalPositivo = false,
-                            Nombre = "Rechazado",
-                            Orden = 5
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000006"),
-                            Codigo = "Contratado",
-                            EsTerminal = true,
-                            EsTerminalPositivo = true,
-                            Nombre = "Contratado",
-                            Orden = 6
-                        });
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Seleccion.EvaluacionPostulacion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DeletedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<DateTime>("EvaluadoAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("EvaluadoByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Observaciones")
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)");
-
-                    b.Property<Guid>("PostulacionId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<decimal?>("PuntajeCompatibilidad")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<decimal?>("PuntajeEntrevista")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<decimal?>("PuntajeTecnico")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<string>("Recomendacion")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("UpdatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EvaluadoAt");
-
-                    b.HasIndex("IsDeleted");
-
-                    b.HasIndex("PostulacionId");
-
-                    b.ToTable("EvaluacionesPostulacion", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeCompatibilidad", "`PuntajeCompatibilidad` IS NULL OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)");
-
-                            t.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeEntrevista", "`PuntajeEntrevista` IS NULL OR (`PuntajeEntrevista` >= 0 AND `PuntajeEntrevista` <= 100)");
-
-                            t.HasCheckConstraint("CK_EvaluacionesPostulacion_PuntajeTecnico", "`PuntajeTecnico` IS NULL OR (`PuntajeTecnico` >= 0 AND `PuntajeTecnico` <= 100)");
-                        });
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Seleccion.HistorialEstadoPostulacion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("ChangedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ChangedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("varchar(450)");
-
-                    b.Property<Guid?>("EstadoAnteriorId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<Guid>("EstadoNuevoId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Observaciones")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<Guid>("PostulacionId")
-                        .HasColumnType("char(36)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EstadoAnteriorId");
-
-                    b.HasIndex("EstadoNuevoId");
-
-                    b.HasIndex("PostulacionId", "ChangedAt");
-
-                    b.ToTable("HistorialEstadosPostulacion", (string)null);
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Seleccion.Postulacion", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PostulacionEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -1320,7 +1258,7 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         });
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Seleccion.Postulante", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PostulanteEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -1397,9 +1335,17 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.ToTable("Postulantes", (string)null);
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Vacantes.EstadoVacante", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PuestoEntity", b =>
                 {
                     b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ActiveCodigoUnique")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("varchar(255)")
+                        .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END");
+
+                    b.Property<Guid>("CargoId")
                         .HasColumnType("char(36)");
 
                     b.Property<string>("Codigo")
@@ -1407,96 +1353,150 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<bool>("EsTerminal")
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("tinyint(1)");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
-                    b.Property<int>("Orden")
-                        .HasColumnType("int");
+                    b.Property<Guid?>("PuestoSuperiorId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("UnidadOrganizativaId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Codigo")
+                    b.HasIndex("ActiveCodigoUnique")
                         .IsUnique();
 
-                    b.ToTable("EstadosVacante", (string)null);
+                    b.HasIndex("CargoId");
 
-                    b.HasData(
-                        new
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("PuestoSuperiorId");
+
+                    b.HasIndex("UnidadOrganizativaId");
+
+                    b.ToTable("Puestos", null, t =>
                         {
-                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
-                            Codigo = "Abierta",
-                            EsTerminal = false,
-                            Nombre = "Abierta",
-                            Orden = 1
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
-                            Codigo = "EnSeleccion",
-                            EsTerminal = false,
-                            Nombre = "En Selección",
-                            Orden = 2
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
-                            Codigo = "Cubierta",
-                            EsTerminal = true,
-                            Nombre = "Cubierta",
-                            Orden = 3
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000004"),
-                            Codigo = "Cancelada",
-                            EsTerminal = true,
-                            Nombre = "Cancelada",
-                            Orden = 4
+                            t.HasCheckConstraint("CK_Puestos_PuestoSuperior", "`PuestoSuperiorId` IS NULL OR `PuestoSuperiorId` <> `Id`");
                         });
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Vacantes.HistorialEstadoVacante", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.UnidadOrganizativaEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
 
-                    b.Property<DateTime>("ChangedAt")
+                    b.Property<string>("ActiveCodigoUnique")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("varchar(255)")
+                        .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<string>("ChangedByUserId")
+                    b.Property<string>("CreatedByUserId")
                         .HasMaxLength(450)
                         .HasColumnType("varchar(450)");
 
-                    b.Property<Guid?>("EstadoAnteriorId")
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("TipoUnidad")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<Guid?>("UnidadPadreId")
                         .HasColumnType("char(36)");
 
-                    b.Property<Guid>("EstadoNuevoId")
-                        .HasColumnType("char(36)");
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
 
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
 
-                    b.Property<Guid>("VacanteId")
-                        .HasColumnType("char(36)");
+                    b.Property<DateOnly?>("VigenteDesde")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("VigenteHasta")
+                        .HasColumnType("date");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EstadoAnteriorId");
+                    b.HasIndex("ActiveCodigoUnique")
+                        .IsUnique();
 
-                    b.HasIndex("EstadoNuevoId");
+                    b.HasIndex("IsDeleted");
 
-                    b.HasIndex("VacanteId", "ChangedAt");
+                    b.HasIndex("Nombre");
 
-                    b.ToTable("HistorialEstadosVacante", (string)null);
+                    b.HasIndex("UnidadPadreId");
+
+                    b.ToTable("UnidadesOrganizativas", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_UnidadesOrganizativas_UnidadPadre", "`UnidadPadreId` IS NULL OR `UnidadPadreId` <> `Id`");
+                        });
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Vacantes.Vacante", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.VacanteEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("char(36)");
@@ -1612,21 +1612,21 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Habilidades.CargoHabilidad", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.CargoHabilidadEntity", b =>
                 {
-                    b.HasOne("SGV.Dominio.Organizacion.Cargo", "Cargo")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.CargoEntity", "Cargo")
                         .WithMany("Habilidades")
                         .HasForeignKey("CargoId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Habilidades.Habilidad", "Habilidad")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.HabilidadEntity", "Habilidad")
                         .WithMany()
                         .HasForeignKey("HabilidadId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Habilidades.NivelHabilidad", "NivelRequerido")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.NivelHabilidadEntity", "NivelRequerido")
                         .WithMany()
                         .HasForeignKey("NivelRequeridoId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1639,15 +1639,78 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Navigation("NivelRequerido");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Ocupaciones.Ocupacion", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.EvaluacionPostulacionEntity", b =>
                 {
-                    b.HasOne("SGV.Dominio.Personas.Persona", "Persona")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PostulacionEntity", "Postulacion")
+                        .WithMany("Evaluaciones")
+                        .HasForeignKey("PostulacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Postulacion");
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.HistorialEstadoPostulacionEntity", b =>
+                {
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.EstadoPostulacionEntity", "EstadoAnterior")
+                        .WithMany()
+                        .HasForeignKey("EstadoAnteriorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.EstadoPostulacionEntity", "EstadoNuevo")
+                        .WithMany()
+                        .HasForeignKey("EstadoNuevoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PostulacionEntity", "Postulacion")
+                        .WithMany("HistorialEstados")
+                        .HasForeignKey("PostulacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EstadoAnterior");
+
+                    b.Navigation("EstadoNuevo");
+
+                    b.Navigation("Postulacion");
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.HistorialEstadoVacanteEntity", b =>
+                {
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.EstadoVacanteEntity", "EstadoAnterior")
+                        .WithMany()
+                        .HasForeignKey("EstadoAnteriorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.EstadoVacanteEntity", "EstadoNuevo")
+                        .WithMany()
+                        .HasForeignKey("EstadoNuevoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.VacanteEntity", "Vacante")
+                        .WithMany("HistorialEstados")
+                        .HasForeignKey("VacanteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EstadoAnterior");
+
+                    b.Navigation("EstadoNuevo");
+
+                    b.Navigation("Vacante");
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.OcupacionEntity", b =>
+                {
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PersonaEntity", "Persona")
                         .WithMany("Ocupaciones")
                         .HasForeignKey("PersonaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Organizacion.Puesto", "Puesto")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PuestoEntity", "Puesto")
                         .WithMany("Ocupaciones")
                         .HasForeignKey("PuestoId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1658,57 +1721,21 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Puesto");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Organizacion.Puesto", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PersonaHabilidadEntity", b =>
                 {
-                    b.HasOne("SGV.Dominio.Organizacion.Cargo", "Cargo")
-                        .WithMany("Puestos")
-                        .HasForeignKey("CargoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SGV.Dominio.Organizacion.Puesto", "PuestoSuperior")
-                        .WithMany("PuestosSubordinados")
-                        .HasForeignKey("PuestoSuperiorId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SGV.Dominio.Organizacion.UnidadOrganizativa", "UnidadOrganizativa")
-                        .WithMany("Puestos")
-                        .HasForeignKey("UnidadOrganizativaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Cargo");
-
-                    b.Navigation("PuestoSuperior");
-
-                    b.Navigation("UnidadOrganizativa");
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Organizacion.UnidadOrganizativa", b =>
-                {
-                    b.HasOne("SGV.Dominio.Organizacion.UnidadOrganizativa", "UnidadPadre")
-                        .WithMany("UnidadesHijas")
-                        .HasForeignKey("UnidadPadreId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("UnidadPadre");
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Personas.PersonaHabilidad", b =>
-                {
-                    b.HasOne("SGV.Dominio.Habilidades.Habilidad", "Habilidad")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.HabilidadEntity", "Habilidad")
                         .WithMany()
                         .HasForeignKey("HabilidadId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Habilidades.NivelHabilidad", "NivelHabilidad")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.NivelHabilidadEntity", "NivelHabilidad")
                         .WithMany()
                         .HasForeignKey("NivelHabilidadId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Personas.Persona", "Persona")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PersonaEntity", "Persona")
                         .WithMany("Habilidades")
                         .HasForeignKey("PersonaId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1721,58 +1748,21 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Persona");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Seleccion.EvaluacionPostulacion", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PostulacionEntity", b =>
                 {
-                    b.HasOne("SGV.Dominio.Seleccion.Postulacion", "Postulacion")
-                        .WithMany("Evaluaciones")
-                        .HasForeignKey("PostulacionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Postulacion");
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Seleccion.HistorialEstadoPostulacion", b =>
-                {
-                    b.HasOne("SGV.Dominio.Seleccion.EstadoPostulacion", "EstadoAnterior")
-                        .WithMany()
-                        .HasForeignKey("EstadoAnteriorId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SGV.Dominio.Seleccion.EstadoPostulacion", "EstadoNuevo")
-                        .WithMany()
-                        .HasForeignKey("EstadoNuevoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SGV.Dominio.Seleccion.Postulacion", "Postulacion")
-                        .WithMany("HistorialEstados")
-                        .HasForeignKey("PostulacionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("EstadoAnterior");
-
-                    b.Navigation("EstadoNuevo");
-
-                    b.Navigation("Postulacion");
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Seleccion.Postulacion", b =>
-                {
-                    b.HasOne("SGV.Dominio.Seleccion.EstadoPostulacion", "EstadoPostulacion")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.EstadoPostulacionEntity", "EstadoPostulacion")
                         .WithMany()
                         .HasForeignKey("EstadoPostulacionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Seleccion.Postulante", "Postulante")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PostulanteEntity", "Postulante")
                         .WithMany("Postulaciones")
                         .HasForeignKey("PostulanteId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Vacantes.Vacante", "Vacante")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.VacanteEntity", "Vacante")
                         .WithMany("Postulaciones")
                         .HasForeignKey("VacanteId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1785,9 +1775,9 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Vacante");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Seleccion.Postulante", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PostulanteEntity", b =>
                 {
-                    b.HasOne("SGV.Dominio.Personas.Persona", "Persona")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PersonaEntity", "Persona")
                         .WithMany()
                         .HasForeignKey("PersonaId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -1795,41 +1785,51 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Persona");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Vacantes.HistorialEstadoVacante", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PuestoEntity", b =>
                 {
-                    b.HasOne("SGV.Dominio.Vacantes.EstadoVacante", "EstadoAnterior")
-                        .WithMany()
-                        .HasForeignKey("EstadoAnteriorId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("SGV.Dominio.Vacantes.EstadoVacante", "EstadoNuevo")
-                        .WithMany()
-                        .HasForeignKey("EstadoNuevoId")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.CargoEntity", "Cargo")
+                        .WithMany("Puestos")
+                        .HasForeignKey("CargoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Vacantes.Vacante", "Vacante")
-                        .WithMany("HistorialEstados")
-                        .HasForeignKey("VacanteId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PuestoEntity", "PuestoSuperior")
+                        .WithMany("PuestosSubordinados")
+                        .HasForeignKey("PuestoSuperiorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.UnidadOrganizativaEntity", "UnidadOrganizativa")
+                        .WithMany("Puestos")
+                        .HasForeignKey("UnidadOrganizativaId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("EstadoAnterior");
+                    b.Navigation("Cargo");
 
-                    b.Navigation("EstadoNuevo");
+                    b.Navigation("PuestoSuperior");
 
-                    b.Navigation("Vacante");
+                    b.Navigation("UnidadOrganizativa");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Vacantes.Vacante", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.UnidadOrganizativaEntity", b =>
                 {
-                    b.HasOne("SGV.Dominio.Vacantes.EstadoVacante", "EstadoVacante")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.UnidadOrganizativaEntity", "UnidadPadre")
+                        .WithMany("UnidadesHijas")
+                        .HasForeignKey("UnidadPadreId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("UnidadPadre");
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.VacanteEntity", b =>
+                {
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.EstadoVacanteEntity", "EstadoVacante")
                         .WithMany()
                         .HasForeignKey("EstadoVacanteId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SGV.Dominio.Organizacion.Puesto", "Puesto")
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.PuestoEntity", "Puesto")
                         .WithMany("Vacantes")
                         .HasForeignKey("PuestoId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1840,14 +1840,33 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Puesto");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Organizacion.Cargo", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.CargoEntity", b =>
                 {
                     b.Navigation("Habilidades");
 
                     b.Navigation("Puestos");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Organizacion.Puesto", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PersonaEntity", b =>
+                {
+                    b.Navigation("Habilidades");
+
+                    b.Navigation("Ocupaciones");
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PostulacionEntity", b =>
+                {
+                    b.Navigation("Evaluaciones");
+
+                    b.Navigation("HistorialEstados");
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PostulanteEntity", b =>
+                {
+                    b.Navigation("Postulaciones");
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PuestoEntity", b =>
                 {
                     b.Navigation("Ocupaciones");
 
@@ -1856,33 +1875,14 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Vacantes");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Organizacion.UnidadOrganizativa", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.UnidadOrganizativaEntity", b =>
                 {
                     b.Navigation("Puestos");
 
                     b.Navigation("UnidadesHijas");
                 });
 
-            modelBuilder.Entity("SGV.Dominio.Personas.Persona", b =>
-                {
-                    b.Navigation("Habilidades");
-
-                    b.Navigation("Ocupaciones");
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Seleccion.Postulacion", b =>
-                {
-                    b.Navigation("Evaluaciones");
-
-                    b.Navigation("HistorialEstados");
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Seleccion.Postulante", b =>
-                {
-                    b.Navigation("Postulaciones");
-                });
-
-            modelBuilder.Entity("SGV.Dominio.Vacantes.Vacante", b =>
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.VacanteEntity", b =>
                 {
                     b.Navigation("HistorialEstados");
 

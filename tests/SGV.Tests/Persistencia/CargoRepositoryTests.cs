@@ -1,5 +1,6 @@
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Dominio.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -20,6 +21,7 @@ public sealed class CargoRepositoryTests
 
         // Seed data includes active Cargos that are not deleted
         Assert.NotEmpty(entidades);
+        Assert.All(entidades, entidad => Assert.IsType<Cargo>(entidad));
         Assert.All(entidades, e => Assert.False(e.IsDeleted));
     }
 
