@@ -113,10 +113,26 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
     }
 
     public Task<UnidadOrganizativa?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        => Task.FromResult(Datos.FirstOrDefault(e => e.Id == id && e.IsActive && !e.IsDeleted));
+
+    public Task<UnidadOrganizativa?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
+        => Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
 
     public Task<bool> IsDescendantAsync(Guid candidateDescendantId, Guid ancestorId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    {
+        var current = Datos.FirstOrDefault(d => d.Id == candidateDescendantId);
+        while (current is not null && current.UnidadPadreId.HasValue)
+        {
+            if (current.UnidadPadreId == ancestorId)
+            {
+                return Task.FromResult(true);
+            }
+
+            current = Datos.FirstOrDefault(d => d.Id == current.UnidadPadreId.Value);
+        }
+
+        return Task.FromResult(false);
+    }
 
     public Task<IReadOnlyList<UnidadOrganizativa>> ListAllAsync(CancellationToken cancellationToken = default)
     {
@@ -125,4 +141,15 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
 
     public Task UpdateAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
+
+    public Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var unidad = Datos.FirstOrDefault(d => d.Id == id);
+        if (unidad is not null)
+        {
+            unidad.Activar();
+        }
+
+        return Task.CompletedTask;
+    }
 }

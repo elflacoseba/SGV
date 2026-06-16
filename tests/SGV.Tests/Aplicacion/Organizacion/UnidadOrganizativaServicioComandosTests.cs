@@ -340,6 +340,12 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
         return Task.FromResult(unidad);
     }
 
+    public Task<UnidadOrganizativa?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var unidad = Datos.FirstOrDefault(d => d.Id == id);
+        return Task.FromResult(unidad);
+    }
+
     public Task<bool> IsDescendantAsync(Guid candidateDescendantId, Guid ancestorId, CancellationToken cancellationToken = default)
     {
         var current = Datos.FirstOrDefault(d => d.Id == candidateDescendantId);
@@ -367,6 +373,21 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
         if (index >= 0)
         {
             Datos[index] = unidad;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var unidad = Datos.FirstOrDefault(d => d.Id == id);
+        if (unidad is not null)
+        {
+            unidad.Activar();
+            if (!Datos.Contains(unidad))
+            {
+                Datos.Add(unidad);
+            }
         }
 
         return Task.CompletedTask;

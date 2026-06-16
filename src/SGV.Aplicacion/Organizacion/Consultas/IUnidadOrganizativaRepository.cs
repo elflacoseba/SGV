@@ -19,6 +19,11 @@ public interface IUnidadOrganizativaRepository : IReadOnlyRepository<UnidadOrgan
     Task<UnidadOrganizativa?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Retrieves a unit by id including soft-deleted ones for update/reactivation.
+    /// </summary>
+    Task<UnidadOrganizativa?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Persists changes to an existing organizational unit.
     /// </summary>
     Task UpdateAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default);
@@ -27,6 +32,11 @@ public interface IUnidadOrganizativaRepository : IReadOnlyRepository<UnidadOrgan
     /// Soft-deletes an organizational unit.
     /// </summary>
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reactivates a previously soft-deleted organizational unit.
+    /// </summary>
+    Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks whether an active unit already uses the given code.

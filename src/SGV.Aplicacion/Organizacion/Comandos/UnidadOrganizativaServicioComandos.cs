@@ -173,6 +173,38 @@ public sealed class UnidadOrganizativaServicioComandos(
         return UnidadOrganizativaCommandResult.Success(null!);
     }
 
+    public async Task<UnidadOrganizativaCommandResult> ReactivarAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+         var unidad = await repository.GetByIdIncludingDeletedAsync(id, cancellationToken).ConfigureAwait(false);
+        if (unidad is null)
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad organizativa no existe."));
+        }
+
+        if (await repository.ExistsActiveCodeAsync(unidad.Codigo, id, cancellationToken).ConfigureAwait(false))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
+                    "Ya existe una unidad organizativa activa con el mismo código."));
+        }
+
+        try
+        {
+            unidad.Activar();
+
+            await repository.ReactivateAsync(id, cancellationToken).ConfigureAwait(false);
+            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            return UnidadOrganizativaCommandResult.Success(MapToDto(unidad));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "ReactivacionInvalida", ex.Message));
+        }
+    }
+
     private static UnidadOrganizativaDto MapToDto(UnidadOrganizativa unidad)
     {
         return new UnidadOrganizativaDto(
@@ -186,4 +218,6 @@ public sealed class UnidadOrganizativaServicioComandos(
             unidad.VigenteHasta,
             unidad.UnidadPadreId);
     }
+
+    
 }

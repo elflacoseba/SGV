@@ -34,4 +34,14 @@ public interface IUnidadOrganizativaServicioComandos
     Task<UnidadOrganizativaCommandResult> EliminarAsync(
         Guid id,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reactivates a previously soft-deleted organizational unit.
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    Task<UnidadOrganizativaCommandResult> ReactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default);
 }

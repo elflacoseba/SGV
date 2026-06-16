@@ -96,6 +96,20 @@ public class UnidadesOrganizativasController : ControllerBase
             : ToProblemResult(result.Error!);
     }
 
+    /// <summary>
+    /// Reactivates a previously soft-deleted organizational unit.
+    /// </summary>
+    [HttpPatch("{id:guid}/reactivar")]
+    public async Task<ActionResult<UnidadOrganizativaDto>> Reactivate(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _comandos.ReactivarAsync(id, cancellationToken);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : ToProblemResult(result.Error!);
+    }
+
     private ActionResult ToProblemResult(UnidadOrganizativaError error)
     {
         var statusCode = error.Type switch
