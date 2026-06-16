@@ -84,6 +84,7 @@ public sealed class SwaggerConfigurationTests
         Assert.Contains("/api/v1/cargos", actualPaths);
         Assert.Contains("/api/v1/puestos", actualPaths);
         Assert.Contains("/api/v1/skills", actualPaths);
+        Assert.Contains("/api/v1/tipos-unidad-organizativa", actualPaths);
     }
 
     [Fact]
