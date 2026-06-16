@@ -10,6 +10,7 @@ namespace SGV.Aplicacion.Organizacion.Comandos;
 /// </summary>
 public sealed class UnidadOrganizativaServicioComandos(
     IUnidadOrganizativaRepository repository,
+    ITipoUnidadOrganizativaRepository tipoUnidadRepository,
     IUnitOfWork unitOfWork) : IUnidadOrganizativaServicioComandos
 {
     public async Task<UnidadOrganizativaCommandResult> CrearAsync(
@@ -20,6 +21,14 @@ public sealed class UnidadOrganizativaServicioComandos(
         {
             return UnidadOrganizativaCommandResult.Failure(
                 new(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado", "Ya existe una unidad organizativa activa con el mismo código."));
+        }
+
+        var tipo = await tipoUnidadRepository.GetByIdAsync(request.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false);
+        if (tipo is null)
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "TipoUnidadNoExiste",
+                    "El tipo de unidad organizativa referenciado no existe."));
         }
 
         if (request.UnidadPadreId.HasValue)
@@ -69,6 +78,14 @@ public sealed class UnidadOrganizativaServicioComandos(
         {
             return UnidadOrganizativaCommandResult.Failure(
                 new(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado", "Ya existe una unidad organizativa activa con el mismo código."));
+        }
+
+        var tipo = await tipoUnidadRepository.GetByIdAsync(request.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false);
+        if (tipo is null)
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "TipoUnidadNoExiste",
+                    "El tipo de unidad organizativa referenciado no existe."));
         }
 
         try
