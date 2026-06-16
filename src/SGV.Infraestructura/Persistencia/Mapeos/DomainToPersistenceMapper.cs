@@ -15,7 +15,7 @@ internal static class DomainToPersistenceMapper
             Id = domain.Id,
             Codigo = domain.Codigo,
             Nombre = domain.Nombre,
-            TipoUnidad = domain.TipoUnidad,
+            TipoUnidadOrganizativaId = domain.TipoUnidadOrganizativaId,
             Descripcion = domain.Descripcion,
             VigenteDesde = domain.VigenteDesde,
             VigenteHasta = domain.VigenteHasta,
@@ -35,7 +35,7 @@ internal static class DomainToPersistenceMapper
     {
         entity.Codigo = domain.Codigo;
         entity.Nombre = domain.Nombre;
-        entity.TipoUnidad = domain.TipoUnidad;
+        entity.TipoUnidadOrganizativaId = domain.TipoUnidadOrganizativaId;
         entity.Descripcion = domain.Descripcion;
         entity.VigenteDesde = domain.VigenteDesde;
         entity.VigenteHasta = domain.VigenteHasta;

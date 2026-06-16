@@ -6,6 +6,7 @@ using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Infraestructura.Persistencia.Catalogos;
 
 namespace SGV.Tests.Api;
 
@@ -19,6 +20,36 @@ internal static class ServiceCollectionExtensions
     }
 }
 
+internal sealed class FakeTipoUnidadOrganizativaServicio : ITipoUnidadOrganizativaServicioConsulta
+{
+    public static readonly Guid DireccionId = TipoUnidadOrganizativaConstantes.DireccionId;
+    public static readonly Guid AreaId = TipoUnidadOrganizativaConstantes.AreaId;
+
+    private static readonly IReadOnlyList<TipoUnidadOrganizativaDto> SeedData =
+    [
+        new(TipoUnidadOrganizativaConstantes.InstitucionId, "Institucion", "Institución"),
+        new(TipoUnidadOrganizativaConstantes.FacultadId,    "Facultad",    "Facultad"),
+        new(TipoUnidadOrganizativaConstantes.SecretariaId,  "Secretaria",  "Secretaría"),
+        new(TipoUnidadOrganizativaConstantes.DireccionId,   "Direccion",   "Dirección"),
+        new(TipoUnidadOrganizativaConstantes.DepartamentoId,"Departamento","Departamento"),
+        new(TipoUnidadOrganizativaConstantes.DivisionId,    "Division",    "División"),
+        new(TipoUnidadOrganizativaConstantes.AreaId,        "Area",        "Área"),
+    ];
+
+    private readonly IReadOnlyList<TipoUnidadOrganizativaDto> _data;
+
+    public FakeTipoUnidadOrganizativaServicio(bool isEmpty = false)
+    {
+        _data = isEmpty ? [] : SeedData;
+    }
+
+    public Task<IReadOnlyList<TipoUnidadOrganizativaDto>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult(_data);
+
+    public Task<TipoUnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+}
+
 internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServicioConsulta
 {
     public static readonly Guid UnidadId1 = Guid.Parse("a0000000-0000-0000-0000-000000000001");
@@ -29,7 +60,7 @@ internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServic
     {
         _data = isEmpty
             ? []
-            : [new(UnidadId1, "GER", "Gerencia General", "Dirección",
+            : [new(UnidadId1, "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección",
                   "Máxima autoridad ejecutiva", null, null, null)];
     }
 
@@ -119,7 +150,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(DefaultUnidadId, request.Codigo, request.Nombre,
-                request.TipoUnidad, request.Descripcion, request.VigenteDesde,
+                request.TipoUnidadOrganizativaId, string.Empty, request.Descripcion, request.VigenteDesde,
                 request.VigenteHasta, request.UnidadPadreId)));
     }
 
@@ -131,7 +162,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(id, request.Codigo, request.Nombre,
-                request.TipoUnidad, request.Descripcion, request.VigenteDesde,
+                request.TipoUnidadOrganizativaId, string.Empty, request.Descripcion, request.VigenteDesde,
                 request.VigenteHasta, null)));
     }
 
@@ -142,7 +173,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     {
         if (CambiarUnidadPadreHandler is not null) return CambiarUnidadPadreHandler(id, request, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
-            new UnidadOrganizativaDto(id, "GER", "Gerencia", "Dirección", null, null, null, request.UnidadPadreId)));
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, request.UnidadPadreId)));
     }
 
     public Task<UnidadOrganizativaCommandResult> EliminarAsync(
@@ -151,7 +182,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     {
         if (EliminarHandler is not null) return EliminarHandler(id, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
-            new UnidadOrganizativaDto(id, "GER", "Gerencia", "Dirección", null, null, null, null)));
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null)));
     }
 }
 
@@ -174,6 +205,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IPuestoServicioConsulta>();
             services.RemoveService<IHabilidadServicioConsulta>();
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.RemoveService<ITipoUnidadOrganizativaServicioConsulta>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
@@ -181,6 +213,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IPuestoServicioConsulta>(new FakePuestoServicio());
             services.AddSingleton<IHabilidadServicioConsulta>(new FakeHabilidadServicio());
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(new FakeUnidadOrganizativaServicioComandos());
+            services.AddSingleton<ITipoUnidadOrganizativaServicioConsulta>(new FakeTipoUnidadOrganizativaServicio());
 
             // Apply additional overrides (e.g. empty collections)
             _configureServices?.Invoke(services);

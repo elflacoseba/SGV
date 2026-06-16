@@ -1414,6 +1414,78 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         });
                 });
 
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.TipoUnidadOrganizativaEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .UseCollation("ascii_general_ci");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TiposUnidadOrganizativa_Codigo");
+
+                    b.ToTable("TiposUnidadOrganizativa", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TiposUnidadOrganizativa_Codigo", "`Codigo` <> ''");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000001"),
+                            Codigo = "Institucion",
+                            Nombre = "Institución"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000002"),
+                            Codigo = "Facultad",
+                            Nombre = "Facultad"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000003"),
+                            Codigo = "Secretaria",
+                            Nombre = "Secretaría"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000004"),
+                            Codigo = "Direccion",
+                            Nombre = "Dirección"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000005"),
+                            Codigo = "Departamento",
+                            Nombre = "Departamento"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000006"),
+                            Codigo = "Division",
+                            Nombre = "División"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000007"),
+                            Codigo = "Area",
+                            Nombre = "Área"
+                        });
+                });
+
             modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.UnidadOrganizativaEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1458,10 +1530,8 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
-                    b.Property<string>("TipoUnidad")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                    b.Property<Guid>("TipoUnidadOrganizativaId")
+                        .HasColumnType("char(36)");
 
                     b.Property<Guid?>("UnidadPadreId")
                         .HasColumnType("char(36)");
@@ -1487,6 +1557,9 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("Nombre");
+
+                    b.HasIndex("TipoUnidadOrganizativaId")
+                        .HasDatabaseName("IX_UnidadesOrganizativas_TipoUnidadOrganizativaId");
 
                     b.HasIndex("UnidadPadreId");
 
@@ -1813,10 +1886,18 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
 
             modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.UnidadOrganizativaEntity", b =>
                 {
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.TipoUnidadOrganizativaEntity", "TipoUnidadOrganizativa")
+                        .WithMany()
+                        .HasForeignKey("TipoUnidadOrganizativaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("SGV.Infraestructura.Persistencia.Entidades.UnidadOrganizativaEntity", "UnidadPadre")
                         .WithMany("UnidadesHijas")
                         .HasForeignKey("UnidadPadreId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("TipoUnidadOrganizativa");
 
                     b.Navigation("UnidadPadre");
                 });

@@ -11,9 +11,9 @@ public sealed class UnidadOrganizativa : EntidadAuditable
     {
     }
 
-    public UnidadOrganizativa(string codigo, string nombre, string tipoUnidad, Guid? unidadPadreId = null)
+    public UnidadOrganizativa(string codigo, string nombre, Guid tipoUnidadOrganizativaId, Guid? unidadPadreId = null)
     {
-        CambiarDatos(codigo, nombre, tipoUnidad);
+        CambiarDatos(codigo, nombre, tipoUnidadOrganizativaId);
         CambiarUnidadPadre(unidadPadreId);
         IsActive = true;
     }
@@ -26,7 +26,9 @@ public sealed class UnidadOrganizativa : EntidadAuditable
 
     public string Nombre { get; private set; } = string.Empty;
 
-    public string TipoUnidad { get; private set; } = string.Empty;
+    public Guid TipoUnidadOrganizativaId { get; private set; }
+
+    public TipoUnidadOrganizativa? TipoUnidadOrganizativa { get; private set; }
 
     public string? Descripcion { get; private set; }
 
@@ -40,11 +42,15 @@ public sealed class UnidadOrganizativa : EntidadAuditable
 
     public IReadOnlyCollection<Puesto> Puestos => _puestos;
 
-    public void CambiarDatos(string codigo, string nombre, string tipoUnidad, string? descripcion = null)
+    public void CambiarDatos(string codigo, string nombre, Guid tipoUnidadOrganizativaId, string? descripcion = null)
     {
         Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
         Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
-        TipoUnidad = ValidacionesDominio.Requerido(tipoUnidad, nameof(TipoUnidad), 50);
+        if (tipoUnidadOrganizativaId == Guid.Empty)
+        {
+            throw new ArgumentException("El tipo de unidad organizativa es obligatorio.", nameof(TipoUnidadOrganizativaId));
+        }
+        TipoUnidadOrganizativaId = tipoUnidadOrganizativaId;
         Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
     }
 

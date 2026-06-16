@@ -195,3 +195,55 @@ El diseño de base de datos DEBE apuntar a MySQL mediante Pomelo Entity Framewor
 - DADO que se usan migraciones de persistencia o model snapshots para verificación
 - CUANDO se revisan artefactos específicos del proveedor
 - ENTONCES los supuestos específicos de SQL Server DEBEN reemplazarse por artefactos compatibles con MySQL.
+
+### Requisito: Catálogo `TiposUnidadOrganizativa` con FK `OnDelete(Restrict)`
+
+El sistema DEBE persistir un catálogo inmutable `TiposUnidadOrganizativa` con PK `Id` Guid (`char(36)`), `Codigo varchar(50)` `UNIQUE NOT NULL` y `Nombre varchar(100) NOT NULL`. El catálogo NO DEBE tener columnas `IsActive` ni `IsDeleted`. La columna `UnidadesOrganizativas.TipoUnidadOrganizativaId` DEBE ser una FK `char(36) NOT NULL` con `OnDelete(Restrict)` y DEBE estar indexada.
+
+#### Escenario: Enforcement de la FK
+
+- **DADO** que existe una `UnidadOrganizativa` que referencia el tipo con id `X`
+- **CUANDO** se ejecuta `DELETE FROM TiposUnidadOrganizativa WHERE id = X`
+- **ENTONCES** MySQL DEBE rechazar la operación con un error de foreign key constraint
+- **Y** la fila `X` DEBE permanecer en la tabla.
+
+#### Escenario: Índice sobre la FK
+
+- **DADO** que la migración se ejecutó
+- **CUANDO** se consulta `SHOW INDEX FROM UnidadesOrganizativas`
+- **ENTONCES** DEBE existir un índice sobre la columna `TipoUnidadOrganizativaId`
+- **Y** ese índice DEBE ser el que usa la FK en `REFERENCES`.
+
+#### Escenario: Catálogo sin flags de estado
+
+- **DADO** que existe la tabla `TiposUnidadOrganizativa`
+- **CUANDO** se consultan sus columnas con `DESCRIBE TiposUnidadOrganizativa`
+- **ENTONCES** NO DEBE existir una columna `IsActive` ni una columna `IsDeleted`.
+
+### Requisito: Migración fail-loud con pre-flight de strings sucios
+
+La migración que introduce la FK `TipoUnidadOrganizativaId` DEBE ejecutar un `SELECT` de pre-flight que liste todo valor distinto de `UnidadesOrganizativas.TipoUnidad` (string) que no se corresponda con un `Codigo` del seed. Si existe al menos un valor ofensivo, la migración DEBE abortar lanzando `InvalidOperationException` con un mensaje que liste los valores ofensivos, **sin** hacer backfill ni `DROP COLUMN`. Si no hay valores ofensivos, el backfill completa, la columna FK queda `NOT NULL` y la columna string se elimina.
+
+#### Escenario: Backfill limpio
+
+- **DADO** que todas las filas existentes en `UnidadesOrganizativas.TipoUnidad` tienen un valor que coincide con un `Codigo` del seed (por ejemplo, todas son `Direccion`, `Area`, `Departamento`, etc.)
+- **CUANDO** la migración corre
+- **ENTONCES** el backfill de `TipoUnidadOrganizativaId` desde el `Codigo` DEBE completarse
+- **Y** la columna `TipoUnidadOrganizativaId` DEBE quedar `NOT NULL`
+- **Y** la columna string `TipoUnidad` DEBE eliminarse con `DROP COLUMN`.
+
+#### Escenario: Fail-loud aborta antes del ALTER
+
+- **DADO** que al menos una fila tiene `TipoUnidad = "FooBar"` (un valor que no aparece en el seed de códigos)
+- **CUANDO** la migración corre
+- **ENTONCES** DEBE lanzar `InvalidOperationException`
+- **Y** el mensaje de la excepción DEBE listar el o los valores ofensivos (por ejemplo, `["FooBar"]`)
+- **Y** la migración DEBE detenerse **antes** de cualquier `ALTER TABLE` que cambie `TipoUnidadOrganizativaId` a `NOT NULL`
+- **Y** la columna `TipoUnidad` (string) DEBE permanecer intacta en la base de datos.
+
+#### Escenario: Seed presente después de la migración
+
+- **DADO** que la migración corrió sobre una base de datos limpia
+- **CUANDO** se consulta `SELECT COUNT(*) FROM TiposUnidadOrganizativa`
+- **ENTONCES** el resultado DEBE ser 7
+- **Y** los 7 códigos (`Institucion`, `Facultad`, `Secretaria`, `Direccion`, `Departamento`, `Division`, `Area`) DEBEN estar presentes.

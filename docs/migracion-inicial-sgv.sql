@@ -1817,5 +1817,235 @@ DELIMITER ;
 CALL MigrationsScript();
 DROP PROCEDURE MigrationsScript;
 
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    CREATE TABLE `TiposUnidadOrganizativa` (
+        `Id` char(36) COLLATE ascii_general_ci NOT NULL,
+        `Codigo` varchar(50) CHARACTER SET utf8mb4 NOT NULL,
+        `Nombre` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+        CONSTRAINT `PK_TiposUnidadOrganizativa` PRIMARY KEY (`Id`),
+        CONSTRAINT `CK_TiposUnidadOrganizativa_Codigo` CHECK (`Codigo` <> '')
+    ) CHARACTER SET=utf8mb4;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    CREATE UNIQUE INDEX `IX_TiposUnidadOrganizativa_Codigo` ON `TiposUnidadOrganizativa` (`Codigo`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    INSERT INTO `TiposUnidadOrganizativa` (`Id`, `Codigo`, `Nombre`)
+    VALUES ('60000000-0000-0000-0000-000000000001', 'Institucion', 'Institución'),
+    ('60000000-0000-0000-0000-000000000002', 'Facultad', 'Facultad'),
+    ('60000000-0000-0000-0000-000000000003', 'Secretaria', 'Secretaría'),
+    ('60000000-0000-0000-0000-000000000004', 'Direccion', 'Dirección'),
+    ('60000000-0000-0000-0000-000000000005', 'Departamento', 'Departamento'),
+    ('60000000-0000-0000-0000-000000000006', 'Division', 'División'),
+    ('60000000-0000-0000-0000-000000000007', 'Area', 'Área');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+
+                    CREATE TEMPORARY TABLE _DirtyTiposUnidad AS
+                    SELECT DISTINCT TipoUnidad
+                    FROM UnidadesOrganizativas
+                    WHERE TipoUnidad NOT IN (
+                        'Institucion', 'Facultad', 'Secretaria', 'Direccion',
+                        'Departamento', 'Division', 'Area'
+                    );
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+
+                    SET @has_dirty = (SELECT COUNT(*) FROM _DirtyTiposUnidad);
+                    SET @msg = (
+                        SELECT COALESCE(
+                            (SELECT GROUP_CONCAT(TipoUnidad SEPARATOR ', ')
+                             FROM (SELECT TipoUnidad FROM _DirtyTiposUnidad LIMIT 5) AS d),
+                            'ninguno')
+                    );
+                    SET @signal = CONCAT(
+                        'SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'Backfill fail-loud: ',
+                        @has_dirty, ' valores de TipoUnidad sin catalogar. Ejemplos: ',
+                        @msg, '\''
+                    );
+                    SET @noop = 'SELECT 1 AS ok';
+                    SET @sql = IF(@has_dirty > 0, @signal, @noop);
+                    PREPARE stmt FROM @sql;
+                    EXECUTE stmt;
+                    DEALLOCATE PREPARE stmt;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    DROP TEMPORARY TABLE IF EXISTS _DirtyTiposUnidad;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    ALTER TABLE `UnidadesOrganizativas` ADD `TipoUnidadOrganizativaId` char(36) COLLATE ascii_general_ci NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    CREATE INDEX `IX_UnidadesOrganizativas_TipoUnidadOrganizativaId` ON `UnidadesOrganizativas` (`TipoUnidadOrganizativaId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+
+                    UPDATE UnidadesOrganizativas u
+                    INNER JOIN TiposUnidadOrganizativa t ON t.Codigo = u.TipoUnidad
+                    SET u.TipoUnidadOrganizativaId = t.Id;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+
+                    ALTER TABLE `UnidadesOrganizativas`
+                    MODIFY COLUMN `TipoUnidadOrganizativaId` char(36) NOT NULL
+                    COLLATE ascii_general_ci;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    ALTER TABLE `UnidadesOrganizativas` ADD CONSTRAINT `FK_UnidadesOrganizativas_TiposUnidadOrganizativa_TipoUnidadOrgan` FOREIGN KEY (`TipoUnidadOrganizativaId`) REFERENCES `TiposUnidadOrganizativa` (`Id`) ON DELETE RESTRICT;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    ALTER TABLE `UnidadesOrganizativas` DROP COLUMN `TipoUnidad`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
 COMMIT;
 

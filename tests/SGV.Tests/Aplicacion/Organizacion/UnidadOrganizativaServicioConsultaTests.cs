@@ -1,6 +1,8 @@
+using System.Reflection;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Organizacion;
@@ -11,11 +13,19 @@ public sealed class UnidadOrganizativaServicioConsultaTests
 
     private static UnidadOrganizativa CrearUnidadActiva()
     {
-        var unidad = new UnidadOrganizativa("GER", "Gerencia General", "Dirección")
+        var unidad = new UnidadOrganizativa("GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId)
         {
             Id = UnidadId
         };
-        unidad.CambiarDatos("GER", "Gerencia General", "Dirección", "Máxima autoridad ejecutiva");
+        unidad.CambiarDatos("GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Máxima autoridad ejecutiva");
+
+        // Simulate eager-loaded nav property (EF Core sets this via Include)
+        var tipo = new TipoUnidadOrganizativa("Direccion", "Dirección")
+        {
+            Id = TipoUnidadOrganizativaConstantes.DireccionId
+        };
+        SetNavigation(unidad, nameof(UnidadOrganizativa.TipoUnidadOrganizativa), tipo);
+
         return unidad;
     }
 
@@ -33,7 +43,8 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         Assert.Equal(unidad.Id, dto.Id);
         Assert.Equal(unidad.Codigo, dto.Codigo);
         Assert.Equal(unidad.Nombre, dto.Nombre);
-        Assert.Equal(unidad.TipoUnidad, dto.TipoUnidad);
+        Assert.Equal(unidad.TipoUnidadOrganizativaId, dto.TipoUnidadOrganizativaId);
+        Assert.Equal("Dirección", dto.TipoUnidadNombre);
         Assert.Equal(unidad.Descripcion, dto.Descripcion);
     }
 
@@ -60,6 +71,7 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         Assert.NotNull(resultado);
         Assert.Equal(unidad.Id, resultado!.Id);
         Assert.Equal(unidad.Codigo, resultado.Codigo);
+        Assert.Equal("Dirección", resultado.TipoUnidadNombre);
     }
 
     [Fact]
@@ -71,6 +83,14 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         var resultado = await servicio.GetByIdAsync(Guid.NewGuid(), default);
 
         Assert.Null(resultado);
+    }
+
+    private static void SetNavigation<TEntity, TNav>(TEntity entity, string propertyName, TNav value)
+        where TEntity : class
+    {
+        var field = typeof(TEntity).GetField($"<{propertyName}>k__BackingField",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        field?.SetValue(entity, value);
     }
 }
 
