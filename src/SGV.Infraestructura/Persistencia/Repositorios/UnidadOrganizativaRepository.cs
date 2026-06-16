@@ -71,6 +71,7 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
         }
 
         entity.IsActive = false;
+        entity.DeletedAt = DateTime.UtcNow;
         entity.IsDeleted = true;
     }
 
