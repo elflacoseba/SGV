@@ -20,6 +20,36 @@ internal static class ServiceCollectionExtensions
     }
 }
 
+internal sealed class FakeTipoUnidadOrganizativaServicio : ITipoUnidadOrganizativaServicioConsulta
+{
+    public static readonly Guid DireccionId = TipoUnidadOrganizativaConstantes.DireccionId;
+    public static readonly Guid AreaId = TipoUnidadOrganizativaConstantes.AreaId;
+
+    private static readonly IReadOnlyList<TipoUnidadOrganizativaDto> SeedData =
+    [
+        new(TipoUnidadOrganizativaConstantes.InstitucionId, "Institucion", "Institución"),
+        new(TipoUnidadOrganizativaConstantes.FacultadId,    "Facultad",    "Facultad"),
+        new(TipoUnidadOrganizativaConstantes.SecretariaId,  "Secretaria",  "Secretaría"),
+        new(TipoUnidadOrganizativaConstantes.DireccionId,   "Direccion",   "Dirección"),
+        new(TipoUnidadOrganizativaConstantes.DepartamentoId,"Departamento","Departamento"),
+        new(TipoUnidadOrganizativaConstantes.DivisionId,    "Division",    "División"),
+        new(TipoUnidadOrganizativaConstantes.AreaId,        "Area",        "Área"),
+    ];
+
+    private readonly IReadOnlyList<TipoUnidadOrganizativaDto> _data;
+
+    public FakeTipoUnidadOrganizativaServicio(bool isEmpty = false)
+    {
+        _data = isEmpty ? [] : SeedData;
+    }
+
+    public Task<IReadOnlyList<TipoUnidadOrganizativaDto>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult(_data);
+
+    public Task<TipoUnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+}
+
 internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServicioConsulta
 {
     public static readonly Guid UnidadId1 = Guid.Parse("a0000000-0000-0000-0000-000000000001");
@@ -175,6 +205,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IPuestoServicioConsulta>();
             services.RemoveService<IHabilidadServicioConsulta>();
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.RemoveService<ITipoUnidadOrganizativaServicioConsulta>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
@@ -182,6 +213,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IPuestoServicioConsulta>(new FakePuestoServicio());
             services.AddSingleton<IHabilidadServicioConsulta>(new FakeHabilidadServicio());
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(new FakeUnidadOrganizativaServicioComandos());
+            services.AddSingleton<ITipoUnidadOrganizativaServicioConsulta>(new FakeTipoUnidadOrganizativaServicio());
 
             // Apply additional overrides (e.g. empty collections)
             _configureServices?.Invoke(services);
