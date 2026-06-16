@@ -40,20 +40,20 @@ Chain strategy: pending
 
 ## Phase 3: API Integration
 
-- [ ] 3.1 Modify `src/SGV.Api/Controllers/UnidadesOrganizativasController.cs` to add `POST`, `PUT`, parent-change `PATCH`, and `DELETE` endpoints.
-- [ ] 3.2 Map application errors to `ProblemDetails` with status `400`, `404`, or `409` consistently.
-- [ ] 3.3 Modify `src/SGV.Api/Program.cs` to update Swagger title/description to include organizational-unit writes.
+- [x] 3.1 Modify `src/SGV.Api/Controllers/UnidadesOrganizativasController.cs` to add `POST`, `PUT`, parent-change `PATCH`, and `DELETE` endpoints.
+- [x] 3.2 Map application errors to `ProblemDetails` with status `400`, `404`, or `409` consistently.
+- [x] 3.3 Modify `src/SGV.Api/Program.cs` to update Swagger title/description to include organizational-unit writes.
 
 ## Phase 4: Testing
 
 - [x] 4.1 Create `tests/SGV.Tests/Aplicacion/Organizacion/UnidadOrganizativaServicioComandosTests.cs` (RED): failing tests for validation, duplicate code, cycles, and no-commit failures.
 - [x] 4.2 Make command-service tests pass (GREEN) and refactor.
-- [ ] 4.3 Modify `tests/SGV.Tests/Persistencia/UnidadOrganizativaRepositoryTests.cs` to cover MySQL writes, soft-delete code reuse, active-code uniqueness, and hierarchy checks.
-- [ ] 4.4 Modify `tests/SGV.Tests/Api/UnidadesOrganizativasControllerTests.cs` to assert CRUD status codes and response contracts using a fake command service.
-- [ ] 4.5 Modify `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs` to register the fake command service for API tests.
-- [ ] 4.6 Modify `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` to verify organizational-unit write actions are discoverable and other resources remain read-only.
+- [x] 4.3 Modify `tests/SGV.Tests/Persistencia/UnidadOrganizativaRepositoryTests.cs` to cover MySQL writes, soft-delete code reuse, active-code uniqueness, and hierarchy checks.
+- [x] 4.4 Modify `tests/SGV.Tests/Api/UnidadesOrganizativasControllerTests.cs` to assert CRUD status codes and response contracts using a fake command service.
+- [x] 4.5 Modify `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs` to register the fake command service for API tests.
+- [x] 4.6 Modify `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` to verify organizational-unit write actions are discoverable and other resources remain read-only.
 
 ## Phase 5: Verification & Rollout
 
 - [x] 5.1 Run `dotnet build` and `dotnet test` and fix any failures.
-- [ ] 5.2 Verify no EF migration drift; create a separate migration slice if the current snapshot differs from the design assumptions.
+- [x] 5.2 Verify no EF migration drift; create a separate migration slice if the current snapshot differs from the design assumptions.

@@ -16,9 +16,9 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new()
     {
-        Title = "SGV Read-Only API",
+        Title = "SGV API",
         Version = "v1",
-        Description = "Read-only HTTP API for SGV organizational structure and skills data."
+        Description = "HTTP API for SGV organizational structure, skills data, and organizational-unit management."
     });
 });
 

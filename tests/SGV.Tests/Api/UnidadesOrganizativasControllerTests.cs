@@ -1,7 +1,10 @@
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using Xunit;
@@ -11,6 +14,33 @@ namespace SGV.Tests.Api;
 public sealed class UnidadesOrganizativasControllerTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly Guid UnidadId = Guid.Parse("a0000000-0000-0000-0000-000000000001");
+    private static readonly Guid UnidadPadreId = Guid.Parse("b0000000-0000-0000-0000-000000000002");
+
+    private static StringContent ToJsonBody(object value)
+        => new(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json");
+
+    private static async Task<T> ReadAsAsync<T>(HttpResponseMessage response)
+    {
+        var json = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<T>(json, JsonOptions)!;
+    }
+
+    private static async Task<ProblemDetails> ReadProblemDetailsAsync(HttpResponseMessage response)
+    {
+        var json = await response.Content.ReadAsStringAsync();
+        // ProblemDetails may have extensions; deserialize as base for status/title
+        var basic = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, JsonOptions)!;
+        return new ProblemDetails
+        {
+            Status = basic.GetValueOrDefault("status", default).GetInt32(),
+            Title = basic.GetValueOrDefault("title", default).GetString() ?? "",
+            Detail = basic.GetValueOrDefault("detail", default).GetString() ?? "",
+            Type = basic.GetValueOrDefault("type", default).GetString() ?? ""
+        };
+    }
+
+    // ---- GET endpoints (existing) ----
 
     [Fact]
     public async Task GetAll_ReturnsOkWithDtoArray()
@@ -86,5 +116,190 @@ public sealed class UnidadesOrganizativasControllerTests
             .Any(a => a is AuthorizeAttribute);
 
         Assert.False(hasAuthorize, "Controller should not require authorization");
+    }
+
+    // ---- POST (create) ----
+
+    [Fact]
+    public async Task Post_ValidRequest_Returns201CreatedWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidad = "Área" });
+
+        var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var dto = await ReadAsAsync<UnidadOrganizativaDto>(response);
+        Assert.Equal("NUEVO", dto.Codigo);
+        Assert.Equal("Nueva Unidad", dto.Nombre);
+        Assert.NotEqual(Guid.Empty, dto.Id);
+    }
+
+    [Fact]
+    public async Task Post_ValidationError_Returns400WithProblemDetails()
+    {
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            CrearHandler = (_, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "El código es requerido.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "", nombre = "Test", tipoUnidad = "T" });
+
+        var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(400, problem.Status);
+        Assert.Contains("código", problem.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_DuplicateCode_Returns409WithProblemDetails()
+    {
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            CrearHandler = (_, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado", "Ya existe una unidad activa con el mismo código.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "GER", nombre = "Duplicado", tipoUnidad = "T" });
+
+        var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(409, problem.Status);
+    }
+
+    // ---- PUT (update) ----
+
+    [Fact]
+    public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "GER-UPD", nombre = "Actualizada", tipoUnidad = "Dirección" });
+
+        var response = await client.PutAsync($"/api/v1/unidades-organizativas/{UnidadId}", body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await ReadAsAsync<UnidadOrganizativaDto>(response);
+        Assert.Equal("GER-UPD", dto.Codigo);
+    }
+
+    [Fact]
+    public async Task Put_NonExistent_Returns404WithProblemDetails()
+    {
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            ActualizarHandler = (id, _, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad no existe.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "NON", nombre = "No existe", tipoUnidad = "T" });
+
+        var response = await client.PutAsync($"/api/v1/unidades-organizativas/{Guid.NewGuid()}", body);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(404, problem.Status);
+    }
+
+    // ---- PATCH (parent change) ----
+
+    [Fact]
+    public async Task PatchParent_ValidRequest_Returns200OkWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { unidadPadreId = UnidadPadreId });
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}/unidad-padre", body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await ReadAsAsync<UnidadOrganizativaDto>(response);
+        Assert.Equal(UnidadPadreId, dto.UnidadPadreId);
+    }
+
+    [Fact]
+    public async Task PatchParent_SelfParent_Returns400WithProblemDetails()
+    {
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            CambiarUnidadPadreHandler = (id, _, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "CicloJerarquico", "Una unidad no puede ser padre de sí misma.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { unidadPadreId = UnidadId });
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}/unidad-padre", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(400, problem.Status);
+    }
+
+    // ---- DELETE (soft-delete) ----
+
+    [Fact]
+    public async Task Delete_ExistingId_Returns204NoContent()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_NonExistent_Returns404WithProblemDetails()
+    {
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            EliminarHandler = (_, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad no existe.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(404, problem.Status);
     }
 }

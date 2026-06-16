@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 
@@ -102,6 +103,58 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
         => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
 }
 
+internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizativaServicioComandos
+{
+    public static readonly Guid DefaultUnidadId = Guid.Parse("a0000000-0000-0000-0000-000000000001");
+
+    public Func<CrearUnidadOrganizativaRequest, CancellationToken, Task<UnidadOrganizativaCommandResult>>? CrearHandler { get; set; }
+    public Func<Guid, ActualizarUnidadOrganizativaRequest, CancellationToken, Task<UnidadOrganizativaCommandResult>>? ActualizarHandler { get; set; }
+    public Func<Guid, CambiarUnidadPadreRequest, CancellationToken, Task<UnidadOrganizativaCommandResult>>? CambiarUnidadPadreHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<UnidadOrganizativaCommandResult>>? EliminarHandler { get; set; }
+
+    public Task<UnidadOrganizativaCommandResult> CrearAsync(
+        CrearUnidadOrganizativaRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
+        return Task.FromResult(UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(DefaultUnidadId, request.Codigo, request.Nombre,
+                request.TipoUnidad, request.Descripcion, request.VigenteDesde,
+                request.VigenteHasta, request.UnidadPadreId)));
+    }
+
+    public Task<UnidadOrganizativaCommandResult> ActualizarAsync(
+        Guid id,
+        ActualizarUnidadOrganizativaRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
+        return Task.FromResult(UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(id, request.Codigo, request.Nombre,
+                request.TipoUnidad, request.Descripcion, request.VigenteDesde,
+                request.VigenteHasta, null)));
+    }
+
+    public Task<UnidadOrganizativaCommandResult> CambiarUnidadPadreAsync(
+        Guid id,
+        CambiarUnidadPadreRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CambiarUnidadPadreHandler is not null) return CambiarUnidadPadreHandler(id, request, cancellationToken);
+        return Task.FromResult(UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", "Dirección", null, null, null, request.UnidadPadreId)));
+    }
+
+    public Task<UnidadOrganizativaCommandResult> EliminarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (EliminarHandler is not null) return EliminarHandler(id, cancellationToken);
+        return Task.FromResult(UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", "Dirección", null, null, null, null)));
+    }
+}
+
 public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
 {
     private readonly Action<IServiceCollection>? _configureServices;
@@ -120,12 +173,14 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<ICargoServicioConsulta>();
             services.RemoveService<IPuestoServicioConsulta>();
             services.RemoveService<IHabilidadServicioConsulta>();
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
             services.AddSingleton<ICargoServicioConsulta>(new FakeCargoServicio());
             services.AddSingleton<IPuestoServicioConsulta>(new FakePuestoServicio());
             services.AddSingleton<IHabilidadServicioConsulta>(new FakeHabilidadServicio());
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(new FakeUnidadOrganizativaServicioComandos());
 
             // Apply additional overrides (e.g. empty collections)
             _configureServices?.Invoke(services);
