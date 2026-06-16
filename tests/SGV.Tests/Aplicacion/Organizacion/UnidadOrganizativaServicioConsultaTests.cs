@@ -1,6 +1,7 @@
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Organizacion;
@@ -11,11 +12,11 @@ public sealed class UnidadOrganizativaServicioConsultaTests
 
     private static UnidadOrganizativa CrearUnidadActiva()
     {
-        var unidad = new UnidadOrganizativa("GER", "Gerencia General", "Dirección")
+        var unidad = new UnidadOrganizativa("GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId)
         {
             Id = UnidadId
         };
-        unidad.CambiarDatos("GER", "Gerencia General", "Dirección", "Máxima autoridad ejecutiva");
+        unidad.CambiarDatos("GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Máxima autoridad ejecutiva");
         return unidad;
     }
 
@@ -33,7 +34,7 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         Assert.Equal(unidad.Id, dto.Id);
         Assert.Equal(unidad.Codigo, dto.Codigo);
         Assert.Equal(unidad.Nombre, dto.Nombre);
-        Assert.Equal(unidad.TipoUnidad, dto.TipoUnidad);
+        Assert.Equal(unidad.TipoUnidadOrganizativaId, dto.TipoUnidadOrganizativaId);
         Assert.Equal(unidad.Descripcion, dto.Descripcion);
     }
 

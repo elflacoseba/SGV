@@ -6,7 +6,7 @@ namespace SGV.Aplicacion.Organizacion.Comandos;
 public sealed record CrearUnidadOrganizativaRequest(
     string Codigo,
     string Nombre,
-    string TipoUnidad,
+    Guid TipoUnidadOrganizativaId,
     string? Descripcion = null,
     DateOnly? VigenteDesde = null,
     DateOnly? VigenteHasta = null,
@@ -19,7 +19,7 @@ public sealed record CrearUnidadOrganizativaRequest(
 public sealed record ActualizarUnidadOrganizativaRequest(
     string Codigo,
     string Nombre,
-    string TipoUnidad,
+    Guid TipoUnidadOrganizativaId,
     string? Descripcion = null,
     DateOnly? VigenteDesde = null,
     DateOnly? VigenteHasta = null
