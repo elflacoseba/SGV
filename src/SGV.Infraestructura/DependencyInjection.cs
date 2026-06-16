@@ -26,12 +26,14 @@ public static class DependencyInjection
         services.AddScoped<ICargoRepository, CargoRepository>();
         services.AddScoped<IPuestoRepository, PuestoRepository>();
         services.AddScoped<IHabilidadRepository, HabilidadRepository>();
+        services.AddScoped<ITipoUnidadOrganizativaRepository, TipoUnidadOrganizativaRepository>();
 
         // Query services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioConsulta, UnidadOrganizativaServicioConsulta>();
         services.AddScoped<ICargoServicioConsulta, CargoServicioConsulta>();
         services.AddScoped<IPuestoServicioConsulta, PuestoServicioConsulta>();
         services.AddScoped<IHabilidadServicioConsulta, HabilidadServicioConsulta>();
+        services.AddScoped<ITipoUnidadOrganizativaServicioConsulta, TipoUnidadOrganizativaServicioConsulta>();
 
         // Command services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioComandos, UnidadOrganizativaServicioComandos>();
