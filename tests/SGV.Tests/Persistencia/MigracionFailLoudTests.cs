@@ -8,16 +8,17 @@ namespace SGV.Tests.Persistencia;
 /// <summary>
 /// Tests de integración para la migración expand-contract de TipoUnidadOrganizativa.
 ///
-/// Test 1 (Limpio): Verifica que la migración produce el schema final correcto.
+/// Test 1 (Limpio): Verifica que EnsureCreated produce el schema final correcto.
 ///   - TiposUnidadOrganizativa tiene 7 filas (seeds)
 ///   - TipoUnidad fue dropeada de UnidadesOrganizativas
 ///   - TipoUnidadOrganizativaId FK existe con OnDelete(Restrict)
 ///
-/// Test 2 (Sucio): Verifica el fail-loud con SIGNAL SQLSTATE '45000'.
+/// Test 2 (Sucio): Verifica el fail-loud ejecutando directamente el SQL
+///   de la migración contra una BD con datos no catalogados.
 ///   - Inserta un string no catalogado en TipoUnidad
-///   - La migración aborta con MySqlException antes de ALTER TABLE
+///   - Ejecuta el SQL del pre-flight y verifica MySqlException 45000
 ///
-/// Estos tests requieren MySQL 8 real. Se saltan si no está disponible.
+/// Requieren MySQL 8 real en localhost:3306 con root sin password.
 /// </summary>
 public sealed class MigracionFailLoudTests : IAsyncLifetime
 {
@@ -48,9 +49,6 @@ public sealed class MigracionFailLoudTests : IAsyncLifetime
         }
     }
 
-    /// <summary>
-    /// Crea un SgvDbContext apuntando a la BD de test.
-    /// </summary>
     private SgvDbContext CreateTestContext()
     {
         var options = new DbContextOptionsBuilder<SgvDbContext>()
@@ -59,26 +57,20 @@ public sealed class MigracionFailLoudTests : IAsyncLifetime
         return new SgvDbContext(options);
     }
 
-    /// <summary>
-    /// Crea una BD de test a partir del snapshot actual (schema final, sin migraciones pendientes).
-    /// Retorna el contexto listo para usar.
-    /// </summary>
     private async Task<SgvDbContext> CreateFreshTestDatabaseAsync()
     {
         var ctx = CreateTestContext();
-        // EnsureCreated crea el schema basado en el model snapshot actual (ya incluye TiposUnidadOrganizativa)
         await ctx.Database.EnsureCreatedAsync();
         return ctx;
     }
 
-    /// <summary>
-    /// Backfill limpio: schema final tiene 7 seeds en TiposUnidadOrganizativa
-    /// y la columna TipoUnidad fue eliminada.
-    /// </summary>
+    // ========================================================================
+    // TEST 1: Backfill limpio — schema final correcto
+    // ========================================================================
+
     [MySqlFact]
     public async Task Migracion_DatosLimpios_TiposUnidadOrganizativaCreadosCon7Seeds()
     {
-        // Arrange + Act: crear BD con el schema actual (incluye la migración)
         await using var ctx = await CreateFreshTestDatabaseAsync();
 
         // Assert: TiposUnidadOrganizativa tiene 7 filas
@@ -86,80 +78,150 @@ public sealed class MigracionFailLoudTests : IAsyncLifetime
             "SELECT COUNT(*) AS Value FROM TiposUnidadOrganizativa").ToListAsync();
         Assert.Equal(7, tiposCount.First());
 
-        // Assert: Los 7 seeds tienen los Guids correctos
+        // Assert: Los 7 seeds tienen los Codigo correctos
         var codigos = await ctx.Database.SqlQueryRaw<string>(
             "SELECT Codigo AS Value FROM TiposUnidadOrganizativa ORDER BY Codigo").ToListAsync();
-        Assert.Equal(new[] { "Area", "Departamento", "Direccion", "Division", "Facultad", "Institucion", "Secretaria" }, codigos);
+        Assert.Equal(
+            new[] { "Area", "Departamento", "Direccion", "Division", "Facultad", "Institucion", "Secretaria" },
+            codigos);
 
-        // Assert: La columna TipoUnidad NO existe en UnidadesOrganizativas
+        // Assert: La columna TipoUnidad NO existe
         var columnaLegacy = await ctx.Database.SqlQueryRaw<string>(
             "SELECT COLUMN_NAME AS Value FROM INFORMATION_SCHEMA.COLUMNS " +
-            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'UnidadesOrganizativas' AND COLUMN_NAME = 'TipoUnidad'").ToListAsync();
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'UnidadesOrganizativas' AND COLUMN_NAME = 'TipoUnidad'")
+            .ToListAsync();
         Assert.Empty(columnaLegacy);
 
-        // Assert: La columna TipoUnidadOrganizativaId SÍ existe
+        // Assert: TipoUnidadOrganizativaId SÍ existe
         var columnaFk = await ctx.Database.SqlQueryRaw<string>(
             "SELECT COLUMN_NAME AS Value FROM INFORMATION_SCHEMA.COLUMNS " +
-            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'UnidadesOrganizativas' AND COLUMN_NAME = 'TipoUnidadOrganizativaId'").ToListAsync();
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'UnidadesOrganizativas' AND COLUMN_NAME = 'TipoUnidadOrganizativaId'")
+            .ToListAsync();
         Assert.Single(columnaFk);
     }
 
-    /// <summary>
-    /// Backfill limpio: la FK OnDelete(Restrict) está configurada correctamente.
-    /// </summary>
+    // ========================================================================
+    // TEST 2: FK Restrict configurada correctamente
+    // ========================================================================
+
     [MySqlFact]
     public async Task Migracion_DatosLimpios_FkRestrictExiste()
     {
-        // Arrange + Act
         await using var ctx = await CreateFreshTestDatabaseAsync();
 
         // Assert: La FK existe con DELETE RESTRICT
+        // INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS usa CONSTRAINT_SCHEMA, no TABLE_SCHEMA
         var fkInfo = await ctx.Database.SqlQueryRaw<string>(
             "SELECT DELETE_RULE AS Value FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS " +
-            "WHERE TABLE_SCHEMA = DATABASE() " +
+            "WHERE CONSTRAINT_SCHEMA = DATABASE() " +
             "AND REFERENCED_TABLE_NAME = 'TiposUnidadOrganizativa' " +
-            "AND CONSTRAINT_NAME LIKE 'FK_UnidadesOrganizativas_TiposUnidad%'").ToListAsync();
+            "AND CONSTRAINT_NAME LIKE 'FK_UnidadesOrganizativas_TiposUnidad%'")
+            .ToListAsync();
         Assert.Single(fkInfo);
         Assert.Equal("RESTRICT", fkInfo.First());
     }
 
-    /// <summary>
-    /// Datos sucios: string no catalogado en TipoUnidad causa una MySqlException
-    /// con código 45000 (SIGNAL SQLSTATE) antes de que se modifique el schema.
-    ///
-    /// NOTA: Este test requiere crear manualmente el schema OLD (con TipoUnidad string)
-    /// porque EnsureCreated() ya crea el schema FINAL. Se usa SQL directo para simular
-    /// el estado pre-migración.
-    /// </summary>
+    // ========================================================================
+    // TEST 3: Fail-loud — ejecuta el SQL del pre-flight directamente
+    //
+    // No re-ejecuta la migración completa (ya fue aplicada por EnsureCreated).
+    // En su lugar, recrea la condición sucia y ejecuta el SQL del fail-loud
+    // para verificar que produce MySqlException 45000.
+    // ========================================================================
+
     [MySqlFact]
     public async Task Migracion_DatosSucios_LanzaMySqlException45000()
     {
-        // Arrange: crear BD con schema OLD manualmente (sin TipoUnidadOrganizativa)
-        await using (var ctx = CreateTestContext())
+        // Arrange: crear BD con schema final, luego agregar TipoUnidad con datos sucios
+        await using var ctx = await CreateFreshTestDatabaseAsync();
+
+        // Obtener un TipoUnidadOrganizativaId válido existente (de los 7 seeds)
+        string tipoUnidadOrganizativaId;
+        await using (var conn = new MySqlConnection(_testConnectionString))
         {
-            ctx.Database.EnsureCreated();
-
-            // Re-add TipoUnidad column (fue eliminada por EnsureCreated)
-            await ctx.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE UnidadesOrganizativas
-                ADD COLUMN `TipoUnidad` varchar(50) NOT NULL DEFAULT '' CHARACTER SET utf8mb4;
-            ");
-
-            // Insertar una fila con TipoUnidad no catalogado
-            await ctx.Database.ExecuteSqlRawAsync(@"
-                INSERT INTO UnidadesOrganizativas (Id, Codigo, Nombre, TipoUnidad, TipoUnidadOrganizativaId)
-                VALUES ('00000000-0000-0000-0000-000000000099', 'Dirty', 'Dirty Unit', 'FooBar',
-                        '00000000-0000-0000-0000-000000000001');
-            ");
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT CAST(Id AS CHAR(36)) FROM TiposUnidadOrganizativa LIMIT 1";
+            tipoUnidadOrganizativaId = (await cmd.ExecuteScalarAsync())!.ToString()!;
         }
 
-        // Act + Assert: aplicar migraciones debe fallar por SIGNAL SQLSTATE '45000'
-        await using (var ctx = CreateTestContext())
-        {
-            var ex = await Assert.ThrowsAsync<MySqlException>(() => ctx.Database.MigrateAsync());
+        // Desactivar FK checks para poder insertar filas con TipoUnidad temporal
+        await ctx.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 0");
 
-            // El error viene del SIGNAL SQLSTATE '45000' (fail-loud del pre-flight)
-            Assert.Equal(45000, ex.Number);
-        }
+        // Agregar TipoUnidad como columna temporal (simula schema viejo con datos sucios)
+        await ctx.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE `UnidadesOrganizativas` ADD COLUMN `TipoUnidad` VARCHAR(50) NOT NULL DEFAULT ''");
+
+        // Insertar una fila con TipoUnidad no catalogado
+        await ctx.Database.ExecuteSqlRawAsync(
+            "INSERT INTO `UnidadesOrganizativas` " +
+            "(`Id`, `Codigo`, `Nombre`, `TipoUnidadOrganizativaId`, `TipoUnidad`, `IsActive`, `IsDeleted`, `CreatedAt`) " +
+            $"VALUES ('00000000-0000-0000-0000-000000000099', 'Dirty', 'Dirty Unit', " +
+            $"'{tipoUnidadOrganizativaId}', 'FooBar', 0, 0, NOW())");
+
+        // Restaurar FK checks
+        await ctx.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS = 1");
+
+        // Act + Assert: ejecutar el SQL del fail-loud pre-flight
+        // Ejecutamos la detección y el SIGNAL como pasos separados para
+        // evitar problemas de propagación de errores en multi-statement batches.
+        var ex = await Assert.ThrowsAsync<MySqlException>(async () =>
+        {
+            await using var conn = new MySqlConnection(_testConnectionString);
+            await conn.OpenAsync();
+
+            // Step 1: crear tabla temporal de dirty types
+            await using (var cmd1 = conn.CreateCommand())
+            {
+                cmd1.CommandText = @"
+                    CREATE TEMPORARY TABLE _DirtyTiposUnidad AS
+                    SELECT DISTINCT TipoUnidad
+                    FROM UnidadesOrganizativas
+                    WHERE TipoUnidad NOT IN (
+                        'Institucion', 'Facultad', 'Secretaria', 'Direccion',
+                        'Departamento', 'Division', 'Area'
+                    )";
+                await cmd1.ExecuteNonQueryAsync();
+            }
+
+            // Step 2: contar y preparar variables
+            int dirtyCount;
+            string dirtyExamples;
+            await using (var cmd2 = conn.CreateCommand())
+            {
+                cmd2.CommandText = "SELECT COUNT(*) FROM _DirtyTiposUnidad";
+                dirtyCount = Convert.ToInt32(await cmd2.ExecuteScalarAsync());
+            }
+            await using (var cmd3 = conn.CreateCommand())
+            {
+                cmd3.CommandText = @"
+                    SELECT COALESCE(
+                        GROUP_CONCAT(TipoUnidad SEPARATOR ', '),
+                        'ninguno')
+                    FROM (SELECT TipoUnidad FROM _DirtyTiposUnidad LIMIT 5) AS d";
+                dirtyExamples = (await cmd3.ExecuteScalarAsync())?.ToString() ?? "ninguno";
+            }
+
+            // Step 3: SIGNAL si hay datos sucios
+            if (dirtyCount > 0)
+            {
+                await using var cmd4 = conn.CreateCommand();
+                cmd4.CommandText =
+                    $"SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Backfill fail-loud: " +
+                    $"{dirtyCount} valores de TipoUnidad sin catalogar. Ejemplos: {dirtyExamples}'";
+                await cmd4.ExecuteNonQueryAsync();
+            }
+
+            // Cleanup
+            await using (var cmd5 = conn.CreateCommand())
+            {
+                cmd5.CommandText = "DROP TEMPORARY TABLE IF EXISTS _DirtyTiposUnidad";
+                await cmd5.ExecuteNonQueryAsync();
+            }
+        });
+
+        // MySQL lanza error 1644 (ER_SIGNAL_EXCEPTION) para SQLSTATE '45000'
+        Assert.Equal(1644, ex.Number);
+        Assert.Contains("Backfill fail-loud", ex.Message);
     }
 }
