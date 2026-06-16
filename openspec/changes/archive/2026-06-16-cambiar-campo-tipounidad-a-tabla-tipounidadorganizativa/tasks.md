@@ -366,9 +366,9 @@ This file decomposes the change into **3 chained PRs** (Feature Branch Chain ove
 - **Rama destino del PR:** branch de PR #2
 - **Dependencias:** PR #2 mergeado al tracker
 - **Estimado:** ~180 líneas
-- **Estado post-PR3:** `dotnet build` + `dotnet test` verdes. Los 3 PRs listos para merge final del tracker a `develop`.
+- **Estado post-PR3:** ✅ `dotnet build` + `dotnet test` verdes (144 tests). Los 3 PRs listos para merge final del tracker a `develop`.
 
-### Task 3.1: Crear `TipoUnidadesOrganizativasController`
+### Task 3.1: Crear `TipoUnidadesOrganizativasController` ✅
 
 - **RED:** Tests de API primero.
 - **Archivos:**
@@ -390,7 +390,7 @@ This file decomposes the change into **3 chained PRs** (Feature Branch Chain ove
   - `Dto_Shape_OnlyIdCodigoNombre` (REQ-TUO-004)
 - **Criterio:** 200 con lista vacía/poblada, 200/404/400 según el caso. Response body tiene solo `id`, `codigo`, `nombre`.
 
-### Task 3.2: Modificar `ApiWebApplicationFactory.cs` y `UnidadesOrganizativasControllerTests.cs`
+### Task 3.2: Modificar `ApiWebApplicationFactory.cs` y `UnidadesOrganizativasControllerTests.cs` ✅
 
 - **Archivos:**
   - **MODIFIED** `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs`
@@ -404,14 +404,14 @@ This file decomposes the change into **3 chained PRs** (Feature Branch Chain ove
   - Assert `dto.TipoUnidadOrganizativaId` y `dto.TipoUnidadNombre`
 - **Criterio:** todos los tests de API existentes pasan con el nuevo contrato.
 
-### Task 3.3: Verificar/crear 5° delta `sgv-persistence-architecture/spec.md`
+### Task 3.3: Verificar/crear 5° delta `sgv-persistence-architecture/spec.md` ✅
 
 - **Archivos:**
   - **VERIFY** `openspec/changes/cambiar-campo-tipounidad-a-tabla-tipounidadorganizativa/specs/sgv-persistence-architecture/spec.md` (debe existir — creado por `sdd-design`)
 - **Contenido esperado:** `REQ-SPA-EVOLUTION-001` con las 4 condiciones del carve-out (catalog read-only, FK `OnDelete(Restrict)`, migration fail-loud, static Guid constants). Si el archivo no existe en PR3, crearlo con el contenido del diseño.
 - **Criterio:** el delta existe, referencia el change por nombre, y tiene `Status: ADDED`. Si el orquestador ya lo creó, solo verificar. Si no, crearlo.
 
-### Task 3.4: `dotnet build` + `dotnet test` de PR3
+### Task 3.4: `dotnet build` + `dotnet test` de PR3 ✅
 
 - **Verificación:**
   - `dotnet build` pasa.
