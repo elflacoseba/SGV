@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Organizacion.Comandos;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using Xunit;
@@ -125,7 +126,7 @@ public sealed class UnidadesOrganizativasControllerTests
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidad = "Área" });
+        var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
 
@@ -151,7 +152,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { codigo = "", nombre = "Test", tipoUnidad = "T" });
+        var body = ToJsonBody(new { codigo = "", nombre = "Test", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
 
@@ -176,7 +177,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { codigo = "GER", nombre = "Duplicado", tipoUnidad = "T" });
+        var body = ToJsonBody(new { codigo = "GER", nombre = "Duplicado", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
 
@@ -192,7 +193,7 @@ public sealed class UnidadesOrganizativasControllerTests
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { codigo = "GER-UPD", nombre = "Actualizada", tipoUnidad = "Dirección" });
+        var body = ToJsonBody(new { codigo = "GER-UPD", nombre = "Actualizada", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId });
 
         var response = await client.PutAsync($"/api/v1/unidades-organizativas/{UnidadId}", body);
 
@@ -216,7 +217,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { codigo = "NON", nombre = "No existe", tipoUnidad = "T" });
+        var body = ToJsonBody(new { codigo = "NON", nombre = "No existe", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PutAsync($"/api/v1/unidades-organizativas/{Guid.NewGuid()}", body);
 
