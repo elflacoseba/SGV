@@ -48,6 +48,8 @@ public sealed class SgvDbContext : IdentityDbContext<IdentityUser>
 
     public DbSet<AuditoriaEntity> Auditorias => Set<AuditoriaEntity>();
 
+    public DbSet<TipoUnidadOrganizativaEntity> TiposUnidadOrganizativa => Set<TipoUnidadOrganizativaEntity>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
