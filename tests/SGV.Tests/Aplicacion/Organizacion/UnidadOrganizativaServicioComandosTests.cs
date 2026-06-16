@@ -3,6 +3,7 @@ using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Organizacion;
@@ -17,7 +18,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         => new(
             codigo ?? "GER",
             "Gerencia General",
-            "Dirección",
+            TipoUnidadOrganizativaConstantes.DireccionId,
             "Máxima autoridad ejecutiva",
             null,
             null,
@@ -75,7 +76,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
         var request = new CrearUnidadOrganizativaRequest(
-            "GER", "Gerencia General", "Dirección", null,
+            "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, null,
             new DateOnly(2025, 1, 1), new DateOnly(2024, 1, 1), null);
 
         var resultado = await servicio.CrearAsync(request, default);
@@ -93,7 +94,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
         var request = new ActualizarUnidadOrganizativaRequest(
-            "GER-2", "Nueva Gerencia", "Área", "Descripción actualizada", null, null);
+            "GER-2", "Nueva Gerencia", TipoUnidadOrganizativaConstantes.AreaId, "Descripción actualizada", null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
@@ -111,7 +112,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [a, b] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("GER-B", "A", "T", null, null, null);
+        var request = new ActualizarUnidadOrganizativaRequest("GER-B", "A", TipoUnidadOrganizativaConstantes.AreaId, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(UnidadId, request, default);
 
@@ -126,7 +127,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("GER", "G", "T", null, null, null);
+        var request = new ActualizarUnidadOrganizativaRequest("GER", "G", TipoUnidadOrganizativaConstantes.AreaId, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(Guid.NewGuid(), request, default);
 
@@ -227,11 +228,11 @@ public sealed class UnidadOrganizativaServicioComandosTests
 
     private static UnidadOrganizativa CrearUnidadActiva(string codigo, Guid? id = null, Guid? padreId = null)
     {
-        var unidad = new UnidadOrganizativa(codigo, codigo, "TEST", padreId)
+        var unidad = new UnidadOrganizativa(codigo, codigo, TipoUnidadOrganizativaConstantes.AreaId, padreId)
         {
             Id = id ?? Guid.NewGuid()
         };
-        unidad.CambiarDatos(codigo, codigo, "TEST", null);
+        unidad.CambiarDatos(codigo, codigo, TipoUnidadOrganizativaConstantes.AreaId, null);
         return unidad;
     }
 }

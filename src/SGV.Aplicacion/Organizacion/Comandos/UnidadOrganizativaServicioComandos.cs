@@ -34,11 +34,11 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            var unidad = new UnidadOrganizativa(request.Codigo, request.Nombre, request.TipoUnidad, request.UnidadPadreId)
+            var unidad = new UnidadOrganizativa(request.Codigo, request.Nombre, request.TipoUnidadOrganizativaId, request.UnidadPadreId)
             {
                 Id = Guid.NewGuid()
             };
-            unidad.CambiarDatos(request.Codigo, request.Nombre, request.TipoUnidad, request.Descripcion);
+            unidad.CambiarDatos(request.Codigo, request.Nombre, request.TipoUnidadOrganizativaId, request.Descripcion);
             unidad.DefinirVigencia(request.VigenteDesde, request.VigenteHasta);
 
             await repository.AddAsync(unidad, cancellationToken).ConfigureAwait(false);
@@ -73,7 +73,7 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            unidad.CambiarDatos(request.Codigo, request.Nombre, request.TipoUnidad, request.Descripcion);
+            unidad.CambiarDatos(request.Codigo, request.Nombre, request.TipoUnidadOrganizativaId, request.Descripcion);
             unidad.DefinirVigencia(request.VigenteDesde, request.VigenteHasta);
 
             await repository.UpdateAsync(unidad, cancellationToken).ConfigureAwait(false);
@@ -162,7 +162,8 @@ public sealed class UnidadOrganizativaServicioComandos(
             unidad.Id,
             unidad.Codigo,
             unidad.Nombre,
-            unidad.TipoUnidad,
+            unidad.TipoUnidadOrganizativaId,
+            unidad.TipoUnidadOrganizativa?.Nombre ?? string.Empty,
             unidad.Descripcion,
             unidad.VigenteDesde,
             unidad.VigenteHasta,

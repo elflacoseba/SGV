@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia;
@@ -83,6 +84,15 @@ internal static class DatosSemilla
             new HabilidadEntity { Id = HabilidadDotNetId, Codigo = "DOTNET", Nombre = "Programación .NET", Categoria = "Técnica", IsActive = true },
             new HabilidadEntity { Id = HabilidadAdministracionPublicaId, Codigo = "ADMINISTRACION_PUBLICA", Nombre = "Administración Pública", Categoria = "Dominio", IsActive = true },
             new HabilidadEntity { Id = HabilidadDocenciaUniversitariaId, Codigo = "DOCENCIA_UNIVERSITARIA", Nombre = "Docencia Universitaria", Categoria = "Académica", IsActive = true });
+
+        builder.Entity<TipoUnidadOrganizativaEntity>().HasData(
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.InstitucionId, Codigo = "Institucion", Nombre = "Institución" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.FacultadId, Codigo = "Facultad", Nombre = "Facultad" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.SecretariaId, Codigo = "Secretaria", Nombre = "Secretaría" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.DireccionId, Codigo = "Direccion", Nombre = "Dirección" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.DepartamentoId, Codigo = "Departamento", Nombre = "Departamento" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.DivisionId, Codigo = "Division", Nombre = "División" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.AreaId, Codigo = "Area", Nombre = "Área" });
     }
 
     private static IdentityRole CrearRol(string nombre)

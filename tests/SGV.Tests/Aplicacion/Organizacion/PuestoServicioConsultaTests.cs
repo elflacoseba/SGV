@@ -2,6 +2,7 @@ using System.Reflection;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Organizacion;
@@ -14,7 +15,7 @@ public sealed class PuestoServicioConsultaTests
 
     private static Puesto CrearPuestoConNavigations()
     {
-        var unidad = new UnidadOrganizativa("GER", "Gerencia General", "Dirección")
+        var unidad = new UnidadOrganizativa("GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId)
         {
             Id = UnidadId
         };

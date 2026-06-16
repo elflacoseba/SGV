@@ -48,7 +48,7 @@ public sealed class UnidadOrganizativa : EntidadAuditable
         Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
         if (tipoUnidadOrganizativaId == Guid.Empty)
         {
-            throw new ArgumentException("El tipo de unidad organizativa es obligatorio.", nameof(tipoUnidadOrganizativaId));
+            throw new ArgumentException("El tipo de unidad organizativa es obligatorio.", nameof(TipoUnidadOrganizativaId));
         }
         TipoUnidadOrganizativaId = tipoUnidadOrganizativaId;
         Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);

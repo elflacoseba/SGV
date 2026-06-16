@@ -6,6 +6,7 @@ using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Infraestructura.Persistencia.Catalogos;
 
 namespace SGV.Tests.Api;
 
@@ -29,7 +30,7 @@ internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServic
     {
         _data = isEmpty
             ? []
-            : [new(UnidadId1, "GER", "Gerencia General", "Dirección",
+            : [new(UnidadId1, "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección",
                   "Máxima autoridad ejecutiva", null, null, null)];
     }
 
@@ -119,7 +120,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(DefaultUnidadId, request.Codigo, request.Nombre,
-                request.TipoUnidad, request.Descripcion, request.VigenteDesde,
+                request.TipoUnidadOrganizativaId, string.Empty, request.Descripcion, request.VigenteDesde,
                 request.VigenteHasta, request.UnidadPadreId)));
     }
 
@@ -131,7 +132,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(id, request.Codigo, request.Nombre,
-                request.TipoUnidad, request.Descripcion, request.VigenteDesde,
+                request.TipoUnidadOrganizativaId, string.Empty, request.Descripcion, request.VigenteDesde,
                 request.VigenteHasta, null)));
     }
 
@@ -142,7 +143,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     {
         if (CambiarUnidadPadreHandler is not null) return CambiarUnidadPadreHandler(id, request, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
-            new UnidadOrganizativaDto(id, "GER", "Gerencia", "Dirección", null, null, null, request.UnidadPadreId)));
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, request.UnidadPadreId)));
     }
 
     public Task<UnidadOrganizativaCommandResult> EliminarAsync(
@@ -151,7 +152,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     {
         if (EliminarHandler is not null) return EliminarHandler(id, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
-            new UnidadOrganizativaDto(id, "GER", "Gerencia", "Dirección", null, null, null, null)));
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null)));
     }
 }
 
