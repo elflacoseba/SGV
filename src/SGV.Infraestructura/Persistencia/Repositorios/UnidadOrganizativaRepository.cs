@@ -11,7 +11,8 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
 {
     protected override IQueryable<UnidadOrganizativaEntity> Query => base
         .Query
-        .Where(u => u.IsActive);
+        .Where(u => u.IsActive)
+        .Include(u => u.TipoUnidadOrganizativa);
 
     protected override UnidadOrganizativa MapToDomain(UnidadOrganizativaEntity entity) => PersistenceToDomainMapper.ToDomain(entity);
 

@@ -14,6 +14,20 @@ public sealed class UnidadOrganizativaServicioComandosTests
     private static readonly Guid PadreId = Guid.Parse("20000000-0000-0000-0000-000000000002");
     private static readonly Guid HijoId = Guid.Parse("30000000-0000-0000-0000-000000000003");
 
+    private static readonly FakeTipoUnidadOrganizativaRepository FakeTipoRepo = new()
+    {
+        Datos =
+        [
+            new("Institucion", "Institución") { Id = TipoUnidadOrganizativaConstantes.InstitucionId },
+            new("Facultad", "Facultad") { Id = TipoUnidadOrganizativaConstantes.FacultadId },
+            new("Secretaria", "Secretaría") { Id = TipoUnidadOrganizativaConstantes.SecretariaId },
+            new("Direccion", "Dirección") { Id = TipoUnidadOrganizativaConstantes.DireccionId },
+            new("Departamento", "Departamento") { Id = TipoUnidadOrganizativaConstantes.DepartamentoId },
+            new("Division", "División") { Id = TipoUnidadOrganizativaConstantes.DivisionId },
+            new("Area", "Área") { Id = TipoUnidadOrganizativaConstantes.AreaId },
+        ]
+    };
+
     private static CrearUnidadOrganizativaRequest CrearRequest(string? codigo = null, Guid? padreId = null)
         => new(
             codigo ?? "GER",
@@ -29,7 +43,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.CrearAsync(CrearRequest(), default);
 
@@ -46,7 +60,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.CrearAsync(CrearRequest("GER"), default);
 
@@ -56,11 +70,28 @@ public sealed class UnidadOrganizativaServicioComandosTests
     }
 
     [Fact]
+    public async Task CrearAsync_TipoUnidadNoExiste_RetornaValidacionYSinGuardar()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest(
+            "GER", "Gerencia General", Guid.NewGuid(), null, null, null, null);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Validation, resultado.Error!.Type);
+        Assert.Equal("TipoUnidadNoExiste", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
     public async Task CrearAsync_PadreInexistente_RetornaNoEncontradoYSinGuardar()
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.CrearAsync(CrearRequest(padreId: PadreId), default);
 
@@ -74,7 +105,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var request = new CrearUnidadOrganizativaRequest(
             "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, null,
             new DateOnly(2025, 1, 1), new DateOnly(2024, 1, 1), null);
@@ -92,7 +123,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var request = new ActualizarUnidadOrganizativaRequest(
             "GER-2", "Nueva Gerencia", TipoUnidadOrganizativaConstantes.AreaId, "Descripción actualizada", null, null);
 
@@ -111,7 +142,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var b = CrearUnidadActiva("GER-B", PadreId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [a, b] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var request = new ActualizarUnidadOrganizativaRequest("GER-B", "A", TipoUnidadOrganizativaConstantes.AreaId, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(UnidadId, request, default);
@@ -122,11 +153,28 @@ public sealed class UnidadOrganizativaServicioComandosTests
     }
 
     [Fact]
+    public async Task ActualizarAsync_TipoUnidadNoExiste_RetornaValidacionYSinGuardar()
+    {
+        var existente = CrearUnidadActiva("GER");
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest("GER", "G", Guid.NewGuid(), null, null, null);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Validation, resultado.Error!.Type);
+        Assert.Equal("TipoUnidadNoExiste", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
     public async Task ActualizarAsync_UnidadInexistente_RetornaNoEncontradoYSinGuardar()
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var request = new ActualizarUnidadOrganizativaRequest("GER", "G", TipoUnidadOrganizativaConstantes.AreaId, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(Guid.NewGuid(), request, default);
@@ -143,7 +191,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var padre = CrearUnidadActiva("PADRE", PadreId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad, padre] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.CambiarUnidadPadreAsync(UnidadId, new CambiarUnidadPadreRequest(PadreId), default);
 
@@ -158,7 +206,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var unidad = CrearUnidadActiva("GER", UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.CambiarUnidadPadreAsync(UnidadId, new CambiarUnidadPadreRequest(UnidadId), default);
 
@@ -174,7 +222,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var hijo = CrearUnidadActiva("HIJO", HijoId, PadreId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.CambiarUnidadPadreAsync(PadreId, new CambiarUnidadPadreRequest(HijoId), default);
 
@@ -189,7 +237,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var unidad = CrearUnidadActiva("GER", UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.CambiarUnidadPadreAsync(UnidadId, new CambiarUnidadPadreRequest(Guid.NewGuid()), default);
 
@@ -204,7 +252,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var unidad = CrearUnidadActiva("GER", UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.EliminarAsync(UnidadId, default);
 
@@ -217,7 +265,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
 
         var resultado = await servicio.EliminarAsync(Guid.NewGuid(), default);
 
