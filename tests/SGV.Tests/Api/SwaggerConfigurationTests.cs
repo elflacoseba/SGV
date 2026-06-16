@@ -43,7 +43,7 @@ public sealed class SwaggerConfigurationTests
         var response = await client.GetAsync("/swagger/v1/swagger.json");
         var content = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("\"SGV Read-Only API\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"SGV API\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"v1\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"paths\"", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -64,7 +64,7 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
-    public async Task SwaggerDocument_ListsAllReadOnlyEndpoints()
+    public async Task SwaggerDocument_ListsAllResourcePaths()
     {
         var client = _factory.CreateClient();
 
@@ -87,7 +87,7 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
-    public async Task SwaggerDocument_OnlyExposesGetOperations()
+    public async Task NonOrgResources_OnlyExposeGetOperations()
     {
         var client = _factory.CreateClient();
 
@@ -99,10 +99,53 @@ public sealed class SwaggerConfigurationTests
 
         foreach (var path in paths.EnumerateObject())
         {
+            // Skip organizational-units path which has write operations
+            if (path.Name.StartsWith("/api/v1/unidades-organizativas", StringComparison.OrdinalIgnoreCase))
+                continue;
+
             foreach (var operation in path.Value.EnumerateObject())
             {
                 Assert.Equal("get", operation.Name, ignoreCase: true);
             }
         }
+    }
+
+    [Fact]
+    public async Task UnidadesOrganizativas_ExposesWriteOperations()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        // Check collection path exposes POST and GET
+        var collectionPath = paths.GetProperty("/api/v1/unidades-organizativas");
+        var collectionOps = new HashSet<string>();
+        foreach (var op in collectionPath.EnumerateObject())
+            collectionOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("post", collectionOps);
+        Assert.Contains("get", collectionOps);
+
+        // Check item path exposes GET, PUT, DELETE
+        var itemPath = paths.GetProperty("/api/v1/unidades-organizativas/{id}");
+        var itemOps = new HashSet<string>();
+        foreach (var op in itemPath.EnumerateObject())
+            itemOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("get", itemOps);
+        Assert.Contains("put", itemOps);
+        Assert.Contains("delete", itemOps);
+
+        // Check parent-change path exposes PATCH
+        var parentPath = paths.GetProperty("/api/v1/unidades-organizativas/{id}/unidad-padre");
+        var parentOps = new HashSet<string>();
+        foreach (var op in parentPath.EnumerateObject())
+            parentOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("patch", parentOps);
     }
 }
