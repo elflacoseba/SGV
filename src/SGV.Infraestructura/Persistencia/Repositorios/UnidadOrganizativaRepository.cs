@@ -36,6 +36,7 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
     {
         var entity = await Context
             .Set<UnidadOrganizativaEntity>()
+            .Include(u => u.TipoUnidadOrganizativa)
             .FirstOrDefaultAsync(u => u.Id == id && u.IsActive && !u.IsDeleted, cancellationToken)
             .ConfigureAwait(false);
 
