@@ -1,10 +1,6 @@
-# SGV Read-only API Specification
+# Delta for SGV Read-only API
 
-## Purpose
-
-Expose SGV catalog and structure data through an external read-only HTTP API. The API MUST return persisted data for organizational units, roles, positions, and skills, and MUST NOT require authentication in this version.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Read-only Resource Access
 
@@ -37,23 +33,6 @@ The system MUST expose HTTP access to organizational units, roles, positions, an
 - THEN the API MUST NOT modify persisted data
 - AND the operation MUST NOT be exposed as a supported API action.
 
-### Requirement: Response Contracts
-
-The system MUST return response models intended for API consumers. Responses MUST NOT expose persistence or domain entities directly.
-
-#### Scenario: Return consumer-safe resource data
-
-- GIVEN persisted data exists for a supported resource
-- WHEN a client requests that resource
-- THEN the response MUST contain only consumer-facing fields for that resource
-- AND the response MUST NOT include persistence tracking or internal audit fields unless explicitly specified by the API contract.
-
-#### Scenario: Include relationships by identifier or summary
-
-- GIVEN a position references an organizational unit and a role
-- WHEN a client requests positions
-- THEN each position response SHOULD identify its related organizational unit and role in a consumer-safe form.
-
 ### Requirement: Public API Discoverability
 
 The system MUST publish API documentation that allows consumers to discover the read-only endpoints, organizational unit write endpoints, and response contracts.
@@ -77,14 +56,3 @@ The system MUST publish API documentation that allows consumers to discover the 
 - GIVEN roles, positions, and skills remain read-only
 - WHEN a client inspects the API documentation
 - THEN create, update, and delete operations for those resources MUST NOT be documented as available actions.
-
-### Requirement: No Authentication Requirement
-
-The system MUST allow access to the read-only endpoints without requiring authentication or authorization in this version.
-
-#### Scenario: Anonymous client reads supported data
-
-- GIVEN the API is running and persisted data exists
-- WHEN an unauthenticated client requests a supported resource collection
-- THEN the API MUST process the request without requiring credentials
-- AND the response MUST follow the same contract as an authenticated request would.
