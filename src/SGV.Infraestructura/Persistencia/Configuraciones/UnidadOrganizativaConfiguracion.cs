@@ -15,13 +15,19 @@ public sealed class UnidadOrganizativaConfiguracion : IEntityTypeConfiguration<U
 
         builder.Property(e => e.Codigo).HasMaxLength(50).IsRequired();
         builder.Property(e => e.Nombre).HasMaxLength(200).IsRequired();
-        builder.Property(e => e.TipoUnidad).HasMaxLength(50).IsRequired();
         builder.Property(e => e.Descripcion).HasMaxLength(1000);
 
         builder.HasOne(e => e.UnidadPadre)
             .WithMany(e => e.UnidadesHijas)
             .HasForeignKey(e => e.UnidadPadreId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(e => e.TipoUnidadOrganizativa)
+            .WithMany()
+            .HasForeignKey(e => e.TipoUnidadOrganizativaId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(e => e.TipoUnidadOrganizativaId)
+            .HasDatabaseName("IX_UnidadesOrganizativas_TipoUnidadOrganizativaId");
 
         builder.Property<string?>("ActiveCodigoUnique")
             .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END")

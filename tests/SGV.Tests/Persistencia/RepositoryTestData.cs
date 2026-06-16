@@ -1,3 +1,4 @@
+using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Tests.Persistencia;
@@ -16,7 +17,7 @@ internal static class RepositoryTestData
             Id = Guid.NewGuid(),
             Codigo = $"{prefix}-{suffix}",
             Nombre = $"{prefix} {suffix}",
-            TipoUnidad = "TEST",
+            TipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId,
             IsActive = isActive,
             IsDeleted = isDeleted
         };
