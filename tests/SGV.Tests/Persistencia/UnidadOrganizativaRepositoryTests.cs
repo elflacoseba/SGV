@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Infraestructura.Persistencia;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Dominio.Organizacion;
@@ -95,11 +96,11 @@ public sealed class UnidadOrganizativaRepositoryTests
     {
         await using var context = new SgvDbContextFactory().CreateDbContext([]);
         var repo = new UnidadOrganizativaRepository(context);
-        var unidad = new UnidadOrganizativa("UO-ADD", "Unidad Add Test", "TEST")
+        var unidad = new UnidadOrganizativa("UO-ADD", "Unidad Add Test", TipoUnidadOrganizativaConstantes.AreaId)
         {
             Id = Guid.NewGuid()
         };
-        unidad.CambiarDatos("UO-ADD", "Unidad Add Test", "TEST", "Creada en test");
+        unidad.CambiarDatos("UO-ADD", "Unidad Add Test", TipoUnidadOrganizativaConstantes.AreaId, "Creada en test");
 
         await repo.AddAsync(unidad, default);
         await context.SaveChangesAsync();
@@ -136,7 +137,7 @@ public sealed class UnidadOrganizativaRepositoryTests
             var unidad = await repo.GetByIdForUpdateAsync(entity.Id, default);
             Assert.NotNull(unidad);
 
-            unidad!.CambiarDatos("UO-UPD-2", "Nombre actualizado", "NUEVO_TIPO", "Actualizado");
+            unidad!.CambiarDatos("UO-UPD-2", "Nombre actualizado", TipoUnidadOrganizativaConstantes.DireccionId, "Actualizado");
             await repo.UpdateAsync(unidad, default);
             await context.SaveChangesAsync();
 

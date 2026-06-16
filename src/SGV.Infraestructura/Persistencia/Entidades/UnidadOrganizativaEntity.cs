@@ -13,7 +13,9 @@ public sealed class UnidadOrganizativaEntity : AuditableEntityBase
 
     public string Nombre { get; set; } = string.Empty;
 
-    public string TipoUnidad { get; set; } = string.Empty;
+    public Guid TipoUnidadOrganizativaId { get; set; }
+
+    public TipoUnidadOrganizativaEntity? TipoUnidadOrganizativa { get; set; }
 
     public string? Descripcion { get; set; }
 

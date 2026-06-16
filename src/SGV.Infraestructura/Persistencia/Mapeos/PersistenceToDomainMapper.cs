@@ -50,7 +50,7 @@ internal static class PersistenceToDomainMapper
 
     public static UnidadOrganizativa ToDomain(UnidadOrganizativaEntity entity)
     {
-        var unidad = new UnidadOrganizativa(entity.Codigo, entity.Nombre, entity.TipoUnidad, entity.UnidadPadreId)
+        var unidad = new UnidadOrganizativa(entity.Codigo, entity.Nombre, entity.TipoUnidadOrganizativaId, entity.UnidadPadreId)
         {
             Id = entity.Id,
             CreatedAt = entity.CreatedAt,
@@ -62,13 +62,18 @@ internal static class PersistenceToDomainMapper
             DeletedByUserId = entity.DeletedByUserId
         };
 
-        unidad.CambiarDatos(entity.Codigo, entity.Nombre, entity.TipoUnidad, entity.Descripcion);
+        unidad.CambiarDatos(entity.Codigo, entity.Nombre, entity.TipoUnidadOrganizativaId, entity.Descripcion);
         unidad.DefinirVigencia(entity.VigenteDesde, entity.VigenteHasta);
         SetProperty(unidad, nameof(UnidadOrganizativa.IsActive), entity.IsActive);
 
         if (entity.UnidadPadre is not null)
         {
             SetProperty(unidad, nameof(UnidadOrganizativa.UnidadPadre), ToDomain(entity.UnidadPadre));
+        }
+
+        if (entity.TipoUnidadOrganizativa is not null)
+        {
+            SetProperty(unidad, nameof(UnidadOrganizativa.TipoUnidadOrganizativa), ToDomain(entity.TipoUnidadOrganizativa));
         }
 
         return unidad;
@@ -102,6 +107,15 @@ internal static class PersistenceToDomainMapper
         }
 
         return puesto;
+    }
+
+    public static TipoUnidadOrganizativa ToDomain(TipoUnidadOrganizativaEntity entity)
+    {
+        var tipo = new TipoUnidadOrganizativa(entity.Codigo, entity.Nombre)
+        {
+            Id = entity.Id
+        };
+        return tipo;
     }
 
     private static void SetProperty<T>(T target, string propertyName, object? value)
