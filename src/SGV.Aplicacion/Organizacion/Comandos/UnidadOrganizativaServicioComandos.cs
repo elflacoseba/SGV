@@ -18,6 +18,14 @@ public sealed class UnidadOrganizativaServicioComandos(
     IValidator<ActualizarUnidadOrganizativaRequest> actualizarValidator) : IUnidadOrganizativaServicioComandos
 {
     /// <summary>
+    /// Converts a PascalCase property name (e.g. <c>TipoUnidadOrganizativaId</c>) to camelCase
+    /// (<c>tipoUnidadOrganizativaId</c>) so field-error keys match the JSON casing used by HTTP clients.
+    /// </summary>
+    private static string ToCamelCase(string propertyName) =>
+        string.IsNullOrEmpty(propertyName) || char.IsLower(propertyName[0])
+            ? propertyName
+            : char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
+    /// <summary>
     /// Convenience constructor for backward compatibility (e.g., tests).
     /// Uses the real validators directly.
     /// </summary>
@@ -37,12 +45,9 @@ public sealed class UnidadOrganizativaServicioComandos(
         var validationResult = await crearValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
         if (!validationResult.IsValid)
         {
-            var fieldErrors = validationResult.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
             return UnidadOrganizativaCommandResult.Failure(
                 new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
-                fieldErrors);
+                BuildFieldErrors(validationResult.Errors));
         }
 
         if (await repository.ExistsActiveCodeAsync(request.Codigo, cancellationToken: cancellationToken).ConfigureAwait(false))
@@ -98,12 +103,9 @@ public sealed class UnidadOrganizativaServicioComandos(
         var validationResult = await actualizarValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
         if (!validationResult.IsValid)
         {
-            var fieldErrors = validationResult.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
             return UnidadOrganizativaCommandResult.Failure(
                 new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
-                fieldErrors);
+                BuildFieldErrors(validationResult.Errors));
         }
 
         var unidad = await repository.GetByIdForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
@@ -256,6 +258,19 @@ public sealed class UnidadOrganizativaServicioComandos(
             unidad.VigenteDesde,
             unidad.VigenteHasta,
             unidad.UnidadPadreId);
+    }
+
+    /// <summary>
+    /// Groups FluentValidation failures into a per-field dictionary using camelCase keys so the
+    /// HTTP contract (<c>errors[codigo]</c>, <c>errors[nombre]</c>, <c>errors[tipoUnidadOrganizativaId]</c>)
+    /// matches the JSON casing of incoming requests.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
+        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
+    {
+        return failures
+            .GroupBy(e => ToCamelCase(e.PropertyName))
+            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
     }
 
     

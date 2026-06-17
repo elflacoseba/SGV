@@ -291,7 +291,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("Codigo", resultado.FieldErrors!.Keys);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -310,7 +310,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("Nombre", resultado.FieldErrors!.Keys);
+        Assert.Contains("nombre", resultado.FieldErrors!.Keys);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -326,9 +326,9 @@ public sealed class UnidadOrganizativaServicioComandosTests
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("Codigo", resultado.FieldErrors!.Keys);
-        Assert.Contains("Nombre", resultado.FieldErrors.Keys);
-        Assert.Contains("TipoUnidadOrganizativaId", resultado.FieldErrors.Keys);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.Contains("nombre", resultado.FieldErrors.Keys);
+        Assert.Contains("tipoUnidadOrganizativaId", resultado.FieldErrors.Keys);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -345,7 +345,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("Codigo", resultado.FieldErrors!.Keys);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -362,7 +362,177 @@ public sealed class UnidadOrganizativaServicioComandosTests
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("Codigo", resultado.FieldErrors!.Keys);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    // ---- Remediation (verify-report CRITICAL 1 + 2):
+    //      camelCase contract for FieldErrors + zero repo calls on invalid shape ----
+
+    [Fact]
+    public async Task CrearAsync_CodigoVacio_EmiteClaveCamelCaseYSinConsultarRepos()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository
+        {
+            Datos = [CrearUnidadActiva("GER")]
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest("", "Nombre", Guid.NewGuid());
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        // CRITICAL 1: HTTP contract demands lowercase keys.
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.DoesNotContain("Codigo", resultado.FieldErrors.Keys);
+        // CRITICAL 2: short-circuit must avoid repository/business calls.
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdCallCount);
+        Assert.Equal(0, repo.GetByIdForUpdateCallCount);
+        Assert.Equal(0, repo.IsDescendantCallCount);
+        Assert.Equal(0, repo.AddCallCount);
+        Assert.Equal(0, repo.UpdateCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_NombreVacio_EmiteClaveCamelCaseYSinConsultarRepos()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository
+        {
+            Datos = [CrearUnidadActiva("GER")]
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest("NUEVO", "", Guid.NewGuid());
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("nombre", resultado.FieldErrors!.Keys);
+        Assert.DoesNotContain("Nombre", resultado.FieldErrors.Keys);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdCallCount);
+        Assert.Equal(0, repo.AddCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_TipoUnidadOrganizativaIdVacio_EmiteClaveCamelCaseYSinConsultarRepos()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository
+        {
+            Datos = [CrearUnidadActiva("GER")]
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest("GER", "Gerencia", Guid.Empty);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("tipoUnidadOrganizativaId", resultado.FieldErrors!.Keys);
+        Assert.DoesNotContain("TipoUnidadOrganizativaId", resultado.FieldErrors.Keys);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdCallCount);
+        Assert.Equal(0, repo.AddCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_MultiplesErrores_EmiteTodasLasClavesCamelCaseYSinConsultarRepos()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest("", "", Guid.Empty);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.Contains("nombre", resultado.FieldErrors.Keys);
+        Assert.Contains("tipoUnidadOrganizativaId", resultado.FieldErrors.Keys);
+        // No PascalCase leakage at all.
+        Assert.DoesNotContain("Codigo", resultado.FieldErrors.Keys);
+        Assert.DoesNotContain("Nombre", resultado.FieldErrors.Keys);
+        Assert.DoesNotContain("TipoUnidadOrganizativaId", resultado.FieldErrors.Keys);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdCallCount);
+        Assert.Equal(0, repo.AddCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoVacio_EmiteClaveCamelCaseYSinConsultarRepos()
+    {
+        var existente = CrearUnidadActiva("GER");
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest("", "Nombre", TipoUnidadOrganizativaConstantes.AreaId);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.DoesNotContain("Codigo", resultado.FieldErrors.Keys);
+        // Update path must not touch the unit nor the duplicate check.
+        Assert.Equal(0, repo.GetByIdForUpdateCallCount);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdCallCount);
+        Assert.Equal(0, repo.UpdateCallCount);
+        Assert.Equal(0, repo.IsDescendantCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_NombreVacio_EmiteClaveCamelCaseYSinConsultarRepos()
+    {
+        var existente = CrearUnidadActiva("GER");
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest("GER", "", TipoUnidadOrganizativaConstantes.AreaId);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("nombre", resultado.FieldErrors!.Keys);
+        Assert.DoesNotContain("Nombre", resultado.FieldErrors.Keys);
+        Assert.Equal(0, repo.GetByIdForUpdateCallCount);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdCallCount);
+        Assert.Equal(0, repo.UpdateCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_TipoUnidadOrganizativaIdVacio_EmiteClaveCamelCaseYSinConsultarRepos()
+    {
+        var existente = CrearUnidadActiva("GER");
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest("GER", "Gerencia", Guid.Empty);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("tipoUnidadOrganizativaId", resultado.FieldErrors!.Keys);
+        Assert.DoesNotContain("TipoUnidadOrganizativaId", resultado.FieldErrors.Keys);
+        Assert.Equal(0, repo.GetByIdForUpdateCallCount);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdCallCount);
+        Assert.Equal(0, repo.UpdateCallCount);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -392,14 +562,28 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
 {
     public List<UnidadOrganizativa> Datos { get; set; } = [];
 
+    // Per-method call counters used to assert short-circuit behavior on invalid requests.
+    public int AddCallCount { get; private set; }
+    public int DeleteCallCount { get; private set; }
+    public int ExistsActiveCodeCallCount { get; private set; }
+    public int GetByIdCallCount { get; private set; }
+    public int GetByIdForUpdateCallCount { get; private set; }
+    public int GetByIdIncludingDeletedCallCount { get; private set; }
+    public int IsDescendantCallCount { get; private set; }
+    public int ListAllCallCount { get; private set; }
+    public int UpdateCallCount { get; private set; }
+    public int ReactivateCallCount { get; private set; }
+
     public Task AddAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
     {
+        AddCallCount++;
         Datos.Add(unidad);
         return Task.CompletedTask;
     }
 
     public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        DeleteCallCount++;
         var unidad = Datos.FirstOrDefault(d => d.Id == id);
         if (unidad is not null)
         {
@@ -412,6 +596,7 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
 
     public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default)
     {
+        ExistsActiveCodeCallCount++;
         var duplicado = Datos.Any(d =>
             d.Codigo == codigo &&
             d.IsActive &&
@@ -422,24 +607,28 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
 
     public Task<UnidadOrganizativa?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        GetByIdCallCount++;
         var unidad = Datos.FirstOrDefault(d => d.Id == id && d.IsActive && !d.IsDeleted);
         return Task.FromResult(unidad);
     }
 
     public Task<UnidadOrganizativa?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        GetByIdForUpdateCallCount++;
         var unidad = Datos.FirstOrDefault(d => d.Id == id && d.IsActive && !d.IsDeleted);
         return Task.FromResult(unidad);
     }
 
     public Task<UnidadOrganizativa?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        GetByIdIncludingDeletedCallCount++;
         var unidad = Datos.FirstOrDefault(d => d.Id == id);
         return Task.FromResult(unidad);
     }
 
     public Task<bool> IsDescendantAsync(Guid candidateDescendantId, Guid ancestorId, CancellationToken cancellationToken = default)
     {
+        IsDescendantCallCount++;
         var current = Datos.FirstOrDefault(d => d.Id == candidateDescendantId);
         while (current is not null && current.UnidadPadreId.HasValue)
         {
@@ -456,11 +645,13 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
 
     public Task<IReadOnlyList<UnidadOrganizativa>> ListAllAsync(CancellationToken cancellationToken = default)
     {
+        ListAllCallCount++;
         return Task.FromResult<IReadOnlyList<UnidadOrganizativa>>(Datos.Where(d => d.IsActive && !d.IsDeleted).ToList());
     }
 
     public Task UpdateAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
     {
+        UpdateCallCount++;
         var index = Datos.FindIndex(d => d.Id == unidad.Id);
         if (index >= 0)
         {
@@ -472,6 +663,7 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
 
     public Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        ReactivateCallCount++;
         var unidad = Datos.FirstOrDefault(d => d.Id == id);
         if (unidad is not null)
         {
