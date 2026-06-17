@@ -27,7 +27,8 @@ public sealed record UnidadOrganizativaError(
 public sealed record UnidadOrganizativaCommandResult(
     bool IsSuccess,
     UnidadOrganizativaDto? Value,
-    UnidadOrganizativaError? Error
+    UnidadOrganizativaError? Error,
+    IReadOnlyDictionary<string, string[]>? FieldErrors = null
 )
 {
     public static UnidadOrganizativaCommandResult Success(UnidadOrganizativaDto value)
@@ -35,4 +36,9 @@ public sealed record UnidadOrganizativaCommandResult(
 
     public static UnidadOrganizativaCommandResult Failure(UnidadOrganizativaError error)
         => new(false, null, error);
+
+    public static UnidadOrganizativaCommandResult Failure(
+        UnidadOrganizativaError error,
+        IReadOnlyDictionary<string, string[]> fieldErrors)
+        => new(false, null, error, fieldErrors);
 }

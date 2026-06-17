@@ -41,6 +41,19 @@ public sealed class UnidadesOrganizativasControllerTests
         };
     }
 
+    private static async Task<Dictionary<string, JsonElement>> ReadErrorsAsync(HttpResponseMessage response)
+    {
+        var json = await response.Content.ReadAsStringAsync();
+        var body = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, JsonOptions)!;
+        return body.GetValueOrDefault("errors", default).Deserialize<Dictionary<string, JsonElement>>(JsonOptions)!;
+    }
+
+    private static async Task AssertErrorFieldExists(HttpResponseMessage response, string fieldName)
+    {
+        var errors = await ReadErrorsAsync(response);
+        Assert.True(errors.ContainsKey(fieldName), $"Expected field '{fieldName}' in errors");
+    }
+
     // ---- GET endpoints (existing) ----
 
     [Fact]
@@ -138,13 +151,19 @@ public sealed class UnidadesOrganizativasControllerTests
     }
 
     [Fact]
-    public async Task Post_ValidationError_Returns400WithProblemDetails()
+    public async Task Post_ValidationError_Returns400WithFieldErrors()
     {
+        var fieldErrors = new Dictionary<string, string[]>
+        {
+            ["codigo"] = ["'Codigo' no debe estar vacío."],
+            ["nombre"] = ["'Nombre' no debe estar vacío."]
+        };
         var fakeComandos = new FakeUnidadOrganizativaServicioComandos
         {
             CrearHandler = (_, _) => Task.FromResult(
                 UnidadOrganizativaCommandResult.Failure(
-                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "El código es requerido.")))
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                    fieldErrors))
         };
         using var factory = new ApiWebApplicationFactory(services =>
         {
@@ -152,14 +171,15 @@ public sealed class UnidadesOrganizativasControllerTests
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { codigo = "", nombre = "Test", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
+        var body = ToJsonBody(new { codigo = "", nombre = "", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(400, problem.Status);
-        Assert.Contains("código", problem.Detail, StringComparison.OrdinalIgnoreCase);
+        await AssertErrorFieldExists(response, "codigo");
+        await AssertErrorFieldExists(response, "nombre");
     }
 
     [Fact]
@@ -224,6 +244,36 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(404, problem.Status);
+    }
+
+    [Fact]
+    public async Task Put_ValidationError_Returns400WithFieldErrors()
+    {
+        var fieldErrors = new Dictionary<string, string[]>
+        {
+            ["codigo"] = ["'Codigo' no debe estar vacío."]
+        };
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            ActualizarHandler = (id, _, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                    fieldErrors))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "", nombre = "Test", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
+
+        var response = await client.PutAsync($"/api/v1/unidades-organizativas/{UnidadId}", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(400, problem.Status);
+        await AssertErrorFieldExists(response, "codigo");
     }
 
     // ---- PATCH (parent change) ----

@@ -38,18 +38,18 @@ Chain strategy: pending
 
 ## Phase 3: Servicio de comandos y mapping de errores
 
-- [ ] 3.1 RED: extender `tests/SGV.Tests/Aplicacion/Organizacion/UnidadOrganizativaServicioComandosTests.cs` para probar short-circuit sin repositorios ni `SaveChangesAsync` en create/update inválidos.
-- [ ] 3.2 GREEN: modificar `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaServicioComandos.cs` para inyectar `IValidator<TRequest>` y validar antes de duplicados, tipo, padre o carga por update.
-- [ ] 3.3 Modificar `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaCommandResult.cs` para transportar `FieldErrors` internos sin romper conflictos o not-found existentes.
-- [ ] 3.4 Verificación: `dotnet test --filter "UnidadOrganizativaServicioComandosTests|CrearUnidadOrganizativaRequestValidatorTests|ActualizarUnidadOrganizativaRequestValidatorTests"`.
+- [x] 3.1 RED: extender `tests/SGV.Tests/Aplicacion/Organizacion/UnidadOrganizativaServicioComandosTests.cs` para probar short-circuit sin repositorios ni `SaveChangesAsync` en create/update inválidos.
+- [x] 3.2 GREEN: modificar `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaServicioComandos.cs` para inyectar `IValidator<TRequest>` y validar antes de duplicados, tipo, padre o carga por update.
+- [x] 3.3 Modificar `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaCommandResult.cs` para transportar `FieldErrors` internos sin romper conflictos o not-found existentes.
+- [x] 3.4 Verificación: `dotnet test --filter "UnidadOrganizativaServicioComandosTests|CrearUnidadOrganizativaRequestValidatorTests|ActualizarUnidadOrganizativaRequestValidatorTests"`.
 
 ## Phase 4: API y contrato HTTP
 
-- [ ] 4.1 RED: ajustar `tests/SGV.Tests/Api/UnidadesOrganizativasControllerTests.cs` para exigir `400` con `errors[codigo]`/`errors[nombre]` y mantener `409` para duplicado.
-- [ ] 4.2 GREEN: modificar `src/SGV.Api/Controllers/UnidadesOrganizativasController.cs` para mapear `FieldErrors` a `ValidationProblemDetails` y conservar `ProblemDetails` actual para negocio.
-- [ ] 4.3 Verificación: `dotnet test --filter UnidadesOrganizativasControllerTests`.
+- [x] 4.1 RED: ajustar `tests/SGV.Tests/Api/UnidadesOrganizativasControllerTests.cs` para exigir `400` con `errors[codigo]`/`errors[nombre]` y mantener `409` para duplicado.
+- [x] 4.2 GREEN: modificar `src/SGV.Api/Controllers/UnidadesOrganizativasController.cs` para mapear `FieldErrors` a `ValidationProblemDetails` y conservar `ProblemDetails` actual para negocio.
+- [x] 4.3 Verificación: `dotnet test --filter UnidadesOrganizativasControllerTests`.
 
 ## Phase 5: Cierre y verificación final
 
-- [ ] 5.1 Ejecutar `dotnet test` para validar escenarios de spec: errores por campo, short-circuit y separación entre shape y conflicto.
-- [ ] 5.2 Revisar diff final contra el presupuesto; si supera ~400 líneas, aplicar los work units propuestos como PRs encadenados.
+- [x] 5.1 Ejecutar `dotnet test` para validar escenarios de spec: errores por campo, short-circuit y separación entre shape y conflicto.
+- [x] 5.2 Revisar diff final contra el presupuesto; si supera ~400 líneas, aplicar los work units propuestos como PRs encadenados.

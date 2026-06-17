@@ -274,6 +274,98 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ---- Short-circuit: validation before repository checks ----
+
+    [Fact]
+    public async Task CrearAsync_CodigoVacio_RetornaFieldErrorsSinConsultarRepos()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository
+        {
+            Datos = [CrearUnidadActiva("GER")]
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest("", "Nombre", Guid.NewGuid());
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("Codigo", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_NombreVacio_RetornaFieldErrorsSinConsultarRepos()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository
+        {
+            Datos = [CrearUnidadActiva("GER")]
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest("NUEVO", "", Guid.NewGuid());
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("Nombre", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_MultiplesErrores_RetornaTodosLosCampos()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest("", "", Guid.Empty);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("Codigo", resultado.FieldErrors!.Keys);
+        Assert.Contains("Nombre", resultado.FieldErrors.Keys);
+        Assert.Contains("TipoUnidadOrganizativaId", resultado.FieldErrors.Keys);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoVacio_RetornaFieldErrorsSinConsultarRepos()
+    {
+        var existente = CrearUnidadActiva("GER");
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest("", "Nombre", TipoUnidadOrganizativaConstantes.AreaId);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("Codigo", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_RequestInvalidoNoBuscaUnidad()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository(); // empty — no data
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest("", "Nombre", TipoUnidadOrganizativaConstantes.AreaId);
+
+        // Id is irrelevant because shape validation fires before GetByIdForUpdateAsync
+        var resultado = await servicio.ActualizarAsync(Guid.NewGuid(), request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("Codigo", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
     private static UnidadOrganizativa CrearUnidadActiva(string codigo, Guid? id = null, Guid? padreId = null)
     {
         var unidad = new UnidadOrganizativa(codigo, codigo, TipoUnidadOrganizativaConstantes.AreaId, padreId)

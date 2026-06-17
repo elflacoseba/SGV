@@ -1,6 +1,8 @@
+using FluentValidation;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Dominio.Organizacion;
 
 namespace SGV.Aplicacion.Organizacion.Comandos;
@@ -11,12 +13,38 @@ namespace SGV.Aplicacion.Organizacion.Comandos;
 public sealed class UnidadOrganizativaServicioComandos(
     IUnidadOrganizativaRepository repository,
     ITipoUnidadOrganizativaRepository tipoUnidadRepository,
-    IUnitOfWork unitOfWork) : IUnidadOrganizativaServicioComandos
+    IUnitOfWork unitOfWork,
+    IValidator<CrearUnidadOrganizativaRequest> crearValidator,
+    IValidator<ActualizarUnidadOrganizativaRequest> actualizarValidator) : IUnidadOrganizativaServicioComandos
 {
+    /// <summary>
+    /// Convenience constructor for backward compatibility (e.g., tests).
+    /// Uses the real validators directly.
+    /// </summary>
+    public UnidadOrganizativaServicioComandos(
+        IUnidadOrganizativaRepository repository,
+        ITipoUnidadOrganizativaRepository tipoUnidadRepository,
+        IUnitOfWork unitOfWork)
+        : this(repository, tipoUnidadRepository, unitOfWork,
+               new CrearUnidadOrganizativaRequestValidator(),
+               new ActualizarUnidadOrganizativaRequestValidator())
+    {
+    }
     public async Task<UnidadOrganizativaCommandResult> CrearAsync(
         CrearUnidadOrganizativaRequest request,
         CancellationToken cancellationToken = default)
     {
+        var validationResult = await crearValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!validationResult.IsValid)
+        {
+            var fieldErrors = validationResult.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                fieldErrors);
+        }
+
         if (await repository.ExistsActiveCodeAsync(request.Codigo, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             return UnidadOrganizativaCommandResult.Failure(
@@ -67,6 +95,17 @@ public sealed class UnidadOrganizativaServicioComandos(
         ActualizarUnidadOrganizativaRequest request,
         CancellationToken cancellationToken = default)
     {
+        var validationResult = await actualizarValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!validationResult.IsValid)
+        {
+            var fieldErrors = validationResult.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                fieldErrors);
+        }
+
         var unidad = await repository.GetByIdForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
         if (unidad is null)
         {
