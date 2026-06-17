@@ -53,3 +53,12 @@ Chain strategy: pending
 
 - [x] 5.1 Ejecutar `dotnet test` para validar escenarios de spec: errores por campo, short-circuit y separación entre shape y conflicto.
 - [x] 5.2 Revisar diff final contra el presupuesto; si supera ~400 líneas, aplicar los work units propuestos como PRs encadenados.
+
+## Phase 6: Remediación (verify-report CRITICAL)
+
+> Hallazgos de `verify-report.md` que bloquean el archive. Solo remediación: no rehace PR 1/PR 2.
+
+- [x] 6.1 RED: instrumentar `FakeUnidadOrganizativaWriteRepository` con contadores por método y añadir tests que afirmen (a) claves `FieldErrors` en camelCase (`codigo`, `nombre`, `tipoUnidadOrganizativaId`) y (b) cero llamadas a `ExistsActiveCodeAsync`, `GetByIdAsync`, `GetByIdForUpdateAsync`, `IsDescendantAsync`, `AddAsync`/`Guardar` y `UpdateAsync` para `CrearAsync` con shape inválido.
+- [x] 6.2 RED: añadir tests equivalentes para `ActualizarAsync` (incluye `GetByIdForUpdateCallCount == 0` y `IsDescendantCallCount == 0`) cubriendo `codigo` vacío, `nombre` vacío y `TipoUnidadOrganizativaId` `Guid.Empty`.
+- [x] 6.3 GREEN: en `UnidadOrganizativaServicioComandos`, transformar `ValidationFailure.PropertyName` a camelCase al construir `FieldErrors` (decisión: transformación local en el servicio; no se configura FluentValidation global para no afectar otros validators del proyecto).
+- [x] 6.4 Verificación: `dotnet test` completo y `--filter UnidadOrganizativaServicioComandosTests|UnidadesOrganizativasControllerTests`.

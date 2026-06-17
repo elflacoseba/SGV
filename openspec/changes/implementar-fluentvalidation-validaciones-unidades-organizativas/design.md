@@ -9,10 +9,10 @@ Agregar FluentValidation en `SGV.Aplicacion` para validar la forma de `CrearUnid
 | Tema | Decisión | Alternativas / tradeoff | Rationale |
 |------|----------|--------------------------|-----------|
 | Ubicación | Crear `src/SGV.Aplicacion/Organizacion/Comandos/Validaciones/CrearUnidadOrganizativaRequestValidator.cs` y `ActualizarUnidadOrganizativaRequestValidator.cs`. | Validadores en API acoplarían reglas a HTTP. | Las validaciones son de caso de uso y deben funcionar fuera de controllers. |
-| Paquetes | Agregar a `SGV.Aplicacion.csproj`: `FluentValidation` y `FluentValidation.DependencyInjectionExtensions` versión 11.x compatible. | `FluentValidation.AspNetCore` no se usa. | La auto-validación MVC está desaconsejada; se requiere validación manual. |
+| Paquetes | Agregar a `SGV.Aplicacion.csproj`: `FluentValidation` y `FluentValidation.DependencyInjectionExtensions` versión 12.1.1. | `FluentValidation.AspNetCore` no se usa. | La auto-validación MVC está desaconsejada; se requiere validación manual. |
 | Registro DI | Crear `src/SGV.Aplicacion/DependencyInjection.cs` con `AddAplicacionServicios()` y `services.AddValidatorsFromAssemblyContaining<CrearUnidadOrganizativaRequestValidator>(ServiceLifetime.Scoped)`. Llamarlo desde `Program.cs` antes o junto a `AddInfraestructuraServicios()`. | Registrar desde Infraestructura funciona, pero mezcla composición de aplicación con infraestructura. | Mantiene ownership de validadores en Aplicación y deja API como composition root. |
 | Ejecución | Inyectar `IValidator<CrearUnidadOrganizativaRequest>` e `IValidator<ActualizarUnidadOrganizativaRequest>` en `UnidadOrganizativaServicioComandos`. | Filtro/controller reduce cambios en servicio, pero no protege otros consumidores. | El short-circuit debe vivir donde empieza el caso de uso. |
-| Errores | Extender el resultado con una colección interna por campo, por ejemplo `IReadOnlyDictionary<string, string[]> FieldErrors`, o un `ValidationFailure` propio. | Reusar sólo `Code/Message` pierde granularidad. | La spec exige `errors[field]`, pero mensajes/códigos no quedan como contrato público estable. |
+| Errores | Extender el resultado con una colección interna por campo, por ejemplo `IReadOnlyDictionary<string, string[]> FieldErrors`, o un `ValidationFailure` propio. Las claves de `FieldErrors` se emiten en camelCase (`codigo`, `nombre`, `tipoUnidadOrganizativaId`) transformando `ValidationFailure.PropertyName` dentro del servicio de comandos — no se configura `PropertyNameResolver` global para no afectar a otros validators. | Reusar sólo `Code/Message` pierde granularidad. | La spec exige `errors[field]` con casing JSON, pero mensajes/códigos no quedan como contrato público estable. |
 
 ## Data Flow
 
@@ -63,4 +63,4 @@ Riesgo medio de superar 400 líneas si se agregan API tests extensos. Mantener P
 
 ## Open Questions
 
-- [ ] Confirmar versión exacta 11.x de FluentValidation al implementar según restauración NuGet del entorno.
+- [x] Confirmar versión exacta de FluentValidation al implementar según restauración NuGet del entorno. Versión final: `12.1.1` (paquetes `FluentValidation` y `FluentValidation.DependencyInjectionExtensions`).
