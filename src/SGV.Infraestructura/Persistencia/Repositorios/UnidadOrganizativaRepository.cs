@@ -36,7 +36,19 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
     {
         var entity = await Context
             .Set<UnidadOrganizativaEntity>()
+            .Include(u => u.TipoUnidadOrganizativa)
             .FirstOrDefaultAsync(u => u.Id == id && u.IsActive && !u.IsDeleted, cancellationToken)
+            .ConfigureAwait(false);
+
+        return entity is null ? null : MapToDomain(entity);
+    }
+
+    public async Task<UnidadOrganizativa?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await Context
+            .Set<UnidadOrganizativaEntity>()
+            .Include(u => u.TipoUnidadOrganizativa)
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
             .ConfigureAwait(false);
 
         return entity is null ? null : MapToDomain(entity);
@@ -70,7 +82,25 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
         }
 
         entity.IsActive = false;
+        entity.DeletedAt = DateTime.UtcNow;
         entity.IsDeleted = true;
+    }
+
+    public async Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await Context
+            .Set<UnidadOrganizativaEntity>()
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+        {
+            return;
+        }
+
+        entity.IsActive = true;
+        entity.DeletedAt = null;
+        entity.IsDeleted = false;
     }
 
     public async Task<bool> ExistsActiveCodeAsync(

@@ -184,6 +184,14 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null)));
     }
+
+    public Task<UnidadOrganizativaCommandResult> ReactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null)));
+    }
 }
 
 public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>

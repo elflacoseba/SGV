@@ -20,6 +20,11 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1",
         Description = "HTTP API for SGV organizational structure, skills data, and organizational-unit management."
     });
+
+    var xmlFile = $"{typeof(Program).Assembly.GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+        c.IncludeXmlComments(xmlPath);
 });
 
 // MySQL DbContext with audit interceptor

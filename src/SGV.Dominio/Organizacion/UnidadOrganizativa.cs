@@ -76,4 +76,6 @@ public sealed class UnidadOrganizativa : EntidadAuditable
     }
 
     public void Desactivar() => IsActive = false;
+
+    public void Activar() => IsActive = true;
 }
