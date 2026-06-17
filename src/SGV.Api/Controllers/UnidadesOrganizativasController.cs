@@ -77,9 +77,13 @@ public class UnidadesOrganizativasController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _comandos.CrearAsync(request, cancellationToken);
-        return result.IsSuccess
-            ? CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value)
-            : ToProblemResult(result.Error!);
+        if (result.IsSuccess)
+            return CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value);
+
+        if (result.FieldErrors is { Count: > 0 })
+            return ToValidationProblemResult(result.Error!, result);
+
+        return ToProblemResult(result.Error!);
     }
 
     /// <summary>
@@ -104,9 +108,13 @@ public class UnidadesOrganizativasController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _comandos.ActualizarAsync(id, request, cancellationToken);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : ToProblemResult(result.Error!);
+        if (result.IsSuccess)
+            return Ok(result.Value);
+
+        if (result.FieldErrors is { Count: > 0 })
+            return ToValidationProblemResult(result.Error!, result);
+
+        return ToProblemResult(result.Error!);
     }
 
     /// <summary>
@@ -196,5 +204,27 @@ public class UnidadesOrganizativasController : ControllerBase
             title: error.Code,
             detail: error.Message,
             type: $"https://httpstatuses.com/{statusCode}");
+    }
+
+    private ActionResult ToValidationProblemResult(UnidadOrganizativaError error, UnidadOrganizativaCommandResult result)
+    {
+        var modelState = new Dictionary<string, string[]>();
+        if (result.FieldErrors is not null)
+        {
+            foreach (var kvp in result.FieldErrors)
+            {
+                modelState[kvp.Key] = kvp.Value;
+            }
+        }
+
+        var details = new ValidationProblemDetails(modelState)
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = error.Code,
+            Detail = error.Message,
+            Type = "https://httpstatuses.com/400"
+        };
+
+        return BadRequest(details);
     }
 }

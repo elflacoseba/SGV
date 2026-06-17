@@ -1,6 +1,8 @@
+using FluentValidation;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Dominio.Organizacion;
 
 namespace SGV.Aplicacion.Organizacion.Comandos;
@@ -11,12 +13,43 @@ namespace SGV.Aplicacion.Organizacion.Comandos;
 public sealed class UnidadOrganizativaServicioComandos(
     IUnidadOrganizativaRepository repository,
     ITipoUnidadOrganizativaRepository tipoUnidadRepository,
-    IUnitOfWork unitOfWork) : IUnidadOrganizativaServicioComandos
+    IUnitOfWork unitOfWork,
+    IValidator<CrearUnidadOrganizativaRequest> crearValidator,
+    IValidator<ActualizarUnidadOrganizativaRequest> actualizarValidator) : IUnidadOrganizativaServicioComandos
 {
+    /// <summary>
+    /// Converts a PascalCase property name (e.g. <c>TipoUnidadOrganizativaId</c>) to camelCase
+    /// (<c>tipoUnidadOrganizativaId</c>) so field-error keys match the JSON casing used by HTTP clients.
+    /// </summary>
+    private static string ToCamelCase(string propertyName) =>
+        string.IsNullOrEmpty(propertyName) || char.IsLower(propertyName[0])
+            ? propertyName
+            : char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
+    /// <summary>
+    /// Convenience constructor for backward compatibility (e.g., tests).
+    /// Uses the real validators directly.
+    /// </summary>
+    public UnidadOrganizativaServicioComandos(
+        IUnidadOrganizativaRepository repository,
+        ITipoUnidadOrganizativaRepository tipoUnidadRepository,
+        IUnitOfWork unitOfWork)
+        : this(repository, tipoUnidadRepository, unitOfWork,
+               new CrearUnidadOrganizativaRequestValidator(),
+               new ActualizarUnidadOrganizativaRequestValidator())
+    {
+    }
     public async Task<UnidadOrganizativaCommandResult> CrearAsync(
         CrearUnidadOrganizativaRequest request,
         CancellationToken cancellationToken = default)
     {
+        var validationResult = await crearValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!validationResult.IsValid)
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                BuildFieldErrors(validationResult.Errors));
+        }
+
         if (await repository.ExistsActiveCodeAsync(request.Codigo, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             return UnidadOrganizativaCommandResult.Failure(
@@ -67,6 +100,14 @@ public sealed class UnidadOrganizativaServicioComandos(
         ActualizarUnidadOrganizativaRequest request,
         CancellationToken cancellationToken = default)
     {
+        var validationResult = await actualizarValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!validationResult.IsValid)
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                BuildFieldErrors(validationResult.Errors));
+        }
+
         var unidad = await repository.GetByIdForUpdateAsync(id, cancellationToken).ConfigureAwait(false);
         if (unidad is null)
         {
@@ -217,6 +258,19 @@ public sealed class UnidadOrganizativaServicioComandos(
             unidad.VigenteDesde,
             unidad.VigenteHasta,
             unidad.UnidadPadreId);
+    }
+
+    /// <summary>
+    /// Groups FluentValidation failures into a per-field dictionary using camelCase keys so the
+    /// HTTP contract (<c>errors[codigo]</c>, <c>errors[nombre]</c>, <c>errors[tipoUnidadOrganizativaId]</c>)
+    /// matches the JSON casing of incoming requests.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
+        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
+    {
+        return failures
+            .GroupBy(e => ToCamelCase(e.PropertyName))
+            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
     }
 
     
