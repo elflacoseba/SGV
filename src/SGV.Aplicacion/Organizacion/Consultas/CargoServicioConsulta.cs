@@ -25,7 +25,8 @@ public sealed class CargoServicioConsulta(ICargoRepository repository)
             entity.Codigo,
             entity.Nombre,
             entity.Descripcion,
-            entity.Nivel
+            entity.NivelId,
+            entity.NivelCargo?.Nombre
         );
     }
 }

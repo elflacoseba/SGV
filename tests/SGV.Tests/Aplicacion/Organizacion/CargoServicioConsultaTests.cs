@@ -7,7 +7,8 @@ namespace SGV.Tests.Aplicacion.Organizacion;
 
 public sealed class CargoServicioConsultaTests
 {
-    private static readonly Cargo CargoActivo = new("DIRECTOR", "Director", "Conducción media", "Dirige equipos")
+    private static readonly Guid NivelId = Guid.Parse("70000000-0000-0000-0000-000000000001");
+    private static readonly Cargo CargoActivo = new("DIRECTOR", "Director", NivelId, "Dirige equipos")
     {
         Id = Guid.Parse("20000000-0000-0000-0000-000000000001")
     };
@@ -25,7 +26,7 @@ public sealed class CargoServicioConsultaTests
         Assert.Equal(CargoActivo.Id, dto.Id);
         Assert.Equal(CargoActivo.Codigo, dto.Codigo);
         Assert.Equal(CargoActivo.Nombre, dto.Nombre);
-        Assert.Equal(CargoActivo.Nivel, dto.Nivel);
+        Assert.Equal(CargoActivo.NivelId, dto.NivelId);
         Assert.Equal(CargoActivo.Descripcion, dto.Descripcion);
     }
 
@@ -77,5 +78,59 @@ internal sealed class FakeCargoRepository : ICargoRepository
     public Task<IReadOnlyList<Cargo>> ListAllAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult<IReadOnlyList<Cargo>>(Datos.ToList());
+    }
+
+    public Task AddAsync(Cargo cargo, CancellationToken cancellationToken = default)
+    {
+        Datos.Add(cargo);
+        return Task.CompletedTask;
+    }
+
+    public Task<Cargo?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
+    }
+
+    public Task<Cargo?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
+    }
+
+    public Task UpdateAsync(Cargo cargo, CancellationToken cancellationToken = default)
+    {
+        var index = Datos.FindIndex(e => e.Id == cargo.Id);
+        if (index >= 0)
+            Datos[index] = cargo;
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var item = Datos.FirstOrDefault(e => e.Id == id);
+        if (item is not null)
+        {
+            typeof(Cargo).GetProperty("IsDeleted")!.SetValue(item, true);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var item = Datos.FirstOrDefault(e => e.Id == id);
+        if (item is not null)
+        {
+            typeof(Cargo).GetProperty("IsDeleted")!.SetValue(item, false);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Datos.Any(e => e.Codigo == codigo && e.Id != (excludingId ?? Guid.Empty)));
+    }
+
+    public Task<bool> HasActivePuestosAsync(Guid cargoId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(false);
     }
 }
