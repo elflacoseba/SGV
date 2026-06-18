@@ -145,6 +145,49 @@ public class UnidadesOrganizativasController : ControllerBase
     }
 
     /// <summary>
+    /// Consulta paginada y filtrada de unidades organizativas activas.
+    /// </summary>
+    /// <param name="page">Número de página (default: 1).</param>
+    /// <param name="pageSize">Tamaño de página (default: 20).</param>
+    /// <param name="search">Búsqueda por código o nombre.</param>
+    /// <param name="tipoUnidadOrganizativaId">Filtro por tipo de unidad.</param>
+    /// <param name="unidadPadreId">Filtro por unidad padre.</param>
+    /// <param name="vigenteEn">Filtro por vigencia activa en una fecha.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Resultado paginado de unidades organizativas.</returns>
+    /// <response code="200">Resultado paginado devuelto correctamente.</response>
+    [HttpGet("consulta")]
+    [ProducesResponseType(typeof(PagedResult<UnidadOrganizativaDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<UnidadOrganizativaDto>>> Consulta(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] Guid? tipoUnidadOrganizativaId = null,
+        [FromQuery] Guid? unidadPadreId = null,
+        [FromQuery] DateOnly? vigenteEn = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new UnidadOrganizativaQuery(page, pageSize, search, tipoUnidadOrganizativaId, unidadPadreId, vigenteEn);
+        var result = await _servicio.QueryAsync(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Obtiene el árbol jerárquico de unidades organizativas activas.
+    /// </summary>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Lista de nodos raíz con sus descendientes activos.</returns>
+    /// <response code="200">Árbol jerárquico devuelto correctamente.</response>
+    [HttpGet("arbol")]
+    [ProducesResponseType(typeof(IReadOnlyList<UnidadOrganizativaTreeNodeDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>> GetTree(
+        CancellationToken cancellationToken)
+    {
+        var result = await _servicio.GetTreeAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Elimina (soft-delete) una unidad organizativa por su identificador.
     /// </summary>
     /// <param name="id">Identificador único de la unidad organizativa a eliminar.</param>
