@@ -14,6 +14,7 @@ public sealed class UnidadOrganizativaServicioComandos(
     IUnidadOrganizativaRepository repository,
     ITipoUnidadOrganizativaRepository tipoUnidadRepository,
     IUnitOfWork unitOfWork,
+    JerarquiaUnidadOrganizativaPolicy jerarquiaPolicy,
     IValidator<CrearUnidadOrganizativaRequest> crearValidator,
     IValidator<ActualizarUnidadOrganizativaRequest> actualizarValidator) : IUnidadOrganizativaServicioComandos
 {
@@ -34,9 +35,20 @@ public sealed class UnidadOrganizativaServicioComandos(
         ITipoUnidadOrganizativaRepository tipoUnidadRepository,
         IUnitOfWork unitOfWork)
         : this(repository, tipoUnidadRepository, unitOfWork,
+               new JerarquiaUnidadOrganizativaPolicy(),
                new CrearUnidadOrganizativaRequestValidator(),
                new ActualizarUnidadOrganizativaRequestValidator())
     {
+    }
+
+    /// <summary>
+    /// Gets the <c>TipoUnidadOrganizativa.Codigo</c> for a given unit by loading its tipo from the
+    /// tipo repository. Returns null when the unit or its tipo is not found.
+    /// </summary>
+    private async Task<string?> GetTipoCodigoAsync(Guid tipoUnidadOrganizativaId, CancellationToken cancellationToken)
+    {
+        var tipo = await tipoUnidadRepository.GetByIdAsync(tipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false);
+        return tipo?.Codigo;
     }
     public async Task<UnidadOrganizativaCommandResult> CrearAsync(
         CrearUnidadOrganizativaRequest request,
@@ -64,14 +76,37 @@ public sealed class UnidadOrganizativaServicioComandos(
                     "El tipo de unidad organizativa referenciado no existe."));
         }
 
+        UnidadOrganizativa? padre = null;
         if (request.UnidadPadreId.HasValue)
         {
-            var padre = await repository.GetByIdAsync(request.UnidadPadreId.Value, cancellationToken).ConfigureAwait(false);
+            padre = await repository.GetByIdAsync(request.UnidadPadreId.Value, cancellationToken).ConfigureAwait(false);
             if (padre is null)
             {
                 return UnidadOrganizativaCommandResult.Failure(
                     new(UnidadOrganizativaErrorType.NotFound, "UnidadPadreNoEncontrada", "La unidad padre especificada no existe."));
             }
+        }
+
+        // Validate hierarchy rules using the policy matrix
+        var tipoCodigoHija = tipo.Codigo;
+        string? tipoCodigoPadre = padre is not null
+            ? await GetTipoCodigoAsync(padre.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false)
+            : null;
+
+        if (!jerarquiaPolicy.EsRelacionPermitida(tipoCodigoHija, tipoCodigoPadre))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "JerarquiaInvalida",
+                    "La relación jerárquica entre los tipos de unidad no está permitida."));
+        }
+
+        if (!jerarquiaPolicy.EsVigenciaContenida(
+                request.VigenteDesde, request.VigenteHasta,
+                padre?.VigenteDesde, padre?.VigenteHasta))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "VigenciaFueraDelPadre",
+                    "La vigencia de la unidad hija debe estar contenida en la vigencia del padre."));
         }
 
         try
@@ -129,6 +164,32 @@ public sealed class UnidadOrganizativaServicioComandos(
                     "El tipo de unidad organizativa referenciado no existe."));
         }
 
+        // Validate hierarchy rules for the updated tipo
+        UnidadOrganizativa? padreActual = unidad.UnidadPadreId.HasValue
+            ? await repository.GetByIdAsync(unidad.UnidadPadreId.Value, cancellationToken).ConfigureAwait(false)
+            : null;
+
+        var tipoCodigoHija = tipo.Codigo;
+        string? tipoCodigoPadre = padreActual is not null
+            ? await GetTipoCodigoAsync(padreActual.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false)
+            : null;
+
+        if (!jerarquiaPolicy.EsRelacionPermitida(tipoCodigoHija, tipoCodigoPadre))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "JerarquiaInvalida",
+                    "La relación jerárquica entre los tipos de unidad no está permitida."));
+        }
+
+        if (!jerarquiaPolicy.EsVigenciaContenida(
+                request.VigenteDesde, request.VigenteHasta,
+                padreActual?.VigenteDesde, padreActual?.VigenteHasta))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "VigenciaFueraDelPadre",
+                    "La vigencia de la unidad hija debe estar contenida en la vigencia del padre."));
+        }
+
         try
         {
             unidad.CambiarDatos(request.Codigo, request.Nombre, request.TipoUnidadOrganizativaId, request.Descripcion);
@@ -164,10 +225,11 @@ public sealed class UnidadOrganizativaServicioComandos(
                 new(UnidadOrganizativaErrorType.Validation, "CicloJerarquico", "Una unidad organizativa no puede ser padre de sí misma."));
         }
 
+        UnidadOrganizativa? nuevoPadre = null;
         if (request.UnidadPadreId.HasValue)
         {
-            var padre = await repository.GetByIdAsync(request.UnidadPadreId.Value, cancellationToken).ConfigureAwait(false);
-            if (padre is null)
+            nuevoPadre = await repository.GetByIdAsync(request.UnidadPadreId.Value, cancellationToken).ConfigureAwait(false);
+            if (nuevoPadre is null)
             {
                 return UnidadOrganizativaCommandResult.Failure(
                     new(UnidadOrganizativaErrorType.NotFound, "UnidadPadreNoEncontrada", "La unidad padre especificada no existe."));
@@ -178,6 +240,28 @@ public sealed class UnidadOrganizativaServicioComandos(
                 return UnidadOrganizativaCommandResult.Failure(
                     new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico", "No se puede asignar como padre una unidad descendiente."));
             }
+        }
+
+        // Validate hierarchy rules for the new parent
+        var unidadTipoCodigo = await GetTipoCodigoAsync(unidad.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false);
+        string? nuevoPadreTipoCodigo = nuevoPadre is not null
+            ? await GetTipoCodigoAsync(nuevoPadre.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false)
+            : null;
+
+        if (!jerarquiaPolicy.EsRelacionPermitida(unidadTipoCodigo, nuevoPadreTipoCodigo))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "JerarquiaInvalida",
+                    "La relación jerárquica entre los tipos de unidad no está permitida."));
+        }
+
+        if (!jerarquiaPolicy.EsVigenciaContenida(
+                unidad.VigenteDesde, unidad.VigenteHasta,
+                nuevoPadre?.VigenteDesde, nuevoPadre?.VigenteHasta))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Validation, "VigenciaFueraDelPadre",
+                    "La vigencia de la unidad hija debe estar contenida en la vigencia del padre."));
         }
 
         try
@@ -207,6 +291,20 @@ public sealed class UnidadOrganizativaServicioComandos(
                 new(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad organizativa no existe."));
         }
 
+        if (await repository.HasActiveChildrenAsync(id, cancellationToken).ConfigureAwait(false))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Conflict, "UnidadConHijasActivas",
+                    "No se puede eliminar una unidad organizativa que tiene hijas activas."));
+        }
+
+        if (await repository.HasActivePuestosAsync(id, cancellationToken).ConfigureAwait(false))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Conflict, "UnidadConPuestosActivos",
+                    "No se puede eliminar una unidad organizativa que tiene puestos activos asociados."));
+        }
+
         unidad.Desactivar();
         await repository.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -228,6 +326,18 @@ public sealed class UnidadOrganizativaServicioComandos(
             return UnidadOrganizativaCommandResult.Failure(
                 new(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
                     "Ya existe una unidad organizativa activa con el mismo código."));
+        }
+
+        // Check that the parent (if any) is active before reactivating
+        if (unidad.UnidadPadreId.HasValue)
+        {
+            var padre = await repository.GetByIdIncludingDeletedAsync(unidad.UnidadPadreId.Value, cancellationToken).ConfigureAwait(false);
+            if (padre is null || !padre.IsActive)
+            {
+                return UnidadOrganizativaCommandResult.Failure(
+                    new(UnidadOrganizativaErrorType.Conflict, "PadreInactivo",
+                        "No se puede reactivar una unidad organizativa cuyo padre está inactivo o eliminado."));
+            }
         }
 
         try

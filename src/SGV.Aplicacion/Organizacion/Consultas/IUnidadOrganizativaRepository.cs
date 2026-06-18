@@ -53,4 +53,14 @@ public interface IUnidadOrganizativaRepository : IReadOnlyRepository<UnidadOrgan
         Guid candidateDescendantId,
         Guid ancestorId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns true when the specified unit has any active (non-deleted) children.
+    /// </summary>
+    Task<bool> HasActiveChildrenAsync(Guid unidadId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns true when the specified unit has any active (non-deleted) associated puestos.
+    /// </summary>
+    Task<bool> HasActivePuestosAsync(Guid unidadId, CancellationToken cancellationToken = default);
 }
