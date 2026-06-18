@@ -12,19 +12,34 @@ public sealed class Cargo : EntidadAuditable
     {
     }
 
-    public Cargo(string codigo, string nombre, string? nivel = null, string? descripcion = null)
+    public Cargo(string codigo, string nombre, Guid nivelId, string? descripcion = null)
     {
-        CambiarDatos(codigo, nombre, nivel, descripcion);
+        Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
+        Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
+        ValidarNivelId(nivelId);
+        NivelId = nivelId;
+        Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
         IsActive = true;
     }
 
+    /// <summary>
+    /// Código único del cargo. Se define en la creación y NO puede modificarse.
+    /// </summary>
     public string Codigo { get; private set; } = string.Empty;
 
     public string Nombre { get; private set; } = string.Empty;
 
     public string? Descripcion { get; private set; }
 
-    public string? Nivel { get; private set; }
+    /// <summary>
+    /// Identificador del NivelCargo asociado.
+    /// </summary>
+    public Guid NivelId { get; private set; }
+
+    /// <summary>
+    /// Navegación al NivelCargo asociado.
+    /// </summary>
+    public NivelCargo? NivelCargo { get; private set; }
 
     public bool IsActive { get; private set; }
 
@@ -32,12 +47,39 @@ public sealed class Cargo : EntidadAuditable
 
     public IReadOnlyCollection<Puesto> Puestos => _puestos;
 
-    public void CambiarDatos(string codigo, string nombre, string? nivel = null, string? descripcion = null)
+    /// <summary>
+    /// Actualiza los campos editables del cargo. NO modifica <see cref="Codigo"/>.
+    /// </summary>
+    public void Actualizar(string nombre, Guid nivelId, string? descripcion = null)
     {
-        Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
         Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
-        Nivel = ValidacionesDominio.Opcional(nivel, nameof(Nivel), 50);
+        ValidarNivelId(nivelId);
+        NivelId = nivelId;
         Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
+    }
+
+    /// <summary>
+    /// Desactiva el cargo. Si la colección de Puestos está cargada y contiene
+    /// al menos un Puesto activo, lanza <see cref="InvalidOperationException"/>.
+    /// </summary>
+    public void Desactivar()
+    {
+        if (_puestos.Count > 0 && _puestos.Any(p => p.IsActive))
+        {
+            throw new InvalidOperationException(
+                "No se puede desactivar el cargo porque tiene Puestos activos asociados.");
+        }
+
+        IsActive = false;
+    }
+
+    /// <summary>
+    /// Reactiva el cargo. La verificación de unicidad de Codigo activo
+    /// es responsabilidad del servicio de aplicación.
+    /// </summary>
+    public void Activar()
+    {
+        IsActive = true;
     }
 
     public CargoHabilidad AgregarHabilidad(Guid habilidadId, Guid nivelRequeridoId, decimal ponderacion, bool esObligatoria)
@@ -50,5 +92,13 @@ public sealed class Cargo : EntidadAuditable
         var cargoHabilidad = new CargoHabilidad(Id, habilidadId, nivelRequeridoId, ponderacion, esObligatoria);
         _habilidades.Add(cargoHabilidad);
         return cargoHabilidad;
+    }
+
+    private static void ValidarNivelId(Guid nivelId)
+    {
+        if (nivelId == Guid.Empty)
+        {
+            throw new ArgumentException("El nivel de cargo es obligatorio.", nameof(NivelId));
+        }
     }
 }

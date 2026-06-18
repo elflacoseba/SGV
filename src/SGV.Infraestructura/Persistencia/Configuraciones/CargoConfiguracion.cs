@@ -14,8 +14,16 @@ public sealed class CargoConfiguracion : IEntityTypeConfiguration<CargoEntity>
 
         builder.Property(e => e.Codigo).HasMaxLength(50).IsRequired();
         builder.Property(e => e.Nombre).HasMaxLength(200).IsRequired();
-        builder.Property(e => e.Nivel).HasMaxLength(50);
         builder.Property(e => e.Descripcion).HasMaxLength(1000);
+        builder.Property(e => e.NivelId).HasColumnType("char(36)").IsRequired();
+
+        builder.HasOne(e => e.NivelCargo)
+            .WithMany()
+            .HasForeignKey(e => e.NivelId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(e => e.NivelId)
+            .HasDatabaseName("IX_Cargos_NivelId");
 
         // MySQL does not support filtered indexes. Use a generated column
         // that is NULL for soft-deleted rows so the unique index allows

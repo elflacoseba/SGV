@@ -14,7 +14,7 @@ internal static class PersistenceToDomainMapper
 {
     public static Cargo ToDomain(CargoEntity entity)
     {
-        var cargo = new Cargo(entity.Codigo, entity.Nombre, entity.Nivel, entity.Descripcion)
+        var cargo = new Cargo(entity.Codigo, entity.Nombre, entity.NivelId, entity.Descripcion)
         {
             Id = entity.Id,
             CreatedAt = entity.CreatedAt,
@@ -27,7 +27,22 @@ internal static class PersistenceToDomainMapper
         };
 
         SetProperty(cargo, nameof(Cargo.IsActive), entity.IsActive);
+
+        if (entity.NivelCargo is not null)
+        {
+            SetProperty(cargo, nameof(Cargo.NivelCargo), ToDomain(entity.NivelCargo));
+        }
+
         return cargo;
+    }
+
+    public static NivelCargo ToDomain(NivelCargoEntity entity)
+    {
+        var nivel = new NivelCargo(entity.Codigo, entity.Nombre, entity.ValorNumerico, entity.Orden)
+        {
+            Id = entity.Id
+        };
+        return nivel;
     }
 
     public static Habilidad ToDomain(HabilidadEntity entity)

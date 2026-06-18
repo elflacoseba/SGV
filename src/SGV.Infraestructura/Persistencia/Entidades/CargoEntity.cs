@@ -11,7 +11,9 @@ public sealed class CargoEntity : AuditableEntityBase
 
     public string? Descripcion { get; set; }
 
-    public string? Nivel { get; set; }
+    public Guid NivelId { get; set; }
+
+    public NivelCargoEntity? NivelCargo { get; set; }
 
     public bool IsActive { get; set; }
 
