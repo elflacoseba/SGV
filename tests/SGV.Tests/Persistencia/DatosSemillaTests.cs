@@ -31,5 +31,18 @@ public sealed class DatosSemillaTests
         // Verify specific known values
         Assert.Contains(TipoUnidadOrganizativaConstantes.InstitucionId, seedIds);
         Assert.Contains(TipoUnidadOrganizativaConstantes.AreaId, seedIds);
+
+        // Verify NivelCargo seed matches NivelCargoConstantes
+        var nivelCargoSeedIds = new[]
+        {
+            NivelCargoConstantes.DirectivoId,
+            NivelCargoConstantes.ConduccionMediaId,
+            NivelCargoConstantes.OperativoId,
+            NivelCargoConstantes.AcademicoId
+        };
+
+        Assert.Equal(4, nivelCargoSeedIds.Length);
+        Assert.Equal(4, new HashSet<Guid>(nivelCargoSeedIds).Count);
+        Assert.All(nivelCargoSeedIds, id => Assert.NotEqual(Guid.Empty, id));
     }
 }

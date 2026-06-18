@@ -68,13 +68,47 @@ internal static class DatosSemilla
             new EstadoPostulacionEntity { Id = PostulacionRechazadoId, Codigo = "Rechazado", Nombre = "Rechazado", Orden = 5, EsTerminal = true, EsTerminalPositivo = false },
             new EstadoPostulacionEntity { Id = PostulacionContratadoId, Codigo = "Contratado", Nombre = "Contratado", Orden = 6, EsTerminal = true, EsTerminalPositivo = true });
 
+        builder.Entity<NivelCargoEntity>().HasData(
+            new NivelCargoEntity
+            {
+                Id = NivelCargoConstantes.DirectivoId,
+                Codigo = NivelCargoConstantes.DirectivoCodigo,
+                Nombre = NivelCargoConstantes.DirectivoNombre,
+                ValorNumerico = NivelCargoConstantes.DirectivoValorNumerico,
+                Orden = NivelCargoConstantes.DirectivoOrden
+            },
+            new NivelCargoEntity
+            {
+                Id = NivelCargoConstantes.ConduccionMediaId,
+                Codigo = NivelCargoConstantes.ConduccionMediaCodigo,
+                Nombre = NivelCargoConstantes.ConduccionMediaNombre,
+                ValorNumerico = NivelCargoConstantes.ConduccionMediaValorNumerico,
+                Orden = NivelCargoConstantes.ConduccionMediaOrden
+            },
+            new NivelCargoEntity
+            {
+                Id = NivelCargoConstantes.OperativoId,
+                Codigo = NivelCargoConstantes.OperativoCodigo,
+                Nombre = NivelCargoConstantes.OperativoNombre,
+                ValorNumerico = NivelCargoConstantes.OperativoValorNumerico,
+                Orden = NivelCargoConstantes.OperativoOrden
+            },
+            new NivelCargoEntity
+            {
+                Id = NivelCargoConstantes.AcademicoId,
+                Codigo = NivelCargoConstantes.AcademicoCodigo,
+                Nombre = NivelCargoConstantes.AcademicoNombre,
+                ValorNumerico = NivelCargoConstantes.AcademicoValorNumerico,
+                Orden = NivelCargoConstantes.AcademicoOrden
+            });
+
         builder.Entity<CargoEntity>().HasData(
-            new CargoEntity { Id = CargoDecanoId, Codigo = "DECANO", Nombre = "Decano", Nivel = "Directivo", IsActive = true },
-            new CargoEntity { Id = CargoSecretarioId, Codigo = "SECRETARIO", Nombre = "Secretario", Nivel = "Directivo", IsActive = true },
-            new CargoEntity { Id = CargoDirectorId, Codigo = "DIRECTOR", Nombre = "Director", Nivel = "Conducción media", IsActive = true },
-            new CargoEntity { Id = CargoJefeDepartamentoId, Codigo = "JEFE_DEPARTAMENTO", Nombre = "Jefe de Departamento", Nivel = "Conducción media", IsActive = true },
-            new CargoEntity { Id = CargoAdministrativoId, Codigo = "ADMINISTRATIVO", Nombre = "Administrativo", Nivel = "Operativo", IsActive = true },
-            new CargoEntity { Id = CargoProfesorId, Codigo = "PROFESOR", Nombre = "Profesor", Nivel = "Académico", IsActive = true });
+            new CargoEntity { Id = CargoDecanoId, Codigo = "DECANO", Nombre = "Decano", NivelId = NivelCargoConstantes.DirectivoId, IsActive = true },
+            new CargoEntity { Id = CargoSecretarioId, Codigo = "SECRETARIO", Nombre = "Secretario", NivelId = NivelCargoConstantes.DirectivoId, IsActive = true },
+            new CargoEntity { Id = CargoDirectorId, Codigo = "DIRECTOR", Nombre = "Director", NivelId = NivelCargoConstantes.ConduccionMediaId, IsActive = true },
+            new CargoEntity { Id = CargoJefeDepartamentoId, Codigo = "JEFE_DEPARTAMENTO", Nombre = "Jefe de Departamento", NivelId = NivelCargoConstantes.ConduccionMediaId, IsActive = true },
+            new CargoEntity { Id = CargoAdministrativoId, Codigo = "ADMINISTRATIVO", Nombre = "Administrativo", NivelId = NivelCargoConstantes.OperativoId, IsActive = true },
+            new CargoEntity { Id = CargoProfesorId, Codigo = "PROFESOR", Nombre = "Profesor", NivelId = NivelCargoConstantes.AcademicoId, IsActive = true });
 
         builder.Entity<HabilidadEntity>().HasData(
             new HabilidadEntity { Id = HabilidadLiderazgoId, Codigo = "LIDERAZGO", Nombre = "Liderazgo", Categoria = "Conducción", IsActive = true },

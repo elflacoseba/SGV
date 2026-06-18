@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SGV.Infraestructura.Persistencia;
 
@@ -11,9 +12,11 @@ using SGV.Infraestructura.Persistencia;
 namespace SGV.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(SgvDbContext))]
-    partial class SgvDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618180508_CambiarNivelStringANivelId")]
+    partial class CambiarNivelStringANivelId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
