@@ -36,5 +36,13 @@ public sealed class UnidadOrganizativaConfiguracion : IEntityTypeConfiguration<U
 
         builder.HasIndex(e => e.UnidadPadreId);
         builder.HasIndex(e => e.Nombre);
+
+        // Composite indexes for common query patterns (IsActive + IsDeleted first)
+        builder.HasIndex(e => new { e.IsActive, e.IsDeleted, e.UnidadPadreId })
+            .HasDatabaseName("IX_UnidadesOrganizativas_ActivoPadre");
+        builder.HasIndex(e => new { e.IsActive, e.IsDeleted, e.TipoUnidadOrganizativaId })
+            .HasDatabaseName("IX_UnidadesOrganizativas_ActivoTipo");
+        builder.HasIndex(e => new { e.IsActive, e.IsDeleted, e.Codigo })
+            .HasDatabaseName("IX_UnidadesOrganizativas_ActivoCodigo");
     }
 }
