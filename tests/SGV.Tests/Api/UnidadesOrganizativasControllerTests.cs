@@ -318,6 +318,154 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.Equal(400, problem.Status);
     }
 
+    // ---- JSON contract: tipoUnidadOrganizativaId (Task 3.4) ----
+
+    [Fact]
+    public async Task GetAll_JsonResponseContieneTipoUnidadOrganizativaId()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas");
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+
+        var first = doc.RootElement.EnumerateArray().First();
+        Assert.True(first.TryGetProperty("tipoUnidadOrganizativaId", out _),
+            "Response JSON MUST include 'tipoUnidadOrganizativaId'");
+        Assert.False(first.TryGetProperty("tipoUnidadId", out _),
+            "Response JSON MUST NOT include 'tipoUnidadId'");
+        Assert.False(first.TryGetProperty("tipoUnidad", out _),
+            "Response JSON MUST NOT include 'tipoUnidad'");
+    }
+
+    [Fact]
+    public async Task GetById_JsonResponseContieneTipoUnidadOrganizativaId()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/unidades-organizativas/{FakeUnidadOrganizativaServicio.UnidadId1}");
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+
+        Assert.True(doc.RootElement.TryGetProperty("tipoUnidadOrganizativaId", out _),
+            "Response JSON MUST include 'tipoUnidadOrganizativaId'");
+        Assert.False(doc.RootElement.TryGetProperty("tipoUnidadId", out _),
+            "Response JSON MUST NOT include 'tipoUnidadId'");
+        Assert.True(doc.RootElement.TryGetProperty("tipoUnidadNombre", out _),
+            "Response JSON MUST include 'tipoUnidadNombre'");
+    }
+
+    // ---- Consulta endpoint (Task 3.4 / 3.5) ----
+
+    [Fact]
+    public async Task Consulta_SinFiltros_RetornaPagedResult()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<PagedResult<UnidadOrganizativaDto>>(json, JsonOptions);
+        Assert.NotNull(result);
+        Assert.NotEmpty(result!.Items);
+        Assert.Equal(1, result.Page);
+        Assert.Equal(20, result.PageSize);
+    }
+
+    [Fact]
+    public async Task Consulta_ConSearch_FiltraResultados()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta?search=GER");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await ReadAsAsync<PagedResult<UnidadOrganizativaDto>>(response);
+        Assert.NotEmpty(result.Items);
+        Assert.Contains(result.Items, d => d.Codigo.Contains("GER", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Consulta_ConTipoUnidadOrganizativaId_FiltraPorTipo()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/unidades-organizativas/consulta?tipoUnidadOrganizativaId={TipoUnidadOrganizativaConstantes.DireccionId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await ReadAsAsync<PagedResult<UnidadOrganizativaDto>>(response);
+        Assert.NotEmpty(result.Items);
+        Assert.All(result.Items, d => Assert.Equal(TipoUnidadOrganizativaConstantes.DireccionId, d.TipoUnidadOrganizativaId));
+    }
+
+    // ---- Tree endpoint (Task 3.4 / 3.5) ----
+
+    [Fact]
+    public async Task GetTree_ReturnsOkWithTreeNodeArray()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var tree = JsonSerializer.Deserialize<List<UnidadOrganizativaTreeNodeDto>>(json, JsonOptions);
+        Assert.NotNull(tree);
+    }
+
+    [Fact]
+    public async Task GetTree_JsonNodoIncluyeTipoUnidadOrganizativaId()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+        var first = doc.RootElement.EnumerateArray().First();
+
+        Assert.True(first.TryGetProperty("tipoUnidadOrganizativaId", out _),
+            "Tree node MUST include 'tipoUnidadOrganizativaId'");
+        Assert.False(first.TryGetProperty("tipoUnidadId", out _),
+            "Tree node MUST NOT include 'tipoUnidadId'");
+    }
+
+    // ---- 409 Conflict on delete (Task 3.4) ----
+
+    [Fact]
+    public async Task Delete_Conflict_Returns409WithProblemDetails()
+    {
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            EliminarHandler = (_, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "UnidadConHijasActivas",
+                        "No se puede eliminar una unidad organizativa que tiene hijas activas.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(409, problem.Status);
+        Assert.Equal("UnidadConHijasActivas", problem.Title);
+    }
+
     // ---- DELETE (soft-delete) ----
 
     [Fact]

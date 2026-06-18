@@ -12,8 +12,21 @@ public interface IUnidadOrganizativaServicioConsulta
     /// </summary>
     Task<IReadOnlyList<UnidadOrganizativaDto>> ListAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Returns a single organizational unit by its identifier, or null if not found.
-    /// </summary>
-    Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+/// <summary>
+/// Returns a single organizational unit by its identifier, or null if not found.
+/// </summary>
+Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+/// <summary>
+/// Returns a paginated, filtered list of active organizational units.
+/// </summary>
+Task<PagedResult<UnidadOrganizativaDto>> QueryAsync(
+    UnidadOrganizativaQuery query,
+    CancellationToken cancellationToken = default);
+
+/// <summary>
+/// Returns the hierarchical tree of active organizational units.
+/// </summary>
+Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(
+    CancellationToken cancellationToken = default);
 }

@@ -63,4 +63,22 @@ public interface IUnidadOrganizativaRepository : IReadOnlyRepository<UnidadOrgan
     /// Returns true when the specified unit has any active (non-deleted) associated puestos.
     /// </summary>
     Task<bool> HasActivePuestosAsync(Guid unidadId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a filtered, paginated set of active organizational units and the total count matching the filters.
+    /// </summary>
+    Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(
+        string? search,
+        Guid? tipoUnidadOrganizativaId,
+        Guid? unidadPadreId,
+        DateOnly? vigenteEn,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all active organizational units with their TipoUnidadOrganizativa navigation loaded,
+    /// ordered for tree construction.
+    /// </summary>
+    Task<IReadOnlyList<UnidadOrganizativa>> ListTreeAsync(CancellationToken cancellationToken = default);
 }

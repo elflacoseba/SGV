@@ -878,4 +878,31 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
 
         return Task.CompletedTask;
     }
+
+    public Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(
+        string? search, Guid? tipoUnidadOrganizativaId, Guid? unidadPadreId,
+        DateOnly? vigenteEn, int page, int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var filtered = Datos.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(search))
+            filtered = filtered.Where(u =>
+                u.Codigo.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                u.Nombre.Contains(search, StringComparison.OrdinalIgnoreCase));
+        if (tipoUnidadOrganizativaId.HasValue)
+            filtered = filtered.Where(u => u.TipoUnidadOrganizativaId == tipoUnidadOrganizativaId.Value);
+        if (unidadPadreId.HasValue)
+            filtered = filtered.Where(u => u.UnidadPadreId == unidadPadreId.Value);
+        var list = filtered.ToList();
+        var total = list.Count;
+        var pagedItems = list.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var result = ((IReadOnlyList<UnidadOrganizativa>)pagedItems, total);
+        return Task.FromResult(result);
+    }
+
+    public Task<IReadOnlyList<UnidadOrganizativa>> ListTreeAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<UnidadOrganizativa>>(
+            Datos.Where(u => u.IsActive).OrderBy(u => u.Codigo).ToList());
+    }
 }

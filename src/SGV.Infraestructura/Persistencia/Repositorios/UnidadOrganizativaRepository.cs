@@ -139,6 +139,15 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
             .ConfigureAwait(false);
     }
 
+    public Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(
+        string? search, Guid? tipoUnidadOrganizativaId, Guid? unidadPadreId,
+        DateOnly? vigenteEn, int page, int pageSize,
+        CancellationToken cancellationToken = default)
+        => throw new NotImplementedException();
+
+    public Task<IReadOnlyList<UnidadOrganizativa>> ListTreeAsync(CancellationToken cancellationToken = default)
+        => throw new NotImplementedException();
+
     public async Task<bool> IsDescendantAsync(
         Guid candidateDescendantId,
         Guid ancestorId,

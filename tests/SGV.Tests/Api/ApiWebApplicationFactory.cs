@@ -69,6 +69,45 @@ internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServic
 
     public Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+
+    public Task<PagedResult<UnidadOrganizativaDto>> QueryAsync(
+        UnidadOrganizativaQuery query, CancellationToken ct = default)
+    {
+        var filtered = _data.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(query.Search))
+            filtered = filtered.Where(d =>
+                d.Codigo.Contains(query.Search, StringComparison.OrdinalIgnoreCase) ||
+                d.Nombre.Contains(query.Search, StringComparison.OrdinalIgnoreCase));
+        if (query.TipoUnidadOrganizativaId.HasValue)
+            filtered = filtered.Where(d => d.TipoUnidadOrganizativaId == query.TipoUnidadOrganizativaId.Value);
+        if (query.UnidadPadreId.HasValue)
+            filtered = filtered.Where(d => d.UnidadPadreId == query.UnidadPadreId.Value);
+
+        var list = filtered.ToList();
+        var total = list.Count;
+        var items = list.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToList();
+
+        return Task.FromResult(new PagedResult<UnidadOrganizativaDto>(items, total, query.Page, query.PageSize));
+    }
+
+    public Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken ct = default)
+    {
+        var roots = _data.Where(d => d.UnidadPadreId is null).ToList();
+        var tree = roots.Select(r => BuildTreeNode(r, _data)).ToList();
+        return Task.FromResult<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>(tree);
+    }
+
+    private static UnidadOrganizativaTreeNodeDto BuildTreeNode(
+        UnidadOrganizativaDto node, IReadOnlyList<UnidadOrganizativaDto> all)
+    {
+        var children = all
+            .Where(d => d.UnidadPadreId == node.Id)
+            .Select(c => BuildTreeNode(c, all))
+            .ToList();
+        return new UnidadOrganizativaTreeNodeDto(
+            node.Id, node.Codigo, node.Nombre,
+            node.TipoUnidadOrganizativaId, node.TipoUnidadNombre, children);
+    }
 }
 
 internal sealed class FakeCargoServicio : ICargoServicioConsulta
