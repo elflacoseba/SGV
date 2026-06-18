@@ -110,6 +110,79 @@ internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServic
     }
 }
 
+internal sealed class FakeNivelCargoServicioConsulta : INivelCargoServicioConsulta
+{
+    public static readonly Guid Nivel1Id = NivelCargoConstantes.DirectivoId;
+    public static readonly Guid Nivel2Id = NivelCargoConstantes.OperativoId;
+
+    private static readonly IReadOnlyList<NivelCargoDto> SeedData =
+    [
+        new(Nivel1Id, "Directivo", "Directivo", 1, 1),
+        new(Nivel2Id, "Operativo", "Operativo", 3, 3),
+    ];
+
+    private readonly IReadOnlyList<NivelCargoDto> _data;
+
+    public FakeNivelCargoServicioConsulta(bool isEmpty = false)
+    {
+        _data = isEmpty ? [] : SeedData;
+    }
+
+    public Task<IReadOnlyList<NivelCargoDto>> ListAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(_data);
+
+    public Task<NivelCargoDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+}
+
+internal sealed class FakeCargoServicioComandos : ICargoServicioComandos
+{
+    public static readonly Guid DefaultCargoId = Guid.Parse("b0000000-0000-0000-0000-000000000001");
+    public static readonly Guid DefaultNivelId = NivelCargoConstantes.DirectivoId;
+
+    public Func<CrearCargoRequest, CancellationToken, Task<CargoCommandResult>>? CrearHandler { get; set; }
+    public Func<Guid, ActualizarCargoRequest, CancellationToken, Task<CargoCommandResult>>? ActualizarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<CargoCommandResult>>? DesactivarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<CargoCommandResult>>? ReactivarHandler { get; set; }
+
+    public Task<CargoCommandResult> CrearAsync(
+        CrearCargoRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
+        return Task.FromResult(CargoCommandResult.Success(
+            new CargoDto(DefaultCargoId, request.Codigo, request.Nombre, request.Descripcion, request.NivelId)));
+    }
+
+    public Task<CargoCommandResult> ActualizarAsync(
+        Guid id,
+        ActualizarCargoRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
+        return Task.FromResult(CargoCommandResult.Success(
+            new CargoDto(id, "DIRECTOR", request.Nombre, request.Descripcion, request.NivelId, "Directivo")));
+    }
+
+    public Task<CargoCommandResult> DesactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (DesactivarHandler is not null) return DesactivarHandler(id, cancellationToken);
+        return Task.FromResult(CargoCommandResult.Success(
+            new CargoDto(id, "DIRECTOR", "Director", null, DefaultNivelId, "Directivo")));
+    }
+
+    public Task<CargoCommandResult> ReactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (ReactivarHandler is not null) return ReactivarHandler(id, cancellationToken);
+        return Task.FromResult(CargoCommandResult.Success(
+            new CargoDto(id, "DIRECTOR", "Director", null, DefaultNivelId, "Directivo")));
+    }
+}
+
 internal sealed class FakeCargoServicio : ICargoServicioConsulta
 {
     public static readonly Guid CargoId1 = Guid.Parse("b0000000-0000-0000-0000-000000000001");
@@ -120,7 +193,7 @@ internal sealed class FakeCargoServicio : ICargoServicioConsulta
     {
         _data = isEmpty
             ? []
-            : [new(CargoId1, "DIRECTOR", "Director", "Conducción media", null)];
+            : [new(CargoId1, "DIRECTOR", "Director", null, Guid.Parse("70000000-0000-0000-0000-000000000001"))];
     }
 
     public Task<IReadOnlyList<CargoDto>> ListAsync(CancellationToken ct = default)
@@ -253,6 +326,8 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IHabilidadServicioConsulta>();
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.RemoveService<ITipoUnidadOrganizativaServicioConsulta>();
+            services.RemoveService<ICargoServicioComandos>();
+            services.RemoveService<INivelCargoServicioConsulta>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
@@ -261,6 +336,8 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IHabilidadServicioConsulta>(new FakeHabilidadServicio());
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(new FakeUnidadOrganizativaServicioComandos());
             services.AddSingleton<ITipoUnidadOrganizativaServicioConsulta>(new FakeTipoUnidadOrganizativaServicio());
+            services.AddSingleton<ICargoServicioComandos>(new FakeCargoServicioComandos());
+            services.AddSingleton<INivelCargoServicioConsulta>(new FakeNivelCargoServicioConsulta());
 
             // Apply additional overrides (e.g. empty collections)
             _configureServices?.Invoke(services);

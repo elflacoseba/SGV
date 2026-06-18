@@ -82,6 +82,10 @@ public sealed class SwaggerConfigurationTests
 
         Assert.Contains("/api/v1/unidades-organizativas", actualPaths);
         Assert.Contains("/api/v1/cargos", actualPaths);
+        Assert.Contains("/api/v1/cargos/{id}", actualPaths);
+        Assert.Contains("/api/v1/cargos/{id}/reactivar", actualPaths);
+        Assert.Contains("/api/v1/niveles-cargo", actualPaths);
+        Assert.Contains("/api/v1/niveles-cargo/{id}", actualPaths);
         Assert.Contains("/api/v1/puestos", actualPaths);
         Assert.Contains("/api/v1/skills", actualPaths);
         Assert.Contains("/api/v1/tipos-unidad-organizativa", actualPaths);
@@ -100,8 +104,10 @@ public sealed class SwaggerConfigurationTests
 
         foreach (var path in paths.EnumerateObject())
         {
-            // Skip organizational-units path which has write operations
+            // Skip resources that intentionally expose write operations
             if (path.Name.StartsWith("/api/v1/unidades-organizativas", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (path.Name.StartsWith("/api/v1/cargos", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             foreach (var operation in path.Value.EnumerateObject())
@@ -109,6 +115,45 @@ public sealed class SwaggerConfigurationTests
                 Assert.Equal("get", operation.Name, ignoreCase: true);
             }
         }
+    }
+
+    [Fact]
+    public async Task Cargos_ExposesWriteOperations()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        // Check collection path exposes POST and GET
+        var collectionPath = paths.GetProperty("/api/v1/cargos");
+        var collectionOps = new HashSet<string>();
+        foreach (var op in collectionPath.EnumerateObject())
+            collectionOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("post", collectionOps);
+        Assert.Contains("get", collectionOps);
+
+        // Check item path exposes GET, PUT, DELETE
+        var itemPath = paths.GetProperty("/api/v1/cargos/{id}");
+        var itemOps = new HashSet<string>();
+        foreach (var op in itemPath.EnumerateObject())
+            itemOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("get", itemOps);
+        Assert.Contains("put", itemOps);
+        Assert.Contains("delete", itemOps);
+
+        // Check reactivar path exposes PATCH
+        var reactivarPath = paths.GetProperty("/api/v1/cargos/{id}/reactivar");
+        var reactivarOps = new HashSet<string>();
+        foreach (var op in reactivarPath.EnumerateObject())
+            reactivarOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("patch", reactivarOps);
     }
 
     [Fact]
