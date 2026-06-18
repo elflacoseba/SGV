@@ -139,14 +139,70 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
             .ConfigureAwait(false);
     }
 
-    public Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(
-        string? search, Guid? tipoUnidadOrganizativaId, Guid? unidadPadreId,
-        DateOnly? vigenteEn, int page, int pageSize,
+    public async Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(
+        string? search,
+        Guid? tipoUnidadOrganizativaId,
+        Guid? unidadPadreId,
+        DateOnly? vigenteEn,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+    {
+        IQueryable<UnidadOrganizativaEntity> query = Context
+            .Set<UnidadOrganizativaEntity>()
+            .AsNoTracking()
+            .Where(u => u.IsActive && !u.IsDeleted)
+            .Include(u => u.TipoUnidadOrganizativa);
 
-    public Task<IReadOnlyList<UnidadOrganizativa>> ListTreeAsync(CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(u => u.Codigo.Contains(search) || u.Nombre.Contains(search));
+        }
+
+        if (tipoUnidadOrganizativaId.HasValue)
+        {
+            query = query.Where(u => u.TipoUnidadOrganizativaId == tipoUnidadOrganizativaId.Value);
+        }
+
+        if (unidadPadreId.HasValue)
+        {
+            query = query.Where(u => u.UnidadPadreId == unidadPadreId.Value);
+        }
+
+        if (vigenteEn.HasValue)
+        {
+            var date = vigenteEn.Value;
+            query = query.Where(u =>
+                (!u.VigenteDesde.HasValue || u.VigenteDesde <= date) &&
+                (!u.VigenteHasta.HasValue || u.VigenteHasta >= date));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var entities = await query
+            .OrderBy(u => u.Codigo)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
+    public async Task<IReadOnlyList<UnidadOrganizativa>> ListTreeAsync(CancellationToken cancellationToken = default)
+    {
+        var entities = await Context
+            .Set<UnidadOrganizativaEntity>()
+            .AsNoTracking()
+            .Where(u => u.IsActive && !u.IsDeleted)
+            .Include(u => u.TipoUnidadOrganizativa)
+            .Include(u => u.UnidadPadre)
+            .OrderBy(u => u.Codigo)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return entities.Select(MapToDomain).ToArray();
+    }
 
     public async Task<bool> IsDescendantAsync(
         Guid candidateDescendantId,
