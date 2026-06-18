@@ -355,7 +355,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
-    // ===== Task 1.2: Reactivate protection + hierarchy/vigencia validation =====
+    // ===== Task 1.2: Reactivate protection =====
 
     [Fact]
     public async Task ReactivarAsync_PadreInactivo_RetornaConflictoYSinGuardar()
@@ -406,13 +406,11 @@ public sealed class UnidadOrganizativaServicioComandosTests
     }
 
     [Fact]
-    public async Task CrearAsync_JerarquiaInvalida_RetornaValidacionYSinGuardar()
+    public async Task CrearAsync_ConTiposArbitrarios_RetornaDtoYGuarda()
     {
-        // Facultad under Direccion is not allowed — the policy codigo check must reject it
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        // Direccion is NOT a valid parent for Facultad (Facultad only accepts Institucion)
         var padre = CrearUnidadActiva("DIR", PadreId, tipoId: TipoUnidadOrganizativaConstantes.DireccionId);
         repo.Datos.Add(padre);
         var request = new CrearUnidadOrganizativaRequest(
@@ -422,14 +420,14 @@ public sealed class UnidadOrganizativaServicioComandosTests
 
         var resultado = await servicio.CrearAsync(request, default);
 
-        Assert.False(resultado.IsSuccess);
-        Assert.Equal(UnidadOrganizativaErrorType.Validation, resultado.Error!.Type);
-        Assert.Equal("JerarquiaInvalida", resultado.Error.Code);
-        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(PadreId, resultado.Value!.UnidadPadreId);
+        Assert.Equal(1, uow.SaveChangesCount);
     }
 
     [Fact]
-    public async Task CrearAsync_VigenciaFueraDelPadre_RetornaValidacionYSinGuardar()
+    public async Task CrearAsync_ConVigenciaIndependienteDelPadre_RetornaDtoYGuarda()
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
@@ -447,10 +445,11 @@ public sealed class UnidadOrganizativaServicioComandosTests
 
         var resultado = await servicio.CrearAsync(request, default);
 
-        Assert.False(resultado.IsSuccess);
-        Assert.Equal(UnidadOrganizativaErrorType.Validation, resultado.Error!.Type);
-        Assert.Equal("VigenciaFueraDelPadre", resultado.Error.Code);
-        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(new DateOnly(2025, 7, 1), resultado.Value!.VigenteDesde);
+        Assert.Equal(new DateOnly(2025, 12, 31), resultado.Value.VigenteHasta);
+        Assert.Equal(1, uow.SaveChangesCount);
     }
 
     // ---- Short-circuit: validation before repository checks ----
