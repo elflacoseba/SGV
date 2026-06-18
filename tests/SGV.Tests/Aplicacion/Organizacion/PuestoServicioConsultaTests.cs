@@ -19,7 +19,7 @@ public sealed class PuestoServicioConsultaTests
         {
             Id = UnidadId
         };
-        var cargo = new Cargo("DIRECTOR", "Director", "Conducción media")
+        var cargo = new Cargo("DIRECTOR", "Director", Guid.Parse("70000000-0000-0000-0000-000000000001"), null)
         {
             Id = CargoId
         };

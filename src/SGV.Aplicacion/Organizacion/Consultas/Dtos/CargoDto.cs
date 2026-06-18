@@ -8,5 +8,6 @@ public sealed record CargoDto(
     string Codigo,
     string Nombre,
     string? Descripcion,
-    string? Nivel
+    Guid NivelId,
+    string? NivelNombre = null
 );
