@@ -28,11 +28,11 @@ public sealed class UnidadOrganizativaServicioComandosTests
         ]
     };
 
-    private static CrearUnidadOrganizativaRequest CrearRequest(string? codigo = null, Guid? padreId = null)
+    private static CrearUnidadOrganizativaRequest CrearRequest(string? codigo = null, Guid? padreId = null, Guid? tipoId = null)
         => new(
             codigo ?? "GER",
             "Gerencia General",
-            TipoUnidadOrganizativaConstantes.DireccionId,
+            tipoId ?? TipoUnidadOrganizativaConstantes.InstitucionId,
             "Máxima autoridad ejecutiva",
             null,
             null,
@@ -51,6 +51,26 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.NotNull(resultado.Value);
         Assert.Equal("GER", resultado.Value!.Codigo);
         Assert.Equal("Gerencia General", resultado.Value.Nombre);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_DatosValidos_ConPadreJerarquiaValida_RetornaDtoYGuarda()
+    {
+        var padre = CrearUnidadActiva("INST", PadreId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest(
+            "FAC", "Facultad de Prueba",
+            TipoUnidadOrganizativaConstantes.FacultadId, null, null, null, PadreId);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal("FAC", resultado.Value!.Codigo);
+        Assert.Equal("Facultad de Prueba", resultado.Value.Nombre);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -125,13 +145,32 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var request = new ActualizarUnidadOrganizativaRequest(
-            "GER-2", "Nueva Gerencia", TipoUnidadOrganizativaConstantes.AreaId, "Descripción actualizada", null, null);
+            "GER-2", "Nueva Gerencia", TipoUnidadOrganizativaConstantes.InstitucionId, "Descripción actualizada", null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
         Assert.True(resultado.IsSuccess);
         Assert.Equal("GER-2", resultado.Value!.Codigo);
         Assert.Equal("Nueva Gerencia", resultado.Value.Nombre);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_DatosValidos_JerarquiaValida_RetornaDtoActualizadoYGuarda()
+    {
+        var padre = CrearUnidadActiva("INST", PadreId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
+        var existente = CrearUnidadActiva("FAC", UnidadId, PadreId, TipoUnidadOrganizativaConstantes.FacultadId);
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "FAC-2", "Nueva Facultad", TipoUnidadOrganizativaConstantes.FacultadId, "Descripción actualizada", null, null);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("FAC-2", resultado.Value!.Codigo);
+        Assert.Equal("Nueva Facultad", resultado.Value.Nombre);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -187,8 +226,8 @@ public sealed class UnidadOrganizativaServicioComandosTests
     [Fact]
     public async Task CambiarUnidadPadreAsync_PadreValido_RetornaDtoYGuarda()
     {
-        var unidad = CrearUnidadActiva("GER", UnidadId);
-        var padre = CrearUnidadActiva("PADRE", PadreId);
+        var unidad = CrearUnidadActiva("FAC", UnidadId, tipoId: TipoUnidadOrganizativaConstantes.FacultadId);
+        var padre = CrearUnidadActiva("INST", PadreId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad, padre] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
@@ -272,6 +311,145 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.False(resultado.IsSuccess);
         Assert.Equal(UnidadOrganizativaErrorType.NotFound, resultado.Error!.Type);
         Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    // ===== Task 1.1: Delete protection — active children / puestos =====
+
+    [Fact]
+    public async Task EliminarAsync_ConHijasActivas_RetornaConflictoYSinGuardar()
+    {
+        var padre = CrearUnidadActiva("PADRE", UnidadId);
+        var hijo = CrearUnidadActiva("HIJO", HijoId, UnidadId);
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+
+        var resultado = await servicio.EliminarAsync(UnidadId, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("UnidadConHijasActivas", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task EliminarAsync_ConPuestosActivos_RetornaConflictoYSinGuardar()
+    {
+        var unidad = CrearUnidadActiva("GER", UnidadId);
+        var repo = new FakeUnidadOrganizativaWriteRepository
+        {
+            Datos = [unidad],
+            PuestosPorUnidad = new Dictionary<Guid, List<Puesto>>
+            {
+                [UnidadId] = [new Puesto(UnidadId, Guid.NewGuid(), "PUESTO-001", "Puesto Activo")]
+            }
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+
+        var resultado = await servicio.EliminarAsync(UnidadId, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("UnidadConPuestosActivos", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    // ===== Task 1.2: Reactivate protection =====
+
+    [Fact]
+    public async Task ReactivarAsync_PadreInactivo_RetornaConflictoYSinGuardar()
+    {
+        var padre = new UnidadOrganizativa("PADRE", "Padre Inactivo", TipoUnidadOrganizativaConstantes.InstitucionId)
+        {
+            Id = PadreId
+        };
+        padre.Desactivar(); // padre inactivo
+        var hijo = new UnidadOrganizativa("HIJO", "Hijo", TipoUnidadOrganizativaConstantes.FacultadId, PadreId)
+        {
+            Id = HijoId
+        };
+        hijo.Desactivar(); // hijo también inactivo
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+
+        var resultado = await servicio.ReactivarAsync(HijoId, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("PadreInactivo", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ReactivarAsync_PadreActivo_RetornaExitoYGuarda()
+    {
+        var padre = new UnidadOrganizativa("PADRE", "Padre Activo", TipoUnidadOrganizativaConstantes.InstitucionId)
+        {
+            Id = PadreId
+        };
+        // padre stays active (default)
+        var hijo = new UnidadOrganizativa("HIJO", "Hijo", TipoUnidadOrganizativaConstantes.FacultadId, PadreId)
+        {
+            Id = HijoId
+        };
+        hijo.Desactivar();
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+
+        var resultado = await servicio.ReactivarAsync(HijoId, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConTiposArbitrarios_RetornaDtoYGuarda()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var padre = CrearUnidadActiva("DIR", PadreId, tipoId: TipoUnidadOrganizativaConstantes.DireccionId);
+        repo.Datos.Add(padre);
+        var request = new CrearUnidadOrganizativaRequest(
+            "FAC", "Facultad de Prueba",
+            TipoUnidadOrganizativaConstantes.FacultadId,
+            null, null, null, PadreId);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(PadreId, resultado.Value!.UnidadPadreId);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConVigenciaIndependienteDelPadre_RetornaDtoYGuarda()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var padre = CrearUnidadActiva("PADRE", PadreId);
+        padre.DefinirVigencia(new DateOnly(2025, 1, 1), new DateOnly(2025, 6, 30));
+        repo.Datos.Add(padre);
+        // Hija vigente DESPUÉS del rango del padre
+        var request = new CrearUnidadOrganizativaRequest(
+            "HIJA", "Hija fuera de rango",
+            TipoUnidadOrganizativaConstantes.FacultadId,
+            null,
+            new DateOnly(2025, 7, 1), new DateOnly(2025, 12, 31),
+            PadreId);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(new DateOnly(2025, 7, 1), resultado.Value!.VigenteDesde);
+        Assert.Equal(new DateOnly(2025, 12, 31), resultado.Value.VigenteHasta);
+        Assert.Equal(1, uow.SaveChangesCount);
     }
 
     // ---- Short-circuit: validation before repository checks ----
@@ -536,13 +714,15 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
-    private static UnidadOrganizativa CrearUnidadActiva(string codigo, Guid? id = null, Guid? padreId = null)
+    private static UnidadOrganizativa CrearUnidadActiva(
+        string codigo, Guid? id = null, Guid? padreId = null, Guid? tipoId = null)
     {
-        var unidad = new UnidadOrganizativa(codigo, codigo, TipoUnidadOrganizativaConstantes.AreaId, padreId)
+        var tipo = tipoId ?? TipoUnidadOrganizativaConstantes.InstitucionId;
+        var unidad = new UnidadOrganizativa(codigo, codigo, tipo, padreId)
         {
             Id = id ?? Guid.NewGuid()
         };
-        unidad.CambiarDatos(codigo, codigo, TipoUnidadOrganizativaConstantes.AreaId, null);
+        unidad.CambiarDatos(codigo, codigo, tipo, null);
         return unidad;
     }
 }
@@ -573,6 +753,13 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
     public int ListAllCallCount { get; private set; }
     public int UpdateCallCount { get; private set; }
     public int ReactivateCallCount { get; private set; }
+    public int HasActiveChildrenCallCount { get; private set; }
+    public int HasActivePuestosCallCount { get; private set; }
+
+    /// <summary>
+    /// Optional dictionary to simulate active puestos per unit for testing delete protection.
+    /// </summary>
+    public Dictionary<Guid, List<Puesto>> PuestosPorUnidad { get; set; } = [];
 
     public Task AddAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
     {
@@ -659,6 +846,21 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
         }
 
         return Task.CompletedTask;
+    }
+
+    public Task<bool> HasActiveChildrenAsync(Guid unidadId, CancellationToken cancellationToken = default)
+    {
+        HasActiveChildrenCallCount++;
+        return Task.FromResult(Datos.Any(d =>
+            d.UnidadPadreId == unidadId && d.IsActive && !d.IsDeleted));
+    }
+
+    public Task<bool> HasActivePuestosAsync(Guid unidadId, CancellationToken cancellationToken = default)
+    {
+        HasActivePuestosCallCount++;
+        var hasPuestos = PuestosPorUnidad.TryGetValue(unidadId, out var puestos)
+            && puestos.Any(p => p.IsActive && !p.IsDeleted);
+        return Task.FromResult(hasPuestos);
     }
 
     public Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)

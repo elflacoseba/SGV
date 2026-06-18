@@ -152,4 +152,10 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
 
         return Task.CompletedTask;
     }
+
+    public Task<bool> HasActiveChildrenAsync(Guid unidadId, CancellationToken cancellationToken = default)
+        => Task.FromResult(Datos.Any(d => d.UnidadPadreId == unidadId && d.IsActive && !d.IsDeleted));
+
+    public Task<bool> HasActivePuestosAsync(Guid unidadId, CancellationToken cancellationToken = default)
+        => Task.FromResult(false); // No puestos tracking needed for consulta tests
 }

@@ -119,6 +119,26 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
             .ConfigureAwait(false);
     }
 
+    public async Task<bool> HasActiveChildrenAsync(Guid unidadId, CancellationToken cancellationToken = default)
+    {
+        return await Context
+            .Set<UnidadOrganizativaEntity>()
+            .AnyAsync(
+                u => u.UnidadPadreId == unidadId && u.IsActive && !u.IsDeleted,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<bool> HasActivePuestosAsync(Guid unidadId, CancellationToken cancellationToken = default)
+    {
+        return await Context
+            .Set<PuestoEntity>()
+            .AnyAsync(
+                p => p.UnidadOrganizativaId == unidadId && p.IsActive && !p.IsDeleted,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public async Task<bool> IsDescendantAsync(
         Guid candidateDescendantId,
         Guid ancestorId,
