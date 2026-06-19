@@ -78,4 +78,25 @@ internal sealed class FakeHabilidadRepository : IHabilidadRepository
     {
         return Task.FromResult<IReadOnlyList<Habilidad>>(Datos.ToList());
     }
+
+    public Task AddAsync(Habilidad habilidad, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support write operations.");
+
+    public Task<Habilidad?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support write operations.");
+
+    public Task<Habilidad?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support write operations.");
+
+    public Task UpdateAsync(Habilidad habilidad, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support write operations.");
+
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support write operations.");
+
+    public Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support write operations.");
+
+    public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support write operations.");
 }
