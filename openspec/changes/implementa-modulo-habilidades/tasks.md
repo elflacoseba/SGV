@@ -41,11 +41,11 @@ Chain strategy: feature-branch-chain (develop tracker)
 
 > Fuera del alcance del slice 1. Pasa al slice 2 (`feature/habilidades-02-persistencia`).
 
-- [ ] 2.1 RED: ampliar `tests/SGV.Tests/Persistencia/HabilidadRepositoryTests.cs` para alta, baja lógica, reactivación y unicidad activa.
-- [ ] 2.2 GREEN: implementar escritura en `src/SGV.Infraestructura/Persistencia/Repositorios/HabilidadRepository.cs`.
-- [ ] 2.3 GREEN: completar mapeos en `src/SGV.Infraestructura/Persistencia/Mapeos/DomainToPersistenceMapper.cs` para `Habilidad`.
-- [ ] 2.4 Verificar `src/SGV.Infraestructura/Persistencia/Configuraciones/HabilidadConfiguracion.cs` y migraciones; generar migración MySQL solo si falta la columna generada.
-- [ ] 2.5 Registrar `IHabilidadServicioComandos` en `src/SGV.Infraestructura/DependencyInjection.cs`.
+- [x] 2.1 RED: ampliar `tests/SGV.Tests/Persistencia/HabilidadRepositoryTests.cs` para alta, baja lógica, reactivación y unicidad activa.
+- [x] 2.2 GREEN: implementar escritura en `src/SGV.Infraestructura/Persistencia/Repositorios/HabilidadRepository.cs`.
+- [x] 2.3 GREEN: completar mapeos en `src/SGV.Infraestructura/Persistencia/Mapeos/DomainToPersistenceMapper.cs` para `Habilidad`.
+- [x] 2.4 Verificar `src/SGV.Infraestructura/Persistencia/Configuraciones/HabilidadConfiguracion.cs` y migraciones; generar migración MySQL solo si falta la columna generada.
+- [x] 2.5 Registrar `IHabilidadServicioComandos` en `src/SGV.Infraestructura/DependencyInjection.cs`.
 
 ## Fase 3: API `/api/v1/skills` (TDD)
 

@@ -1,3 +1,4 @@
+using SGV.Dominio.Habilidades;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Entidades;
 
@@ -118,6 +119,33 @@ internal static class DomainToPersistenceMapper
         entity.UpdatedByUserId = domain.UpdatedByUserId;
         entity.DeletedAt = domain.DeletedAt;
         entity.DeletedByUserId = domain.DeletedByUserId;
+    }
+
+    public static HabilidadEntity ToEntity(Habilidad domain)
+    {
+        return new HabilidadEntity
+        {
+            Id = domain.Id,
+            Codigo = domain.Codigo,
+            Nombre = domain.Nombre,
+            Descripcion = domain.Descripcion,
+            Categoria = domain.Categoria,
+            IsActive = domain.IsActive,
+            CreatedAt = domain.CreatedAt,
+            CreatedByUserId = domain.CreatedByUserId,
+            UpdatedAt = domain.UpdatedAt,
+            UpdatedByUserId = domain.UpdatedByUserId
+        };
+    }
+
+    public static void UpdateEntity(HabilidadEntity entity, Habilidad domain)
+    {
+        entity.Nombre = domain.Nombre;
+        entity.Descripcion = domain.Descripcion;
+        entity.Categoria = domain.Categoria;
+        entity.IsActive = domain.IsActive;
+        entity.UpdatedAt = domain.UpdatedAt;
+        entity.UpdatedByUserId = domain.UpdatedByUserId;
     }
 
     public static NivelCargoEntity ToEntity(NivelCargo domain)

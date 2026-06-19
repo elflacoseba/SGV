@@ -24,50 +24,94 @@ public sealed class HabilidadRepository(SgvDbContext context)
         return entities.Select(MapToDomain).ToArray();
     }
 
-    // ── Métodos de escritura ───────────────────────────────────────
-    // Stubs de la fase 1 (slice 1) del cambio `implementa-modulo-habilidades`.
-    // La implementación real con EF Core/Pomelo llega en la fase 2 (slice 2)
-    // y reemplaza cada NotImplementedException por la consulta correspondiente.
-
-    public Task AddAsync(Habilidad habilidad, CancellationToken cancellationToken = default)
+    public async Task AddAsync(Habilidad habilidad, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "HabilidadRepository.AddAsync será implementado en el slice 2 (persistencia MySQL/Pomelo).");
+        var entity = DomainToPersistenceMapper.ToEntity(habilidad);
+        await Context.Set<HabilidadEntity>().AddAsync(entity, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<Habilidad?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Habilidad?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "HabilidadRepository.GetByIdForUpdateAsync será implementado en el slice 2 (persistencia MySQL/Pomelo).");
+        var entity = await Context
+            .Set<HabilidadEntity>()
+            .FirstOrDefaultAsync(h => h.Id == id && h.IsActive && !h.IsDeleted, cancellationToken)
+            .ConfigureAwait(false);
+
+        return entity is null ? null : MapToDomain(entity);
     }
 
-    public Task<Habilidad?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Habilidad?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "HabilidadRepository.GetByIdIncludingDeletedAsync será implementado en el slice 2 (persistencia MySQL/Pomelo).");
+        var entity = await Context
+            .Set<HabilidadEntity>()
+            .FirstOrDefaultAsync(h => h.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        return entity is null ? null : MapToDomain(entity);
     }
 
-    public Task UpdateAsync(Habilidad habilidad, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(Habilidad habilidad, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "HabilidadRepository.UpdateAsync será implementado en el slice 2 (persistencia MySQL/Pomelo).");
+        var entity = await Context
+            .Set<HabilidadEntity>()
+            .FirstOrDefaultAsync(h => h.Id == habilidad.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+        {
+            throw new InvalidOperationException($"No se encontró la entidad {nameof(HabilidadEntity)} con id {habilidad.Id}.");
+        }
+
+        DomainToPersistenceMapper.UpdateEntity(entity, habilidad);
     }
 
-    public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "HabilidadRepository.DeleteAsync será implementado en el slice 2 (persistencia MySQL/Pomelo).");
+        var entity = await Context
+            .Set<HabilidadEntity>()
+            .FirstOrDefaultAsync(h => h.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+        {
+            return;
+        }
+
+        entity.IsActive = false;
+        entity.DeletedAt = DateTime.UtcNow;
+        entity.IsDeleted = true;
     }
 
-    public Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "HabilidadRepository.ReactivateAsync será implementado en el slice 2 (persistencia MySQL/Pomelo).");
+        var entity = await Context
+            .Set<HabilidadEntity>()
+            .FirstOrDefaultAsync(h => h.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+        {
+            return;
+        }
+
+        entity.IsActive = true;
+        entity.DeletedAt = null;
+        entity.IsDeleted = false;
     }
 
-    public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsActiveCodeAsync(
+        string codigo,
+        Guid? excludingId = null,
+        CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "HabilidadRepository.ExistsActiveCodeAsync será implementado en el slice 2 (persistencia MySQL/Pomelo).");
+        return await Context
+            .Set<HabilidadEntity>()
+            .AnyAsync(h =>
+                h.Codigo == codigo &&
+                h.IsActive &&
+                !h.IsDeleted &&
+                h.Id != excludingId,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 }

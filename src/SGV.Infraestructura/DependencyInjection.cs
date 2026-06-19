@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
@@ -41,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IUnidadOrganizativaServicioComandos, UnidadOrganizativaServicioComandos>();
         services.AddScoped<ICargoServicioComandos, CargoServicioComandos>();
         services.AddScoped<IPuestoServicioComandos, PuestoServicioComandos>();
+        services.AddScoped<IHabilidadServicioComandos, HabilidadServicioComandos>();
 
         return services;
     }
