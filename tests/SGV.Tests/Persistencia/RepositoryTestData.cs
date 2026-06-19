@@ -38,6 +38,19 @@ internal static class RepositoryTestData
         };
     }
 
+    public static HabilidadEntity CreateHabilidad(string prefix)
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        return new HabilidadEntity
+        {
+            Id = Guid.NewGuid(),
+            Codigo = $"{prefix}-{suffix}",
+            Nombre = $"{prefix} {suffix}",
+            Categoria = "Test",
+            IsActive = true
+        };
+    }
+
     public static PuestoEntity CreatePuesto(
         string prefix,
         UnidadOrganizativaEntity unidadOrganizativa,
