@@ -499,16 +499,23 @@ public sealed class UnidadOrganizativaRepositoryTests
     {
         await using var context = new SgvDbContextFactory().CreateDbContext([]);
         var u1 = RepositoryTestData.CreateUnidadOrganizativa("UO-Q-TIPO-1");
-        // u2 will use a different TipoUnidadOrganizativaId
+        // Create a dedicated TipoUnidadOrganizativa to avoid collisions with seeded data.
+        var tipoFiltro = new TipoUnidadOrganizativaEntity
+        {
+            Id = Guid.NewGuid(),
+            Codigo = $"TEST-FILTRO-{Guid.NewGuid().ToString("N")[..8]}",
+            Nombre = "Tipo Filtro Test"
+        };
         var u2 = new UnidadOrganizativaEntity
         {
             Id = Guid.NewGuid(),
             Codigo = $"UO-Q-TIPO-2-{Guid.NewGuid().ToString("N")[..8]}",
             Nombre = "Unidad con otro tipo",
-            TipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId,
+            TipoUnidadOrganizativaId = tipoFiltro.Id,
             IsActive = true
         };
 
+        await context.Set<TipoUnidadOrganizativaEntity>().AddAsync(tipoFiltro);
         await context.Set<UnidadOrganizativaEntity>().AddRangeAsync([u1, u2]);
         await context.SaveChangesAsync();
 
@@ -516,7 +523,7 @@ public sealed class UnidadOrganizativaRepositoryTests
         {
             var repo = new UnidadOrganizativaRepository(context);
             var (items, totalCount) = await repo.QueryAsync(
-                null, TipoUnidadOrganizativaConstantes.DireccionId, null, null, 1, 20, default);
+                null, tipoFiltro.Id, null, null, 1, 20, default);
 
             Assert.Equal(1, totalCount);
             Assert.Contains(items, i => i.Id == u2.Id);
@@ -525,6 +532,7 @@ public sealed class UnidadOrganizativaRepositoryTests
         finally
         {
             context.Set<UnidadOrganizativaEntity>().RemoveRange(u1, u2);
+            context.Set<TipoUnidadOrganizativaEntity>().Remove(tipoFiltro);
             await context.SaveChangesAsync();
         }
     }

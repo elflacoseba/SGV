@@ -109,12 +109,16 @@ internal sealed class FakePuestoRepository : IPuestoRepository
     public List<Puesto> Datos { get; set; } = [];
 
     public Task<Puesto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
-    }
+        => Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
 
     public Task<IReadOnlyList<Puesto>> ListAllAsync(CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<IReadOnlyList<Puesto>>(Datos.ToList());
-    }
+        => Task.FromResult<IReadOnlyList<Puesto>>(Datos.ToList());
+
+    public Task AddAsync(Puesto puesto, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<Puesto?> GetByIdForUpdateAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<Puesto?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task UpdateAsync(Puesto puesto, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task DeleteAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task ReactivateAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken ct = default) => throw new NotSupportedException();
 }

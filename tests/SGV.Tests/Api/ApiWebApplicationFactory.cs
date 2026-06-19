@@ -246,6 +246,60 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
         => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
 }
 
+internal sealed class FakePuestoServicioComandos : IPuestoServicioComandos
+{
+    public static readonly Guid DefaultPuestoId = Guid.Parse("c0000000-0000-0000-0000-000000000001");
+    public static readonly Guid DefaultUnidadId = Guid.Parse("a0000000-0000-0000-0000-000000000001");
+    public static readonly Guid DefaultCargoId = Guid.Parse("b0000000-0000-0000-0000-000000000001");
+
+    public Func<CrearPuestoRequest, CancellationToken, Task<PuestoCommandResult>>? CrearHandler { get; set; }
+    public Func<Guid, ActualizarPuestoRequest, CancellationToken, Task<PuestoCommandResult>>? ActualizarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<PuestoCommandResult>>? DesactivarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<PuestoCommandResult>>? ReactivarHandler { get; set; }
+
+    public Task<PuestoCommandResult> CrearAsync(
+        CrearPuestoRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
+        return Task.FromResult(PuestoCommandResult.Success(
+            new PuestoDto(DefaultPuestoId, request.Codigo, request.Nombre, request.Descripcion,
+                request.UnidadOrganizativaId, "Gerencia General",
+                request.CargoId, "Director", request.PuestoSuperiorId)));
+    }
+
+    public Task<PuestoCommandResult> ActualizarAsync(
+        Guid id,
+        ActualizarPuestoRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
+        return Task.FromResult(PuestoCommandResult.Success(
+            new PuestoDto(id, "GER-001", request.Nombre, request.Descripcion,
+                DefaultUnidadId, "Gerencia General", DefaultCargoId, "Director", request.PuestoSuperiorId)));
+    }
+
+    public Task<PuestoCommandResult> DesactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (DesactivarHandler is not null) return DesactivarHandler(id, cancellationToken);
+        return Task.FromResult(PuestoCommandResult.Success(
+            new PuestoDto(id, "GER-001", "Gerente General", null,
+                DefaultUnidadId, "Gerencia General", DefaultCargoId, "Director", null)));
+    }
+
+    public Task<PuestoCommandResult> ReactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (ReactivarHandler is not null) return ReactivarHandler(id, cancellationToken);
+        return Task.FromResult(PuestoCommandResult.Success(
+            new PuestoDto(id, "GER-001", "Gerente General", null,
+                DefaultUnidadId, "Gerencia General", DefaultCargoId, "Director", null)));
+    }
+}
+
 internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizativaServicioComandos
 {
     public static readonly Guid DefaultUnidadId = Guid.Parse("a0000000-0000-0000-0000-000000000001");
@@ -327,6 +381,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.RemoveService<ITipoUnidadOrganizativaServicioConsulta>();
             services.RemoveService<ICargoServicioComandos>();
+            services.RemoveService<IPuestoServicioComandos>();
             services.RemoveService<INivelCargoServicioConsulta>();
 
             // Add default fake services with test data
@@ -337,6 +392,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(new FakeUnidadOrganizativaServicioComandos());
             services.AddSingleton<ITipoUnidadOrganizativaServicioConsulta>(new FakeTipoUnidadOrganizativaServicio());
             services.AddSingleton<ICargoServicioComandos>(new FakeCargoServicioComandos());
+            services.AddSingleton<IPuestoServicioComandos>(new FakePuestoServicioComandos());
             services.AddSingleton<INivelCargoServicioConsulta>(new FakeNivelCargoServicioConsulta());
 
             // Apply additional overrides (e.g. empty collections)

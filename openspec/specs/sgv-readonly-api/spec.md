@@ -8,8 +8,8 @@ Expose SGV catalog and structure data through an external read-only HTTP API. Th
 
 ### Requirement: Read-only Resource Access
 
-The system MUST expose HTTP access to organizational units, organizational unit types, roles, positions, and skills. It MUST return real persisted data for all supported resources. Organizational units and **roles (cargos)** MAY expose supported create, update, and soft-delete/reactivate actions; positions, skills, and organizational unit types MUST remain read-only in this version.
-(Previously: organizational units were the only writable resource; roles, positions, skills, and organizational unit types were all read-only.)
+The system MUST expose HTTP access to organizational units, organizational unit types, roles, positions, and skills. It MUST return real persisted data for all supported resources. Organizational units, roles (cargos), and positions MAY expose documented create, update, and soft-delete/reactivate actions; skills and organizational unit types MUST remain read-only in this version.
+(Previously: positions remained read-only; only organizational units and roles could expose write operations.)
 
 #### Scenario: List supported resources
 
@@ -44,9 +44,15 @@ The system MUST expose HTTP access to organizational units, organizational unit 
 - **WHEN** the client uses a documented create, update, or soft-delete/reactivate action
 - **THEN** the API MAY modify persisted cargo data according to the cargo management contract.
 
+#### Scenario: Allow puesto write operations
+
+- **GIVEN** a client targets positions
+- **WHEN** the client uses a documented create, update, deactivate, or reactivate action
+- **THEN** the API MAY modify persisted position data according to the puesto management contract.
+
 #### Scenario: Reject unrelated write operations
 
-- **GIVEN** a client targets positions, skills, or organizational unit types
+- **GIVEN** a client targets skills or organizational unit types
 - **WHEN** the client attempts to create, update, or delete data through the API
 - **THEN** the API MUST NOT modify persisted data
 - **AND** the operation MUST NOT be exposed as a supported API action.
@@ -70,8 +76,8 @@ The system MUST return response models intended for API consumers. Responses MUS
 
 ### Requirement: Public API Discoverability
 
-The system MUST publish API documentation that allows consumers to discover the read-only endpoints, organizational unit write endpoints, **cargo management endpoints**, and response contracts.
-(Previously: documentation only covered organizational unit write operations; cargo management endpoints were not included.)
+The system MUST publish API documentation that allows consumers to discover read endpoints, write endpoints for organizational units, roles (cargos), and positions, and response contracts.
+(Previously: documentation excluded write operations for positions.)
 
 #### Scenario: Discover endpoints through API documentation
 
@@ -92,11 +98,39 @@ The system MUST publish API documentation that allows consumers to discover the 
 - **WHEN** a client inspects the API documentation
 - **THEN** documented cargo create, update, deactivate, and reactivate operations MUST be discoverable.
 
+#### Scenario: Discover puesto management operations
+
+- **GIVEN** position management is supported
+- **WHEN** a client inspects the API documentation
+- **THEN** documented position create, update, deactivate, and reactivate operations MUST be discoverable.
+
 #### Scenario: Exclude unsupported operations from documentation
 
-- **GIVEN** positions, skills, and organizational unit types remain read-only
+- **GIVEN** skills and organizational unit types remain read-only
 - **WHEN** a client inspects the API documentation
 - **THEN** create, update, and delete operations for those resources MUST NOT be documented as available actions.
+
+### Requirement: Puesto Management Contract
+
+The system MUST manage positions as an administrable catalog. `codigo` and `nombre` SHALL be required; `PuestoSuperiorId` MAY be omitted; Occupations (Ocupaciones), Vacancies (Vacantes), permissions, and roles MUST remain out of scope.
+
+#### Scenario: Create a valid position
+
+- **GIVEN** a valid organizational unit and role (cargo) exist
+- **WHEN** a position is created with `codigo` and `nombre`
+- **THEN** the position MUST be persisted as active and MUST be available in active queries.
+
+#### Scenario: Reject missing required data
+
+- **GIVEN** a position creation or update request
+- **WHEN** `codigo` or `nombre` is missing
+- **THEN** the API MUST reject the request without persisting changes.
+
+#### Scenario: Deactivate and reactivate position
+
+- **GIVEN** an active position exists
+- **WHEN** it is deactivated and later reactivated
+- **THEN** the system MUST apply soft-delete and MAY restore visibility if no active code conflict exists.
 
 ### Requirement: No Authentication Requirement
 
