@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Infraestructura.Persistencia;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Dominio.Habilidades;
@@ -292,6 +293,86 @@ public sealed class HabilidadRepositoryTests
         finally
         {
             context.Set<HabilidadEntity>().Remove(entity);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    // ===================== Coverage: unique index violation =====================
+
+    [MySqlFact]
+    public async Task AddAsync_DuplicateActiveCodigo_LanzaDbUpdateException()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var repo = new HabilidadRepository(context);
+        var codigoCompartido = "UNIQ-DUP-" + Guid.NewGuid().ToString("N")[..8];
+
+        var habilidad1 = new Habilidad(codigoCompartido, "Primera", "Test", "Desc 1");
+        await repo.AddAsync(habilidad1, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var habilidad2 = new Habilidad(codigoCompartido, "Segunda", "Test", "Desc 2");
+            await repo.AddAsync(habilidad2, default);
+
+            var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            Assert.Contains("unique", ex.InnerException?.Message ?? ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>().Where(h => h.Codigo == codigoCompartido).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    // ===================== Coverage: soft-delete with references =====================
+
+    [MySqlFact]
+    public async Task DeleteAsync_HabilidadReferenciada_NoAlteraCargoHabilidad()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var repo = new HabilidadRepository(context);
+
+        var cargoEntity = RepositoryTestData.CreateCargo("CRG-REF", NivelCargoConstantes.DirectivoId);
+        var habilidadEntity = RepositoryTestData.CreateHabilidad("HAB-REF");
+
+        await context.Set<CargoEntity>().AddAsync(cargoEntity);
+        await context.Set<HabilidadEntity>().AddAsync(habilidadEntity);
+        await context.SaveChangesAsync();
+
+        var cargoHabilidad = new CargoHabilidadEntity
+        {
+            Id = Guid.NewGuid(),
+            CargoId = cargoEntity.Id,
+            HabilidadId = habilidadEntity.Id,
+            NivelRequeridoId = DatosSemilla.NivelBasicoId,
+            Ponderacion = 1.0m,
+            EsObligatoria = true
+        };
+
+        await context.Set<CargoHabilidadEntity>().AddAsync(cargoHabilidad);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            // Act: soft-delete the referenced Habilidad via the repository
+            await repo.DeleteAsync(habilidadEntity.Id, default);
+            await context.SaveChangesAsync();
+
+            // Assert: CargoHabilidad row still exists with same HabilidadId
+            var referencia = await context.Set<CargoHabilidadEntity>()
+                .FirstOrDefaultAsync(ch => ch.Id == cargoHabilidad.Id);
+
+            Assert.NotNull(referencia);
+            Assert.Equal(habilidadEntity.Id, referencia!.HabilidadId);
+            Assert.Equal(cargoEntity.Id, referencia.CargoId);
+        }
+        finally
+        {
+            context.Set<CargoHabilidadEntity>().Remove(cargoHabilidad);
+            context.Set<CargoEntity>().Remove(cargoEntity);
+            context.Set<HabilidadEntity>().Remove(habilidadEntity);
             await context.SaveChangesAsync();
         }
     }

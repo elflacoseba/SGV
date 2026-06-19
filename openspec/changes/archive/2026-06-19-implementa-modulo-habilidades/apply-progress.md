@@ -45,7 +45,8 @@ Se implementó la fase de **API `/api/v1/skills`** del cambio `implementa-modulo
 
 ## Issues encontrados
 
-- **Ninguno nuevo**. Los 566 tests pasan, build con 0 warnings.
+- **Ninguno nuevo**. Los 568 tests pasan, build con 0 warnings.
+- **Warnings de cobertura resueltos**: se agregaron `AddAsync_DuplicateActiveCodigo_LanzaDbUpdateException` (violación índice único) y `DeleteAsync_HabilidadReferenciada_NoAlteraCargoHabilidad` (desactivación con referencias).
 
 ## Tareas restantes
 
@@ -55,7 +56,7 @@ Se implementó la fase de **API `/api/v1/skills`** del cambio `implementa-modulo
 ## Estado
 
 - **3/3 tareas del slice 3 completadas** (3.1, 3.2, 3.3).
-- **13/13 tareas totales completadas** (slices 1 + 2 + 3).
-- **Todas las tareas de implementación completadas**.
+- **13/13 tareas de implementación completadas** (fases 1–3, tasks 1.1–3.3).
+- **15/15 tareas de implementación + preparación completadas** (fases 0–3, tasks 0.1–3.3).
 - **Verificación final (4.1–4.2) pendiente**.
 - **No se debe pushear ni abrir PR todavía**: el orquestador manejará la rama → `develop` cuando termine la cadena de PRs.
