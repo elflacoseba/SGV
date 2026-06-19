@@ -51,9 +51,9 @@ Chain strategy: feature-branch-chain (develop tracker)
 
 > Fuera del alcance del slice 1. Pasa al slice 3.
 
-- [ ] 3.1 RED: ampliar `tests/SGV.Tests/Api/SkillsControllerTests.cs` para POST, PUT sin `Codigo`, DELETE, PATCH reactivar, 400/404/409 y ruta canónica.
-- [ ] 3.2 GREEN: modificar `src/SGV.Api/Controllers/SkillsController.cs` con endpoints administrativos y `ProblemDetails` esperados.
-- [ ] 3.3 RED/GREEN: actualizar `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` para descubrir escrituras de skills y no documentar `CargoHabilidad`/`PersonaHabilidad`.
+- [x] 3.1 RED: ampliar `tests/SGV.Tests/Api/SkillsControllerTests.cs` para POST, PUT sin `Codigo`, DELETE, PATCH reactivar, 400/404/409 y ruta canónica.
+- [x] 3.2 GREEN: modificar `src/SGV.Api/Controllers/SkillsController.cs` con endpoints administrativos y `ProblemDetails` esperados.
+- [x] 3.3 RED/GREEN: actualizar `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` para descubrir escrituras de skills y no documentar `CargoHabilidad`/`PersonaHabilidad`.
 
 ## Fase 4: Verificación
 

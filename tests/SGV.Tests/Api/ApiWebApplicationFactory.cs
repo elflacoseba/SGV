@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
@@ -360,6 +361,53 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     }
 }
 
+internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos
+{
+    public static readonly Guid DefaultHabilidadId = Guid.Parse("d0000000-0000-0000-0000-000000000001");
+
+    public Func<CrearHabilidadRequest, CancellationToken, Task<HabilidadCommandResult>>? CrearHandler { get; set; }
+    public Func<Guid, ActualizarHabilidadRequest, CancellationToken, Task<HabilidadCommandResult>>? ActualizarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<HabilidadCommandResult>>? DesactivarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<HabilidadCommandResult>>? ReactivarHandler { get; set; }
+
+    public Task<HabilidadCommandResult> CrearAsync(
+        CrearHabilidadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
+        return Task.FromResult(HabilidadCommandResult.Success(
+            new HabilidadDto(DefaultHabilidadId, request.Codigo, request.Nombre, request.Descripcion, request.Categoria)));
+    }
+
+    public Task<HabilidadCommandResult> ActualizarAsync(
+        Guid id,
+        ActualizarHabilidadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
+        return Task.FromResult(HabilidadCommandResult.Success(
+            new HabilidadDto(id, "PROG", request.Nombre, request.Descripcion, request.Categoria)));
+    }
+
+    public Task<HabilidadCommandResult> DesactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (DesactivarHandler is not null) return DesactivarHandler(id, cancellationToken);
+        return Task.FromResult(HabilidadCommandResult.Success(
+            new HabilidadDto(id, "PROG", "Programación", "Lenguajes de programación", "Técnica")));
+    }
+
+    public Task<HabilidadCommandResult> ReactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (ReactivarHandler is not null) return ReactivarHandler(id, cancellationToken);
+        return Task.FromResult(HabilidadCommandResult.Success(
+            new HabilidadDto(id, "PROG", "Programación", "Lenguajes de programación", "Técnica")));
+    }
+}
+
 public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
 {
     private readonly Action<IServiceCollection>? _configureServices;
@@ -383,6 +431,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<ICargoServicioComandos>();
             services.RemoveService<IPuestoServicioComandos>();
             services.RemoveService<INivelCargoServicioConsulta>();
+            services.RemoveService<IHabilidadServicioComandos>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
@@ -394,6 +443,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<ICargoServicioComandos>(new FakeCargoServicioComandos());
             services.AddSingleton<IPuestoServicioComandos>(new FakePuestoServicioComandos());
             services.AddSingleton<INivelCargoServicioConsulta>(new FakeNivelCargoServicioConsulta());
+            services.AddSingleton<IHabilidadServicioComandos>(new FakeHabilidadServicioComandos());
 
             // Apply additional overrides (e.g. empty collections)
             _configureServices?.Invoke(services);
