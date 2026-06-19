@@ -57,5 +57,5 @@ Chain strategy: feature-branch-chain (develop tracker)
 
 ## Fase 4: Verificación
 
-- [ ] 4.1 Ejecutar `dotnet build` y `dotnet test`; corregir solo fallas relacionadas con esta porción.
-- [ ] 4.2 Confirmar manualmente que no se agregaron endpoints ni comandos de asignación a cargos/personas.
+- [x] 4.1 Ejecutar `dotnet build` y `dotnet test`; corregir solo fallas relacionadas con esta porción.
+- [x] 4.2 Confirmar manualmente que no se agregaron endpoints ni comandos de asignación a cargos/personas.

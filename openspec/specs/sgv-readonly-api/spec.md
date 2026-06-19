@@ -8,8 +8,8 @@ Expose SGV catalog and structure data through an external read-only HTTP API. Th
 
 ### Requirement: Read-only Resource Access
 
-The system MUST expose HTTP access to organizational units, organizational unit types, roles, positions, and skills. It MUST return real persisted data for all supported resources. Organizational units, roles (cargos), and positions MAY expose documented create, update, and soft-delete/reactivate actions; skills and organizational unit types MUST remain read-only in this version.
-(Previously: positions remained read-only; only organizational units and roles could expose write operations.)
+The system MUST expose HTTP access to organizational units, organizational unit types, roles, positions, and skills. It MUST return real persisted data for all supported resources. Organizational units, roles (cargos), positions, and skills MAY expose documented create, update, and soft-delete/reactivate actions; the types of organizational units MUST remain read-only in this version. `/api/v1/skills` SHALL remain as the canonical route of the skills catalog.
+(Previously: skills and organizational unit types remained read-only; skills did not expose write operations.)
 
 #### Scenario: List supported resources
 
@@ -50,9 +50,15 @@ The system MUST expose HTTP access to organizational units, organizational unit 
 - **WHEN** the client uses a documented create, update, deactivate, or reactivate action
 - **THEN** the API MAY modify persisted position data according to the puesto management contract.
 
+#### Scenario: Allow skill write operations
+
+- **GIVEN** a client targets skills via `/api/v1/skills`
+- **WHEN** the client uses documented create, update, deactivate, or reactivate actions
+- **THEN** the API MAY modify persisted skill catalog data according to the skill management contract.
+
 #### Scenario: Reject unrelated write operations
 
-- **GIVEN** a client targets skills or organizational unit types
+- **GIVEN** a client targets organizational unit types
 - **WHEN** the client attempts to create, update, or delete data through the API
 - **THEN** the API MUST NOT modify persisted data
 - **AND** the operation MUST NOT be exposed as a supported API action.
@@ -76,8 +82,8 @@ The system MUST return response models intended for API consumers. Responses MUS
 
 ### Requirement: Public API Discoverability
 
-The system MUST publish API documentation that allows consumers to discover read endpoints, write endpoints for organizational units, roles (cargos), and positions, and response contracts.
-(Previously: documentation excluded write operations for positions.)
+The system MUST publish API documentation that allows consumers to discover read endpoints, write endpoints for organizational units, roles (cargos), positions, and skills, and response contracts.
+(Previously: documentation excluded write operations for positions and skills.)
 
 #### Scenario: Discover endpoints through API documentation
 
@@ -104,9 +110,15 @@ The system MUST publish API documentation that allows consumers to discover read
 - **WHEN** a client inspects the API documentation
 - **THEN** documented position create, update, deactivate, and reactivate operations MUST be discoverable.
 
+#### Scenario: Discover skill management operations
+
+- **GIVEN** skill management is supported
+- **WHEN** a client inspects the API documentation
+- **THEN** documented skill create, update, deactivate, and reactivate operations under `/api/v1/skills` MUST be discoverable.
+
 #### Scenario: Exclude unsupported operations from documentation
 
-- **GIVEN** skills and organizational unit types remain read-only
+- **GIVEN** organizational unit types remain read-only
 - **WHEN** a client inspects the API documentation
 - **THEN** create, update, and delete operations for those resources MUST NOT be documented as available actions.
 
