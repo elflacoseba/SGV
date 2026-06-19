@@ -40,6 +40,7 @@ public static class DependencyInjection
         // Command services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioComandos, UnidadOrganizativaServicioComandos>();
         services.AddScoped<ICargoServicioComandos, CargoServicioComandos>();
+        services.AddScoped<IPuestoServicioComandos, PuestoServicioComandos>();
 
         return services;
     }

@@ -82,6 +82,44 @@ internal static class DomainToPersistenceMapper
         entity.DeletedByUserId = domain.DeletedByUserId;
     }
 
+    public static PuestoEntity ToEntity(Puesto domain)
+    {
+        return new PuestoEntity
+        {
+            Id = domain.Id,
+            Codigo = domain.Codigo,
+            Nombre = domain.Nombre,
+            Descripcion = domain.Descripcion,
+            UnidadOrganizativaId = domain.UnidadOrganizativaId,
+            CargoId = domain.CargoId,
+            PuestoSuperiorId = domain.PuestoSuperiorId,
+            IsActive = domain.IsActive,
+            IsDeleted = domain.IsDeleted,
+            CreatedAt = domain.CreatedAt,
+            CreatedByUserId = domain.CreatedByUserId,
+            UpdatedAt = domain.UpdatedAt,
+            UpdatedByUserId = domain.UpdatedByUserId,
+            DeletedAt = domain.DeletedAt,
+            DeletedByUserId = domain.DeletedByUserId
+        };
+    }
+
+    public static void UpdateEntity(PuestoEntity entity, Puesto domain)
+    {
+        entity.Codigo = domain.Codigo;
+        entity.Nombre = domain.Nombre;
+        entity.Descripcion = domain.Descripcion;
+        entity.UnidadOrganizativaId = domain.UnidadOrganizativaId;
+        entity.CargoId = domain.CargoId;
+        entity.PuestoSuperiorId = domain.PuestoSuperiorId;
+        entity.IsActive = domain.IsActive;
+        entity.IsDeleted = domain.IsDeleted;
+        entity.UpdatedAt = domain.UpdatedAt;
+        entity.UpdatedByUserId = domain.UpdatedByUserId;
+        entity.DeletedAt = domain.DeletedAt;
+        entity.DeletedByUserId = domain.DeletedByUserId;
+    }
+
     public static NivelCargoEntity ToEntity(NivelCargo domain)
     {
         return new NivelCargoEntity

@@ -14,11 +14,16 @@ public sealed class Puesto : EntidadAuditable
     {
     }
 
-    public Puesto(Guid unidadOrganizativaId, Guid cargoId, string codigo, string nombre, Guid? puestoSuperiorId = null)
+    public Puesto(Guid unidadOrganizativaId, Guid cargoId, string codigo, string nombre, Guid? puestoSuperiorId = null, string? descripcion = null)
     {
+        if (unidadOrganizativaId == Guid.Empty)
+            throw new ArgumentException("La unidad organizativa es obligatoria.", nameof(UnidadOrganizativaId));
+        if (cargoId == Guid.Empty)
+            throw new ArgumentException("El cargo es obligatorio.", nameof(CargoId));
+
         UnidadOrganizativaId = unidadOrganizativaId;
         CargoId = cargoId;
-        CambiarDatos(codigo, nombre);
+        CambiarDatos(codigo, nombre, descripcion);
         CambiarPuestoSuperior(puestoSuperiorId);
         IsActive = true;
     }
@@ -64,5 +69,32 @@ public sealed class Puesto : EntidadAuditable
         }
 
         PuestoSuperiorId = puestoSuperiorId;
+    }
+
+    /// <summary>
+    /// Actualiza los campos editables del puesto. NO modifica <see cref="Codigo"/>.
+    /// </summary>
+    public void Actualizar(string nombre, string? descripcion = null, Guid? puestoSuperiorId = null)
+    {
+        Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
+        Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
+        CambiarPuestoSuperior(puestoSuperiorId);
+    }
+
+    /// <summary>
+    /// Desactiva el puesto (baja lógica).
+    /// </summary>
+    public void Desactivar()
+    {
+        IsActive = false;
+    }
+
+    /// <summary>
+    /// Reactiva el puesto. La verificación de unicidad de Codigo activo
+    /// es responsabilidad del servicio de aplicación.
+    /// </summary>
+    public void Activar()
+    {
+        IsActive = true;
     }
 }
