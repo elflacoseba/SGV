@@ -7,6 +7,9 @@ using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Personas.Comandos;
+using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Personas.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia.Catalogos;
 
 namespace SGV.Tests.Api;
@@ -408,6 +411,75 @@ internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos
     }
 }
 
+internal sealed class FakePersonaServicioConsulta : IPersonaServicioConsulta
+{
+    public static readonly Guid PersonaId1 = Guid.Parse("e0000000-0000-0000-0000-000000000001");
+
+    private readonly IReadOnlyList<PersonaDto> _data;
+
+    public FakePersonaServicioConsulta(bool isEmpty = false)
+    {
+        _data = isEmpty
+            ? []
+            : [new(PersonaId1, "LEG-001", "Juan", "Perez", "juan@test.com", "DNI", "12345678", "555-0001", true)];
+    }
+
+    public Task<IReadOnlyList<PersonaDto>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult(_data);
+
+    public Task<PersonaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+}
+
+internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos
+{
+    public static readonly Guid DefaultPersonaId = Guid.Parse("e0000000-0000-0000-0000-000000000001");
+
+    public Func<CrearPersonaRequest, CancellationToken, Task<PersonaCommandResult>>? CrearHandler { get; set; }
+    public Func<Guid, ActualizarPersonaRequest, CancellationToken, Task<PersonaCommandResult>>? ActualizarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<PersonaCommandResult>>? DesactivarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<PersonaCommandResult>>? ReactivarHandler { get; set; }
+
+    public Task<PersonaCommandResult> CrearAsync(
+        CrearPersonaRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
+        return Task.FromResult(PersonaCommandResult.Success(
+            new PersonaDto(DefaultPersonaId, request.Legajo, request.Nombres, request.Apellidos,
+                request.Email, request.TipoDocumento, request.NumeroDocumento, request.Telefono, true)));
+    }
+
+    public Task<PersonaCommandResult> ActualizarAsync(
+        Guid id,
+        ActualizarPersonaRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
+        return Task.FromResult(PersonaCommandResult.Success(
+            new PersonaDto(id, request.Legajo, request.Nombres, request.Apellidos,
+                request.Email, request.TipoDocumento, request.NumeroDocumento, request.Telefono, true)));
+    }
+
+    public Task<PersonaCommandResult> DesactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (DesactivarHandler is not null) return DesactivarHandler(id, cancellationToken);
+        return Task.FromResult(PersonaCommandResult.Success(
+            new PersonaDto(id, "LEG-001", "Juan", "Perez", "juan@test.com", "DNI", "12345678", "555-0001", false)));
+    }
+
+    public Task<PersonaCommandResult> ReactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (ReactivarHandler is not null) return ReactivarHandler(id, cancellationToken);
+        return Task.FromResult(PersonaCommandResult.Success(
+            new PersonaDto(id, "LEG-001", "Juan", "Perez", "juan@test.com", "DNI", "12345678", "555-0001", true)));
+    }
+}
+
 public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
 {
     private readonly Action<IServiceCollection>? _configureServices;
@@ -432,6 +504,8 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IPuestoServicioComandos>();
             services.RemoveService<INivelCargoServicioConsulta>();
             services.RemoveService<IHabilidadServicioComandos>();
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.RemoveService<IPersonaServicioComandos>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
@@ -444,6 +518,8 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IPuestoServicioComandos>(new FakePuestoServicioComandos());
             services.AddSingleton<INivelCargoServicioConsulta>(new FakeNivelCargoServicioConsulta());
             services.AddSingleton<IHabilidadServicioComandos>(new FakeHabilidadServicioComandos());
+            services.AddSingleton<IPersonaServicioConsulta>(new FakePersonaServicioConsulta());
+            services.AddSingleton<IPersonaServicioComandos>(new FakePersonaServicioComandos());
 
             // Apply additional overrides (e.g. empty collections)
             _configureServices?.Invoke(services);

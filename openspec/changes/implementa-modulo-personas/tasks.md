@@ -49,9 +49,9 @@ Chain strategy: pending
 
 ## Phase 4: API y documentación verificable
 
-- [ ] 4.1 RED `tests/SGV.Tests/Api/PersonasControllerTests.cs`: `GET/POST/PUT/DELETE/PATCH`, `200/201/204/400/404/409` y contrato sin relaciones excluidas.
-- [ ] 4.2 GREEN `src/SGV.Api/Controllers/PersonasController.cs` con ruta `api/v1/personas` y ProblemDetails alineado al patrón de `SkillsController`.
-- [ ] 4.3 REFACTOR `src/SGV.Api/Program.cs` y `src/SGV.Infraestructura/DependencyInjection.cs`: registrar servicios y actualizar descripción Swagger para incluir Personas.
+- [x] 4.1 RED `tests/SGV.Tests/Api/PersonasControllerTests.cs`: `GET/POST/PUT/DELETE/PATCH`, `200/201/204/400/404/409` y contrato sin relaciones excluidas.
+- [x] 4.2 GREEN `src/SGV.Api/Controllers/PersonasController.cs` con ruta `api/v1/personas` y ProblemDetails alineado al patrón de `SkillsController`.
+- [x] 4.3 REFACTOR `src/SGV.Api/Program.cs` y `src/SGV.Infraestructura/DependencyInjection.cs`: registrar servicios y actualizar descripción Swagger para incluir Personas.
 
 ## Phase 5: Verificación final del slice
 
