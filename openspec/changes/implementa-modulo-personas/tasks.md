@@ -55,4 +55,4 @@ Chain strategy: pending
 
 ## Phase 5: Verificación final del slice
 
-- [ ] 5.1 Ejecutar `dotnet test` sobre pruebas nuevas y regresión relevante; confirmar que el slice excluye Postulantes, Ocupaciones, Habilidades y `PersonaHabilidad`.
+- [x] 5.1 Ejecutar `dotnet test` sobre pruebas nuevas y regresión relevante; confirmar que el slice excluye Postulantes, Ocupaciones, Habilidades y `PersonaHabilidad`.
