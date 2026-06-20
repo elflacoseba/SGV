@@ -19,7 +19,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "SGV API",
         Version = "v1",
-        Description = "HTTP API for SGV organizational structure, skills data, and organizational-unit management."
+        Description = "HTTP API for SGV organizational structure, skills data, personas management, and organizational-unit management."
     });
 
     var xmlFile = $"{typeof(Program).Assembly.GetName().Name}.xml";

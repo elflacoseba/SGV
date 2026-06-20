@@ -91,6 +91,9 @@ public sealed class SwaggerConfigurationTests
         Assert.Contains("/api/v1/skills/{id}", actualPaths);
         Assert.Contains("/api/v1/skills/{id}/reactivar", actualPaths);
         Assert.Contains("/api/v1/tipos-unidad-organizativa", actualPaths);
+        Assert.Contains("/api/v1/personas", actualPaths);
+        Assert.Contains("/api/v1/personas/{id}", actualPaths);
+        Assert.Contains("/api/v1/personas/{id}/reactivar", actualPaths);
     }
 
     [Fact]
@@ -114,6 +117,8 @@ public sealed class SwaggerConfigurationTests
             if (path.Name.StartsWith("/api/v1/puestos", StringComparison.OrdinalIgnoreCase))
                 continue;
             if (path.Name.StartsWith("/api/v1/skills", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (path.Name.StartsWith("/api/v1/personas", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             foreach (var operation in path.Value.EnumerateObject())
@@ -290,5 +295,44 @@ public sealed class SwaggerConfigurationTests
         // Must NOT document CargoHabilidad or PersonaHabilidad endpoints
         Assert.DoesNotContain("CargoHabilidad", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("PersonaHabilidad", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Personas_ExposesWriteOperations()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        // Check collection path exposes POST and GET
+        var collectionPath = paths.GetProperty("/api/v1/personas");
+        var collectionOps = new HashSet<string>();
+        foreach (var op in collectionPath.EnumerateObject())
+            collectionOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("post", collectionOps);
+        Assert.Contains("get", collectionOps);
+
+        // Check item path exposes GET, PUT, DELETE
+        var itemPath = paths.GetProperty("/api/v1/personas/{id}");
+        var itemOps = new HashSet<string>();
+        foreach (var op in itemPath.EnumerateObject())
+            itemOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("get", itemOps);
+        Assert.Contains("put", itemOps);
+        Assert.Contains("delete", itemOps);
+
+        // Check reactivar path exposes PATCH
+        var reactivarPath = paths.GetProperty("/api/v1/personas/{id}/reactivar");
+        var reactivarOps = new HashSet<string>();
+        foreach (var op in reactivarPath.EnumerateObject())
+            reactivarOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("patch", reactivarOps);
     }
 }
