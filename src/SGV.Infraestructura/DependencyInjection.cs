@@ -4,6 +4,8 @@ using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
+using SGV.Aplicacion.Personas.Comandos;
+using SGV.Aplicacion.Personas.Consultas;
 using SGV.Infraestructura.Persistencia.Repositorios;
 
 namespace SGV.Infraestructura;
@@ -29,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IHabilidadRepository, HabilidadRepository>();
         services.AddScoped<ITipoUnidadOrganizativaRepository, TipoUnidadOrganizativaRepository>();
         services.AddScoped<INivelCargoRepository, NivelCargoRepository>();
+        services.AddScoped<IPersonaRepository, PersonaRepository>();
 
         // Query services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioConsulta, UnidadOrganizativaServicioConsulta>();
@@ -37,12 +40,14 @@ public static class DependencyInjection
         services.AddScoped<IHabilidadServicioConsulta, HabilidadServicioConsulta>();
         services.AddScoped<ITipoUnidadOrganizativaServicioConsulta, TipoUnidadOrganizativaServicioConsulta>();
         services.AddScoped<INivelCargoServicioConsulta, NivelCargoServicioConsulta>();
+        services.AddScoped<IPersonaServicioConsulta, PersonaServicioConsulta>();
 
         // Command services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioComandos, UnidadOrganizativaServicioComandos>();
         services.AddScoped<ICargoServicioComandos, CargoServicioComandos>();
         services.AddScoped<IPuestoServicioComandos, PuestoServicioComandos>();
         services.AddScoped<IHabilidadServicioComandos, HabilidadServicioComandos>();
+        services.AddScoped<IPersonaServicioComandos, PersonaServicioComandos>();
 
         return services;
     }
