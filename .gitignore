@@ -49,6 +49,7 @@ TestResults/
 /.vs/
 
 # Others
+.atl/
 *.log
 *.dbmdl
 *.bak
