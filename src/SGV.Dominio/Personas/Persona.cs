@@ -53,6 +53,24 @@ public sealed class Persona : EntidadAuditable
         NumeroDocumento = ValidacionesDominio.Opcional(numeroDocumento, nameof(NumeroDocumento), 50);
     }
 
+    /// <summary>
+    /// Desactiva la persona (baja lógica). No elimina el registro y no
+    /// altera habilidades ni ocupaciones existentes.
+    /// </summary>
+    public void Desactivar()
+    {
+        IsActive = false;
+    }
+
+    /// <summary>
+    /// Reactiva la persona. La verificación de unicidad activa de Legajo, Email y documento
+    /// es responsabilidad del servicio de aplicación.
+    /// </summary>
+    public void Activar()
+    {
+        IsActive = true;
+    }
+
     public PersonaHabilidad AgregarHabilidad(Guid habilidadId, Guid nivelHabilidadId, DateTime? verificadoAt = null, string? fuente = null)
     {
         if (_habilidades.Any(h => h.HabilidadId == habilidadId))
