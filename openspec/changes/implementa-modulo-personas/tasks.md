@@ -34,18 +34,18 @@ Chain strategy: pending
 
 ## Phase 2: Comandos y validación TDD
 
-- [ ] 2.1 RED `tests/SGV.Tests/Aplicacion/Personas/{CrearPersonaRequestValidatorTests.cs,ActualizarPersonaRequestValidatorTests.cs}`: requeridos, longitudes, email, documento opcional válido.
-- [ ] 2.2 GREEN `src/SGV.Aplicacion/Personas/Comandos/{PersonaRequests.cs,Validaciones/CrearPersonaRequestValidator.cs,Validaciones/ActualizarPersonaRequestValidator.cs}`.
-- [ ] 2.3 RED `tests/SGV.Tests/Aplicacion/Personas/PersonaServicioComandosTests.cs`: crear, actualizar, desactivar, reactivar, `409`, `404`, `400` y sin guardar ante error.
-- [ ] 2.4 GREEN `src/SGV.Aplicacion/Personas/Comandos/{PersonaCommandResult.cs,IPersonaServicioComandos.cs,PersonaServicioComandos.cs}` usando unicidad activa de `Legajo`, `Email` y documento.
-- [ ] 2.5 REFACTOR `src/SGV.Aplicacion/Personas/Comandos/` para centralizar field-errors camelCase y mensajes tipados.
+- [x] 2.1 RED `tests/SGV.Tests/Aplicacion/Personas/{CrearPersonaRequestValidatorTests.cs,ActualizarPersonaRequestValidatorTests.cs}`: requeridos, longitudes, email, documento opcional válido.
+- [x] 2.2 GREEN `src/SGV.Aplicacion/Personas/Comandos/{PersonaRequests.cs,Validaciones/CrearPersonaRequestValidator.cs,Validaciones/ActualizarPersonaRequestValidator.cs}`.
+- [x] 2.3 RED `tests/SGV.Tests/Aplicacion/Personas/PersonaServicioComandosTests.cs`: crear, actualizar, desactivar, reactivar, `409`, `404`, `400` y sin guardar ante error.
+- [x] 2.4 GREEN `src/SGV.Aplicacion/Personas/Comandos/{PersonaCommandResult.cs,IPersonaServicioComandos.cs,PersonaServicioComandos.cs}` usando unicidad activa de `Legajo`, `Email` y documento.
+- [x] 2.5 REFACTOR `src/SGV.Aplicacion/Personas/Comandos/` para centralizar field-errors camelCase y mensajes tipados.
 
 ## Phase 3: Persistencia e integración
 
-- [ ] 3.1 RED `tests/SGV.Tests/Persistencia/PersonaRepositoryTests.cs`: filtros activos, orden apellido/nombre, reactivación y ausencia de relaciones fuera de alcance.
-- [ ] 3.2 GREEN `src/SGV.Infraestructura/Persistencia/{Repositorios/PersonaRepository.cs,Mapeos/DomainToPersistenceMapper.cs,Mapeos/PersistenceToDomainMapper.cs}` sin `Include` de `PersonaHabilidad` u `Ocupaciones`.
-- [ ] 3.3 RED `tests/SGV.Tests/Persistencia/PersonaRepositoryUniqueConstraintsTests.cs`: duplicados activos y reutilización tras baja con `PersonaConfiguracion` existente; sin migración salvo brecha verificable.
-- [ ] 3.4 GREEN `src/SGV.Infraestructura/DependencyInjection.cs` y traducción de conflictos persistidos en el servicio de comandos.
+- [x] 3.1 RED `tests/SGV.Tests/Persistencia/PersonaRepositoryTests.cs`: filtros activos, orden apellido/nombre, reactivación y ausencia de relaciones fuera de alcance.
+- [x] 3.2 GREEN `src/SGV.Infraestructura/Persistencia/{Repositorios/PersonaRepository.cs,Mapeos/DomainToPersistenceMapper.cs,Mapeos/PersistenceToDomainMapper.cs}` sin `Include` de `PersonaHabilidad` u `Ocupaciones`.
+- [x] 3.3 RED `tests/SGV.Tests/Persistencia/PersonaRepositoryUniqueConstraintsTests.cs`: duplicados activos y reutilización tras baja con `PersonaConfiguracion` existente; sin migración salvo brecha verificable.
+- [x] 3.4 GREEN `src/SGV.Infraestructura/DependencyInjection.cs` y traducción de conflictos persistidos en el servicio de comandos.
 
 ## Phase 4: API y documentación verificable
 

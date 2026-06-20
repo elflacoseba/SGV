@@ -2,6 +2,7 @@ using System.Reflection;
 using SGV.Dominio.Comun;
 using SGV.Dominio.Habilidades;
 using SGV.Dominio.Organizacion;
+using SGV.Dominio.Personas;
 using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Mapeos;
@@ -131,6 +132,28 @@ internal static class PersistenceToDomainMapper
             Id = entity.Id
         };
         return tipo;
+    }
+
+    public static Persona ToDomain(PersonaEntity entity)
+    {
+        var persona = new Persona(entity.Nombres, entity.Apellidos, entity.Legajo, entity.Email)
+        {
+            Id = entity.Id,
+            CreatedAt = entity.CreatedAt,
+            CreatedByUserId = entity.CreatedByUserId,
+            UpdatedAt = entity.UpdatedAt,
+            UpdatedByUserId = entity.UpdatedByUserId,
+            IsDeleted = entity.IsDeleted,
+            DeletedAt = entity.DeletedAt,
+            DeletedByUserId = entity.DeletedByUserId
+        };
+
+        SetProperty(persona, nameof(Persona.IsActive), entity.IsActive);
+        SetProperty(persona, nameof(Persona.Telefono), entity.Telefono);
+        SetProperty(persona, nameof(Persona.TipoDocumento), entity.TipoDocumento);
+        SetProperty(persona, nameof(Persona.NumeroDocumento), entity.NumeroDocumento);
+
+        return persona;
     }
 
     private static void SetProperty<T>(T target, string propertyName, object? value)

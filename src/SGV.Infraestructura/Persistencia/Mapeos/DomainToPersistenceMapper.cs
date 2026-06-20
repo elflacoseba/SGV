@@ -1,5 +1,6 @@
 using SGV.Dominio.Habilidades;
 using SGV.Dominio.Organizacion;
+using SGV.Dominio.Personas;
 using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Mapeos;
@@ -158,5 +159,44 @@ internal static class DomainToPersistenceMapper
             ValorNumerico = domain.ValorNumerico,
             Orden = domain.Orden
         };
+    }
+
+    public static PersonaEntity ToEntity(Persona domain)
+    {
+        return new PersonaEntity
+        {
+            Id = domain.Id,
+            Legajo = domain.Legajo,
+            Nombres = domain.Nombres,
+            Apellidos = domain.Apellidos,
+            Email = domain.Email,
+            TipoDocumento = domain.TipoDocumento,
+            NumeroDocumento = domain.NumeroDocumento,
+            Telefono = domain.Telefono,
+            IsActive = domain.IsActive,
+            IsDeleted = domain.IsDeleted,
+            CreatedAt = domain.CreatedAt,
+            CreatedByUserId = domain.CreatedByUserId,
+            UpdatedAt = domain.UpdatedAt,
+            UpdatedByUserId = domain.UpdatedByUserId,
+            DeletedAt = domain.DeletedAt,
+            DeletedByUserId = domain.DeletedByUserId
+        };
+    }
+
+    public static void UpdateEntity(PersonaEntity entity, Persona domain)
+    {
+        entity.Legajo = domain.Legajo;
+        entity.Nombres = domain.Nombres;
+        entity.Apellidos = domain.Apellidos;
+        entity.Email = domain.Email;
+        entity.TipoDocumento = domain.TipoDocumento;
+        entity.NumeroDocumento = domain.NumeroDocumento;
+        entity.Telefono = domain.Telefono;
+        entity.IsActive = domain.IsActive;
+        entity.UpdatedAt = domain.UpdatedAt;
+        entity.UpdatedByUserId = domain.UpdatedByUserId;
+        entity.DeletedAt = domain.DeletedAt;
+        entity.DeletedByUserId = domain.DeletedByUserId;
     }
 }
