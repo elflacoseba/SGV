@@ -56,7 +56,7 @@ public sealed class PersonaSkillControllerTests
     {
         public List<PersonaSkillDetailDto> Skills { get; set; } =
         [
-            new(ExistingSkillId, ExistingNivelId, DefaultHabilidad, DefaultNivel),
+            new(DefaultHabilidad, DefaultNivel),
         ];
 
         public Func<Guid, CancellationToken, Task<IReadOnlyList<PersonaSkillDetailDto>>>? ListHandler { get; set; }
@@ -102,8 +102,8 @@ public sealed class PersonaSkillControllerTests
         var dtos = await ReadAsAsync<List<PersonaSkillDetailDto>>(response);
         Assert.NotNull(dtos);
         Assert.NotEmpty(dtos);
-        Assert.Equal(ExistingSkillId, dtos[0].SkillId);
-        Assert.Equal(ExistingNivelId, dtos[0].NivelId);
+        Assert.Equal(ExistingSkillId, dtos[0].Skill.Id);
+        Assert.Equal(ExistingNivelId, dtos[0].Nivel.Id);
         Assert.NotNull(dtos[0].Skill);
         Assert.Equal("PROG", dtos[0].Skill.Codigo);
         Assert.NotNull(dtos[0].Nivel);
@@ -144,11 +144,11 @@ public sealed class PersonaSkillControllerTests
         var doc = JsonDocument.Parse(json);
         var first = doc.RootElement.EnumerateArray().First();
 
-        Assert.True(first.TryGetProperty("skillId", out _), "Response JSON MUST include 'skillId'");
-        Assert.True(first.TryGetProperty("nivelId", out _), "Response JSON MUST include 'nivelId'");
         Assert.True(first.TryGetProperty("skill", out var skillProp), "Response JSON MUST include 'skill'");
+        Assert.True(skillProp.TryGetProperty("id", out _), "Response JSON 'skill' MUST include 'id'");
         Assert.True(skillProp.TryGetProperty("codigo", out _), "Response JSON 'skill' MUST include 'codigo'");
         Assert.True(first.TryGetProperty("nivel", out var nivelProp), "Response JSON MUST include 'nivel'");
+        Assert.True(nivelProp.TryGetProperty("id", out _), "Response JSON 'nivel' MUST include 'id'");
         Assert.True(nivelProp.TryGetProperty("codigo", out _), "Response JSON 'nivel' MUST include 'codigo'");
     }
 
@@ -329,10 +329,10 @@ public sealed class PersonaSkillControllerTests
         Assert.DoesNotContain("skillId", parentJson, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("nivelId", parentJson, StringComparison.OrdinalIgnoreCase);
 
-        // Subresource should include skills
+        // Subresource should include skills (with nested IDs, not root-level skillId/nivelId)
         var subResponse = await client.GetAsync($"/api/v1/personas/{ExistingPersonaId}/skills");
         var subJson = await subResponse.Content.ReadAsStringAsync();
-        Assert.Contains("skillId", subJson, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("nivelId", subJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("skill", subJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("nivel", subJson, StringComparison.OrdinalIgnoreCase);
     }
 }

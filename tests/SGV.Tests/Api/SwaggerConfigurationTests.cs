@@ -384,19 +384,15 @@ public sealed class SwaggerConfigurationTests
         using var doc = JsonDocument.Parse(content);
         var schemas = doc.RootElement.GetProperty("components").GetProperty("schemas");
 
-        // CargoSkillDetailDto must exist and document skillId, nivelId, skill, nivel
+        // CargoSkillDetailDto must exist and document skill, nivel (with nested IDs, not root-level skillId/nivelId)
         var cargoDetailSchema = schemas.GetProperty("CargoSkillDetailDto");
         var cargoDetailProps = cargoDetailSchema.GetProperty("properties");
-        Assert.True(cargoDetailProps.TryGetProperty("skillId", out _), "CargoSkillDetailDto MUST have 'skillId'");
-        Assert.True(cargoDetailProps.TryGetProperty("nivelId", out _), "CargoSkillDetailDto MUST have 'nivelId'");
         Assert.True(cargoDetailProps.TryGetProperty("skill", out _), "CargoSkillDetailDto MUST have 'skill'");
         Assert.True(cargoDetailProps.TryGetProperty("nivel", out _), "CargoSkillDetailDto MUST have 'nivel'");
 
-        // PersonaSkillDetailDto must exist and document skillId, nivelId, skill, nivel
+        // PersonaSkillDetailDto must exist and document skill, nivel (with nested IDs, not root-level skillId/nivelId)
         var personaDetailSchema = schemas.GetProperty("PersonaSkillDetailDto");
         var personaDetailProps = personaDetailSchema.GetProperty("properties");
-        Assert.True(personaDetailProps.TryGetProperty("skillId", out _), "PersonaSkillDetailDto MUST have 'skillId'");
-        Assert.True(personaDetailProps.TryGetProperty("nivelId", out _), "PersonaSkillDetailDto MUST have 'nivelId'");
         Assert.True(personaDetailProps.TryGetProperty("skill", out _), "PersonaSkillDetailDto MUST have 'skill'");
         Assert.True(personaDetailProps.TryGetProperty("nivel", out _), "PersonaSkillDetailDto MUST have 'nivel'");
 

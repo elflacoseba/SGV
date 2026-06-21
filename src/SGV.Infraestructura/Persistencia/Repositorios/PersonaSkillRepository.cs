@@ -41,8 +41,6 @@ public sealed class PersonaSkillRepository(SgvDbContext context)
             .AsNoTracking()
             .Where(e => e.PersonaId == personaId)
             .Select(e => new PersonaSkillDetailDto(
-                e.HabilidadId,
-                e.NivelHabilidadId,
                 new HabilidadDto(
                     e.Habilidad.Id,
                     e.Habilidad.Codigo,

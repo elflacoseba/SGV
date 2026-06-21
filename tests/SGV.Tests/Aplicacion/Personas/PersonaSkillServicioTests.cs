@@ -177,8 +177,8 @@ public sealed class PersonaSkillServicioTests
         var resultado = await servicio.ListAsync(PersonaIdValida, default);
 
         Assert.Equal(2, resultado.Count);
-        Assert.Contains(resultado, d => d.SkillId == SkillIdValido);
-        Assert.Contains(resultado, d => d.SkillId == Guid.Parse("62000000-0000-0000-0000-000000000002"));
+        Assert.Contains(resultado, d => d.Skill.Id == SkillIdValido);
+        Assert.Contains(resultado, d => d.Skill.Id == Guid.Parse("62000000-0000-0000-0000-000000000002"));
         Assert.All(resultado, d =>
         {
             Assert.NotNull(d.Skill);
@@ -288,8 +288,6 @@ internal sealed class FakePersonaSkillRepository : IPersonaSkillRepository
         var items = Datos.Where(d => d.PersonaId == personaId).ToList();
         return Task.FromResult<IReadOnlyList<PersonaSkillDetailDto>>(
             items.Select(a => new PersonaSkillDetailDto(
-                a.HabilidadId,
-                a.NivelHabilidadId,
                 new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
                 new NivelHabilidadDto(a.NivelHabilidadId, "N1", "Nivel", 1, 1)))
             .ToList());
