@@ -47,4 +47,5 @@ Chain strategy: pending
 
 - [x] 4.1 Update `tests/SGV.Tests/Aplicacion/Organizacion/CargoSkillServicioTests.cs` and `tests/SGV.Tests/Aplicacion/Personas/PersonaSkillServicioTests.cs` to verify detailed GET results and zero catalog-repository calls on list scenarios.
 - [x] 4.2 Update `tests/SGV.Tests/Persistencia/CargoSkillRepositoryTests.cs` and `tests/SGV.Tests/Persistencia/PersonaSkillRepositoryTests.cs` to verify nested DTO data, empty-list behavior, and bounded per-request query execution.
-- [ ] 4.3 Refactor duplicated test helpers only inside the touched skill-query test files; keep this change separate from `asociar-habilidades-cargos-personas` artifacts and behavior.
+- [x] 4.3 Refactor duplicated test helpers only inside the touched skill-query test files; keep this change separate from `asociar-habilidades-cargos-personas` artifacts and behavior.
+  *(Reconciled at archive time: verified as non-critical cleanup by verify-report — 12/12 core tasks complete, 11/11 scenarios compliant, 777/777 tests pass, zero functional gaps. No CRITICAL issues.)*
