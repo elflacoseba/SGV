@@ -56,7 +56,7 @@ public sealed class CargoSkillControllerTests
     {
         public List<CargoSkillDetailDto> Skills { get; set; } =
         [
-            new(ExistingSkillId, ExistingNivelId, DefaultHabilidad, DefaultNivel),
+            new(DefaultHabilidad, DefaultNivel),
         ];
 
         public Func<Guid, CancellationToken, Task<IReadOnlyList<CargoSkillDetailDto>>>? ListHandler { get; set; }
@@ -102,8 +102,8 @@ public sealed class CargoSkillControllerTests
         var dtos = await ReadAsAsync<List<CargoSkillDetailDto>>(response);
         Assert.NotNull(dtos);
         Assert.NotEmpty(dtos);
-        Assert.Equal(ExistingSkillId, dtos[0].SkillId);
-        Assert.Equal(ExistingNivelId, dtos[0].NivelId);
+        Assert.Equal(ExistingSkillId, dtos[0].Skill.Id);
+        Assert.Equal(ExistingNivelId, dtos[0].Nivel.Id);
         Assert.NotNull(dtos[0].Skill);
         Assert.Equal("PROG", dtos[0].Skill.Codigo);
         Assert.NotNull(dtos[0].Nivel);
@@ -165,11 +165,11 @@ public sealed class CargoSkillControllerTests
         var doc = JsonDocument.Parse(json);
         var first = doc.RootElement.EnumerateArray().First();
 
-        Assert.True(first.TryGetProperty("skillId", out _), "Response JSON MUST include 'skillId'");
-        Assert.True(first.TryGetProperty("nivelId", out _), "Response JSON MUST include 'nivelId'");
         Assert.True(first.TryGetProperty("skill", out var skillProp), "Response JSON MUST include 'skill'");
+        Assert.True(skillProp.TryGetProperty("id", out _), "Response JSON 'skill' MUST include 'id'");
         Assert.True(skillProp.TryGetProperty("codigo", out _), "Response JSON 'skill' MUST include 'codigo'");
         Assert.True(first.TryGetProperty("nivel", out var nivelProp), "Response JSON MUST include 'nivel'");
+        Assert.True(nivelProp.TryGetProperty("id", out _), "Response JSON 'nivel' MUST include 'id'");
         Assert.True(nivelProp.TryGetProperty("codigo", out _), "Response JSON 'nivel' MUST include 'codigo'");
     }
 

@@ -212,8 +212,8 @@ public sealed class CargoSkillRepositoryTests
             var resultado = await repo.ListDetailedByCargoIdAsync(cargo.Id, default);
 
             Assert.Single(resultado);
-            Assert.Equal(habilidad.Id, resultado[0].SkillId);
-            Assert.Equal(DatosSemilla.NivelBasicoId, resultado[0].NivelId);
+            Assert.Equal(habilidad.Id, resultado[0].Skill.Id);
+            Assert.Equal(DatosSemilla.NivelBasicoId, resultado[0].Nivel.Id);
             Assert.NotNull(resultado[0].Skill);
             Assert.Equal(habilidad.Codigo, resultado[0].Skill.Codigo);
             Assert.Equal(habilidad.Nombre, resultado[0].Skill.Nombre);

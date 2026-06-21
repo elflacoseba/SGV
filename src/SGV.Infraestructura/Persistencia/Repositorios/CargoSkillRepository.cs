@@ -41,8 +41,6 @@ public sealed class CargoSkillRepository(SgvDbContext context)
             .AsNoTracking()
             .Where(e => e.CargoId == cargoId)
             .Select(e => new CargoSkillDetailDto(
-                e.HabilidadId,
-                e.NivelRequeridoId,
                 new HabilidadDto(
                     e.Habilidad.Id,
                     e.Habilidad.Codigo,

@@ -177,8 +177,8 @@ public sealed class CargoSkillServicioTests
         var resultado = await servicio.ListAsync(CargoIdValido, default);
 
         Assert.Equal(2, resultado.Count);
-        Assert.Contains(resultado, d => d.SkillId == SkillIdValido);
-        Assert.Contains(resultado, d => d.SkillId == Guid.Parse("82000000-0000-0000-0000-000000000002"));
+        Assert.Contains(resultado, d => d.Skill.Id == SkillIdValido);
+        Assert.Contains(resultado, d => d.Skill.Id == Guid.Parse("82000000-0000-0000-0000-000000000002"));
         Assert.All(resultado, d =>
         {
             Assert.NotNull(d.Skill);
@@ -286,8 +286,6 @@ internal sealed class FakeCargoSkillRepository : ICargoSkillRepository
         var items = Datos.Where(d => d.CargoId == cargoId).ToList();
         return Task.FromResult<IReadOnlyList<CargoSkillDetailDto>>(
             items.Select(a => new CargoSkillDetailDto(
-                a.HabilidadId,
-                a.NivelRequeridoId,
                 new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
                 new NivelHabilidadDto(a.NivelRequeridoId, "N1", "Nivel", 1, 1)))
             .ToList());
