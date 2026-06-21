@@ -1,5 +1,6 @@
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
@@ -155,7 +156,7 @@ public sealed class PersonaSkillServicioTests
     // ── ListAsync ───────────────────────────────────────────────
 
     [Fact]
-    public async Task ListAsync_PersonaConHabilidades_RetornaTodas()
+    public async Task ListAsync_PersonaConHabilidades_RetornaDetalleCompleto()
     {
         var personaRepo = new FakePersonaReadRepository(PersonaActiva);
         var habilidadRepo = new FakeHabilidadReadRepositorySkill(HabilidadActiva);
@@ -177,6 +178,27 @@ public sealed class PersonaSkillServicioTests
         Assert.Equal(2, resultado.Count);
         Assert.Contains(resultado, d => d.SkillId == SkillIdValido);
         Assert.Contains(resultado, d => d.SkillId == Guid.Parse("62000000-0000-0000-0000-000000000002"));
+        Assert.All(resultado, d =>
+        {
+            Assert.NotNull(d.Skill);
+            Assert.NotNull(d.Nivel);
+        });
+    }
+
+    [Fact]
+    public async Task ListAsync_PersonaSinHabilidades_RetornaVacio()
+    {
+        var personaRepo = new FakePersonaReadRepository(PersonaActiva);
+        var habilidadRepo = new FakeHabilidadReadRepositorySkill(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepoSkill(NivelValido);
+        var skillRepo = new FakePersonaSkillRepository();
+        var uow = new FakeUnitOfWorkPersona();
+        var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.ListAsync(PersonaIdValida, default);
+
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado);
     }
 
     // ── Helpers ─────────────────────────────────────────────────
@@ -312,6 +334,19 @@ internal sealed class FakePersonaSkillRepository : IPersonaSkillRepository
         ListByPersonaIdCallCount++;
         return Task.FromResult<IReadOnlyList<PersonaHabilidad>>(
             Datos.Where(d => d.PersonaId == personaId).ToList());
+    }
+
+    public Task<IReadOnlyList<PersonaSkillDetailDto>> ListDetailedByPersonaIdAsync(
+        Guid personaId, CancellationToken ct = default)
+    {
+        var items = Datos.Where(d => d.PersonaId == personaId).ToList();
+        return Task.FromResult<IReadOnlyList<PersonaSkillDetailDto>>(
+            items.Select(a => new PersonaSkillDetailDto(
+                a.HabilidadId,
+                a.NivelHabilidadId,
+                new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
+                new NivelHabilidadDto(a.NivelHabilidadId, "N1", "Nivel", 1, 1)))
+            .ToList());
     }
 
     public Task<PersonaHabilidad?> GetByPersonaAndSkillAsync(Guid personaId, Guid skillId, CancellationToken ct = default)

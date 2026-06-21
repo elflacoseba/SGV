@@ -192,6 +192,60 @@ public sealed class CargoSkillRepositoryTests
     }
 
     [MySqlFact]
+    public async Task ListDetailedByCargoIdAsync_RetornaNestedSkillYNivel()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var repo = new CargoSkillRepository(context);
+
+        var cargo = RepositoryTestData.CreateCargo("CSK-DET", NivelCargoConstantes.DirectivoId);
+        var habilidad = RepositoryTestData.CreateHabilidad("CSK-DET-HAB");
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<HabilidadEntity>().AddAsync(habilidad);
+        await context.SaveChangesAsync();
+
+        var asignacion = new CargoHabilidad(cargo.Id, habilidad.Id, DatosSemilla.NivelBasicoId, 1.0m, true);
+        await repo.AddAsync(asignacion, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var resultado = await repo.ListDetailedByCargoIdAsync(cargo.Id, default);
+
+            Assert.Single(resultado);
+            Assert.Equal(habilidad.Id, resultado[0].SkillId);
+            Assert.Equal(DatosSemilla.NivelBasicoId, resultado[0].NivelId);
+            Assert.NotNull(resultado[0].Skill);
+            Assert.Equal(habilidad.Codigo, resultado[0].Skill.Codigo);
+            Assert.Equal(habilidad.Nombre, resultado[0].Skill.Nombre);
+            Assert.NotNull(resultado[0].Nivel);
+            Assert.Equal("Básico", resultado[0].Nivel.Nombre);
+            Assert.Equal((byte)1, resultado[0].Nivel.ValorNumerico);
+        }
+        finally
+        {
+            context.Set<CargoHabilidadEntity>().RemoveRange(
+                await context.Set<CargoHabilidadEntity>()
+                    .Where(ch => ch.CargoId == cargo.Id)
+                    .ToListAsync());
+            context.Set<HabilidadEntity>().Remove(habilidad);
+            context.Set<CargoEntity>().Remove(cargo);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task ListDetailedByCargoIdAsync_SinAsignaciones_RetornaVacio()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var repo = new CargoSkillRepository(context);
+
+        var resultado = await repo.ListDetailedByCargoIdAsync(Guid.NewGuid(), default);
+
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado);
+    }
+
+    [MySqlFact]
     public async Task ListByCargoIdAsync_RetornaSoloLasDelCargo()
     {
         await using var context = new SgvDbContextFactory().CreateDbContext([]);

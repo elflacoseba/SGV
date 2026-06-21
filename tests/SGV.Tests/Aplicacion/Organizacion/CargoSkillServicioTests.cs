@@ -1,5 +1,6 @@
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -155,7 +156,7 @@ public sealed class CargoSkillServicioTests
     // ── ListAsync ───────────────────────────────────────────────
 
     [Fact]
-    public async Task ListAsync_CargoConHabilidades_RetornaTodas()
+    public async Task ListAsync_CargoConHabilidades_RetornaDetalleCompleto()
     {
         var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
         var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
@@ -177,6 +178,27 @@ public sealed class CargoSkillServicioTests
         Assert.Equal(2, resultado.Count);
         Assert.Contains(resultado, d => d.SkillId == SkillIdValido);
         Assert.Contains(resultado, d => d.SkillId == Guid.Parse("82000000-0000-0000-0000-000000000002"));
+        Assert.All(resultado, d =>
+        {
+            Assert.NotNull(d.Skill);
+            Assert.NotNull(d.Nivel);
+        });
+    }
+
+    [Fact]
+    public async Task ListAsync_CargoSinHabilidades_RetornaVacio()
+    {
+        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var skillRepo = new FakeCargoSkillRepository();
+        var uow = new FakeUnitOfWorkForCargoSkills();
+        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.ListAsync(CargoIdValido, default);
+
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado);
     }
 
     // ── Helpers ─────────────────────────────────────────────────
@@ -311,6 +333,19 @@ internal sealed class FakeCargoSkillRepository : ICargoSkillRepository
         ListByCargoIdCallCount++;
         return Task.FromResult<IReadOnlyList<CargoHabilidad>>(
             Datos.Where(d => d.CargoId == cargoId).ToList());
+    }
+
+    public Task<IReadOnlyList<CargoSkillDetailDto>> ListDetailedByCargoIdAsync(
+        Guid cargoId, CancellationToken ct = default)
+    {
+        var items = Datos.Where(d => d.CargoId == cargoId).ToList();
+        return Task.FromResult<IReadOnlyList<CargoSkillDetailDto>>(
+            items.Select(a => new CargoSkillDetailDto(
+                a.HabilidadId,
+                a.NivelRequeridoId,
+                new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
+                new NivelHabilidadDto(a.NivelRequeridoId, "N1", "Nivel", 1, 1)))
+            .ToList());
     }
 
     public Task<CargoHabilidad?> GetByCargoAndSkillAsync(Guid cargoId, Guid skillId, CancellationToken ct = default)

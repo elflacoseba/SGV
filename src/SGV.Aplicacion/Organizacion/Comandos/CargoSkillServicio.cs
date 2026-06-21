@@ -17,17 +17,13 @@ public sealed class CargoSkillServicio(
     ICargoSkillRepository skillRepository,
     IUnitOfWork unitOfWork) : ICargoSkillServicio
 {
-    public async Task<IReadOnlyList<CargoSkillDto>> ListAsync(
+    public async Task<IReadOnlyList<CargoSkillDetailDto>> ListAsync(
         Guid cargoId,
         CancellationToken cancellationToken = default)
     {
-        var asignaciones = await skillRepository
-            .ListByCargoIdAsync(cargoId, cancellationToken)
+        return await skillRepository
+            .ListDetailedByCargoIdAsync(cargoId, cancellationToken)
             .ConfigureAwait(false);
-
-        return asignaciones
-            .Select(a => new CargoSkillDto(a.HabilidadId, a.NivelRequeridoId))
-            .ToList();
     }
 
     public async Task<CargoSkillCommandResult> UpsertAsync(

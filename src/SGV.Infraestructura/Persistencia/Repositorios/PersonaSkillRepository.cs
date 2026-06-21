@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
@@ -28,6 +30,33 @@ public sealed class PersonaSkillRepository(SgvDbContext context)
             .ConfigureAwait(false);
 
         return entities.Select(PersistenceToDomainMapper.ToDomain).ToArray();
+    }
+
+    public async Task<IReadOnlyList<PersonaSkillDetailDto>> ListDetailedByPersonaIdAsync(
+        Guid personaId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context
+            .Set<PersonaHabilidadEntity>()
+            .AsNoTracking()
+            .Where(e => e.PersonaId == personaId)
+            .Select(e => new PersonaSkillDetailDto(
+                e.HabilidadId,
+                e.NivelHabilidadId,
+                new HabilidadDto(
+                    e.Habilidad.Id,
+                    e.Habilidad.Codigo,
+                    e.Habilidad.Nombre,
+                    e.Habilidad.Descripcion,
+                    e.Habilidad.Categoria),
+                new NivelHabilidadDto(
+                    e.NivelHabilidad.Id,
+                    e.NivelHabilidad.Codigo,
+                    e.NivelHabilidad.Nombre,
+                    e.NivelHabilidad.ValorNumerico,
+                    e.NivelHabilidad.Orden)))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<PersonaHabilidad?> GetByPersonaAndSkillAsync(

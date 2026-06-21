@@ -173,8 +173,8 @@ public class PersonasController : ControllerBase
     /// <returns>Lista de habilidades asignadas a la persona.</returns>
     /// <response code="200">Lista de habilidades devuelta correctamente.</response>
     [HttpGet("{personaId:guid}/skills")]
-    [ProducesResponseType(typeof(IReadOnlyList<PersonaSkillDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<PersonaSkillDto>>> GetSkills(
+    [ProducesResponseType(typeof(IReadOnlyList<PersonaSkillDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<PersonaSkillDetailDto>>> GetSkills(
         Guid personaId,
         CancellationToken cancellationToken)
     {

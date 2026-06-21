@@ -374,6 +374,38 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
+    public async Task SkillGetSchemas_DocumentEnrichedNestedData()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var schemas = doc.RootElement.GetProperty("components").GetProperty("schemas");
+
+        // CargoSkillDetailDto must exist and document skillId, nivelId, skill, nivel
+        var cargoDetailSchema = schemas.GetProperty("CargoSkillDetailDto");
+        var cargoDetailProps = cargoDetailSchema.GetProperty("properties");
+        Assert.True(cargoDetailProps.TryGetProperty("skillId", out _), "CargoSkillDetailDto MUST have 'skillId'");
+        Assert.True(cargoDetailProps.TryGetProperty("nivelId", out _), "CargoSkillDetailDto MUST have 'nivelId'");
+        Assert.True(cargoDetailProps.TryGetProperty("skill", out _), "CargoSkillDetailDto MUST have 'skill'");
+        Assert.True(cargoDetailProps.TryGetProperty("nivel", out _), "CargoSkillDetailDto MUST have 'nivel'");
+
+        // PersonaSkillDetailDto must exist and document skillId, nivelId, skill, nivel
+        var personaDetailSchema = schemas.GetProperty("PersonaSkillDetailDto");
+        var personaDetailProps = personaDetailSchema.GetProperty("properties");
+        Assert.True(personaDetailProps.TryGetProperty("skillId", out _), "PersonaSkillDetailDto MUST have 'skillId'");
+        Assert.True(personaDetailProps.TryGetProperty("nivelId", out _), "PersonaSkillDetailDto MUST have 'nivelId'");
+        Assert.True(personaDetailProps.TryGetProperty("skill", out _), "PersonaSkillDetailDto MUST have 'skill'");
+        Assert.True(personaDetailProps.TryGetProperty("nivel", out _), "PersonaSkillDetailDto MUST have 'nivel'");
+
+        // Write schemas (CargoSkillDto and PersonaSkillDto) must still be documented
+        Assert.True(schemas.TryGetProperty("CargoSkillDto", out _), "Write contract CargoSkillDto MUST still be documented");
+        Assert.True(schemas.TryGetProperty("PersonaSkillDto", out _), "Write contract PersonaSkillDto MUST still be documented");
+    }
+
+    [Fact]
     public async Task SwaggerDocument_NoCargoHabilidadOrPersonaHabilidadPaths()
     {
         var client = _factory.CreateClient();
