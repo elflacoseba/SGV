@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Consultas;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
@@ -28,6 +30,33 @@ public sealed class CargoSkillRepository(SgvDbContext context)
             .ConfigureAwait(false);
 
         return entities.Select(PersistenceToDomainMapper.ToDomain).ToArray();
+    }
+
+    public async Task<IReadOnlyList<CargoSkillDetailDto>> ListDetailedByCargoIdAsync(
+        Guid cargoId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context
+            .Set<CargoHabilidadEntity>()
+            .AsNoTracking()
+            .Where(e => e.CargoId == cargoId)
+            .Select(e => new CargoSkillDetailDto(
+                e.HabilidadId,
+                e.NivelRequeridoId,
+                new HabilidadDto(
+                    e.Habilidad.Id,
+                    e.Habilidad.Codigo,
+                    e.Habilidad.Nombre,
+                    e.Habilidad.Descripcion,
+                    e.Habilidad.Categoria),
+                new NivelHabilidadDto(
+                    e.NivelRequerido.Id,
+                    e.NivelRequerido.Codigo,
+                    e.NivelRequerido.Nombre,
+                    e.NivelRequerido.ValorNumerico,
+                    e.NivelRequerido.Orden)))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<CargoHabilidad?> GetByCargoAndSkillAsync(

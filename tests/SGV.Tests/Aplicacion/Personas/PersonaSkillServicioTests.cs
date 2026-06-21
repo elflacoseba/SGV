@@ -1,10 +1,12 @@
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 using SGV.Dominio.Personas;
+using SGV.Tests.Aplicacion.Comun;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Personas;
@@ -42,10 +44,10 @@ public sealed class PersonaSkillServicioTests
     public async Task UpsertAsync_DatosValidos_RetornaDtoYGuarda()
     {
         var personaRepo = new FakePersonaReadRepository(PersonaActiva);
-        var habilidadRepo = new FakeHabilidadReadRepositorySkill(HabilidadActiva);
-        var nivelRepo = new FakeNivelHabilidadRepoSkill(NivelValido);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skillRepo = new FakePersonaSkillRepository();
-        var uow = new FakeUnitOfWorkPersona();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.UpsertAsync(PersonaIdValida, SkillIdValido, CrearRequest(), default);
@@ -61,10 +63,10 @@ public sealed class PersonaSkillServicioTests
     public async Task UpsertAsync_NivelIdInvalido_RetornaValidacionYSinGuardar()
     {
         var personaRepo = new FakePersonaReadRepository(PersonaActiva);
-        var habilidadRepo = new FakeHabilidadReadRepositorySkill(HabilidadActiva);
-        var nivelRepo = new FakeNivelHabilidadRepoSkill(); // Empty → no levels
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(); // Empty → no levels
         var skillRepo = new FakePersonaSkillRepository();
-        var uow = new FakeUnitOfWorkPersona();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.UpsertAsync(PersonaIdValida, SkillIdValido, CrearRequest(NivelIdInexistente), default);
@@ -79,10 +81,10 @@ public sealed class PersonaSkillServicioTests
     public async Task UpsertAsync_PersonaInexistente_RetornaNoEncontradoYSinGuardar()
     {
         var personaRepo = new FakePersonaReadRepository(); // Empty → no persona
-        var habilidadRepo = new FakeHabilidadReadRepositorySkill(HabilidadActiva);
-        var nivelRepo = new FakeNivelHabilidadRepoSkill(NivelValido);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skillRepo = new FakePersonaSkillRepository();
-        var uow = new FakeUnitOfWorkPersona();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.UpsertAsync(PersonaIdInexistente, SkillIdValido, CrearRequest(), default);
@@ -97,10 +99,10 @@ public sealed class PersonaSkillServicioTests
     public async Task UpsertAsync_HabilidadInexistente_RetornaNoEncontradoYSinGuardar()
     {
         var personaRepo = new FakePersonaReadRepository(PersonaActiva);
-        var habilidadRepo = new FakeHabilidadReadRepositorySkill(); // Empty → no habilidad
-        var nivelRepo = new FakeNivelHabilidadRepoSkill(NivelValido);
+        var habilidadRepo = new FakeHabilidadReadRepository(); // Empty → no habilidad
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skillRepo = new FakePersonaSkillRepository();
-        var uow = new FakeUnitOfWorkPersona();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.UpsertAsync(PersonaIdValida, SkillIdInexistente, CrearRequest(), default);
@@ -117,14 +119,14 @@ public sealed class PersonaSkillServicioTests
     public async Task DeleteAsync_AsociacionExistente_RetornaExitoYGuarda()
     {
         var personaRepo = new FakePersonaReadRepository(PersonaActiva);
-        var habilidadRepo = new FakeHabilidadReadRepositorySkill(HabilidadActiva);
-        var nivelRepo = new FakeNivelHabilidadRepoSkill(NivelValido);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var existing = new PersonaHabilidad(PersonaIdValida, SkillIdValido, NivelIdValido)
         {
             Id = Guid.NewGuid()
         };
         var skillRepo = new FakePersonaSkillRepository(existing);
-        var uow = new FakeUnitOfWorkPersona();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.DeleteAsync(PersonaIdValida, SkillIdValido, default);
@@ -138,10 +140,10 @@ public sealed class PersonaSkillServicioTests
     public async Task DeleteAsync_AsociacionInexistente_RetornaNoEncontradoYSinGuardar()
     {
         var personaRepo = new FakePersonaReadRepository(PersonaActiva);
-        var habilidadRepo = new FakeHabilidadReadRepositorySkill(HabilidadActiva);
-        var nivelRepo = new FakeNivelHabilidadRepoSkill(NivelValido);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skillRepo = new FakePersonaSkillRepository(); // Empty → no association
-        var uow = new FakeUnitOfWorkPersona();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.DeleteAsync(PersonaIdValida, SkillIdValido, default);
@@ -155,11 +157,11 @@ public sealed class PersonaSkillServicioTests
     // ── ListAsync ───────────────────────────────────────────────
 
     [Fact]
-    public async Task ListAsync_PersonaConHabilidades_RetornaTodas()
+    public async Task ListAsync_PersonaConHabilidades_RetornaDetalleCompleto()
     {
         var personaRepo = new FakePersonaReadRepository(PersonaActiva);
-        var habilidadRepo = new FakeHabilidadReadRepositorySkill(HabilidadActiva);
-        var nivelRepo = new FakeNivelHabilidadRepoSkill(NivelValido);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skill1 = new PersonaHabilidad(PersonaIdValida, SkillIdValido, NivelIdValido)
         {
             Id = Guid.NewGuid()
@@ -169,7 +171,7 @@ public sealed class PersonaSkillServicioTests
             Id = Guid.NewGuid()
         };
         var skillRepo = new FakePersonaSkillRepository(skill1, skill2);
-        var uow = new FakeUnitOfWorkPersona();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.ListAsync(PersonaIdValida, default);
@@ -177,6 +179,27 @@ public sealed class PersonaSkillServicioTests
         Assert.Equal(2, resultado.Count);
         Assert.Contains(resultado, d => d.SkillId == SkillIdValido);
         Assert.Contains(resultado, d => d.SkillId == Guid.Parse("62000000-0000-0000-0000-000000000002"));
+        Assert.All(resultado, d =>
+        {
+            Assert.NotNull(d.Skill);
+            Assert.NotNull(d.Nivel);
+        });
+    }
+
+    [Fact]
+    public async Task ListAsync_PersonaSinHabilidades_RetornaVacio()
+    {
+        var personaRepo = new FakePersonaReadRepository(PersonaActiva);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var skillRepo = new FakePersonaSkillRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(personaRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.ListAsync(PersonaIdValida, default);
+
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado);
     }
 
     // ── Helpers ─────────────────────────────────────────────────
@@ -234,61 +257,6 @@ internal sealed class FakePersonaReadRepository : IPersonaRepository
         => Task.FromResult(false);
 }
 
-internal sealed class FakeHabilidadReadRepositorySkill : IHabilidadRepository
-{
-    private readonly Habilidad? _habilidad;
-
-    public FakeHabilidadReadRepositorySkill() { }
-
-    public FakeHabilidadReadRepositorySkill(Habilidad habilidad)
-    {
-        _habilidad = habilidad;
-    }
-
-    public Task<Habilidad?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var match = _habilidad is not null && _habilidad.Id == id && _habilidad.IsActive && !_habilidad.IsDeleted
-            ? _habilidad
-            : null;
-        return Task.FromResult(match);
-    }
-
-    public Task<Habilidad?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => Task.FromResult(_habilidad?.Id == id && _habilidad.IsActive && !_habilidad.IsDeleted ? _habilidad : null);
-
-    public Task<IReadOnlyList<Habilidad>> ListAllAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<Habilidad>>(_habilidad is null ? [] : [_habilidad]);
-
-    public Task AddAsync(Habilidad h, CancellationToken ct = default) => Task.CompletedTask;
-    public Task UpdateAsync(Habilidad h, CancellationToken ct = default) => Task.CompletedTask;
-    public Task DeleteAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
-    public Task ReactivateAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
-    public Task<Habilidad?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken ct = default)
-        => Task.FromResult(_habilidad?.Id == id ? _habilidad : null);
-    public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? id = null, CancellationToken ct = default)
-        => Task.FromResult(false);
-}
-
-internal sealed class FakeNivelHabilidadRepoSkill : INivelHabilidadRepository
-{
-    private readonly NivelHabilidad? _nivel;
-
-    public FakeNivelHabilidadRepoSkill() { }
-
-    public FakeNivelHabilidadRepoSkill(NivelHabilidad nivel)
-    {
-        _nivel = nivel;
-    }
-
-    public Task<NivelHabilidad?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var match = _nivel is not null && _nivel.Id == id ? _nivel : null;
-        return Task.FromResult(match);
-    }
-
-    public Task<IReadOnlyList<NivelHabilidad>> ListAllAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult<IReadOnlyList<NivelHabilidad>>(_nivel is null ? [] : [_nivel]);
-}
 
 internal sealed class FakePersonaSkillRepository : IPersonaSkillRepository
 {
@@ -312,6 +280,19 @@ internal sealed class FakePersonaSkillRepository : IPersonaSkillRepository
         ListByPersonaIdCallCount++;
         return Task.FromResult<IReadOnlyList<PersonaHabilidad>>(
             Datos.Where(d => d.PersonaId == personaId).ToList());
+    }
+
+    public Task<IReadOnlyList<PersonaSkillDetailDto>> ListDetailedByPersonaIdAsync(
+        Guid personaId, CancellationToken ct = default)
+    {
+        var items = Datos.Where(d => d.PersonaId == personaId).ToList();
+        return Task.FromResult<IReadOnlyList<PersonaSkillDetailDto>>(
+            items.Select(a => new PersonaSkillDetailDto(
+                a.HabilidadId,
+                a.NivelHabilidadId,
+                new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
+                new NivelHabilidadDto(a.NivelHabilidadId, "N1", "Nivel", 1, 1)))
+            .ToList());
     }
 
     public Task<PersonaHabilidad?> GetByPersonaAndSkillAsync(Guid personaId, Guid skillId, CancellationToken ct = default)
@@ -355,13 +336,4 @@ internal sealed class FakePersonaSkillRepository : IPersonaSkillRepository
     }
 }
 
-internal sealed class FakeUnitOfWorkPersona : IUnitOfWork
-{
-    public int SaveChangesCount { get; private set; }
-
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        SaveChangesCount++;
-        return Task.FromResult(1);
-    }
-}
+// FakeUnitOfWork, FakeHabilidadReadRepository, FakeNivelHabilidadRepo moved to SGV.Tests.Aplicacion.Comun.TestFakes

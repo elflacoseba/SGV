@@ -8,9 +8,9 @@ namespace SGV.Aplicacion.Personas.Comandos;
 public interface IPersonaSkillServicio
 {
     /// <summary>
-    /// Lists all skills assigned to the specified persona.
+    /// Lists all skills assigned to the specified persona with full nested data.
     /// </summary>
-    Task<IReadOnlyList<PersonaSkillDto>> ListAsync(Guid personaId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PersonaSkillDetailDto>> ListAsync(Guid personaId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates or updates a persona-skill assignment.

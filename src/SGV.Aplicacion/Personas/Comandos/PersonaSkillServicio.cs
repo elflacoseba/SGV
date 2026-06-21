@@ -17,17 +17,13 @@ public sealed class PersonaSkillServicio(
     IPersonaSkillRepository skillRepository,
     IUnitOfWork unitOfWork) : IPersonaSkillServicio
 {
-    public async Task<IReadOnlyList<PersonaSkillDto>> ListAsync(
+    public async Task<IReadOnlyList<PersonaSkillDetailDto>> ListAsync(
         Guid personaId,
         CancellationToken cancellationToken = default)
     {
-        var asignaciones = await skillRepository
-            .ListByPersonaIdAsync(personaId, cancellationToken)
+        return await skillRepository
+            .ListDetailedByPersonaIdAsync(personaId, cancellationToken)
             .ConfigureAwait(false);
-
-        return asignaciones
-            .Select(a => new PersonaSkillDto(a.HabilidadId, a.NivelHabilidadId))
-            .ToList();
     }
 
     public async Task<PersonaSkillCommandResult> UpsertAsync(

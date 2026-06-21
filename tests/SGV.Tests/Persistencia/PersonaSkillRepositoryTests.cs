@@ -182,6 +182,60 @@ public sealed class PersonaSkillRepositoryTests
     }
 
     [MySqlFact]
+    public async Task ListDetailedByPersonaIdAsync_RetornaNestedSkillYNivel()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var repo = new PersonaSkillRepository(context);
+
+        var persona = RepositoryTestData.CreatePersona("PSK-DET");
+        var habilidad = RepositoryTestData.CreateHabilidad("PSK-DET-HAB");
+        await context.Set<PersonaEntity>().AddAsync(persona);
+        await context.Set<HabilidadEntity>().AddAsync(habilidad);
+        await context.SaveChangesAsync();
+
+        var asignacion = new PersonaHabilidad(persona.Id, habilidad.Id, DatosSemilla.NivelBasicoId);
+        await repo.AddAsync(asignacion, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var resultado = await repo.ListDetailedByPersonaIdAsync(persona.Id, default);
+
+            Assert.Single(resultado);
+            Assert.Equal(habilidad.Id, resultado[0].SkillId);
+            Assert.Equal(DatosSemilla.NivelBasicoId, resultado[0].NivelId);
+            Assert.NotNull(resultado[0].Skill);
+            Assert.Equal(habilidad.Codigo, resultado[0].Skill.Codigo);
+            Assert.Equal(habilidad.Nombre, resultado[0].Skill.Nombre);
+            Assert.NotNull(resultado[0].Nivel);
+            Assert.Equal("Básico", resultado[0].Nivel.Nombre);
+            Assert.Equal((byte)1, resultado[0].Nivel.ValorNumerico);
+        }
+        finally
+        {
+            context.Set<PersonaHabilidadEntity>().RemoveRange(
+                await context.Set<PersonaHabilidadEntity>()
+                    .Where(ph => ph.PersonaId == persona.Id)
+                    .ToListAsync());
+            context.Set<HabilidadEntity>().Remove(habilidad);
+            context.Set<PersonaEntity>().Remove(persona);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task ListDetailedByPersonaIdAsync_SinAsignaciones_RetornaVacio()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var repo = new PersonaSkillRepository(context);
+
+        var resultado = await repo.ListDetailedByPersonaIdAsync(Guid.NewGuid(), default);
+
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado);
+    }
+
+    [MySqlFact]
     public async Task ListByPersonaIdAsync_RetornaSoloLasDeLaPersona()
     {
         await using var context = new SgvDbContextFactory().CreateDbContext([]);

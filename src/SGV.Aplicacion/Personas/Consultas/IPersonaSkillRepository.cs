@@ -1,3 +1,5 @@
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Aplicacion.Personas.Consultas.Dtos;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Dominio.Personas;
 
@@ -13,6 +15,12 @@ public interface IPersonaSkillRepository : IReadOnlyRepository<PersonaHabilidad>
     /// Retrieves all skill assignments for a given persona.
     /// </summary>
     Task<IReadOnlyList<PersonaHabilidad>> ListByPersonaIdAsync(Guid personaId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves all skill assignments for a given persona with full nested
+    /// habilidad and nivel data projected in a single query.
+    /// </summary>
+    Task<IReadOnlyList<PersonaSkillDetailDto>> ListDetailedByPersonaIdAsync(Guid personaId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves a specific skill assignment by persona and skill.

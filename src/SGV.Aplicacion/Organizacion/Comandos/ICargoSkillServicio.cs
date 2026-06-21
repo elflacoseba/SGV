@@ -8,9 +8,9 @@ namespace SGV.Aplicacion.Organizacion.Comandos;
 public interface ICargoSkillServicio
 {
     /// <summary>
-    /// Lists all skills assigned to the specified cargo.
+    /// Lists all skills assigned to the specified cargo with full nested data.
     /// </summary>
-    Task<IReadOnlyList<CargoSkillDto>> ListAsync(Guid cargoId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CargoSkillDetailDto>> ListAsync(Guid cargoId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates or updates a cargo-skill assignment.

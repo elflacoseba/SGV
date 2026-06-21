@@ -175,8 +175,8 @@ public class CargosController : ControllerBase
     /// <returns>Lista de habilidades asignadas al cargo.</returns>
     /// <response code="200">Lista de habilidades devuelta correctamente.</response>
     [HttpGet("{cargoId:guid}/skills")]
-    [ProducesResponseType(typeof(IReadOnlyList<CargoSkillDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<CargoSkillDto>>> GetSkills(
+    [ProducesResponseType(typeof(IReadOnlyList<CargoSkillDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<CargoSkillDetailDto>>> GetSkills(
         Guid cargoId,
         CancellationToken cancellationToken)
     {

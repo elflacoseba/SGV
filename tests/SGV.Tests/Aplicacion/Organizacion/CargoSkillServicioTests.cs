@@ -1,10 +1,12 @@
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 using SGV.Dominio.Organizacion;
+using SGV.Tests.Aplicacion.Comun;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Organizacion;
@@ -45,7 +47,7 @@ public sealed class CargoSkillServicioTests
         var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
         var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skillRepo = new FakeCargoSkillRepository();
-        var uow = new FakeUnitOfWorkForCargoSkills();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.UpsertAsync(CargoIdValido, SkillIdValido, CrearRequest(), default);
@@ -64,7 +66,7 @@ public sealed class CargoSkillServicioTests
         var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
         var nivelRepo = new FakeNivelHabilidadRepo(); // Empty → no levels
         var skillRepo = new FakeCargoSkillRepository();
-        var uow = new FakeUnitOfWorkForCargoSkills();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.UpsertAsync(CargoIdValido, SkillIdValido, CrearRequest(NivelIdInexistente), default);
@@ -82,7 +84,7 @@ public sealed class CargoSkillServicioTests
         var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
         var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skillRepo = new FakeCargoSkillRepository();
-        var uow = new FakeUnitOfWorkForCargoSkills();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.UpsertAsync(CargoIdInexistente, SkillIdValido, CrearRequest(), default);
@@ -100,7 +102,7 @@ public sealed class CargoSkillServicioTests
         var habilidadRepo = new FakeHabilidadReadRepository(); // Empty → no habilidad
         var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skillRepo = new FakeCargoSkillRepository();
-        var uow = new FakeUnitOfWorkForCargoSkills();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.UpsertAsync(CargoIdValido, SkillIdInexistente, CrearRequest(), default);
@@ -124,7 +126,7 @@ public sealed class CargoSkillServicioTests
             Id = Guid.NewGuid()
         };
         var skillRepo = new FakeCargoSkillRepository(existing);
-        var uow = new FakeUnitOfWorkForCargoSkills();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.DeleteAsync(CargoIdValido, SkillIdValido, default);
@@ -141,7 +143,7 @@ public sealed class CargoSkillServicioTests
         var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
         var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
         var skillRepo = new FakeCargoSkillRepository(); // Empty → no association
-        var uow = new FakeUnitOfWorkForCargoSkills();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.DeleteAsync(CargoIdValido, SkillIdValido, default);
@@ -155,7 +157,7 @@ public sealed class CargoSkillServicioTests
     // ── ListAsync ───────────────────────────────────────────────
 
     [Fact]
-    public async Task ListAsync_CargoConHabilidades_RetornaTodas()
+    public async Task ListAsync_CargoConHabilidades_RetornaDetalleCompleto()
     {
         var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
         var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
@@ -169,7 +171,7 @@ public sealed class CargoSkillServicioTests
             Id = Guid.NewGuid()
         };
         var skillRepo = new FakeCargoSkillRepository(skill1, skill2);
-        var uow = new FakeUnitOfWorkForCargoSkills();
+        var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
 
         var resultado = await servicio.ListAsync(CargoIdValido, default);
@@ -177,6 +179,27 @@ public sealed class CargoSkillServicioTests
         Assert.Equal(2, resultado.Count);
         Assert.Contains(resultado, d => d.SkillId == SkillIdValido);
         Assert.Contains(resultado, d => d.SkillId == Guid.Parse("82000000-0000-0000-0000-000000000002"));
+        Assert.All(resultado, d =>
+        {
+            Assert.NotNull(d.Skill);
+            Assert.NotNull(d.Nivel);
+        });
+    }
+
+    [Fact]
+    public async Task ListAsync_CargoSinHabilidades_RetornaVacio()
+    {
+        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var skillRepo = new FakeCargoSkillRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.ListAsync(CargoIdValido, default);
+
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado);
     }
 
     // ── Helpers ─────────────────────────────────────────────────
@@ -233,62 +256,6 @@ internal sealed class FakeCargoReadRepositoryForSkills : ICargoRepository
         => Task.FromResult(false);
 }
 
-internal sealed class FakeHabilidadReadRepository : IHabilidadRepository
-{
-    private readonly Habilidad? _habilidad;
-
-    public FakeHabilidadReadRepository() { }
-
-    public FakeHabilidadReadRepository(Habilidad habilidad)
-    {
-        _habilidad = habilidad;
-    }
-
-    public Task<Habilidad?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var match = _habilidad is not null && _habilidad.Id == id && _habilidad.IsActive && !_habilidad.IsDeleted
-            ? _habilidad
-            : null;
-        return Task.FromResult(match);
-    }
-
-    public Task<Habilidad?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => Task.FromResult(_habilidad?.Id == id && _habilidad.IsActive && !_habilidad.IsDeleted ? _habilidad : null);
-
-    public Task<IReadOnlyList<Habilidad>> ListAllAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<Habilidad>>(_habilidad is null ? [] : [_habilidad]);
-
-    public Task AddAsync(Habilidad h, CancellationToken ct = default) => Task.CompletedTask;
-    public Task UpdateAsync(Habilidad h, CancellationToken ct = default) => Task.CompletedTask;
-    public Task DeleteAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
-    public Task ReactivateAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
-    public Task<Habilidad?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken ct = default)
-        => Task.FromResult(_habilidad?.Id == id ? _habilidad : null);
-    public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken ct = default)
-        => Task.FromResult(false);
-}
-
-internal sealed class FakeNivelHabilidadRepo : INivelHabilidadRepository
-{
-    private readonly NivelHabilidad? _nivel;
-
-    public FakeNivelHabilidadRepo() { }
-
-    public FakeNivelHabilidadRepo(NivelHabilidad nivel)
-    {
-        _nivel = nivel;
-    }
-
-    public Task<NivelHabilidad?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var match = _nivel is not null && _nivel.Id == id ? _nivel : null;
-        return Task.FromResult(match);
-    }
-
-    public Task<IReadOnlyList<NivelHabilidad>> ListAllAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult<IReadOnlyList<NivelHabilidad>>(_nivel is null ? [] : [_nivel]);
-}
-
 internal sealed class FakeCargoSkillRepository : ICargoSkillRepository
 {
     public List<CargoHabilidad> Datos { get; set; }
@@ -311,6 +278,19 @@ internal sealed class FakeCargoSkillRepository : ICargoSkillRepository
         ListByCargoIdCallCount++;
         return Task.FromResult<IReadOnlyList<CargoHabilidad>>(
             Datos.Where(d => d.CargoId == cargoId).ToList());
+    }
+
+    public Task<IReadOnlyList<CargoSkillDetailDto>> ListDetailedByCargoIdAsync(
+        Guid cargoId, CancellationToken ct = default)
+    {
+        var items = Datos.Where(d => d.CargoId == cargoId).ToList();
+        return Task.FromResult<IReadOnlyList<CargoSkillDetailDto>>(
+            items.Select(a => new CargoSkillDetailDto(
+                a.HabilidadId,
+                a.NivelRequeridoId,
+                new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
+                new NivelHabilidadDto(a.NivelRequeridoId, "N1", "Nivel", 1, 1)))
+            .ToList());
     }
 
     public Task<CargoHabilidad?> GetByCargoAndSkillAsync(Guid cargoId, Guid skillId, CancellationToken ct = default)
@@ -354,13 +334,4 @@ internal sealed class FakeCargoSkillRepository : ICargoSkillRepository
     }
 }
 
-internal sealed class FakeUnitOfWorkForCargoSkills : IUnitOfWork
-{
-    public int SaveChangesCount { get; private set; }
-
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        SaveChangesCount++;
-        return Task.FromResult(1);
-    }
-}
+// FakeUnitOfWork, FakeHabilidadReadRepository, FakeNivelHabilidadRepo moved to SGV.Tests.Aplicacion.Comun.TestFakes

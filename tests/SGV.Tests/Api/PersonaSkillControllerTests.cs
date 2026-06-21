@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
 using Xunit;
@@ -45,21 +46,27 @@ public sealed class PersonaSkillControllerTests
 
     // ---- Fake service ----
 
+    private static readonly HabilidadDto DefaultHabilidad = new(
+        ExistingSkillId, "PROG", "Programación", "Lenguajes", "Técnica");
+
+    private static readonly NivelHabilidadDto DefaultNivel = new(
+        ExistingNivelId, "N1", "Nivel 1", 1, 1);
+
     private sealed class FakePersonaSkillServicio : IPersonaSkillServicio
     {
-        public List<PersonaSkillDto> Skills { get; set; } =
+        public List<PersonaSkillDetailDto> Skills { get; set; } =
         [
-            new(ExistingSkillId, ExistingNivelId),
+            new(ExistingSkillId, ExistingNivelId, DefaultHabilidad, DefaultNivel),
         ];
 
-        public Func<Guid, CancellationToken, Task<IReadOnlyList<PersonaSkillDto>>>? ListHandler { get; set; }
+        public Func<Guid, CancellationToken, Task<IReadOnlyList<PersonaSkillDetailDto>>>? ListHandler { get; set; }
         public Func<Guid, Guid, AsignarPersonaSkillRequest, CancellationToken, Task<PersonaSkillCommandResult>>? UpsertHandler { get; set; }
         public Func<Guid, Guid, CancellationToken, Task<PersonaSkillCommandResult>>? DeleteHandler { get; set; }
 
-        public Task<IReadOnlyList<PersonaSkillDto>> ListAsync(Guid personaId, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<PersonaSkillDetailDto>> ListAsync(Guid personaId, CancellationToken cancellationToken = default)
         {
             if (ListHandler is not null) return ListHandler(personaId, cancellationToken);
-            return Task.FromResult<IReadOnlyList<PersonaSkillDto>>(Skills);
+            return Task.FromResult<IReadOnlyList<PersonaSkillDetailDto>>(Skills);
         }
 
         public Task<PersonaSkillCommandResult> UpsertAsync(
@@ -92,11 +99,15 @@ public sealed class PersonaSkillControllerTests
         var response = await client.GetAsync($"/api/v1/personas/{ExistingPersonaId}/skills");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var dtos = await ReadAsAsync<List<PersonaSkillDto>>(response);
+        var dtos = await ReadAsAsync<List<PersonaSkillDetailDto>>(response);
         Assert.NotNull(dtos);
         Assert.NotEmpty(dtos);
         Assert.Equal(ExistingSkillId, dtos[0].SkillId);
         Assert.Equal(ExistingNivelId, dtos[0].NivelId);
+        Assert.NotNull(dtos[0].Skill);
+        Assert.Equal("PROG", dtos[0].Skill.Codigo);
+        Assert.NotNull(dtos[0].Nivel);
+        Assert.Equal("N1", dtos[0].Nivel.Codigo);
     }
 
     [Fact]
@@ -113,7 +124,7 @@ public sealed class PersonaSkillControllerTests
         var response = await client.GetAsync($"/api/v1/personas/{ExistingPersonaId}/skills");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var dtos = await ReadAsAsync<List<PersonaSkillDto>>(response);
+        var dtos = await ReadAsAsync<List<PersonaSkillDetailDto>>(response);
         Assert.NotNull(dtos);
         Assert.Empty(dtos);
     }
@@ -135,6 +146,10 @@ public sealed class PersonaSkillControllerTests
 
         Assert.True(first.TryGetProperty("skillId", out _), "Response JSON MUST include 'skillId'");
         Assert.True(first.TryGetProperty("nivelId", out _), "Response JSON MUST include 'nivelId'");
+        Assert.True(first.TryGetProperty("skill", out var skillProp), "Response JSON MUST include 'skill'");
+        Assert.True(skillProp.TryGetProperty("codigo", out _), "Response JSON 'skill' MUST include 'codigo'");
+        Assert.True(first.TryGetProperty("nivel", out var nivelProp), "Response JSON MUST include 'nivel'");
+        Assert.True(nivelProp.TryGetProperty("codigo", out _), "Response JSON 'nivel' MUST include 'codigo'");
     }
 
     // ---- PUT /api/v1/personas/{personaId}/skills/{skillId} ----

@@ -1,4 +1,6 @@
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 
 namespace SGV.Aplicacion.Organizacion.Consultas;
@@ -13,6 +15,12 @@ public interface ICargoSkillRepository : IReadOnlyRepository<CargoHabilidad>
     /// Retrieves all skill assignments for a given cargo.
     /// </summary>
     Task<IReadOnlyList<CargoHabilidad>> ListByCargoIdAsync(Guid cargoId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves all skill assignments for a given cargo with full nested
+    /// habilidad and nivel data projected in a single query.
+    /// </summary>
+    Task<IReadOnlyList<CargoSkillDetailDto>> ListDetailedByCargoIdAsync(Guid cargoId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves a specific skill assignment by cargo and skill.
