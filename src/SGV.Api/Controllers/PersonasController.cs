@@ -15,13 +15,16 @@ public class PersonasController : ControllerBase
 {
     private readonly IPersonaServicioConsulta _servicio;
     private readonly IPersonaServicioComandos _comandos;
+    private readonly IPersonaSkillServicio _skillServicio;
 
     public PersonasController(
         IPersonaServicioConsulta servicio,
-        IPersonaServicioComandos comandos)
+        IPersonaServicioComandos comandos,
+        IPersonaSkillServicio skillServicio)
     {
         _servicio = servicio;
         _comandos = comandos;
+        _skillServicio = skillServicio;
     }
 
     /// <summary>
@@ -160,6 +163,75 @@ public class PersonasController : ControllerBase
             : ToProblemResult(result.Error!);
     }
 
+    // ---- Subrecurso: habilidades de la persona ----
+
+    /// <summary>
+    /// Lista las habilidades asociadas a una persona.
+    /// </summary>
+    /// <param name="personaId">Identificador único de la persona.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Lista de habilidades asignadas a la persona.</returns>
+    /// <response code="200">Lista de habilidades devuelta correctamente.</response>
+    [HttpGet("{personaId:guid}/skills")]
+    [ProducesResponseType(typeof(IReadOnlyList<PersonaSkillDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<PersonaSkillDto>>> GetSkills(
+        Guid personaId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _skillServicio.ListAsync(personaId, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Asigna o actualiza una habilidad en una persona.
+    /// </summary>
+    /// <param name="personaId">Identificador único de la persona.</param>
+    /// <param name="skillId">Identificador único de la habilidad.</param>
+    /// <param name="request">Nivel de dominio/proficiencia.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Habilidad asignada a la persona.</returns>
+    /// <response code="200">Habilidad asignada o actualizada correctamente.</response>
+    /// <response code="400">Nivel de habilidad inválido.</response>
+    /// <response code="404">Persona o habilidad no encontradas.</response>
+    [HttpPut("{personaId:guid}/skills/{skillId:guid}")]
+    [ProducesResponseType(typeof(PersonaSkillDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PersonaSkillDto>> UpsertSkill(
+        Guid personaId,
+        Guid skillId,
+        AsignarPersonaSkillRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _skillServicio.UpsertAsync(personaId, skillId, request, cancellationToken);
+        if (result.IsSuccess)
+            return Ok(result.Value);
+
+        return ToSkillProblemResult(result.Error!);
+    }
+
+    /// <summary>
+    /// Elimina físicamente una habilidad asignada a una persona.
+    /// </summary>
+    /// <param name="personaId">Identificador único de la persona.</param>
+    /// <param name="skillId">Identificador único de la habilidad.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <response code="204">Habilidad eliminada correctamente.</response>
+    /// <response code="404">Persona o asignación no encontradas.</response>
+    [HttpDelete("{personaId:guid}/skills/{skillId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> DeleteSkill(
+        Guid personaId,
+        Guid skillId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _skillServicio.DeleteAsync(personaId, skillId, cancellationToken);
+        return result.IsSuccess
+            ? NoContent()
+            : ToSkillProblemResult(result.Error!);
+    }
+
     private ActionResult ToProblemResult(PersonaError error)
     {
         var statusCode = error.Type switch
@@ -197,5 +269,21 @@ public class PersonasController : ControllerBase
         };
 
         return BadRequest(details);
+    }
+
+    private ActionResult ToSkillProblemResult(PersonaSkillError error)
+    {
+        var statusCode = error.Type switch
+        {
+            PersonaSkillErrorType.NotFound => StatusCodes.Status404NotFound,
+            PersonaSkillErrorType.Validation => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status400BadRequest
+        };
+
+        return Problem(
+            statusCode: statusCode,
+            title: error.Code,
+            detail: error.Message,
+            type: $"https://httpstatuses.com/{statusCode}");
     }
 }

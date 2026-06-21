@@ -15,13 +15,16 @@ public class CargosController : ControllerBase
 {
     private readonly ICargoServicioConsulta _servicio;
     private readonly ICargoServicioComandos _comandos;
+    private readonly ICargoSkillServicio _skillServicio;
 
     public CargosController(
         ICargoServicioConsulta servicio,
-        ICargoServicioComandos comandos)
+        ICargoServicioComandos comandos,
+        ICargoSkillServicio skillServicio)
     {
         _servicio = servicio;
         _comandos = comandos;
+        _skillServicio = skillServicio;
     }
 
     /// <summary>
@@ -162,6 +165,75 @@ public class CargosController : ControllerBase
             : ToProblemResult(result.Error!);
     }
 
+    // ---- Subrecurso: habilidades del cargo ----
+
+    /// <summary>
+    /// Lista las habilidades asociadas a un cargo.
+    /// </summary>
+    /// <param name="cargoId">Identificador único del cargo.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Lista de habilidades asignadas al cargo.</returns>
+    /// <response code="200">Lista de habilidades devuelta correctamente.</response>
+    [HttpGet("{cargoId:guid}/skills")]
+    [ProducesResponseType(typeof(IReadOnlyList<CargoSkillDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<CargoSkillDto>>> GetSkills(
+        Guid cargoId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _skillServicio.ListAsync(cargoId, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Asigna o actualiza una habilidad en un cargo.
+    /// </summary>
+    /// <param name="cargoId">Identificador único del cargo.</param>
+    /// <param name="skillId">Identificador único de la habilidad.</param>
+    /// <param name="request">Nivel de competencia requerido.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Habilidad asignada al cargo.</returns>
+    /// <response code="200">Habilidad asignada o actualizada correctamente.</response>
+    /// <response code="400">Nivel de habilidad inválido.</response>
+    /// <response code="404">Cargo o habilidad no encontrados.</response>
+    [HttpPut("{cargoId:guid}/skills/{skillId:guid}")]
+    [ProducesResponseType(typeof(CargoSkillDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CargoSkillDto>> UpsertSkill(
+        Guid cargoId,
+        Guid skillId,
+        AsignarCargoSkillRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _skillServicio.UpsertAsync(cargoId, skillId, request, cancellationToken);
+        if (result.IsSuccess)
+            return Ok(result.Value);
+
+        return ToSkillProblemResult(result.Error!);
+    }
+
+    /// <summary>
+    /// Elimina físicamente una habilidad asignada a un cargo.
+    /// </summary>
+    /// <param name="cargoId">Identificador único del cargo.</param>
+    /// <param name="skillId">Identificador único de la habilidad.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <response code="204">Habilidad eliminada correctamente.</response>
+    /// <response code="404">Cargo o asignación no encontrados.</response>
+    [HttpDelete("{cargoId:guid}/skills/{skillId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> DeleteSkill(
+        Guid cargoId,
+        Guid skillId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _skillServicio.DeleteAsync(cargoId, skillId, cancellationToken);
+        return result.IsSuccess
+            ? NoContent()
+            : ToSkillProblemResult(result.Error!);
+    }
+
     private ActionResult ToProblemResult(CargoError error)
     {
         var statusCode = error.Type switch
@@ -199,5 +271,21 @@ public class CargosController : ControllerBase
         };
 
         return BadRequest(details);
+    }
+
+    private ActionResult ToSkillProblemResult(CargoSkillError error)
+    {
+        var statusCode = error.Type switch
+        {
+            CargoSkillErrorType.NotFound => StatusCodes.Status404NotFound,
+            CargoSkillErrorType.Validation => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status400BadRequest
+        };
+
+        return Problem(
+            statusCode: statusCode,
+            title: error.Code,
+            detail: error.Message,
+            type: $"https://httpstatuses.com/{statusCode}");
     }
 }
