@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
+using SGV.Infraestructura.Seguridad;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -137,7 +138,8 @@ public sealed class ModeloPersistenciaTests
         foreach (var entityType in entityTypes)
         {
             // Skip Identity tables (AspNet*) which use string keys
-            if (entityType.ClrType.Namespace?.StartsWith("Microsoft.AspNetCore.Identity") == true)
+            if (entityType.ClrType.Namespace?.StartsWith("Microsoft.AspNetCore.Identity") == true
+                || entityType.ClrType == typeof(SgvIdentityUser))
                 continue;
 
             var pk = entityType.FindPrimaryKey();
@@ -239,12 +241,13 @@ public sealed class ModeloPersistenciaTests
         var entityTypes = _contexto.Model.GetEntityTypes();
 
         var identityTypes = entityTypes
-            .Where(e => e.ClrType.Namespace?.StartsWith("Microsoft.AspNetCore.Identity") == true)
+            .Where(e => e.ClrType.Namespace?.StartsWith("Microsoft.AspNetCore.Identity") == true
+                || e.ClrType == typeof(SgvIdentityUser))
             .Select(e => e.ClrType)
             .ToList();
 
         Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityRole));
-        Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityUser));
+        Assert.Contains(identityTypes, t => t == typeof(SgvIdentityUser));
         Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>));
         Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityUserClaim<string>));
         Assert.Contains(identityTypes, t => t == typeof(Microsoft.AspNetCore.Identity.IdentityUserLogin<string>));

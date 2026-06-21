@@ -1,6 +1,14 @@
+using System.Net.Http.Headers;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Aplicacion.Seguridad;
+using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
@@ -13,6 +21,13 @@ using SGV.Aplicacion.Personas.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia.Catalogos;
 
 namespace SGV.Tests.Api;
+
+internal static class FakeAuthenticationDefaults
+{
+    public const string Scheme = "Test";
+
+    public static AuthenticationHeaderValue AdminHeader => new(Scheme, "admin");
+}
 
 internal static class ServiceCollectionExtensions
 {
@@ -480,6 +495,71 @@ internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos
     }
 }
 
+internal sealed class FakeUsuarioServicioConsulta : IUsuarioServicioConsulta
+{
+    private static readonly IReadOnlyList<UsuarioDto> Users =
+    [
+        new("user-1", FakePersonaServicioConsulta.PersonaId1, "admin", "admin@test.com", [RolesSgv.Administrador])
+    ];
+
+    public Task<IReadOnlyList<UsuarioDto>> ListAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(Users);
+}
+
+internal sealed class FakeUsuarioServicioComandos : IUsuarioServicioComandos
+{
+    public Task<UsuarioCommandResult> CrearAsync(CrearUsuarioRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(UsuarioCommandResult.Success(new UsuarioDto("user-1", request.PersonaId, request.UserName, request.Email, request.Roles)));
+
+    public Task<UsuarioCommandResult> AsignarRolesAsync(string userId, AsignarRolesRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(UsuarioCommandResult.Success(new UsuarioDto(userId, FakePersonaServicioConsulta.PersonaId1, "admin", "admin@test.com", request.Roles)));
+}
+
+internal sealed class FakeRolServicioConsulta : IRolServicioConsulta
+{
+    public Task<IReadOnlyList<string>> ListAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(RolesSgv.Todos);
+}
+
+internal sealed class FakeAuthServicio(LoginResponse? response = null, bool returnUnauthorized = false) : IAuthServicio
+{
+    public static FakeAuthServicio Unauthorized() => new(returnUnauthorized: true);
+
+    public Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(returnUnauthorized ? null : response ?? new LoginResponse("fake-token", DateTimeOffset.UtcNow.AddMinutes(60)));
+}
+
+internal sealed class FakeAuthenticationHandler(
+    IOptionsMonitor<AuthenticationSchemeOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        if (!Request.Headers.TryGetValue("Authorization", out var header) || header.Count == 0)
+        {
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
+
+        if (!AuthenticationHeaderValue.TryParse(header[0], out var value) || value.Scheme != FakeAuthenticationDefaults.Scheme)
+        {
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "user-1"),
+            new Claim(ClaimTypes.Name, "admin"),
+            new Claim(ClaimTypes.Role, RolesSgv.Administrador)
+        };
+        var identity = new ClaimsIdentity(claims, FakeAuthenticationDefaults.Scheme);
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, FakeAuthenticationDefaults.Scheme);
+
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
 public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
 {
     private readonly Action<IServiceCollection>? _configureServices;
@@ -506,6 +586,10 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IHabilidadServicioComandos>();
             services.RemoveService<IPersonaServicioConsulta>();
             services.RemoveService<IPersonaServicioComandos>();
+            services.RemoveService<IUsuarioServicioConsulta>();
+            services.RemoveService<IUsuarioServicioComandos>();
+            services.RemoveService<IRolServicioConsulta>();
+            services.RemoveService<IAuthServicio>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
@@ -520,6 +604,14 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IHabilidadServicioComandos>(new FakeHabilidadServicioComandos());
             services.AddSingleton<IPersonaServicioConsulta>(new FakePersonaServicioConsulta());
             services.AddSingleton<IPersonaServicioComandos>(new FakePersonaServicioComandos());
+            services.AddSingleton<IUsuarioServicioConsulta>(new FakeUsuarioServicioConsulta());
+            services.AddSingleton<IUsuarioServicioComandos>(new FakeUsuarioServicioComandos());
+            services.AddSingleton<IRolServicioConsulta>(new FakeRolServicioConsulta());
+            services.AddSingleton<IAuthServicio>(new FakeAuthServicio());
+
+            services.AddAuthentication(FakeAuthenticationDefaults.Scheme)
+                .AddScheme<AuthenticationSchemeOptions, FakeAuthenticationHandler>(FakeAuthenticationDefaults.Scheme, _ => { });
+            services.AddAuthorization();
 
             // Apply additional overrides (e.g. empty collections)
             _configureServices?.Invoke(services);

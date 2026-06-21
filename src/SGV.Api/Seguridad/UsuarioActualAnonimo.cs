@@ -19,6 +19,10 @@ public sealed class UsuarioActualAnonimo : IUsuarioActual
     /// </summary>
     public string? UserId => null;
 
+    public Guid? PersonaId => null;
+
+    public IReadOnlyCollection<string> Roles => [];
+
     /// <summary>
     /// Correlation identifier for the current request scope.
     /// </summary>

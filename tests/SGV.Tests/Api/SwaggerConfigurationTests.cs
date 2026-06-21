@@ -49,18 +49,34 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
-    public async Task ApiEndpoints_DoNotRequireAuthorization()
+    public async Task SwaggerDocument_DefinesBearerSchemeWithoutGlobalSecurityRequirement()
     {
         var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/swagger/v1/swagger.json");
         var content = await response.Content.ReadAsStringAsync();
 
-        // No security definitions should be present in the OpenAPI document
-        // when authentication is disabled.
-        Assert.DoesNotContain("security", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("bearer", content, StringComparison.OrdinalIgnoreCase);
+        using var doc = JsonDocument.Parse(content);
+        var root = doc.RootElement;
+        var securitySchemes = root.GetProperty("components").GetProperty("securitySchemes");
+
+        Assert.True(securitySchemes.TryGetProperty("Bearer", out var bearer));
+        Assert.Equal("http", bearer.GetProperty("type").GetString());
+        Assert.Equal("bearer", bearer.GetProperty("scheme").GetString());
+        Assert.False(root.TryGetProperty("security", out _));
         Assert.DoesNotContain("oauth2", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("oauth2", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AnonymousClient_CanStillReadPublicResourceCollection()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/personas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -119,6 +135,10 @@ public sealed class SwaggerConfigurationTests
             if (path.Name.StartsWith("/api/v1/skills", StringComparison.OrdinalIgnoreCase))
                 continue;
             if (path.Name.StartsWith("/api/v1/personas", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (path.Name.StartsWith("/api/v1/usuarios", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (path.Name.StartsWith("/api/v1/auth", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             foreach (var operation in path.Value.EnumerateObject())

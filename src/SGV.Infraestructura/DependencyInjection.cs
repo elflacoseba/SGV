@@ -6,7 +6,9 @@ using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Infraestructura.Seguridad;
 
 namespace SGV.Infraestructura;
 
@@ -55,6 +57,14 @@ public static class DependencyInjection
         // Skill assignment services (application layer)
         services.AddScoped<ICargoSkillServicio, CargoSkillServicio>();
         services.AddScoped<IPersonaSkillServicio, PersonaSkillServicio>();
+
+        // Identity user/role services
+        services.AddScoped<IUsuarioServicioComandos, UsuarioServicioComandos>();
+        services.AddScoped<IRolServicioConsulta, RolServicioConsulta>();
+        services.AddScoped<UsuarioIdentityGateway>();
+        services.AddScoped<IUsuarioIdentityGateway>(sp => sp.GetRequiredService<UsuarioIdentityGateway>());
+        services.AddScoped<IUsuarioServicioConsulta>(sp => sp.GetRequiredService<UsuarioIdentityGateway>());
+        services.AddScoped<IAuthServicio, AuthServicio>();
 
         return services;
     }

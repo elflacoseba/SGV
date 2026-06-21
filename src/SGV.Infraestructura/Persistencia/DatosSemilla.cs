@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using SGV.Aplicacion.Seguridad;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
 
@@ -42,11 +43,9 @@ internal static class DatosSemilla
     public static void Configurar(ModelBuilder builder)
     {
         builder.Entity<IdentityRole>().HasData(
-            CrearRol("Administrador"),
-            CrearRol("RecursosHumanos"),
-            CrearRol("GestorOrganizacional"),
-            CrearRol("EvaluadorSeleccion"),
-            CrearRol("Lector"));
+            CrearRol(RolesSgv.Administrador),
+            CrearRol(RolesSgv.GestorVacantes),
+            CrearRol(RolesSgv.Consultor));
 
         builder.Entity<NivelHabilidadEntity>().HasData(
             new NivelHabilidadEntity { Id = NivelBasicoId, Codigo = "Basico", Nombre = "Básico", ValorNumerico = 1, Orden = 1 },

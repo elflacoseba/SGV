@@ -2,10 +2,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SGV.Infraestructura.Persistencia.Entidades;
+using SGV.Infraestructura.Seguridad;
 
 namespace SGV.Infraestructura.Persistencia;
 
-public sealed class SgvDbContext : IdentityDbContext<IdentityUser>
+public sealed class SgvDbContext : IdentityDbContext<SgvIdentityUser, IdentityRole, string>
 {
     public SgvDbContext(DbContextOptions<SgvDbContext> options)
         : base(options)

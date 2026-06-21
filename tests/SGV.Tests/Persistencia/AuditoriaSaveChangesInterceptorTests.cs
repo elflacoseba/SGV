@@ -257,6 +257,10 @@ public sealed class AuditoriaSaveChangesInterceptorTests
     {
         public string? UserId { get; } = userId;
 
+        public Guid? PersonaId => null;
+
+        public IReadOnlyCollection<string> Roles => [];
+
         public Guid? CorrelationId { get; } = correlationId;
     }
 

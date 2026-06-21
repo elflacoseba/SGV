@@ -1,5 +1,10 @@
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Catalogos;
+using SGV.Aplicacion.Seguridad;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -44,5 +49,19 @@ public sealed class DatosSemillaTests
         Assert.Equal(4, nivelCargoSeedIds.Length);
         Assert.Equal(4, new HashSet<Guid>(nivelCargoSeedIds).Count);
         Assert.All(nivelCargoSeedIds, id => Assert.NotEqual(Guid.Empty, id));
+    }
+
+    [Fact]
+    public void DatosSemilla_SoloIncluyeRolesFijosDeSgv()
+    {
+        using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var designModel = context.GetService<IDesignTimeModel>().Model;
+        var roles = designModel.FindEntityType(typeof(IdentityRole))!
+            .GetSeedData()
+            .Select(seed => seed[nameof(IdentityRole.Name)]?.ToString())
+            .OrderBy(role => role)
+            .ToArray();
+
+        Assert.Equal(RolesSgv.Todos.OrderBy(role => role), roles);
     }
 }
