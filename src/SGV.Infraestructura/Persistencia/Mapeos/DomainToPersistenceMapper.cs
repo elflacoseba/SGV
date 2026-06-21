@@ -149,6 +149,32 @@ internal static class DomainToPersistenceMapper
         entity.UpdatedByUserId = domain.UpdatedByUserId;
     }
 
+    public static CargoHabilidadEntity ToEntity(CargoHabilidad domain)
+    {
+        return new CargoHabilidadEntity
+        {
+            Id = domain.Id,
+            CargoId = domain.CargoId,
+            HabilidadId = domain.HabilidadId,
+            NivelRequeridoId = domain.NivelRequeridoId,
+            Ponderacion = domain.Ponderacion,
+            EsObligatoria = domain.EsObligatoria
+        };
+    }
+
+    public static PersonaHabilidadEntity ToEntity(PersonaHabilidad domain)
+    {
+        return new PersonaHabilidadEntity
+        {
+            Id = domain.Id,
+            PersonaId = domain.PersonaId,
+            HabilidadId = domain.HabilidadId,
+            NivelHabilidadId = domain.NivelHabilidadId,
+            VerificadoAt = domain.VerificadoAt,
+            Fuente = domain.Fuente
+        };
+    }
+
     public static NivelCargoEntity ToEntity(NivelCargo domain)
     {
         return new NivelCargoEntity

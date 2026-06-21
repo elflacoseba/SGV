@@ -51,6 +51,20 @@ internal static class RepositoryTestData
         };
     }
 
+    public static PersonaEntity CreatePersona(string prefix)
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        return new PersonaEntity
+        {
+            Id = Guid.NewGuid(),
+            Legajo = $"{prefix}-{suffix}",
+            Nombres = $"Nombre {prefix}",
+            Apellidos = $"Apellido {prefix}",
+            Email = $"{prefix.ToLowerInvariant()}-{suffix}@test.com",
+            IsActive = true
+        };
+    }
+
     public static PuestoEntity CreatePuesto(
         string prefix,
         UnidadOrganizativaEntity unidadOrganizativa,

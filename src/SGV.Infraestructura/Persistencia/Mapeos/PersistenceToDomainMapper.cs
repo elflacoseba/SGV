@@ -134,6 +134,33 @@ internal static class PersistenceToDomainMapper
         return tipo;
     }
 
+    public static NivelHabilidad ToDomain(NivelHabilidadEntity entity)
+    {
+        var nivel = new NivelHabilidad(entity.Codigo, entity.Nombre, entity.ValorNumerico, entity.Orden)
+        {
+            Id = entity.Id
+        };
+        return nivel;
+    }
+
+    public static CargoHabilidad ToDomain(CargoHabilidadEntity entity)
+    {
+        var ch = new CargoHabilidad(entity.CargoId, entity.HabilidadId, entity.NivelRequeridoId, entity.Ponderacion, entity.EsObligatoria)
+        {
+            Id = entity.Id
+        };
+        return ch;
+    }
+
+    public static PersonaHabilidad ToDomain(PersonaHabilidadEntity entity)
+    {
+        var ph = new PersonaHabilidad(entity.PersonaId, entity.HabilidadId, entity.NivelHabilidadId, entity.VerificadoAt, entity.Fuente)
+        {
+            Id = entity.Id
+        };
+        return ph;
+    }
+
     public static Persona ToDomain(PersonaEntity entity)
     {
         var persona = new Persona(entity.Nombres, entity.Apellidos, entity.Legajo, entity.Email)
