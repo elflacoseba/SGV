@@ -285,6 +285,95 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
+    public async Task SkillSubresources_AreDocumented()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        // Cargo skill subresource: collection path lists assignments
+        var cargoCollectionPath = paths.GetProperty("/api/v1/cargos/{cargoId}/skills");
+        var cargoCollectionOps = new HashSet<string>();
+        foreach (var op in cargoCollectionPath.EnumerateObject())
+            cargoCollectionOps.Add(op.Name.ToLowerInvariant());
+        Assert.Contains("get", cargoCollectionOps);
+
+        // Cargo skill subresource: item path upserts/deletes an assignment
+        var cargoItemPath = paths.GetProperty("/api/v1/cargos/{cargoId}/skills/{skillId}");
+        var cargoItemOps = new HashSet<string>();
+        foreach (var op in cargoItemPath.EnumerateObject())
+            cargoItemOps.Add(op.Name.ToLowerInvariant());
+        Assert.Contains("put", cargoItemOps);
+        Assert.Contains("delete", cargoItemOps);
+
+        // Persona skill subresource: collection path lists assignments
+        var personaCollectionPath = paths.GetProperty("/api/v1/personas/{personaId}/skills");
+        var personaCollectionOps = new HashSet<string>();
+        foreach (var op in personaCollectionPath.EnumerateObject())
+            personaCollectionOps.Add(op.Name.ToLowerInvariant());
+        Assert.Contains("get", personaCollectionOps);
+
+        // Persona skill subresource: item path upserts/deletes an assignment
+        var personaItemPath = paths.GetProperty("/api/v1/personas/{personaId}/skills/{skillId}");
+        var personaItemOps = new HashSet<string>();
+        foreach (var op in personaItemPath.EnumerateObject())
+            personaItemOps.Add(op.Name.ToLowerInvariant());
+        Assert.Contains("put", personaItemOps);
+        Assert.Contains("delete", personaItemOps);
+    }
+
+    [Fact]
+    public async Task SkillsCatalog_DocumentsOnlyCatalogOperations()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        // Collection path: catalog list and create
+        var collectionPath = paths.GetProperty("/api/v1/skills");
+        var collectionOps = new HashSet<string>();
+        foreach (var op in collectionPath.EnumerateObject())
+            collectionOps.Add(op.Name.ToLowerInvariant());
+        Assert.Contains("get", collectionOps);
+        Assert.Contains("post", collectionOps);
+
+        // Item path: catalog read, update, delete
+        var itemPath = paths.GetProperty("/api/v1/skills/{id}");
+        var itemOps = new HashSet<string>();
+        foreach (var op in itemPath.EnumerateObject())
+            itemOps.Add(op.Name.ToLowerInvariant());
+        Assert.Contains("get", itemOps);
+        Assert.Contains("put", itemOps);
+        Assert.Contains("delete", itemOps);
+
+        // Reactivar path: catalog reactivate
+        var reactivarPath = paths.GetProperty("/api/v1/skills/{id}/reactivar");
+        var reactivarOps = new HashSet<string>();
+        foreach (var op in reactivarPath.EnumerateObject())
+            reactivarOps.Add(op.Name.ToLowerInvariant());
+        Assert.Contains("patch", reactivarOps);
+
+        // No other paths should live under /api/v1/skills (e.g. assignment endpoints)
+        foreach (var path in paths.EnumerateObject())
+        {
+            if (path.Name.StartsWith("/api/v1/skills", StringComparison.OrdinalIgnoreCase))
+            {
+                Assert.True(
+                    path.Name is "/api/v1/skills" or "/api/v1/skills/{id}" or "/api/v1/skills/{id}/reactivar",
+                    $"Unexpected skill catalog sub-path documented: {path.Name}");
+            }
+        }
+    }
+
+    [Fact]
     public async Task SwaggerDocument_NoCargoHabilidadOrPersonaHabilidadPaths()
     {
         var client = _factory.CreateClient();

@@ -81,6 +81,22 @@ public sealed class CargosControllerTests
     }
 
     [Fact]
+    public async Task GetById_ParentPayloadDoesNotIncludeSkillAssignmentFields()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain("skillId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("habilidades", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Controller_DoesNotHaveAuthorizeAttribute()
     {
         var controllerType = typeof(SGV.Api.Controllers.CargosController);
