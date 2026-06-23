@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
     <ProjectReference Include="..\SGV.Aplicacion\SGV.Aplicacion.csproj" />
     <ProjectReference Include="..\SGV.Infraestructura\SGV.Infraestructura.csproj" />
@@ -19,6 +19,7 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <UserSecretsId>42b7cb22-3f33-422b-9269-bf47677d4ff8</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
