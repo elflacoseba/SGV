@@ -33,9 +33,9 @@ Chain strategy: pending
 
 ## Phase 2: Application Services
 
-- [ ] 2.1 RED: add `tests/SGV.Tests/Aplicacion/Ocupaciones/OcupacionServicioComandosTests.cs` for `404` vs `409`, finalized-not-editable, uniqueness collisions, and same-row reactivation.
-- [ ] 2.2 GREEN: implement `src/SGV.Aplicacion/Ocupaciones/Comandos/OcupacionServicioComandos.cs` with `IPersonaRepository`, `IPuestoRepository`, `IOcupacionRepository`, and `IUnitOfWork` orchestration.
-- [ ] 2.3 RED/GREEN: add `tests/SGV.Tests/Aplicacion/Ocupaciones/OcupacionServicioConsultaTests.cs` and implement `src/SGV.Aplicacion/Ocupaciones/Consultas/OcupacionServicioConsulta.cs` for active-only list, `includeHistory`, and detail reads.
+- [x] 2.1 RED: add `tests/SGV.Tests/Aplicacion/Ocupaciones/OcupacionServicioComandosTests.cs` for `404` vs `409`, finalized-not-editable, uniqueness collisions, and same-row reactivation.
+- [x] 2.2 GREEN: implement `src/SGV.Aplicacion/Ocupaciones/Comandos/OcupacionServicioComandos.cs` with `IPersonaRepository`, `IPuestoRepository`, `IOcupacionRepository`, and `IUnitOfWork` orchestration.
+- [x] 2.3 RED/GREEN: add `tests/SGV.Tests/Aplicacion/Ocupaciones/OcupacionServicioConsultaTests.cs` and implement `src/SGV.Aplicacion/Ocupaciones/Consultas/OcupacionServicioConsulta.cs` for active-only list, `includeHistory`, and detail reads.
 
 ## Phase 3: Infrastructure and Persistence
 
