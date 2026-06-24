@@ -240,6 +240,138 @@ public sealed class OcupacionServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // Issue 9: Missing tests for ActualizarAsync reference validation.
+
+    [Fact]
+    public async Task ActualizarAsync_PersonaInexistente_Retorna404()
+    {
+        var ocupacion = CrearOcupacionActiva(PuestoIdActivo, PersonaIdActiva, OcupacionIdActiva);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository();
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        var resultado = await servicio.ActualizarAsync(
+            ocupacion.Id,
+            new ActualizarOcupacionRequest(PersonaIdInexistente, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_PersonaInactiva_Retorna409()
+    {
+        var ocupacion = CrearOcupacionActiva(PuestoIdActivo, PersonaIdActiva, OcupacionIdActiva);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaInactiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        var resultado = await servicio.ActualizarAsync(
+            ocupacion.Id,
+            new ActualizarOcupacionRequest(PersonaIdInactiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_PuestoInexistente_Retorna404()
+    {
+        var ocupacion = CrearOcupacionActiva(PuestoIdActivo, PersonaIdActiva, OcupacionIdActiva);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        var resultado = await servicio.ActualizarAsync(
+            ocupacion.Id,
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdInexistente, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_PuestoInactivo_Retorna409()
+    {
+        var ocupacion = CrearOcupacionActiva(PuestoIdActivo, PersonaIdActiva, OcupacionIdActiva);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoInactivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        var resultado = await servicio.ActualizarAsync(
+            ocupacion.Id,
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdInactivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_PuestoOcupado_Retorna409()
+    {
+        var ocupacion = CrearOcupacionActiva(PuestoIdActivo, PersonaIdActiva, OcupacionIdActiva);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        // Another active occupation for the same puesto with a different persona.
+        var otra = CrearOcupacionActiva(PuestoIdActivo, PersonaIdInactiva, Guid.NewGuid());
+        ocupacionRepo.Datos.Add(otra);
+
+        var resultado = await servicio.ActualizarAsync(
+            ocupacion.Id,
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("PuestoOcupado", resultado.Error!.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_PersonaYPuestoOcupados_Retorna409()
+    {
+        var ocupacion = CrearOcupacionActiva(PuestoIdActivo, PersonaIdActiva, OcupacionIdActiva);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        // Another active occupation for the same persona+puesto (different id).
+        var otra = CrearOcupacionActiva(PuestoIdActivo, PersonaIdActiva, Guid.NewGuid());
+        ocupacionRepo.Datos.Add(otra);
+
+        var resultado = await servicio.ActualizarAsync(
+            ocupacion.Id,
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("PersonaYPuestoOcupados", resultado.Error!.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
     // ── FinalizarAsync ──────────────────────────────────────────
 
     [Fact]
@@ -437,6 +569,76 @@ public sealed class OcupacionServicioComandosTests
         var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
         var personaRepo = new FakePersonaWriteRepository();
         var puestoRepo = new FakePuestoWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    // Issue 10: Missing tests for ReactivarAsync reference validation.
+
+    [Fact]
+    public async Task ReactivarAsync_PersonaInexistente_Retorna404()
+    {
+        var ocupacion = CrearOcupacionFinalizada(PuestoIdActivo, PersonaIdInexistente, OcupacionIdFinalizada);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository();
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ReactivarAsync_PersonaInactiva_Retorna409()
+    {
+        var ocupacion = CrearOcupacionFinalizada(PuestoIdActivo, PersonaIdInactiva, OcupacionIdFinalizada);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaInactiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ReactivarAsync_PuestoInexistente_Retorna404()
+    {
+        var ocupacion = CrearOcupacionFinalizada(PuestoIdInexistente, PersonaIdActiva, OcupacionIdFinalizada);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
+
+        var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ReactivarAsync_PuestoInactivo_Retorna409()
+    {
+        var ocupacion = CrearOcupacionFinalizada(PuestoIdInactivo, PersonaIdActiva, OcupacionIdFinalizada);
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacion] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoInactivo()] };
         var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
 

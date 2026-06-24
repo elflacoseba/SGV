@@ -55,18 +55,6 @@ public sealed class OcupacionServicioConsulta(IOcupacionRepository repository)
             ocupacion.FechaFin,
             ocupacion.TipoAsignacion,
             ocupacion.Observaciones,
-            CalcularEstado(ocupacion));
-    }
-
-    /// <summary>
-    /// Computes the display state string from the domain entity.
-    /// </summary>
-    private static string CalcularEstado(Ocupacion ocupacion)
-    {
-        if (ocupacion.IsDeleted)
-            return "Eliminado";
-        if (ocupacion.FechaFin is not null)
-            return "Finalizado";
-        return "Activo";
+            OcupacionEstadoHelper.CalcularEstado(ocupacion));
     }
 }

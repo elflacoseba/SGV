@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Ocupaciones.Comandos.Validaciones;
 using SGV.Aplicacion.Ocupaciones.Consultas;
@@ -6,6 +7,8 @@ using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Dominio.Ocupaciones;
+using SGV.Dominio.Organizacion;
+using SGV.Dominio.Personas;
 
 namespace SGV.Aplicacion.Ocupaciones.Comandos;
 
@@ -13,15 +16,45 @@ namespace SGV.Aplicacion.Ocupaciones.Comandos;
 /// Application command service for Ocupacion write operations.
 /// Orchestrates reference validation, uniqueness checks, domain methods, and persistence.
 /// </summary>
-public sealed class OcupacionServicioComandos(
-    IOcupacionRepository ocupacionRepository,
-    IPersonaRepository personaRepository,
-    IPuestoRepository puestoRepository,
-    IUnitOfWork unitOfWork,
-    IValidator<CrearOcupacionRequest> crearValidator,
-    IValidator<ActualizarOcupacionRequest> actualizarValidator,
-    IValidator<FinalizarOcupacionRequest> finalizarValidator) : IOcupacionServicioComandos
+public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
 {
+    private readonly IOcupacionRepository ocupacionRepository;
+    private readonly IPersonaRepository personaRepository;
+    private readonly IPuestoRepository puestoRepository;
+    private readonly IUnitOfWork unitOfWork;
+    private readonly IValidator<CrearOcupacionRequest> crearValidator;
+    private readonly IValidator<ActualizarOcupacionRequest> actualizarValidator;
+    private readonly IValidator<FinalizarOcupacionRequest> finalizarValidator;
+
+    /// <summary>
+    /// Primary constructor with full dependency set.
+    /// </summary>
+    public OcupacionServicioComandos(
+        IOcupacionRepository ocupacionRepository,
+        IPersonaRepository personaRepository,
+        IPuestoRepository puestoRepository,
+        IUnitOfWork unitOfWork,
+        IValidator<CrearOcupacionRequest> crearValidator,
+        IValidator<ActualizarOcupacionRequest> actualizarValidator,
+        IValidator<FinalizarOcupacionRequest> finalizarValidator)
+    {
+        ArgumentNullException.ThrowIfNull(ocupacionRepository);
+        ArgumentNullException.ThrowIfNull(personaRepository);
+        ArgumentNullException.ThrowIfNull(puestoRepository);
+        ArgumentNullException.ThrowIfNull(unitOfWork);
+        ArgumentNullException.ThrowIfNull(crearValidator);
+        ArgumentNullException.ThrowIfNull(actualizarValidator);
+        ArgumentNullException.ThrowIfNull(finalizarValidator);
+
+        this.ocupacionRepository = ocupacionRepository;
+        this.personaRepository = personaRepository;
+        this.puestoRepository = puestoRepository;
+        this.unitOfWork = unitOfWork;
+        this.crearValidator = crearValidator;
+        this.actualizarValidator = actualizarValidator;
+        this.finalizarValidator = finalizarValidator;
+    }
+
     /// <summary>
     /// Convenience constructor for tests and simple registration.
     /// Uses the real validators directly.
@@ -84,16 +117,17 @@ public sealed class OcupacionServicioComandos(
                 new(OcupacionErrorType.Conflict, "PuestoInactivo", "El puesto referenciado no está activo."));
         }
 
-        if (await ocupacionRepository.ExistsActiveByPuestoAsync(request.PuestoId, cancellationToken: cancellationToken).ConfigureAwait(false))
-        {
-            return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe una ocupación activa para el puesto especificado."));
-        }
-
+        // Issue 4: Check Persona+Puesto first (more specific), then Puesto alone.
         if (await ocupacionRepository.ExistsActiveByPersonaYPuestoAsync(request.PersonaId, request.PuestoId, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "PersonaYPuestoOcupados", "Ya existe una ocupación activa para la misma persona y puesto."));
+        }
+
+        if (await ocupacionRepository.ExistsActiveByPuestoAsync(request.PuestoId, cancellationToken: cancellationToken).ConfigureAwait(false))
+        {
+            return OcupacionCommandResult.Failure(
+                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe una ocupación activa para el puesto especificado."));
         }
 
         try
@@ -108,14 +142,16 @@ public sealed class OcupacionServicioComandos(
             await ocupacionRepository.AddAsync(ocupacion, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            var personaNombre = persona is not null ? $"{persona.Nombres} {persona.Apellidos}" : "";
-            var puestoNombre = puesto?.Nombre ?? "";
+            // Issue 7: Direct access — validation guarantees non-null.
+            var personaNombre = $"{persona.Nombres} {persona.Apellidos}";
+            var puestoNombre = puesto.Nombre;
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
         {
+            // Issue 2: DbUpdateException caught for concurrent uniqueness violations.
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Validation, "DatosInvalidos", ex.Message));
+                new(OcupacionErrorType.Conflict, "DatosInvalidos", ex.Message));
         }
     }
 
@@ -147,27 +183,25 @@ public sealed class OcupacionServicioComandos(
                 new(OcupacionErrorType.Conflict, "OcupacionNoEditable", "La ocupación no está activa y no se puede modificar."));
         }
 
-        var personaCheck = await ValidarReferenciaPersonaAsync(
+        // Issue 1: Validation helpers return the loaded entity — no redundant fetch.
+        var (personaError, persona) = await ValidarReferenciaPersonaAsync(
             request.PersonaId, nameof(request.PersonaId), cancellationToken).ConfigureAwait(false);
-        if (personaCheck is not null) return personaCheck;
+        if (personaError is not null) return personaError;
 
-        var puestoCheck = await ValidarReferenciaPuestoAsync(
+        var (puestoError, puesto) = await ValidarReferenciaPuestoAsync(
             request.PuestoId, nameof(request.PuestoId), cancellationToken).ConfigureAwait(false);
-        if (puestoCheck is not null) return puestoCheck;
-
-        var persona = await personaRepository.GetByIdIncludingDeletedAsync(request.PersonaId, cancellationToken).ConfigureAwait(false);
-        var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(request.PuestoId, cancellationToken).ConfigureAwait(false);
-
-        if (await ocupacionRepository.ExistsActiveByPuestoAsync(request.PuestoId, id, cancellationToken).ConfigureAwait(false))
-        {
-            return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe otra ocupación activa para el puesto especificado."));
-        }
+        if (puestoError is not null) return puestoError;
 
         if (await ocupacionRepository.ExistsActiveByPersonaYPuestoAsync(request.PersonaId, request.PuestoId, id, cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "PersonaYPuestoOcupados", "Ya existe otra ocupación activa para la misma persona y puesto."));
+        }
+
+        if (await ocupacionRepository.ExistsActiveByPuestoAsync(request.PuestoId, id, cancellationToken).ConfigureAwait(false))
+        {
+            return OcupacionCommandResult.Failure(
+                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe otra ocupación activa para el puesto especificado."));
         }
 
         try
@@ -177,14 +211,15 @@ public sealed class OcupacionServicioComandos(
             await ocupacionRepository.UpdateAsync(ocupacion, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            var personaNombre = persona is not null ? $"{persona.Nombres} {persona.Apellidos}" : "";
-            var puestoNombre = puesto?.Nombre ?? "";
+            var personaNombre = $"{persona!.Nombres} {persona.Apellidos}";
+            var puestoNombre = puesto!.Nombre;
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
         {
+            // Issue 2: DbUpdateException caught for concurrent uniqueness violations.
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Validation, "DatosInvalidos", ex.Message));
+                new(OcupacionErrorType.Conflict, "DatosInvalidos", ex.Message));
         }
     }
 
@@ -223,16 +258,16 @@ public sealed class OcupacionServicioComandos(
             await ocupacionRepository.UpdateAsync(ocupacion, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            var personaNombre = "";
-            var puestoNombre = "";
-            if (ocupacion.Persona is not null)
-                personaNombre = $"{ocupacion.Persona.Nombres} {ocupacion.Persona.Apellidos}";
-            if (ocupacion.Puesto is not null)
-                puestoNombre = ocupacion.Puesto.Nombre;
+            // Issue 3: Explicit fetch instead of relying on navigation properties.
+            var persona = await personaRepository.GetByIdIncludingDeletedAsync(ocupacion.PersonaId, cancellationToken).ConfigureAwait(false);
+            var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(ocupacion.PuestoId, cancellationToken).ConfigureAwait(false);
+
+            var personaNombre = persona is not null ? $"{persona.Nombres} {persona.Apellidos}" : "";
+            var puestoNombre = puesto?.Nombre ?? "";
 
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
         {
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "FinalizacionInvalida", ex.Message));
@@ -265,16 +300,16 @@ public sealed class OcupacionServicioComandos(
             await ocupacionRepository.UpdateAsync(ocupacion, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            var personaNombre = "";
-            var puestoNombre = "";
-            if (ocupacion.Persona is not null)
-                personaNombre = $"{ocupacion.Persona.Nombres} {ocupacion.Persona.Apellidos}";
-            if (ocupacion.Puesto is not null)
-                puestoNombre = ocupacion.Puesto.Nombre;
+            // Issue 3: Explicit fetch instead of relying on navigation properties.
+            var persona = await personaRepository.GetByIdIncludingDeletedAsync(ocupacion.PersonaId, cancellationToken).ConfigureAwait(false);
+            var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(ocupacion.PuestoId, cancellationToken).ConfigureAwait(false);
+
+            var personaNombre = persona is not null ? $"{persona.Nombres} {persona.Apellidos}" : "";
+            var puestoNombre = puesto?.Nombre ?? "";
 
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
         {
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "EliminacionInvalida", ex.Message));
@@ -300,27 +335,25 @@ public sealed class OcupacionServicioComandos(
                 new(OcupacionErrorType.Conflict, "OcupacionYaActiva", "La ocupación ya está activa."));
         }
 
-        var personaCheck = await ValidarReferenciaPersonaAsync(
+        // Issue 1: Validation helpers return the loaded entity — no redundant fetch.
+        var (personaError, persona) = await ValidarReferenciaPersonaAsync(
             ocupacion.PersonaId, nameof(ocupacion.PersonaId), cancellationToken).ConfigureAwait(false);
-        if (personaCheck is not null) return personaCheck;
+        if (personaError is not null) return personaError;
 
-        var puestoCheck = await ValidarReferenciaPuestoAsync(
+        var (puestoError, puesto) = await ValidarReferenciaPuestoAsync(
             ocupacion.PuestoId, nameof(ocupacion.PuestoId), cancellationToken).ConfigureAwait(false);
-        if (puestoCheck is not null) return puestoCheck;
-
-        var persona = await personaRepository.GetByIdIncludingDeletedAsync(ocupacion.PersonaId, cancellationToken).ConfigureAwait(false);
-        var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(ocupacion.PuestoId, cancellationToken).ConfigureAwait(false);
-
-        if (await ocupacionRepository.ExistsActiveByPuestoAsync(ocupacion.PuestoId, id, cancellationToken).ConfigureAwait(false))
-        {
-            return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe una ocupación activa para el puesto especificado."));
-        }
+        if (puestoError is not null) return puestoError;
 
         if (await ocupacionRepository.ExistsActiveByPersonaYPuestoAsync(ocupacion.PersonaId, ocupacion.PuestoId, id, cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "PersonaYPuestoOcupados", "Ya existe una ocupación activa para la misma persona y puesto."));
+        }
+
+        if (await ocupacionRepository.ExistsActiveByPuestoAsync(ocupacion.PuestoId, id, cancellationToken).ConfigureAwait(false))
+        {
+            return OcupacionCommandResult.Failure(
+                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe una ocupación activa para el puesto especificado."));
         }
 
         try
@@ -330,20 +363,24 @@ public sealed class OcupacionServicioComandos(
             await ocupacionRepository.UpdateAsync(ocupacion, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            var personaNombre = persona is not null ? $"{persona.Nombres} {persona.Apellidos}" : "";
-            var puestoNombre = puesto?.Nombre ?? "";
+            var personaNombre = $"{persona!.Nombres} {persona.Apellidos}";
+            var puestoNombre = puesto!.Nombre;
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
         {
+            // Issue 5: Normalize to Conflict (was Validation).
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Validation, "ReactivacionInvalida", ex.Message));
+                new(OcupacionErrorType.Conflict, "ReactivacionInvalida", ex.Message));
         }
     }
 
     // ── Helpers ─────────────────────────────────────────────────
 
-    private async Task<OcupacionCommandResult?> ValidarReferenciaPersonaAsync(
+    /// <summary>
+    /// Validates persona reference and returns the loaded entity on success.
+    /// </summary>
+    private async Task<(OcupacionCommandResult? error, Persona? persona)> ValidarReferenciaPersonaAsync(
         Guid personaId, string fieldName, CancellationToken cancellationToken)
     {
         if (personaId == Guid.Empty)
@@ -352,27 +389,30 @@ public sealed class OcupacionServicioComandos(
             {
                 [ToCamelCase(fieldName)] = ["La persona es obligatoria."]
             };
-            return OcupacionCommandResult.Failure(
+            return (OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Validation, "DatosInvalidos", "La persona no puede estar vacía."),
-                fieldErrors);
+                fieldErrors), null);
         }
 
         var persona = await personaRepository.GetByIdIncludingDeletedAsync(personaId, cancellationToken).ConfigureAwait(false);
         if (persona is null)
         {
-            return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "PersonaNoEncontrada", "La persona referenciada no existe."));
+            return (OcupacionCommandResult.Failure(
+                new(OcupacionErrorType.NotFound, "PersonaNoEncontrada", "La persona referenciada no existe.")), null);
         }
         if (!persona.IsActive)
         {
-            return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PersonaInactiva", "La persona referenciada no está activa."));
+            return (OcupacionCommandResult.Failure(
+                new(OcupacionErrorType.Conflict, "PersonaInactiva", "La persona referenciada no está activa.")), null);
         }
 
-        return null;
+        return (null, persona);
     }
 
-    private async Task<OcupacionCommandResult?> ValidarReferenciaPuestoAsync(
+    /// <summary>
+    /// Validates puesto reference and returns the loaded entity on success.
+    /// </summary>
+    private async Task<(OcupacionCommandResult? error, Puesto? puesto)> ValidarReferenciaPuestoAsync(
         Guid puestoId, string fieldName, CancellationToken cancellationToken)
     {
         if (puestoId == Guid.Empty)
@@ -381,24 +421,24 @@ public sealed class OcupacionServicioComandos(
             {
                 [ToCamelCase(fieldName)] = ["El puesto es obligatorio."]
             };
-            return OcupacionCommandResult.Failure(
+            return (OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Validation, "DatosInvalidos", "El puesto no puede estar vacío."),
-                fieldErrors);
+                fieldErrors), null);
         }
 
         var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(puestoId, cancellationToken).ConfigureAwait(false);
         if (puesto is null)
         {
-            return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "PuestoNoEncontrado", "El puesto referenciado no existe."));
+            return (OcupacionCommandResult.Failure(
+                new(OcupacionErrorType.NotFound, "PuestoNoEncontrado", "El puesto referenciado no existe.")), null);
         }
         if (!puesto.IsActive)
         {
-            return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoInactivo", "El puesto referenciado no está activo."));
+            return (OcupacionCommandResult.Failure(
+                new(OcupacionErrorType.Conflict, "PuestoInactivo", "El puesto referenciado no está activo.")), null);
         }
 
-        return null;
+        return (null, puesto);
     }
 
     private static OcupacionDto MapToDto(Ocupacion ocupacion, string personaNombre, string puestoNombre)
@@ -413,19 +453,7 @@ public sealed class OcupacionServicioComandos(
             ocupacion.FechaFin,
             ocupacion.TipoAsignacion,
             ocupacion.Observaciones,
-            CalcularEstado(ocupacion));
-    }
-
-    /// <summary>
-    /// Computes the display state string from the domain entity.
-    /// </summary>
-    private static string CalcularEstado(Ocupacion ocupacion)
-    {
-        if (ocupacion.IsDeleted)
-            return "Eliminado";
-        if (ocupacion.FechaFin is not null)
-            return "Finalizado";
-        return "Activo";
+            OcupacionEstadoHelper.CalcularEstado(ocupacion));
     }
 
     private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
