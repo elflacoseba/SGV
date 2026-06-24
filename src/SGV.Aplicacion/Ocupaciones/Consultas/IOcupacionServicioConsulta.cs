@@ -17,7 +17,9 @@ public interface IOcupacionServicioConsulta
 
     /// <summary>
     /// Returns a single occupation by its identifier, or null if not found.
-    /// Detail reads always include historical rows.
+    /// Detail reads MUST bypass soft-delete filters — the underlying
+    /// repository call uses a dedicated method that ignores <see cref="IsDeleted"/>
+    /// to include historical (finalized/deleted) rows.
     /// </summary>
     Task<OcupacionDto?> GetByIdAsync(
         Guid id,

@@ -10,7 +10,7 @@ public sealed class Ocupacion : EntidadAuditable
     {
     }
 
-    public Ocupacion(Guid personaId, Guid puestoId, DateOnly fechaInicio, TipoAsignacion tipoAsignacion, DateOnly? fechaFin = null)
+    public Ocupacion(Guid personaId, Guid puestoId, DateOnly fechaInicio, TipoAsignacion tipoAsignacion, DateOnly? fechaFin = null, string? observaciones = null)
     {
         if (fechaFin.HasValue && fechaFin.Value < fechaInicio)
         {
@@ -22,6 +22,7 @@ public sealed class Ocupacion : EntidadAuditable
         FechaInicio = fechaInicio;
         FechaFin = fechaFin;
         TipoAsignacion = tipoAsignacion;
+        Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 1000);
     }
 
     public Guid PersonaId { get; private set; }
@@ -73,12 +74,6 @@ public sealed class Ocupacion : EntidadAuditable
     {
         RequerirEditable();
 
-        if (FechaInicio != fechaInicio && FechaFin.HasValue && fechaInicio > FechaFin.Value)
-        {
-            throw new InvalidOperationException(
-                "La nueva fecha de inicio no puede ser posterior a la fecha de fin actual.");
-        }
-
         PersonaId = personaId;
         PuestoId = puestoId;
         FechaInicio = fechaInicio;
@@ -100,7 +95,11 @@ public sealed class Ocupacion : EntidadAuditable
         }
 
         FechaFin = fechaFin;
-        Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 1000);
+
+        if (observaciones is not null)
+        {
+            Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 1000);
+        }
     }
 
     /// <summary>
@@ -131,5 +130,6 @@ public sealed class Ocupacion : EntidadAuditable
         FechaFin = null;
         IsDeleted = false;
         DeletedAt = null;
+        DeletedByUserId = null;
     }
 }

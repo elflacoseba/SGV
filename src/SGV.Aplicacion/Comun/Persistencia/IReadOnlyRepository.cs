@@ -10,6 +10,8 @@ public interface IReadOnlyRepository<T> where T : class
     /// <summary>
     /// Retrieves an entity by its identifier.
     /// Returns null when no matching entity is found.
+    /// This method applies soft-delete filters by default;
+    /// returns <see langword="null"/> for soft-deleted items.
     /// </summary>
     Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
