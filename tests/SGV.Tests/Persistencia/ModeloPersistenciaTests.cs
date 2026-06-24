@@ -90,6 +90,80 @@ public sealed class ModeloPersistenciaTests
         Assert.True(indice.IsUnique);
     }
 
+    // ── Ocupacion: TipoAsignacion como enum ─────────────────────
+
+    [Fact]
+    public void Modelo_Ocupacion_TipoAsignacionEsNumeroYNoTexto()
+    {
+        var entidad = _contexto.Model.FindEntityType(typeof(OcupacionEntity));
+
+        var tipoAsignacionProp = entidad!.FindProperty(nameof(OcupacionEntity.TipoAsignacion));
+        Assert.NotNull(tipoAsignacionProp);
+
+        // El enum debe persistirse como entero, no como texto
+        Assert.Equal(typeof(int), tipoAsignacionProp!.GetColumnType() is null
+            ? tipoAsignacionProp.ClrType
+            : typeof(int));
+    }
+
+    [Fact]
+    public void Modelo_Ocupacion_TipoAsignacionNoEsString()
+    {
+        var entidad = _contexto.Model.FindEntityType(typeof(OcupacionEntity));
+
+        var tipoAsignacionProp = entidad!.FindProperty(nameof(OcupacionEntity.TipoAsignacion));
+        Assert.NotNull(tipoAsignacionProp);
+
+        // El tipo CLR no debe ser string
+        Assert.NotEqual(typeof(string), tipoAsignacionProp!.ClrType);
+    }
+
+    // ── Ocupacion: unicidad activa ──────────────────────────────
+
+    [Fact]
+    public void Modelo_Ocupacion_ConservaUnicidadActivaPorPuesto()
+    {
+        var entidad = _contexto.Model.FindEntityType(typeof(OcupacionEntity));
+
+        var generatedProperty = entidad!.FindProperty("ActivePuestoIdUnique");
+        Assert.NotNull(generatedProperty);
+
+        var computedSql = generatedProperty!.GetComputedColumnSql();
+        Assert.NotNull(computedSql);
+        Assert.Contains("FechaFin", computedSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IsDeleted", computedSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PuestoId", computedSql, StringComparison.OrdinalIgnoreCase);
+
+        var index = entidad.GetIndexes()
+            .Single(i => i.Properties.Any(p => p.Name == "ActivePuestoIdUnique"));
+        Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public void Modelo_Ocupacion_ReemplazaUnicidadPersonaPorPersonaPuesto()
+    {
+        var entidad = _contexto.Model.FindEntityType(typeof(OcupacionEntity));
+
+        // La columna generada antigua NO debe existir
+        var oldProperty = entidad!.FindProperty("ActivePersonaIdUnique");
+        Assert.Null(oldProperty);
+
+        // La nueva columna generada DEBE existir
+        var newProperty = entidad!.FindProperty("ActivePersonaPuestoUnique");
+        Assert.NotNull(newProperty);
+
+        var computedSql = newProperty!.GetComputedColumnSql();
+        Assert.NotNull(computedSql);
+        Assert.Contains("FechaFin", computedSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IsDeleted", computedSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PersonaId", computedSql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PuestoId", computedSql, StringComparison.OrdinalIgnoreCase);
+
+        var index = entidad.GetIndexes()
+            .Single(i => i.Properties.Any(p => p.Name == "ActivePersonaPuestoUnique"));
+        Assert.True(index.IsUnique);
+    }
+
     [Fact]
     public void Modelo_CheckConstraintsUsanSintaxisMySql()
     {
