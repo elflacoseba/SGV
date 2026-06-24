@@ -52,6 +52,45 @@ public sealed class OcupacionRepository(SgvDbContext context)
         return entities.Select(MapToDomain).ToArray();
     }
 
+    /// <summary>
+    /// Lists active occupations with pagination.
+    /// </summary>
+    public async Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var query = Query.Where(o => o.FechaFin == null);
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var entities = await query
+            .OrderByDescending(o => o.FechaInicio)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
+    /// <summary>
+    /// Lists all occupations including history with pagination.
+    /// </summary>
+    public async Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var query = Context.Set<OcupacionEntity>().AsNoTracking()
+            .Include(o => o.Persona)
+            .Include(o => o.Puesto);
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var entities = await query
+            .OrderByDescending(o => o.FechaInicio)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
     public async Task AddAsync(Ocupacion ocupacion, CancellationToken cancellationToken = default)
     {
         var entity = DomainToPersistenceMapper.ToEntity(ocupacion);

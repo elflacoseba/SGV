@@ -51,11 +51,11 @@ public sealed class OcupacionServicioConsultaTests
         };
         var servicio = new OcupacionServicioConsulta(repo);
 
-        var resultado = await servicio.ListAsync(includeHistory: false, default);
+        var resultado = await servicio.ListAsync(includeHistory: false, page: 1, pageSize: 20, default);
 
-        Assert.Single(resultado);
-        Assert.Equal(OcupacionIdActiva, resultado[0].Id);
-        Assert.Equal("Activo", resultado[0].Estado);
+        Assert.Single(resultado.Items);
+        Assert.Equal(OcupacionIdActiva, resultado.Items[0].Id);
+        Assert.Equal("Activo", resultado.Items[0].Estado);
     }
 
     [Fact]
@@ -67,12 +67,12 @@ public sealed class OcupacionServicioConsultaTests
         };
         var servicio = new OcupacionServicioConsulta(repo);
 
-        var resultado = await servicio.ListAsync(includeHistory: true, default);
+        var resultado = await servicio.ListAsync(includeHistory: true, page: 1, pageSize: 20, default);
 
-        Assert.Equal(3, resultado.Count);
-        Assert.Contains(resultado, d => d.Id == OcupacionIdActiva && d.Estado == "Activo");
-        Assert.Contains(resultado, d => d.Id == OcupacionIdFinalizada && d.Estado == "Finalizado");
-        Assert.Contains(resultado, d => d.Id == OcupacionIdEliminada && d.Estado == "Eliminado");
+        Assert.Equal(3, resultado.Items.Count);
+        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdActiva && d.Estado == "Activo");
+        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdFinalizada && d.Estado == "Finalizado");
+        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdEliminada && d.Estado == "Eliminado");
     }
 
     [Fact]
@@ -81,9 +81,9 @@ public sealed class OcupacionServicioConsultaTests
         var repo = new FakeOcupacionReadRepository { Datos = [] };
         var servicio = new OcupacionServicioConsulta(repo);
 
-        var resultado = await servicio.ListAsync(includeHistory: false, default);
+        var resultado = await servicio.ListAsync(includeHistory: false, page: 1, pageSize: 20, default);
 
-        Assert.Empty(resultado);
+        Assert.Empty(resultado.Items);
     }
 
     // ── GetByIdAsync ────────────────────────────────────────────
@@ -177,4 +177,17 @@ internal sealed class FakeOcupacionReadRepository : IOcupacionRepository
 
     public Task<bool> ExistsActiveByPersonaYPuestoAsync(Guid personaId, Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake does not support write operations.");
+
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var items = Datos.Where(o => o.EsVigente).ToList();
+        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((items, items.Count));
+    }
+
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((Datos.ToList(), Datos.Count));
+    }
 }

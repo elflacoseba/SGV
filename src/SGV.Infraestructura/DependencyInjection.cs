@@ -9,6 +9,7 @@ using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Infraestructura.Seguridad;
 
@@ -25,6 +26,9 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddInfraestructuraServicios(this IServiceCollection services)
     {
+        // Constraint violation detector
+        services.AddSingleton<IConstraintViolationDetector, MySqlConstraintViolationDetector>();
+
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 

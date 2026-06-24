@@ -13,6 +13,7 @@ public sealed class SgvDbContextFactory : IDesignTimeDbContextFactory<SgvDbConte
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true)
             .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddEnvironmentVariables()
             .Build();
 
         var connectionString = configuration.GetConnectionString("SgvDatabase")

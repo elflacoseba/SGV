@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Ocupaciones.Comandos.Validaciones;
 using SGV.Aplicacion.Ocupaciones.Consultas;
@@ -22,6 +23,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
     private readonly IPersonaRepository personaRepository;
     private readonly IPuestoRepository puestoRepository;
     private readonly IUnitOfWork unitOfWork;
+    private readonly IConstraintViolationDetector constraintDetector;
+    private readonly ILogger<OcupacionServicioComandos> logger;
     private readonly IValidator<CrearOcupacionRequest> crearValidator;
     private readonly IValidator<ActualizarOcupacionRequest> actualizarValidator;
     private readonly IValidator<FinalizarOcupacionRequest> finalizarValidator;
@@ -34,6 +37,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         IPersonaRepository personaRepository,
         IPuestoRepository puestoRepository,
         IUnitOfWork unitOfWork,
+        IConstraintViolationDetector constraintDetector,
+        ILogger<OcupacionServicioComandos> logger,
         IValidator<CrearOcupacionRequest> crearValidator,
         IValidator<ActualizarOcupacionRequest> actualizarValidator,
         IValidator<FinalizarOcupacionRequest> finalizarValidator)
@@ -42,6 +47,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         ArgumentNullException.ThrowIfNull(personaRepository);
         ArgumentNullException.ThrowIfNull(puestoRepository);
         ArgumentNullException.ThrowIfNull(unitOfWork);
+        ArgumentNullException.ThrowIfNull(constraintDetector);
+        ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(crearValidator);
         ArgumentNullException.ThrowIfNull(actualizarValidator);
         ArgumentNullException.ThrowIfNull(finalizarValidator);
@@ -50,6 +57,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         this.personaRepository = personaRepository;
         this.puestoRepository = puestoRepository;
         this.unitOfWork = unitOfWork;
+        this.constraintDetector = constraintDetector;
+        this.logger = logger;
         this.crearValidator = crearValidator;
         this.actualizarValidator = actualizarValidator;
         this.finalizarValidator = finalizarValidator;
@@ -63,8 +72,11 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         IOcupacionRepository ocupacionRepository,
         IPersonaRepository personaRepository,
         IPuestoRepository puestoRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IConstraintViolationDetector constraintDetector,
+        ILogger<OcupacionServicioComandos> logger)
         : this(ocupacionRepository, personaRepository, puestoRepository, unitOfWork,
+               constraintDetector, logger,
                new CrearOcupacionRequestValidator(),
                new ActualizarOcupacionRequestValidator(),
                new FinalizarOcupacionRequestValidator())
@@ -147,9 +159,9 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             var puestoNombre = puesto.Nombre;
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
         {
-            // Issue 2: DbUpdateException caught for concurrent uniqueness violations.
+            logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(CrearAsync), ex.Message);
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "DatosInvalidos", ex.Message));
         }
@@ -215,9 +227,9 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             var puestoNombre = puesto!.Nombre;
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
         {
-            // Issue 2: DbUpdateException caught for concurrent uniqueness violations.
+            logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(ActualizarAsync), ex.Message);
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "DatosInvalidos", ex.Message));
         }
@@ -256,19 +268,21 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             ocupacion.Finalizar(request.FechaFin, request.Observaciones);
 
             await ocupacionRepository.UpdateAsync(ocupacion, cancellationToken).ConfigureAwait(false);
-            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            // Issue 3: Explicit fetch instead of relying on navigation properties.
+            // Fetch names BEFORE save — no post-commit reads.
             var persona = await personaRepository.GetByIdIncludingDeletedAsync(ocupacion.PersonaId, cancellationToken).ConfigureAwait(false);
             var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(ocupacion.PuestoId, cancellationToken).ConfigureAwait(false);
+
+            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             var personaNombre = persona is not null ? $"{persona.Nombres} {persona.Apellidos}" : "";
             var puestoNombre = puesto?.Nombre ?? "";
 
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
         {
+            logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(FinalizarAsync), ex.Message);
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "FinalizacionInvalida", ex.Message));
         }
@@ -298,19 +312,21 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             ocupacion.EliminarLogicamente();
 
             await ocupacionRepository.UpdateAsync(ocupacion, cancellationToken).ConfigureAwait(false);
-            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            // Issue 3: Explicit fetch instead of relying on navigation properties.
+            // Fetch names BEFORE save — no post-commit reads.
             var persona = await personaRepository.GetByIdIncludingDeletedAsync(ocupacion.PersonaId, cancellationToken).ConfigureAwait(false);
             var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(ocupacion.PuestoId, cancellationToken).ConfigureAwait(false);
+
+            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             var personaNombre = persona is not null ? $"{persona.Nombres} {persona.Apellidos}" : "";
             var puestoNombre = puesto?.Nombre ?? "";
 
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
         {
+            logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(EliminarAsync), ex.Message);
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "EliminacionInvalida", ex.Message));
         }
@@ -367,9 +383,9 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             var puestoNombre = puesto!.Nombre;
             return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or DbUpdateException)
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
         {
-            // Issue 5: Normalize to Conflict (was Validation).
+            logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(ReactivarAsync), ex.Message);
             return OcupacionCommandResult.Failure(
                 new(OcupacionErrorType.Conflict, "ReactivacionInvalida", ex.Message));
         }

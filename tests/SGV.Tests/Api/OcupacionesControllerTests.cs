@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
 using Xunit;
 
@@ -33,10 +34,10 @@ public sealed class OcupacionesControllerTests
         var response = await client.GetAsync("/api/v1/ocupaciones");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var content = await response.Content.ReadFromJsonAsync<OcupacionDto[]>();
+        var content = await response.Content.ReadFromJsonAsync<PagedResult<OcupacionDto>>();
         Assert.NotNull(content);
-        Assert.NotEmpty(content);
-        Assert.All(content, o => Assert.Equal("Activo", o.Estado));
+        Assert.NotEmpty(content.Items);
+        Assert.All(content.Items, o => Assert.Equal("Activo", o.Estado));
     }
 
     [Fact]
@@ -48,9 +49,9 @@ public sealed class OcupacionesControllerTests
         var response = await client.GetAsync("/api/v1/ocupaciones?includeHistory=true");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var content = await response.Content.ReadFromJsonAsync<OcupacionDto[]>();
+        var content = await response.Content.ReadFromJsonAsync<PagedResult<OcupacionDto>>();
         Assert.NotNull(content);
-        Assert.NotEmpty(content);
+        Assert.NotEmpty(content.Items);
     }
 
     // ── GET /api/v1/ocupaciones/{id} ───────────────────────────

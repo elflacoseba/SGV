@@ -515,8 +515,8 @@ internal sealed class FakeOcupacionServicioConsulta : IOcupacionServicioConsulta
                   new DateOnly(2024, 1, 15), null, TipoAsignacion.Permanente, null, "Activo")];
     }
 
-    public Task<IReadOnlyList<OcupacionDto>> ListAsync(bool includeHistory = false, CancellationToken ct = default)
-        => Task.FromResult(_data);
+    public Task<PagedResult<OcupacionDto>> ListAsync(bool includeHistory = false, int page = 1, int pageSize = 20, CancellationToken ct = default)
+        => Task.FromResult(new PagedResult<OcupacionDto>(_data, _data.Count, page, pageSize));
 
     public Task<OcupacionDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));

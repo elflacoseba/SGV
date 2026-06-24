@@ -1,4 +1,5 @@
 using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 
 namespace SGV.Aplicacion.Ocupaciones.Consultas;
 
@@ -10,9 +11,12 @@ public interface IOcupacionServicioConsulta
     /// <summary>
     /// Returns active occupations by default, or all non-physically-deleted
     /// occupations when <paramref name="includeHistory"/> is <see langword="true"/>.
+    /// Results are paginated.
     /// </summary>
-    Task<IReadOnlyList<OcupacionDto>> ListAsync(
+    Task<PagedResult<OcupacionDto>> ListAsync(
         bool includeHistory = false,
+        int page = 1,
+        int pageSize = 20,
         CancellationToken cancellationToken = default);
 
     /// <summary>

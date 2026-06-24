@@ -1,4 +1,5 @@
 using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
 
 namespace SGV.Aplicacion.Ocupaciones.Consultas;
@@ -11,22 +12,18 @@ namespace SGV.Aplicacion.Ocupaciones.Consultas;
 public sealed class OcupacionServicioConsulta(IOcupacionRepository repository)
     : IOcupacionServicioConsulta
 {
-    public async Task<IReadOnlyList<OcupacionDto>> ListAsync(
+    public async Task<PagedResult<OcupacionDto>> ListAsync(
         bool includeHistory = false,
+        int page = 1,
+        int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<Ocupacion> entities;
+        (IReadOnlyList<Ocupacion> items, int totalCount) = includeHistory
+            ? await repository.ListHistoryPagedAsync(page, pageSize, cancellationToken).ConfigureAwait(false)
+            : await repository.ListPagedAsync(page, pageSize, cancellationToken).ConfigureAwait(false);
 
-        if (includeHistory)
-        {
-            entities = await repository.ListAllIncludingHistoryAsync(cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            entities = await repository.ListAllAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        return entities.Select(MapToDto).ToList();
+        var dtos = items.Select(MapToDto).ToList();
+        return new PagedResult<OcupacionDto>(dtos, totalCount, page, pageSize);
     }
 
     public async Task<OcupacionDto?> GetByIdAsync(

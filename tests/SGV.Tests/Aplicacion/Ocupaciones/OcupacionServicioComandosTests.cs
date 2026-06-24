@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
@@ -657,7 +659,10 @@ public sealed class OcupacionServicioComandosTests
         IPuestoRepository puestoRepo,
         IUnitOfWork uow)
     {
-        return new OcupacionServicioComandos(ocupacionRepo, personaRepo, puestoRepo, uow);
+        return new OcupacionServicioComandos(
+            ocupacionRepo, personaRepo, puestoRepo, uow,
+            new FakeConstraintViolationDetector(),
+            new FakeLogger<OcupacionServicioComandos>());
     }
 
     private static Persona CrearPersonaActiva()
@@ -797,6 +802,19 @@ internal sealed class FakeOcupacionWriteRepository : IOcupacionRepository
     {
         return Task.FromResult<IReadOnlyList<Ocupacion>>(Datos.ToList());
     }
+
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var items = Datos.Where(o => o.EsVigente).ToList();
+        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((items, items.Count));
+    }
+
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((Datos.ToList(), Datos.Count));
+    }
 }
 
 internal sealed class FakePersonaWriteRepository : IPersonaRepository
@@ -886,4 +904,16 @@ internal sealed class FakeUnitOfWork : IUnitOfWork
         SaveChangesCount++;
         return Task.FromResult(1);
     }
+}
+
+internal sealed class FakeLogger<T> : ILogger<T>
+{
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => false;
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) { }
+}
+
+internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
+{
+    public bool IsConstraintViolation(DbUpdateException ex) => true;
 }

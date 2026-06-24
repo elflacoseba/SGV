@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 
 namespace SGV.Api.Controllers;
 
@@ -27,17 +28,22 @@ public class OcupacionesController : ControllerBase
     /// <summary>
     /// Obtiene todas las ocupaciones activas. Adicionalmente, si se especifica
     /// <c>includeHistory=true</c>, se incluyen ocupaciones finalizadas y eliminadas.
+    /// Los resultados se devuelven paginados.
     /// </summary>
     /// <param name="includeHistory">Si es <c>true</c>, incluye ocupaciones finalizadas y eliminadas.</param>
+    /// <param name="page">Número de página (comienza en 1).</param>
+    /// <param name="pageSize">Tamaño de página.</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
-    /// <response code="200">Lista de ocupaciones devuelta correctamente.</response>
+    /// <response code="200">Lista paginada de ocupaciones devuelta correctamente.</response>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<OcupacionDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<OcupacionDto>>> GetAll(
+    [ProducesResponseType(typeof(PagedResult<OcupacionDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<OcupacionDto>>> GetAll(
         [FromQuery] bool includeHistory = false,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await _servicio.ListAsync(includeHistory, cancellationToken);
+        var result = await _servicio.ListAsync(includeHistory, page, pageSize, cancellationToken);
         return Ok(result);
     }
 

@@ -38,6 +38,20 @@ public interface IOcupacionRepository : IReadOnlyRepository<Ocupacion>
     Task<IReadOnlyList<Ocupacion>> ListAllIncludingHistoryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists active occupations with pagination. Returns the items for the requested
+    /// page together with the total count of active records.
+    /// </summary>
+    Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists all occupations including history with pagination. Returns the items for
+    /// the requested page together with the total count of all records.
+    /// </summary>
+    Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Checks whether an active occupation already exists for the given Puesto.
     /// Excludes the occupation with the specified <paramref name="excludingId"/> if provided.
     /// </summary>

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: sgv_test_pwd
+          MYSQL_DATABASE: sgv_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run tests (with MySQL)
+        env:
+          ConnectionStrings__SgvDatabase: Server=127.0.0.1;Port=3306;Database=sgv_test;User=root;Password=sgv_test_pwd;Allow User Variables=True;Default Command Timeout=60
+        run: dotnet test --no-build --configuration Release --verbosity normal
