@@ -10,7 +10,7 @@ public sealed class Ocupacion : EntidadAuditable
     {
     }
 
-    public Ocupacion(Guid personaId, Guid puestoId, DateOnly fechaInicio, string tipoAsignacion, DateOnly? fechaFin = null)
+    public Ocupacion(Guid personaId, Guid puestoId, DateOnly fechaInicio, TipoAsignacion tipoAsignacion, DateOnly? fechaFin = null)
     {
         if (fechaFin.HasValue && fechaFin.Value < fechaInicio)
         {
@@ -21,7 +21,7 @@ public sealed class Ocupacion : EntidadAuditable
         PuestoId = puestoId;
         FechaInicio = fechaInicio;
         FechaFin = fechaFin;
-        TipoAsignacion = ValidacionesDominio.Requerido(tipoAsignacion, nameof(TipoAsignacion), 50);
+        TipoAsignacion = tipoAsignacion;
     }
 
     public Guid PersonaId { get; private set; }
@@ -36,7 +36,7 @@ public sealed class Ocupacion : EntidadAuditable
 
     public DateOnly? FechaFin { get; private set; }
 
-    public string TipoAsignacion { get; private set; } = string.Empty;
+    public TipoAsignacion TipoAsignacion { get; private set; }
 
     public string? Observaciones { get; private set; }
 

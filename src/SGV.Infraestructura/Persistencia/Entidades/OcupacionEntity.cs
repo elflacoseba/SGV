@@ -1,3 +1,5 @@
+using SGV.Dominio.Ocupaciones;
+
 namespace SGV.Infraestructura.Persistencia.Entidades;
 
 /// <summary>
@@ -17,7 +19,7 @@ public sealed class OcupacionEntity : AuditableEntityBase
 
     public DateOnly? FechaFin { get; set; }
 
-    public string TipoAsignacion { get; set; } = string.Empty;
+    public TipoAsignacion TipoAsignacion { get; set; }
 
     public string? Observaciones { get; set; }
 }
