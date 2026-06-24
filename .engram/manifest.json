@@ -32,6 +32,14 @@
       "sessions": 9,
       "memories": 42,
       "prompts": 37
+    },
+    {
+      "id": "3d0611c9",
+      "created_by": "elflacoseba",
+      "created_at": "2026-06-24T21:27:52Z",
+      "sessions": 12,
+      "memories": 45,
+      "prompts": 40
     }
   ]
 }
