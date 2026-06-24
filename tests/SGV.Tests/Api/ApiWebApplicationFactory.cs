@@ -9,9 +9,13 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Seguridad;
 using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Dominio.Ocupaciones;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Aplicacion.Ocupaciones.Comandos;
+using SGV.Aplicacion.Ocupaciones.Consultas;
+using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -495,6 +499,98 @@ internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos
     }
 }
 
+internal sealed class FakeOcupacionServicioConsulta : IOcupacionServicioConsulta
+{
+    public static readonly Guid OcupacionId1 = Guid.Parse("f0000000-0000-0000-0000-000000000001");
+    public static readonly Guid PersonaId1 = FakePersonaServicioConsulta.PersonaId1;
+    public static readonly Guid PuestoId1 = FakePuestoServicio.PuestoId1;
+
+    private readonly IReadOnlyList<OcupacionDto> _data;
+
+    public FakeOcupacionServicioConsulta(bool isEmpty = false)
+    {
+        _data = isEmpty
+            ? []
+            : [new(OcupacionId1, PersonaId1, "Juan Perez", PuestoId1, "Gerente General",
+                  new DateOnly(2024, 1, 15), null, TipoAsignacion.Permanente, null, "Activo")];
+    }
+
+    public Task<IReadOnlyList<OcupacionDto>> ListAsync(bool includeHistory = false, CancellationToken ct = default)
+        => Task.FromResult(_data);
+
+    public Task<OcupacionDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+}
+
+internal sealed class FakeOcupacionServicioComandos : IOcupacionServicioComandos
+{
+    public static readonly Guid DefaultOcupacionId = Guid.Parse("f0000000-0000-0000-0000-000000000001");
+
+    public Func<CrearOcupacionRequest, CancellationToken, Task<OcupacionCommandResult>>? CrearHandler { get; set; }
+    public Func<Guid, ActualizarOcupacionRequest, CancellationToken, Task<OcupacionCommandResult>>? ActualizarHandler { get; set; }
+    public Func<Guid, FinalizarOcupacionRequest, CancellationToken, Task<OcupacionCommandResult>>? FinalizarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<OcupacionCommandResult>>? EliminarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<OcupacionCommandResult>>? ReactivarHandler { get; set; }
+
+    public Task<OcupacionCommandResult> CrearAsync(
+        CrearOcupacionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
+        return Task.FromResult(OcupacionCommandResult.Success(
+            new OcupacionDto(DefaultOcupacionId, request.PersonaId, "Juan Perez",
+                request.PuestoId, "Gerente General", request.FechaInicio, null,
+                request.TipoAsignacion, request.Observaciones, "Activo")));
+    }
+
+    public Task<OcupacionCommandResult> ActualizarAsync(
+        Guid id,
+        ActualizarOcupacionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
+        return Task.FromResult(OcupacionCommandResult.Success(
+            new OcupacionDto(id, request.PersonaId, "Juan Perez",
+                request.PuestoId, "Gerente General", request.FechaInicio, null,
+                request.TipoAsignacion, request.Observaciones, "Activo")));
+    }
+
+    public Task<OcupacionCommandResult> FinalizarAsync(
+        Guid id,
+        FinalizarOcupacionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (FinalizarHandler is not null) return FinalizarHandler(id, request, cancellationToken);
+        return Task.FromResult(OcupacionCommandResult.Success(
+            new OcupacionDto(id, FakeOcupacionServicioConsulta.PersonaId1, "Juan Perez",
+                FakeOcupacionServicioConsulta.PuestoId1, "Gerente General",
+                new DateOnly(2024, 1, 15), request.FechaFin, TipoAsignacion.Permanente,
+                request.Observaciones, "Finalizado")));
+    }
+
+    public Task<OcupacionCommandResult> EliminarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (EliminarHandler is not null) return EliminarHandler(id, cancellationToken);
+        return Task.FromResult(OcupacionCommandResult.Success(
+            new OcupacionDto(id, FakeOcupacionServicioConsulta.PersonaId1, "Juan Perez",
+                FakeOcupacionServicioConsulta.PuestoId1, "Gerente General",
+                new DateOnly(2024, 1, 15), null, TipoAsignacion.Permanente, null, "Eliminado")));
+    }
+
+    public Task<OcupacionCommandResult> ReactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (ReactivarHandler is not null) return ReactivarHandler(id, cancellationToken);
+        return Task.FromResult(OcupacionCommandResult.Success(
+            new OcupacionDto(id, FakeOcupacionServicioConsulta.PersonaId1, "Juan Perez",
+                FakeOcupacionServicioConsulta.PuestoId1, "Gerente General",
+                new DateOnly(2024, 1, 15), null, TipoAsignacion.Permanente, null, "Activo")));
+    }
+}
+
 internal sealed class FakeUsuarioServicioConsulta : IUsuarioServicioConsulta
 {
     private static readonly IReadOnlyList<UsuarioDto> Users =
@@ -590,6 +686,8 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IUsuarioServicioComandos>();
             services.RemoveService<IRolServicioConsulta>();
             services.RemoveService<IAuthServicio>();
+            services.RemoveService<IOcupacionServicioConsulta>();
+            services.RemoveService<IOcupacionServicioComandos>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
@@ -608,6 +706,8 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IUsuarioServicioComandos>(new FakeUsuarioServicioComandos());
             services.AddSingleton<IRolServicioConsulta>(new FakeRolServicioConsulta());
             services.AddSingleton<IAuthServicio>(new FakeAuthServicio());
+            services.AddSingleton<IOcupacionServicioConsulta>(new FakeOcupacionServicioConsulta());
+            services.AddSingleton<IOcupacionServicioComandos>(new FakeOcupacionServicioComandos());
 
             services.AddAuthentication(FakeAuthenticationDefaults.Scheme)
                 .AddScheme<AuthenticationSchemeOptions, FakeAuthenticationHandler>(FakeAuthenticationDefaults.Scheme, _ => { });

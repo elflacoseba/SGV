@@ -110,6 +110,10 @@ public sealed class SwaggerConfigurationTests
         Assert.Contains("/api/v1/personas", actualPaths);
         Assert.Contains("/api/v1/personas/{id}", actualPaths);
         Assert.Contains("/api/v1/personas/{id}/reactivar", actualPaths);
+        Assert.Contains("/api/v1/ocupaciones", actualPaths);
+        Assert.Contains("/api/v1/ocupaciones/{id}", actualPaths);
+        Assert.Contains("/api/v1/ocupaciones/{id}/finalizar", actualPaths);
+        Assert.Contains("/api/v1/ocupaciones/{id}/reactivar", actualPaths);
     }
 
     [Fact]
@@ -139,6 +143,8 @@ public sealed class SwaggerConfigurationTests
             if (path.Name.StartsWith("/api/v1/usuarios", StringComparison.OrdinalIgnoreCase))
                 continue;
             if (path.Name.StartsWith("/api/v1/auth", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (path.Name.StartsWith("/api/v1/ocupaciones", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             foreach (var operation in path.Value.EnumerateObject())
@@ -466,6 +472,53 @@ public sealed class SwaggerConfigurationTests
 
         // Check reactivar path exposes PATCH
         var reactivarPath = paths.GetProperty("/api/v1/personas/{id}/reactivar");
+        var reactivarOps = new HashSet<string>();
+        foreach (var op in reactivarPath.EnumerateObject())
+            reactivarOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("patch", reactivarOps);
+    }
+
+    [Fact]
+    public async Task Ocupaciones_ExposesWriteOperations()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        // Check collection path exposes POST and GET
+        var collectionPath = paths.GetProperty("/api/v1/ocupaciones");
+        var collectionOps = new HashSet<string>();
+        foreach (var op in collectionPath.EnumerateObject())
+            collectionOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("post", collectionOps);
+        Assert.Contains("get", collectionOps);
+
+        // Check item path exposes GET, PUT, DELETE
+        var itemPath = paths.GetProperty("/api/v1/ocupaciones/{id}");
+        var itemOps = new HashSet<string>();
+        foreach (var op in itemPath.EnumerateObject())
+            itemOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("get", itemOps);
+        Assert.Contains("put", itemOps);
+        Assert.Contains("delete", itemOps);
+
+        // Check finalizar path exposes PATCH
+        var finalizarPath = paths.GetProperty("/api/v1/ocupaciones/{id}/finalizar");
+        var finalizarOps = new HashSet<string>();
+        foreach (var op in finalizarPath.EnumerateObject())
+            finalizarOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("patch", finalizarOps);
+
+        // Check reactivar path exposes PATCH
+        var reactivarPath = paths.GetProperty("/api/v1/ocupaciones/{id}/reactivar");
         var reactivarOps = new HashSet<string>();
         foreach (var op in reactivarPath.EnumerateObject())
             reactivarOps.Add(op.Name.ToLowerInvariant());

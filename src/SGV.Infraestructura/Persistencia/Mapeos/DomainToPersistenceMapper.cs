@@ -1,4 +1,5 @@
 using SGV.Dominio.Habilidades;
+using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using SGV.Dominio.Personas;
 using SGV.Infraestructura.Persistencia.Entidades;
@@ -222,6 +223,42 @@ internal static class DomainToPersistenceMapper
         entity.IsActive = domain.IsActive;
         entity.UpdatedAt = domain.UpdatedAt;
         entity.UpdatedByUserId = domain.UpdatedByUserId;
+        entity.DeletedAt = domain.DeletedAt;
+        entity.DeletedByUserId = domain.DeletedByUserId;
+    }
+
+    public static OcupacionEntity ToEntity(Ocupacion domain)
+    {
+        return new OcupacionEntity
+        {
+            Id = domain.Id,
+            PersonaId = domain.PersonaId,
+            PuestoId = domain.PuestoId,
+            FechaInicio = domain.FechaInicio,
+            FechaFin = domain.FechaFin,
+            TipoAsignacion = domain.TipoAsignacion,
+            Observaciones = domain.Observaciones,
+            CreatedAt = domain.CreatedAt,
+            CreatedByUserId = domain.CreatedByUserId,
+            UpdatedAt = domain.UpdatedAt,
+            UpdatedByUserId = domain.UpdatedByUserId,
+            IsDeleted = domain.IsDeleted,
+            DeletedAt = domain.DeletedAt,
+            DeletedByUserId = domain.DeletedByUserId
+        };
+    }
+
+    public static void UpdateEntity(OcupacionEntity entity, Ocupacion domain)
+    {
+        entity.PersonaId = domain.PersonaId;
+        entity.PuestoId = domain.PuestoId;
+        entity.FechaInicio = domain.FechaInicio;
+        entity.FechaFin = domain.FechaFin;
+        entity.TipoAsignacion = domain.TipoAsignacion;
+        entity.Observaciones = domain.Observaciones;
+        entity.UpdatedAt = domain.UpdatedAt;
+        entity.UpdatedByUserId = domain.UpdatedByUserId;
+        entity.IsDeleted = domain.IsDeleted;
         entity.DeletedAt = domain.DeletedAt;
         entity.DeletedByUserId = domain.DeletedByUserId;
     }

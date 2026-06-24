@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Ocupaciones.Comandos;
+using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Comandos;
@@ -37,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<ICargoSkillRepository, CargoSkillRepository>();
         services.AddScoped<IPersonaSkillRepository, PersonaSkillRepository>();
         services.AddScoped<INivelHabilidadRepository, NivelHabilidadRepository>();
+        services.AddScoped<IOcupacionRepository, OcupacionRepository>();
 
         // Query services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioConsulta, UnidadOrganizativaServicioConsulta>();
@@ -46,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<ITipoUnidadOrganizativaServicioConsulta, TipoUnidadOrganizativaServicioConsulta>();
         services.AddScoped<INivelCargoServicioConsulta, NivelCargoServicioConsulta>();
         services.AddScoped<IPersonaServicioConsulta, PersonaServicioConsulta>();
+        services.AddScoped<IOcupacionServicioConsulta, OcupacionServicioConsulta>();
 
         // Command services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioComandos, UnidadOrganizativaServicioComandos>();
@@ -53,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IPuestoServicioComandos, PuestoServicioComandos>();
         services.AddScoped<IHabilidadServicioComandos, HabilidadServicioComandos>();
         services.AddScoped<IPersonaServicioComandos, PersonaServicioComandos>();
+        services.AddScoped<IOcupacionServicioComandos, OcupacionServicioComandos>();
 
         // Skill assignment services (application layer)
         services.AddScoped<ICargoSkillServicio, CargoSkillServicio>();

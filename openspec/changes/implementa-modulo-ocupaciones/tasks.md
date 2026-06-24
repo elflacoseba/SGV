@@ -39,17 +39,17 @@ Chain strategy: pending
 
 ## Phase 3: Infrastructure and Persistence
 
-- [ ] 3.1 Implement `src/SGV.Infraestructura/Persistencia/Repositorios/OcupacionRepository.cs` plus mapper updates in `Mapeos/PersistenceToDomainMapper.cs` and `Mapeos/DomainToPersistenceMapper.cs`.
-- [ ] 3.2 RED/GREEN: add `tests/SGV.Tests/Persistencia/OcupacionRepositoryTests.cs` for active/history queries, soft-delete/reactivation persistence, and unique-index conflict behavior.
-- [ ] 3.3 Verify `src/SGV.Infraestructura/Persistencia/Configuraciones/OcupacionConfiguracion.cs` and migration `20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad.cs` need no new schema change; do not add a migration.
+- [x] 3.1 Implement `src/SGV.Infraestructura/Persistencia/Repositorios/OcupacionRepository.cs` plus mapper updates in `Mapeos/PersistenceToDomainMapper.cs` and `Mapeos/DomainToPersistenceMapper.cs`.
+- [x] 3.2 RED/GREEN: add `tests/SGV.Tests/Persistencia/OcupacionRepositoryTests.cs` for active/history queries, soft-delete/reactivation persistence, and unique-index conflict behavior.
+- [x] 3.3 Verify `src/SGV.Infraestructura/Persistencia/Configuraciones/OcupacionConfiguracion.cs` and migration `20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad.cs` need no new schema change; do not add a migration.
 
 ## Phase 4: API and Swagger
 
-- [ ] 4.1 Create `src/SGV.Api/Controllers/OcupacionesController.cs` with `GET`, `POST`, `PUT`, `PATCH /finalizar`, `PATCH /reactivar`, and `DELETE`, mirroring existing ProblemDetails patterns.
-- [ ] 4.2 Register repository/services/validators in `src/SGV.Infraestructura/DependencyInjection.cs` and extend `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs` fakes for occupation services.
-- [ ] 4.3 RED/GREEN: add `tests/SGV.Tests/Api/OcupacionesControllerTests.cs` and update `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` for paths, `includeHistory`, `404`, and `409` documentation.
+- [x] 4.1 Create `src/SGV.Api/Controllers/OcupacionesController.cs` with `GET`, `POST`, `PUT`, `PATCH /finalizar`, `PATCH /reactivar`, and `DELETE`, mirroring existing ProblemDetails patterns.
+- [x] 4.2 Register repository/services/validators in `src/SGV.Infraestructura/DependencyInjection.cs` and extend `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs` fakes for occupation services.
+- [x] 4.3 RED/GREEN: add `tests/SGV.Tests/Api/OcupacionesControllerTests.cs` and update `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` for paths, `includeHistory`, `404`, and `409` documentation.
 
 ## Phase 5: End-to-End Verification
 
-- [ ] 5.1 Run `dotnet test` with focus on new Ocupaciones domain, application, persistence, API, and Swagger scenarios from all three delta specs.
-- [ ] 5.2 Confirm each work unit stays reviewable; if Unit 1 exceeds plan, pause apply and choose a chain strategy before continuing.
+- [x] 5.1 Run `dotnet test` with focus on new Ocupaciones domain, application, persistence, API, and Swagger scenarios from all three delta specs.
+- [x] 5.2 Confirm each work unit stays reviewable; if Unit 1 exceeds plan, pause apply and choose a chain strategy before continuing.
