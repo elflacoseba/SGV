@@ -39,12 +39,12 @@ Chain strategy: pending
 
 ## Phase 3: Shell protegido
 
-- [ ] 3.1 RED: ajustar `tests/SGV.Tests/Web/WebShellSmokeTests.cs` para que `/` redirija anónimo, renderice dashboard vacío autenticado y muestre logout.
-- [ ] 3.2 GREEN: modificar `src/SGV.Web/Pages/Index.cshtml` y `Index.cshtml.cs` para requerir `[Authorize]` y mostrar dashboard vacío inicial.
-- [ ] 3.3 GREEN: modificar `src/SGV.Web/Pages/Shared/Partials/_Topbar.cshtml` para exponer logout autenticado sin account-management adicional.
-- [ ] 3.4 REFACTOR: revisar nombres, mensajes y rutas para que los PageModels consuman solo endpoints centralizados.
+- [x] 3.1 RED: ajustar `tests/SGV.Tests/Web/WebShellSmokeTests.cs` para que `/` redirija anónimo, renderice dashboard vacío autenticado y muestre logout.
+- [x] 3.2 GREEN: modificar `src/SGV.Web/Pages/Index.cshtml` y `Index.cshtml.cs` para requerir `[Authorize]` y mostrar dashboard vacío inicial.
+- [x] 3.3 GREEN: modificar `src/SGV.Web/Pages/Shared/Partials/_Topbar.cshtml` para exponer logout autenticado sin account-management adicional.
+- [x] 3.4 REFACTOR: revisar nombres, mensajes y rutas para que los PageModels consuman solo endpoints centralizados.
 
 ## Phase 4: Verificación
 
-- [ ] 4.1 Ejecutar `dotnet test SGV.slnx --filter Web` o equivalente validando todos los escenarios Given/When/Then del cambio.
-- [ ] 4.2 Ejecutar `dotnet build SGV.slnx` y registrar cualquier ajuste menor necesario sin ampliar alcance.
+- [x] 4.1 Ejecutar `dotnet test SGV.slnx --filter Web` o equivalente validando todos los escenarios Given/When/Then del cambio.
+- [x] 4.2 Ejecutar `dotnet build SGV.slnx` y registrar cualquier ajuste menor necesario sin ampliar alcance.
