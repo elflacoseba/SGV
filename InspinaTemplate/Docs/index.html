@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Admin Dashboard Documentation</title>
+
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+        <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="https://unpkg.com/lucide@latest"></script>
+
+        <style>
+            .page-section {
+                display: none;
+                animation: fadeIn 0.3s ease-in-out;
+            }
+
+            .page-section.active {
+                display: block;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .tree-item {
+                position: relative;
+            }
+
+            .tree-item::before {
+                content: "";
+                position: absolute;
+                top: 1.1rem;
+                left: -1.5rem;
+                width: 1rem;
+                height: 1px;
+                background-color: rgb(var(--bc) / 0.25);
+            }
+        </style>
+    </head>
+
+    <body class="bg-base-200 h-screen overflow-hidden flex flex-col font-sans">
+        <!-- Top Navigation Bar -->
+        <div class="navbar bg-base-100 border-b border-base-300 z-50 h-16 shrink-0 md:px-6">
+            <div class="flex-none">
+                <label for="menu-drawer-toggle" class="btn btn-square btn-ghost lg:hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block size-6 stroke-current">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </label>
+            </div>
+            <div class="flex-1 px-2 mx-2">
+                <div class="flex items-center gap-3 select-none">
+                    <div id="name-prefix" class="size-8 rounded-lg bg-primary text-primary-content flex items-center justify-center font-bold text-xl"></div>
+                    <span class="text-lg font-bold">Inspinia Docs</span>
+                    <span class="badge badge-outline badge-accent hidden lg:block">v<span class="capitalize">5.0.0</span></span>
+                    <span class="badge badge-outline badge-secondary capitalize hidden lg:block">core</span>
+                    <span class="badge badge-outline badge-info capitalize hidden lg:block">bootstrap</span>
+                </div>
+            </div>
+            <div class="gap-2">
+                <!-- Theme Toggle -->
+                <label class="swap swap-rotate">
+                    <input type="checkbox" id="themeToggle" />
+                    <i data-lucide="sun" class="swap-on size-6"></i>
+                    <i data-lucide="moon" class="swap-off size-6"></i>
+                </label>
+                <a href="https://wrapmarket.com/shop/WebAppLayers/message" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm hidden min-[480px]:flex">Support</a>
+                <a href="https://wrapmarket.com/item/inspinia-multipurpose-admin-dashboard-template-WB0R5L90S?via=webapp" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">Buy Now</a>
+            </div>
+        </div>
+
+        <!-- Main Content Wrapper with Sidebar -->
+        <div class="drawer lg:drawer-open flex-1 overflow-hidden">
+            <input id="menu-drawer-toggle" type="checkbox" class="drawer-toggle" />
+
+            <div class="drawer-content flex flex-col overflow-hidden bg-base-200">
+                <!-- Page Content -->
+                <main class="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10 scroll-smooth" id="main-scroll">
+                    <div class="max-w-4xl mx-auto pb-20">
+                        <!-- Breadcrumbs -->
+                        <div class="text-sm breadcrumbs mb-6 text-base-content/60">
+                            <ul>
+                                <li>Docs</li>
+                                <li id="breadcrumb-current">Introduction</li>
+                            </ul>
+                        </div>
+
+                        <div id="introduction-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Introduction</h1>
+                            <div id="introduction-content" class="prose"></div>
+                        </div>
+
+                        <div id="folder-structure-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Folder Structure</h1>
+                            <p class="mb-6 opacity-70">The underlying structure of the project.</p>
+
+                            <div class="mockup-code bg-neutral text-neutral-content">
+                                <div id="folder-structure-content" class="prose max-w-full"></div>
+                            </div>
+                        </div>
+
+                        <section id="getting-started-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Getting Started</h1>
+                            <div id="getting-started-content" class="prose"></div>
+                        </section>
+
+                        <section id="customization-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Customization</h1>
+                            <div id="customization-content" class="prose"></div>
+                        </section>
+
+                        <section id="layout-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Layout</h1>
+                            <div id="layout-content" class="prose"></div>
+                        </section>
+
+                        <section id="html-structure-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Structure</h1>
+                            <div id="html-structure-content" class="prose"></div>
+                        </section>
+
+                        <section id="starter-kit-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Starter Kit</h1>
+                            <div id="starter-kit-content" class="prose"></div>
+                        </section>
+
+                        <section id="multi-language-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Multi Language</h1>
+                            <div id="multi-language-content" class="prose"></div>
+                        </section>
+
+                        <section id="sources-and-credits-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Sources and Credits</h1>
+                            <div id="sources-and-credits-content" class="prose"></div>
+                        </section>
+
+                        <section id="changelog-section" class="page-section">
+                            <h1 class="text-4xl font-bold mb-6 text-base-content">Changelog</h1>
+                            <div id="changelog-content" class="prose"></div>
+                        </section>
+                    </div>
+                </main>
+            </div>
+
+            <!-- Sidebar Menu -->
+            <div class="drawer-side z-40">
+                <label for="menu-drawer-toggle" aria-label="close sidebar" class="drawer-overlay"></label>
+                <aside class="bg-base-100 w-72 h-full border-r border-base-300 flex flex-col">
+                    <div class="p-4 border-b border-base-300 block lg:hidden">
+                        <span class="text-lg font-bold">AdminDocs</span>
+                    </div>
+
+                    <div class="overflow-y-auto flex-1">
+                        <ul class="menu w-full gap-1 p-4" id="sidebar-menu">
+                            <li class="menu-title uppercase text-xs font-bold tracking-wider mb-2 mt-2">Menu</li>
+
+                            <li>
+                                <a data-menu-item="introduction" onclick="changeSection('introduction', this)"><i data-lucide="file-text" class="size-4"></i> Introduction</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="folder-structure" onclick="changeSection('folder-structure', this)"><i data-lucide="folder" class="size-4"></i> Folder Structure</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="getting-started" onclick="changeSection('getting-started', this)"><i data-lucide="play" class="size-4"></i> Getting Started</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="customization" onclick="changeSection('customization', this)"><i data-lucide="settings" class="size-4"></i> Customization</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="html-structure" onclick="changeSection('html-structure', this)"><i data-lucide="code" class="size-4"></i> Html Structure</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="starter-kit" onclick="changeSection('starter-kit', this)"><i data-lucide="package" class="size-4"></i> Starter Kit</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="multi-language" onclick="changeSection('multi-language', this)"><i data-lucide="globe" class="size-4"></i> Multi Language</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="layout" onclick="changeSection('layout', this)"><i data-lucide="layout" class="size-4"></i> Layout</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="sources-and-credits" onclick="changeSection('sources-and-credits', this)"><i data-lucide="heart" class="size-4"></i> Sources And Credits</a>
+                            </li>
+                            <li>
+                                <a data-menu-item="changelog" onclick="changeSection('changelog', this)"><i data-lucide="history" class="size-4"></i> Changelog</a>
+                            </li>
+                        </ul>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+        <script>
+            // icons
+            lucide.createIcons()
+
+            // toggling theme
+            const toggle = document.getElementById("themeToggle")
+            const savedTheme = sessionStorage.getItem("theme")
+            if (savedTheme === "dark") {
+                document.documentElement.setAttribute("data-theme", "dark")
+                toggle.checked = true
+            } else {
+                document.documentElement.setAttribute("data-theme", "light")
+            }
+            toggle.addEventListener("change", () => {
+                if (toggle.checked) {
+                    document.documentElement.setAttribute("data-theme", "dark")
+                    sessionStorage.setItem("theme", "dark")
+                } else {
+                    document.documentElement.setAttribute("data-theme", "light")
+                    sessionStorage.setItem("theme", "light")
+                }
+            })
+
+            // Initialize default active section on page load
+            function initializeDefaultSection() {
+                const savedSectionId = sessionStorage.getItem("lastSelectedSection")
+                const defaultSectionId = savedSectionId || "introduction"
+                const defaultLink = document.querySelector(`a[data-menu-item="${defaultSectionId}"]`)
+
+                if (defaultLink) {
+                    changeSection(defaultSectionId, defaultLink)
+                }
+            }
+
+            // Call this when DOM is ready
+            document.addEventListener("DOMContentLoaded", initializeDefaultSection)
+
+            // Updated changeSection function
+            function changeSection(sectionId, element) {
+                // Hide all sections
+                const sections = document.querySelectorAll(".page-section")
+                sections.forEach((section) => {
+                    section.classList.remove("active")
+                })
+
+                // Show target section
+                const targetSection = document.getElementById(`${sectionId}-section`)
+                if (targetSection) {
+                    targetSection.classList.add("active")
+                } else {
+                    // Fallback to introduction if not found
+                    if (sectionId === "components") {
+                        document.getElementById("introduction-section").classList.add("active")
+                    }
+                }
+
+                sessionStorage.setItem("lastSelectedSection", sectionId)
+
+                // Update breadcrumb
+                if (element) {
+                    const sectionTitle = element.innerText.trim()
+                    document.getElementById("breadcrumb-current").innerText = sectionTitle
+                }
+
+                // Scroll to top
+                document.getElementById("main-scroll").scrollTop = 0
+
+                // Update active state in sidebar
+                const links = document.querySelectorAll("#sidebar-menu a")
+                links.forEach((link) => link.classList.remove("active"))
+
+                // Add active class to clicked link
+                if (element) element.classList.add("active")
+
+                // Close drawer on mobile
+                document.getElementById("menu-drawer-toggle").checked = false
+            }
+
+            document.getElementById("name-prefix").innerText = "Inspinia".charAt(0).toUpperCase()
+
+            const uiLibFile = "bootstrap" === "bootstrap" ? "scss" : "css"
+
+            document.querySelectorAll(".ui-lib-file").forEach((el) => {
+                el.innerText = uiLibFile
+            })
+
+            window.docs = window.docs || {}
+            window.docs.name = "Inspinia"
+            window.docs.title = "INSPINIA - Responsive Bootstrap 5 Admin Dashboard Template"
+            window.docs.description = "Inspinia is the #1 best-selling admin dashboard template on Wrapmarket. Perfect for building CRM, CMS, project management tools, and custom web apps with clean UI, responsive design, and powerful features."
+            window.docs.author = "WebAppLayers"
+            window.docs.username = "Damian D."
+            window.docs.keywords = "Inspinia, admin dashboard, Wrapmarket, Wrapbootstrap, HTML template, Bootstrap admin, CRM template, CMS template, responsive admin, web app UI, admin theme, best admin template"
+            window.docs.version = "5.0.0"
+            window.docs.buyUrl = "https://wrapmarket.com/item/inspinia-multipurpose-admin-dashboard-template-WB0R5L90S?via=webapp"
+            window.docs.supportUrl = "https://wrapmarket.com/shop/WebAppLayers/message"
+            window.docs.uiLibrary = "bootstrap"
+            window.docs.framework = "core"
+            window.docs.pipeline = "gulp"
+
+            for (let key in window?.docs) {
+                if (window?.docs?.hasOwnProperty(key)) {
+                    const originalValue = window?.docs[key]
+                    window.docs[key.toUpperCase()] = originalValue.charAt(0).toUpperCase() + originalValue.slice(1)
+                }
+            }
+
+            function markdownPostProcessor(content) {
+                // return content
+                return content
+                    .replace(/<table>/g, '<table class="table table-zebra bg-base-100 border-base-content/5 rounded-box">')
+                    .replace(/<th>/g, '<th class="p-3">')
+                    .replace(/<td>/g, '<td class="p-3">')
+            }
+        </script>
+
+        <script>
+            const introductionMarkdownContent = `
+## ${window.docs.NAME}: Premium Admin Dashboard & Multipurpose UI System
+
+**${window.docs.NAME}** is a high-performance UI system specifically engineered for modern SaaS products, admin panels, CRM, ERP, analytics, finance, and enterprise back-office applications. Designed with a scalable, developer-friendly architecture, ${window.docs.NAME} empowers teams to accelerate development, customize with ease, and maintain UI consistency across complex ecosystems.
+
+---
+
+## 🛠 Key Features & Customization
+${window.docs.NAME} is a production-ready solution that balances aesthetic polish with deep functionality:
+
+* **Visual Variety:** 11 ready-to-use themes with **Light & Dark** modes.
+* **Global Readiness:** Full **LTR & RTL** support and multi-language compatibility.
+* **Layout Flexibility:** Multiple layout and sidebar variations to fit any use case.
+* **Pre-built Assets:** 218 pre-built pages including authentication flows and fully designed apps.
+
+---
+
+## 💼 Built for Scale
+Whether you are a startup, a digital agency, or an enterprise team, ${window.docs.NAME} provides a reliable, multi-framework foundation. It offers **one product for many technologies**, ensuring a consistent and scalable design system for growing applications.
+`
+
+            const folderStructureMarkdownContent = `
+\`\`\`
+
+  ├── Pages
+  │   ├── Shared
+  │   │   └── Partials
+  │   ├── all the pages
+  │   ├── _ViewImports.cshtml
+  │   └── _ViewStart.cshtml
+  ├── Properties
+  ├── wwwroot
+  ├── ${window.docs.NAME}.csproj
+  ├── ${window.docs.NAME}.slnx
+  ├── appsettings.Development.json
+  ├── appsettings.json
+  ├── gulpfile.js
+  ├── package.json
+  ├── plugins.config.json
+  └── Program.cs
+\`\`\`
+`
+
+            const gettingStartedMarkdownContent = `
+### Prerequisites:
+
+Please follow the below steps to install and setup all prerequisites:
+
+**.NET** is required to be installed on your computer. If it is already installed, you can skip this step. Download from [here](https://dotnet.microsoft.com/en-us/download)
+
+**Visual Studio 2022**
+  Make sure to have the [Visual Studio 2022](https://visualstudio.microsoft.com/vs/) installed in your computer.
+  If you already have installed it then you can skip this step.
+
+**Nodejs** we're using nodejs as Javascript runtime
+  - Make sure to have **Node.js** installed on your machine. If its version is greater than v22, you can skip this step. We suggest using the LTS version.
+  - If you don't have Node.js installed, you can download it from [here](https://nodejs.org/en/download).
+
+**Bun** we're using bun as Package manager
+
+If you have Bun installed
+
+\`bun upgrade\` to upgrade to the latest stable release
+
+If you don’t have Bun installed globally, you can run:
+
+\`npm i -g bun\`
+or
+\`sudo npm i -g bun\` *(Linux/Mac users may need to use \`sudo\`)*
+
+### Installation
+
+Open a terminal, navigate to your project directory, and run:
+
+| Command         | Description                                                        |
+|-----------------|--------------------------------------------------------------------|
+| \`bun i\`         | Installs all required dependencies into the \`node_modules\` folder. |
+| \`bun run dev\`   | Compiles all resources inside the assets folder.                   |
+| \`bun run build\` | Bundles the project for production use.                            |
+
+To start the development server, navigate to your project directory, and run the following commands in a **separate terminal**:
+
+| Command        | Description                                                                                                                            |
+|----------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| \`dotnet watch\` | This will build and start the app in "watch" mode. The app will automatically rebuild and refresh whenever you make code changes.      |
+| \`dotnet run\`   | This will build and start the app. It doesn’t track code changes, so you'll need to stop and rerun the command manually after changes. |
+| \`dotnet build\` | This will build the app.                                                                                                               |
+`
+
+            const customizationMarkdownContent = `
+${window.docs.uiLibrary === "bootstrap" ? "If you do not want to use SASS then you can use \`/dist\` folder. You can directly change the \`app.css\` file." : ""} We suggest you not make any changes in app or other ${uiLibFile} files instead make custom.${uiLibFile} to avoid breaking anything during updates.
+
+### ${uiLibFile}
+- **app.css** — all the theme's related css are define in this file.
+- **vendor.css** - all the plugins merged css
+
+---
+
+## ${uiLibFile.toUpperCase()} Structure
+
+Inspinia has managed the ${uiLibFile} file in the \`src/assets/${uiLibFile}\` folder. Add your \`custom.${uiLibFile}\` in \`src/assets/${uiLibFile}/custom.${uiLibFile}\` instead of modifying \`app.${uiLibFile}\`.
+
+### ${uiLibFile}
+${window.docs.uiLibrary === "bootstrap" ? "- **bootstrap**" : ""}
+${window.docs.uiLibrary === "bootstrap" ? "- **components** — The components ${uiLibFile} files are here. " : " - **custom** — The components ${uiLibFile} files are here."}
+- **config** — The themes ${uiLibFile} files are here.
+- **pages** — The pages ${uiLibFile} files are here.
+- **plugins** — The plugins ${uiLibFile} files are here.
+- **structure**
+  - _footer.${uiLibFile}
+  - _horizontal.${uiLibFile}
+  - _layouts.${uiLibFile}
+  - _sidenav.${uiLibFile}
+  - _topbar.${uiLibFile}
+  - app.${uiLibFile}
+  ${window.docs.uiLibrary === "bootstrap" ? "- _variables-dark.${uiLibFile}" : ""}
+  ${window.docs.uiLibrary === "bootstrap" ? "- _variables.${uiLibFile}" : ""}
+
+---
+
+## Variables Structure
+
+We have defined all the variables in the \`src/assets/${uiLibFile}\` folder.
+
+${window.docs.uiLibrary === "bootstrap" ? "**_variables.scss**" : "- **/config/_root.css**"}
+All variables are defined in this file.
+
+---
+
+## Layout Structure
+
+We have defined all the variables in the \`src/assets/${uiLibFile}/structure\` folder.
+
+- **_footer.${uiLibFile}** — Footer-related ${uiLibFile} define in this file.
+- **_horizontal.${uiLibFile}** — Horizontal layout ${uiLibFile} managed in this file.
+- **_layout.${uiLibFile}** — Manage Boxed layout ${uiLibFile} in this file.
+- **_topbar.${uiLibFile}** — Topbar ${uiLibFile} in this file.
+- **_sidenav.${uiLibFile}** — Sidenav ${uiLibFile} in this file.
+`
+
+            const htmlStructureMarkdownContent = `
+- 📁 **Pages**
+  - 📁 **Shared**
+    - 📁 **Partials**
+      - 📄 **_Customizer.cshtml** // Contain the right sidebar theme customization code.
+        - 📄 **_FooterScripts.cshtml** // Common js files are linked in this file.
+        - 📄 **_Footer.cshtml** // Footer code in this file.
+        - 📄 **_HeadCss.cshtml** // added common css files link in this file.
+        - 📄 **_HorizontalNav.cshtml** // Horizontal navigation menu related code in this file.
+        - 📄 **_PageTitle.cshtml** // Breadcrumb is defined in this file.
+        - 📄 **_Sidenav.cshtml** // Sidebar menu-related code in this file.
+        - 📄 **_TitleMeta.cshtml** // Page title and meta tags are defined in this file.
+        - 📄 **_Topbar.cshtml** // Topbar-related code in this file.
+  - 📄 All files will be here.
+---
+
+## File Structure
+
+\`\`\`html
+@page "/pages/empty"
+@model ${window.docs.NAME}.Pages.Pages.EmptyModel
+
+
+@{
+ViewBag.title = "Starter";
+ViewBag.subtitle = "Pages";
+}
+
+
+@section Styles {
+
+}
+
+<div class="wrapper">
+
+  @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml")
+
+  @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+  <div class="content-page">
+    <div class="container-fluid">
+      @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+      <!-- your page content here -->
+
+    </div>
+
+    @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+  </div>
+
+</div>
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml")
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+
+@section Scripts {
+
+}
+\`\`\`
+`
+
+            const starterKitMarkdownContent = `
+> **Starter kit** is a simplified and minimal version of an admin template. It provides the basic structure, essential components, and foundational code for building an application. This gives developers a good starting point. A starter kit is ideal for developers who want to build a custom admin panel from scratch and integrate additional components as needed.
+
+You can leverage these features of the Starter Kit:
+- **Production-Ready Foundation**: Pre-configured with essential settings and tools to jumpstart your real-world application development.
+- **Lightweight & Fast**: Includes only the core files and necessary dependencies, ensuring a smaller bundle size and improved performance.
+- **Clean Architecture**: A clutter-free starting point that removes complex demo features and example content for a focused workflow.
+- **Developer-Centric Design**: Streamlined to help you focus on your unique business logic without the distraction of unnecessary boilerplate.
+- **Highly Customizable**: Built as a flexible base that allows you to integrate additional components and features incrementally as your project grows.
+
+We have provided all the below pages in the Starter Kit with all the packages so it gets easier for you to get started with basic necessity.
+
+- Dashboard
+- Authentication pages
+- Error
+- Blank pages
+- Layouts
+`
+
+            const multiLanguageMarkdownContent = `
+### Let's add the French language.
+
+- Create a new file **fr.json** in the \`wwwroot/data/translations\` folder and copy the **en.json** file's contents into this new file.
+- Translate all the text in fr.json file.
+- Add the **french.jpg** flag in \`wwwroot/images/flags\`.
+
+- Add the below dropdown in \` Pages/Shared/Partials/_Topbar.cshtml \` file in the language dropdown.
+
+\`\`\`html
+<!-- item-->
+<a href="javascript:void(0);" class="dropdown-item" data-translator-lang="fr" title="French" > 
+   <img src="/images/flags/french.jpg" /> 
+   <span class="align-middle">French</span> 
+</a>
+\`\`\`
+`
+
+            const layoutMarkdownContent = `
+You can set the default layout in the \`defaultConfig\` object.
+
+\`\`\`js
+const defaultConfig = {
+  'dir': "ltr",
+'skin': "default",
+'theme': "light",
+'width': "fluid",
+'position': "fixed",
+'orientation': "vertical",
+'sidenav-size': "default",
+'sidenav-user': "undefined",
+'topbar-color': "light",
+'sidenav-color': "dark",
+}
+\`\`\`
+### Config Options
+
+| key | available options |
+|-----|-------------------|
+| dir | "ltr" , "rtl" |
+| skin | "default" , "minimal" , "modern" , "material" , "saas" , "flat" , "galaxy" , "luxe" , "retro" , "neon" , "pixel" |
+| theme | "light" , "dark" , "system" |
+| width | "fluid" , "boxed" |
+| position | "fixed" , "scrollable" |
+| orientation | "vertical" , "horizontal" |
+| sidenav-size | "default" , "compact" , "condensed" , "on-hover" , "on-hover-active" , "offcanvas" |
+| sidenav-user | true , false |
+| topbar-color | "light" , "dark" , "gray" , "gradient" |
+| sidenav-color | "light" , "dark" , "gray" , "gradient" , "image" |
+
+---
+
+### Dark Mode Setting
+
+Simply set the attribute \`${window.docs.uiLibrary === "bootstrap" ? 'data-bs-theme="dark"' : 'data-theme="dark"'}\` to the html tag. It will update the layout mode to Dark mode. No need to change any css or js files.
+
+\`\`\`html
+<html ${window.docs.uiLibrary === "bootstrap" ? 'data-bs-theme="dark"' : 'data-theme="dark"'}>
+\`\`\`
+
+---
+
+### RTL Mode Setting
+
+Simply set the attribute \`dir="rtl"\` to the html tag. It will update the layout mode to RTL mode. No need to change any css or js files.
+
+\`\`\`html
+<html dir="rtl">
+\`\`\`
+
+`
+
+            const sourcesAndCreditsMarkdownContent = `
+Special thanks to the following plugins and libraries which made this template possible
+
+| NAME | URL |
+|------|-----|
+| browser-sync | <a href="https://github.com/BrowserSync/browser-sync" target="_blank" rel="noopener noreferrer">https://github.com/BrowserSync/browser-sync</a> |
+| clean-css | <a href="https://github.com/clean-css/clean-css" target="_blank" rel="noopener noreferrer">https://github.com/clean-css/clean-css</a> |
+| del | <a href="https://github.com/sindresorhus/del" target="_blank" rel="noopener noreferrer">https://github.com/sindresorhus/del</a> |
+| gulp | <a href="https://github.com/gulpjs/gulp" target="_blank" rel="noopener noreferrer">https://github.com/gulpjs/gulp</a> |
+| gulp-autoprefixer | <a href="https://github.com/sindresorhus/gulp-autoprefixer" target="_blank" rel="noopener noreferrer">https://github.com/sindresorhus/gulp-autoprefixer</a> |
+| gulp-clean-css | <a href="https://github.com/scniro/gulp-clean-css" target="_blank" rel="noopener noreferrer">https://github.com/scniro/gulp-clean-css</a> |
+| gulp-concat | <a href="https://github.com/contra/gulp-concat" target="_blank" rel="noopener noreferrer">https://github.com/contra/gulp-concat</a> |
+| gulp-file-include | <a href="https://github.com/haoxins/gulp-file-include" target="_blank" rel="noopener noreferrer">https://github.com/haoxins/gulp-file-include</a> |
+| gulp-newer | <a href="https://github.com/tschaub/gulp-newer" target="_blank" rel="noopener noreferrer">https://github.com/tschaub/gulp-newer</a> |
+| gulp-npm-dist | <a href="https://github.com/dshemendiuk/gulp-npm-dist" target="_blank" rel="noopener noreferrer">https://github.com/dshemendiuk/gulp-npm-dist</a> |
+| gulp-rename | <a href="https://github.com/hparra/gulp-rename" target="_blank" rel="noopener noreferrer">https://github.com/hparra/gulp-rename</a> |
+| gulp-replace | <a href="https://github.com/lazd/gulp-replace" target="_blank" rel="noopener noreferrer">https://github.com/lazd/gulp-replace</a> |
+| gulp-rtlcss | <a href="https://github.com/jjlharrison/gulp-rtlcss" target="_blank" rel="noopener noreferrer">https://github.com/jjlharrison/gulp-rtlcss</a> |
+| gulp-sass | <a href="https://github.com/dlmanning/gulp-sass" target="_blank" rel="noopener noreferrer">https://github.com/dlmanning/gulp-sass</a> |
+| gulp-uglify | <a href="https://github.com/terinjokes/gulp-uglify" target="_blank" rel="noopener noreferrer">https://github.com/terinjokes/gulp-uglify</a> |
+| gulp-sourcemaps | <a href="https://github.com/gulp-sourcemaps/gulp-sourcemaps" target="_blank" rel="noopener noreferrer">https://github.com/gulp-sourcemaps/gulp-sourcemaps</a> |
+| sass | <a href="https://github.com/sass/dart-sass" target="_blank" rel="noopener noreferrer">https://github.com/sass/dart-sass</a> |
+| bootstrap | <a href="https://github.com/twbs/bootstrap" target="_blank" rel="noopener noreferrer">https://github.com/twbs/bootstrap</a> |
+| @popperjs/core | <a href="https://github.com/popperjs/popper-core" target="_blank" rel="noopener noreferrer">https://github.com/popperjs/popper-core</a> |
+| simplebar | <a href="https://github.com/grsmto/simplebar" target="_blank" rel="noopener noreferrer">https://github.com/grsmto/simplebar</a> |
+| flatpickr | <a href="https://github.com/chmln/flatpickr" target="_blank" rel="noopener noreferrer">https://github.com/chmln/flatpickr</a> |
+| choices.js | <a href="https://github.com/jshjohnson/Choices" target="_blank" rel="noopener noreferrer">https://github.com/jshjohnson/Choices</a> |
+| prismjs | <a href="https://github.com/PrismJS/prism" target="_blank" rel="noopener noreferrer">https://github.com/PrismJS/prism</a> |
+| echarts | <a href="https://github.com/apache/echarts" target="_blank" rel="noopener noreferrer">https://github.com/apache/echarts</a> |
+| apexcharts | <a href="https://github.com/apexcharts/apexcharts.js" target="_blank" rel="noopener noreferrer">https://github.com/apexcharts/apexcharts.js</a> |
+| jsvectormap | <a href="https://github.com/themustafaomar/jsvectormap" target="_blank" rel="noopener noreferrer">https://github.com/themustafaomar/jsvectormap</a> |
+| glightbox | <a href="https://github.com/biati-digital/glightbox" target="_blank" rel="noopener noreferrer">https://github.com/biati-digital/glightbox</a> |
+| web-animations-js | <a href="https://github.com/web-animations/web-animations-js" target="_blank" rel="noopener noreferrer">https://github.com/web-animations/web-animations-js</a> |
+| muuri | <a href="https://github.com/haltu/muuri" target="_blank" rel="noopener noreferrer">https://github.com/haltu/muuri</a> |
+| clipboard | <a href="https://github.com/zenorocha/clipboard.js" target="_blank" rel="noopener noreferrer">https://github.com/zenorocha/clipboard.js</a> |
+| quill | <a href="https://github.com/slab/quill" target="_blank" rel="noopener noreferrer">https://github.com/slab/quill</a> |
+| fullcalendar | <a href="https://github.com/fullcalendar/fullcalendar" target="_blank" rel="noopener noreferrer">https://github.com/fullcalendar/fullcalendar</a> |
+| masonry-layout | <a href="https://github.com/desandro/masonry" target="_blank" rel="noopener noreferrer">https://github.com/desandro/masonry</a> |
+| sortablejs | <a href="https://github.com/SortableJS/Sortable" target="_blank" rel="noopener noreferrer">https://github.com/SortableJS/Sortable</a> |
+| inputmask | <a href="https://github.com/RobinHerbots/Inputmask" target="_blank" rel="noopener noreferrer">https://github.com/RobinHerbots/Inputmask</a> |
+| dropzone | <a href="https://github.com/dropzone/dropzone" target="_blank" rel="noopener noreferrer">https://github.com/dropzone/dropzone</a> |
+| nouislider | <a href="https://github.com/leongersen/noUiSlider" target="_blank" rel="noopener noreferrer">https://github.com/leongersen/noUiSlider</a> |
+| @sjmc11/tourguidejs | <a href="https://github.com/sjmc11/tourguide-js" target="_blank" rel="noopener noreferrer">https://github.com/sjmc11/tourguide-js</a> |
+| animate.css | <a href="https://github.com/animate-css/animate.css" target="_blank" rel="noopener noreferrer">https://github.com/animate-css/animate.css</a> |
+| diff | <a href="https://github.com/kpdecker/jsdiff" target="_blank" rel="noopener noreferrer">https://github.com/kpdecker/jsdiff</a> |
+| jquery | <a href="https://github.com/jquery/jquery" target="_blank" rel="noopener noreferrer">https://github.com/jquery/jquery</a> |
+| jstree | <a href="https://github.com/vakata/jstree" target="_blank" rel="noopener noreferrer">https://github.com/vakata/jstree</a> |
+| pdfjs-dist | <a href="https://github.com/mozilla/pdf.js" target="_blank" rel="noopener noreferrer">https://github.com/mozilla/pdf.js</a> |
+| tinycon | <a href="https://github.com/tommoor/tinycon" target="_blank" rel="noopener noreferrer">https://github.com/tommoor/tinycon</a> |
+| sweetalert2 | <a href="https://github.com/sweetalert2/sweetalert2" target="_blank" rel="noopener noreferrer">https://github.com/sweetalert2/sweetalert2</a> |
+| plyr | <a href="https://github.com/sampotts/plyr" target="_blank" rel="noopener noreferrer">https://github.com/sampotts/plyr</a> |
+| jquery | <a href="https://github.com/jquery/jquery" target="_blank" rel="noopener noreferrer">https://github.com/jquery/jquery</a> |
+| ladda | <a href="https://github.com/hakimel/Ladda" target="_blank" rel="noopener noreferrer">https://github.com/hakimel/Ladda</a> |
+| moment | <a href="https://github.com/moment/moment" target="_blank" rel="noopener noreferrer">https://github.com/moment/moment</a> |
+| filepond | <a href="https://github.com/pqina/filepond" target="_blank" rel="noopener noreferrer">https://github.com/pqina/filepond</a> |
+| filepond-plugin-file-encode | <a href="https://github.com/pqina/filepond-plugin-file-encode" target="_blank" rel="noopener noreferrer">https://github.com/pqina/filepond-plugin-file-encode</a> |
+| filepond-plugin-file-validate-size | <a href="https://github.com/pqina/filepond-plugin-file-validate-size" target="_blank" rel="noopener noreferrer">https://github.com/pqina/filepond-plugin-file-validate-size</a> |
+| filepond-plugin-image-exif-orientation | <a href="https://github.com/pqina/filepond-plugin-image-exif-orientation" target="_blank" rel="noopener noreferrer">https://github.com/pqina/filepond-plugin-image-exif-orientation</a> |
+| filepond-plugin-image-preview | <a href="https://github.com/pqina/filepond-plugin-image-preview" target="_blank" rel="noopener noreferrer">https://github.com/pqina/filepond-plugin-image-preview</a> |
+| jquery | <a href="https://github.com/jquery/jquery" target="_blank" rel="noopener noreferrer">https://github.com/jquery/jquery</a> |
+| typeahead.js | <a href="https://github.com/twitter/typeahead.js" target="_blank" rel="noopener noreferrer">https://github.com/twitter/typeahead.js</a> |
+| handlebars | <a href="https://github.com/handlebars-lang/handlebars.js" target="_blank" rel="noopener noreferrer">https://github.com/handlebars-lang/handlebars.js</a> |
+| daterangepicker | <a href="https://github.com/dangrossman/daterangepicker" target="_blank" rel="noopener noreferrer">https://github.com/dangrossman/daterangepicker</a> |
+| @simonwep/pickr | <a href="https://github.com/Simonwep/pickr" target="_blank" rel="noopener noreferrer">https://github.com/Simonwep/pickr</a> |
+| wnumb | <a href="https://github.com/leongersen/wnumb" target="_blank" rel="noopener noreferrer">https://github.com/leongersen/wnumb</a> |
+| select2 | <a href="https://github.com/select2/select2" target="_blank" rel="noopener noreferrer">https://github.com/select2/select2</a> |
+| summernote | <a href="https://github.com/summernote/summernote" target="_blank" rel="noopener noreferrer">https://github.com/summernote/summernote</a> |
+| lucide | <a href="https://github.com/lucide-icons/lucide" target="_blank" rel="noopener noreferrer">https://github.com/lucide-icons/lucide</a> |
+| @tabler/icons-webfont | <a href="https://github.com/tabler/tabler-icons" target="_blank" rel="noopener noreferrer">https://github.com/tabler/tabler-icons</a> |
+| leaflet | <a href="https://github.com/Leaflet/Leaflet" target="_blank" rel="noopener noreferrer">https://github.com/Leaflet/Leaflet</a> |
+| jquery | <a href="https://github.com/jquery/jquery" target="_blank" rel="noopener noreferrer">https://github.com/jquery/jquery</a> |
+| datatables.net | <a href="https://github.com/DataTables/Dist-DataTables" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables</a> |
+| datatables.net-bs5 | <a href="https://github.com/DataTables/Dist-DataTables-Bootstrap5" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-Bootstrap5</a> |
+| datatables.net-buttons | <a href="https://github.com/DataTables/Dist-DataTables-Buttons" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-Buttons</a> |
+| datatables.net-buttons-bs5 | <a href="https://github.com/DataTables/Dist-DataTables-Buttons-Bootstrap5" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-Buttons-Bootstrap5</a> |
+| datatables.net-fixedcolumns | <a href="https://github.com/DataTables/Dist-DataTables-FixedColumns" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-FixedColumns</a> |
+| datatables.net-fixedcolumns-bs5 | <a href="https://github.com/DataTables/Dist-DataTables-FixedColumns-Bootstrap5" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-FixedColumns-Bootstrap5</a> |
+| datatables.net-fixedheader | <a href="https://github.com/DataTables/Dist-DataTables-FixedHeader" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-FixedHeader</a> |
+| datatables.net-fixedheader-bs5 | <a href="https://github.com/DataTables/Dist-DataTables-FixedHeader-Bootstrap5" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-FixedHeader-Bootstrap5</a> |
+| datatables.net-keytable | <a href="https://github.com/DataTables/Dist-DataTables-KeyTable" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-KeyTable</a> |
+| datatables.net-keytable-bs5 | <a href="https://github.com/DataTables/Dist-DataTables-KeyTable-Bootstrap5" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-KeyTable-Bootstrap5</a> |
+| datatables.net-responsive | <a href="https://github.com/DataTables/Dist-DataTables-Responsive" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-Responsive</a> |
+| datatables.net-responsive-bs5 | <a href="https://github.com/DataTables/Dist-DataTables-Responsive-Bootstrap5" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-Responsive-Bootstrap5</a> |
+| datatables.net-select | <a href="https://github.com/DataTables/Dist-DataTables-Select" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-Select</a> |
+| datatables.net-select-bs5 | <a href="https://github.com/DataTables/Dist-DataTables-Select-Bootstrap5" target="_blank" rel="noopener noreferrer">https://github.com/DataTables/Dist-DataTables-Select-Bootstrap5</a> |
+| jszip | <a href="https://github.com/Stuk/jszip" target="_blank" rel="noopener noreferrer">https://github.com/Stuk/jszip</a> |
+| pdfmake | <a href="https://github.com/bpampuch/pdfmake" target="_blank" rel="noopener noreferrer">https://github.com/bpampuch/pdfmake</a> |
+| spinkit | <a href="https://github.com/tobiasahlin/SpinKit" target="_blank" rel="noopener noreferrer">https://github.com/tobiasahlin/SpinKit</a> |
+`
+
+            const changelogMarkdownContent = `
+### v5.0.0
+
+- Added support for **Tailwind CSS v4** across all frameworks.
+- Introduced **FastAPI**, **Yii3**, and **AIOHTTP** frameworks.
+- Added **Galaxy**, **Luxe**, **Retro**, **Neon**, and **Pixel** skins.
+- Added several new pre-designed pages.
+- Bumped up core libraries to their latest versions.
+- General bug fixes and improved overall system compatibility.
+`
+
+            document.getElementById("introduction-content").innerHTML = markdownPostProcessor(marked.parse(introductionMarkdownContent))
+
+            document.getElementById("folder-structure-content").innerHTML = markdownPostProcessor(marked.parse(folderStructureMarkdownContent))
+
+            document.getElementById("getting-started-content").innerHTML = markdownPostProcessor(marked.parse(gettingStartedMarkdownContent))
+
+            document.getElementById("customization-content").innerHTML = markdownPostProcessor(marked.parse(customizationMarkdownContent))
+
+            document.getElementById("html-structure-content").innerHTML = markdownPostProcessor(marked.parse(htmlStructureMarkdownContent))
+
+            document.getElementById("starter-kit-content").innerHTML = markdownPostProcessor(marked.parse(starterKitMarkdownContent))
+
+            document.getElementById("multi-language-content").innerHTML = markdownPostProcessor(marked.parse(multiLanguageMarkdownContent))
+
+            document.getElementById("layout-content").innerHTML = markdownPostProcessor(marked.parse(layoutMarkdownContent))
+
+            document.getElementById("sources-and-credits-content").innerHTML = markdownPostProcessor(marked.parse(sourcesAndCreditsMarkdownContent))
+
+            document.getElementById("changelog-content").innerHTML = markdownPostProcessor(marked.parse(changelogMarkdownContent))
+        </script>
+    </body>
+</html>

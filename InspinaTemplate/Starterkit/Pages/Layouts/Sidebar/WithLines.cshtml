@@ -1,0 +1,71 @@
+@page "/layouts/sidebar/with-lines"
+@model Starterkit.Pages.Layouts.Sidebar.WithLinesModel
+
+
+@{
+    ViewBag.title = "Sidebar with Lines";
+    ViewBag.subtitle = "Layouts";
+    ViewBag.HTMLClass = "sidebar-with-line";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="row">
+<div class="col-12">
+<div class="alert alert-info alert-bordered border-start border-info d-flex align-items-start gap-2">
+<i class="ti ti-info-circle fs-xxl"></i>
+<div>
+                                    If you want to display a line with each menu item, add the class
+                                    <code>"sidebar-with-line"</code>
+                                    to the
+                                    <code>&lt;html&gt;</code>
+                                    tag.
+                                </div>
+</div>
+</div>
+</div>
+<div class="row">
+<div class="col-12">
+<div class="card">
+<div class="card-body text-center">
+<h4 class="m-0">Your custom content here</h4>
+</div>
+<!-- end card-body-->
+</div>
+<!-- end card-->
+</div>
+<!-- end col-->
+</div>
+<!-- end row-->
+</div>
+<!-- container -->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+    
+
+@section Scripts {
+
+}

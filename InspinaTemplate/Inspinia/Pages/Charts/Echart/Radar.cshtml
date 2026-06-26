@@ -1,0 +1,100 @@
+@page "/charts/echart/radar"
+@model Inspinia.Pages.Charts.Echart.RadarModel
+
+
+@{
+    ViewBag.title = "Radar Echart";
+    ViewBag.subtitle = "Charts";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="row">
+<div class="col-xl-6">
+<div class="card">
+<div class="card-header">
+<h4 class="card-title mb-0">Basic Radar Chart</h4>
+</div>
+<div class="card-body">
+<div id="chart-basic-radar" style="min-height: 300px"></div>
+</div>
+</div>
+<!-- end card -->
+</div>
+<!-- end col -->
+<div class="col-xl-6">
+<div class="card">
+<div class="card-header">
+<h4 class="card-title mb-0">Proportion of Browsers</h4>
+</div>
+<div class="card-body">
+<div id="chart-radar1" style="min-height: 300px"></div>
+</div>
+</div>
+<!-- end card -->
+</div>
+<!-- end col -->
+<div class="col-xl-12">
+<div class="card">
+<div class="card-header">
+<h4 class="card-title mb-0">Customized Radar Chart</h4>
+</div>
+<div class="card-body">
+<div id="chart-radar2" style="min-height: 300px"></div>
+</div>
+</div>
+<!-- end card -->
+</div>
+<!-- end col -->
+<div class="col-xl-12">
+<div class="card">
+<div class="card-header">
+<h4 class="card-title mb-0">Multiple Radar Chart</h4>
+</div>
+<div class="card-body">
+<div id="chart-radar3" style="min-height: 300px"></div>
+</div>
+</div>
+<!-- end card -->
+</div>
+<!-- end col -->
+</div>
+<!-- end row -->
+</div>
+<!-- container -->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+
+        <!-- E Charts js -->
+
+<!-- E Charts Demo js -->
+
+
+
+@section Scripts {
+<script src="/plugins/echarts/echarts.min.js"></script>
+    <script src="/js/pages/chart-echart-radar.js"></script>
+}

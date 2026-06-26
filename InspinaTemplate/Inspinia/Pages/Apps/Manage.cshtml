@@ -1,0 +1,466 @@
+@page "/apps/manage"
+@model Inspinia.Pages.Apps.ManageModel
+
+
+@{
+    ViewBag.title = "Manage Apps";
+    ViewBag.subtitle = "Apps";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="container-xxl">
+<div class="row">
+<div class="col-12">
+<h5 class="mb-1 fs-lg">Authorized Apps</h5>
+<p class="text-muted">
+                                    You’re currently using
+                                    <strong>3 of 3</strong>
+                                    free integrations. Upgrade to
+                                    <a class="text-decoration-underline" href="/#">PRO</a>
+                                    to unlock more integrations and supercharge your workflow.
+                                </p>
+</div>
+</div>
+<div class="row">
+<!-- Google Analytics Card -->
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Google Analytics Logo" height="30" src="/images/logos/google.svg"/>
+</span>
+</span>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" id="ga-toggle" type="checkbox"/>
+<label class="visually-hidden" for="ga-toggle">Enable Google Analytics</label>
+</div>
+</div>
+<h5 class="card-title mb-1">Google Analytics</h5>
+<p class="card-text text-muted">Google Analytics is a free web analytics service offered by Google that tracks and reports website traffic...</p>
+<div class="mb-2">
+<span class="badge badge-label text-bg-light me-2">Free</span>
+<span class="badge badge-label text-bg-success">
+<i class="ti ti-check"></i>
+                                                Connected
+                                            </span>
+</div>
+<small class="text-muted d-block mb-3">Last Sync: 12:56pm, 12 May</small>
+<div class="d-flex gap-2">
+<button class="btn btn-outline-danger w-50">Remove</button>
+<button class="btn btn-outline-primary w-50" data-bs-toggle="tooltip" title="View integration details">Details</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Asana Card -->
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Asana Logo" height="30" src="/images/logos/asana.svg"/>
+</span>
+</span>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" id="asana-toggle" type="checkbox"/>
+<label class="visually-hidden" for="asana-toggle">Enable Asana</label>
+</div>
+</div>
+<h5 class="card-title mb-1">Asana</h5>
+<p class="card-text text-muted">Asana is a web and mobile app designed to help teams organize, track, and manage their work and tasks...</p>
+<div class="mb-2">
+<span class="badge badge-label text-bg-warning me-2">
+<i class="ti ti-medal"></i>
+                                                Premium
+                                            </span>
+<span class="badge badge-label text-bg-success">
+<i class="ti ti-check"></i>
+                                                Connected
+                                            </span>
+</div>
+<small class="text-muted d-block mb-3">Last Sync: 09:32am, 18 Aug</small>
+<div class="d-flex gap-2">
+<button class="btn btn-outline-danger w-50">Remove</button>
+<button class="btn btn-outline-primary w-50" data-bs-toggle="tooltip" title="View integration details">Details</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Dropbox Card -->
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Dropbox Logo" height="30" src="/images/logos/dropbox.svg"/>
+</span>
+</span>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" id="dropbox-toggle" type="checkbox"/>
+<label class="visually-hidden" for="dropbox-toggle">Enable Dropbox</label>
+</div>
+</div>
+<h5 class="card-title mb-1">Dropbox</h5>
+<p class="card-text text-muted">Dropbox is a cloud-based file storage and collaboration platform designed to facilitate easy file sharing...</p>
+<div class="mb-2">
+<span class="badge badge-label text-bg-warning me-2">
+<i class="ti ti-medal"></i>
+                                                Premium
+                                            </span>
+<span class="badge badge-label text-bg-success">
+<i class="ti ti-check"></i>
+                                                Connected
+                                            </span>
+</div>
+<small class="text-muted d-block mb-3">Last Sync: 11:23pm, 08 Dec</small>
+<div class="d-flex gap-2">
+<button class="btn btn-outline-danger w-50">Remove</button>
+<button class="btn btn-outline-primary w-50" data-bs-toggle="tooltip" title="View integration details">Details</button>
+</div>
+</div>
+<!-- end card-body-->
+</div>
+<!-- end card-->
+</div>
+<!-- end col-->
+</div>
+<!-- end row-->
+<div class="row my-3">
+<div class="col-12">
+<h5 class="mb-1 fs-lg">Explore More Integrations</h5>
+<p class="text-muted mb-3">Discover over 200 integrations to enhance your workflow</p>
+</div>
+</div>
+<div class="row">
+<!-- Amazon Card -->
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Amazon Logo" height="30" src="/images/logos/amazon.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-light">Free</span>
+</div>
+<h5 class="card-title mb-1">Amazon</h5>
+<p class="card-text text-muted">Amazon Web Services offers scalable cloud computing and hosting solutions for businesses of all sizes...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.amazon.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- end col-->
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Figma Logo" height="30" src="/images/logos/figma.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-warning">
+<i class="ti ti-medal"></i>
+                                                Premium
+                                            </span>
+</div>
+<h5 class="card-title mb-1">Figma</h5>
+<p class="card-text text-muted">Figma is a collaborative interface design tool that helps teams design and prototype together in real time...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.figma.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Microsoft Logo" height="30" src="/images/logos/microsoft.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-warning">
+<i class="ti ti-medal"></i>
+                                                Premium
+                                            </span>
+</div>
+<h5 class="card-title mb-1">Microsoft</h5>
+<p class="card-text text-muted">Microsoft provides productivity software and cloud services including Office 365, Azure, and more...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.microsoft.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="OpenAI Logo" height="30" src="/images/logos/openai.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-light">Free</span>
+</div>
+<h5 class="card-title mb-1">OpenAI</h5>
+<p class="card-text text-muted">OpenAI provides cutting-edge artificial intelligence APIs and tools to integrate AI into your apps...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.openai.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Slack Logo" height="30" src="/images/logos/slack.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-warning">
+<i class="ti ti-medal"></i>
+                                                Premium
+                                            </span>
+</div>
+<h5 class="card-title mb-1">Slack</h5>
+<p class="card-text text-muted">Slack is a messaging app for teams that connects people, information, and tools together in one place...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.slack.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Spotify Logo" height="30" src="/images/logos/spotify.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-light">Free</span>
+</div>
+<h5 class="card-title mb-1">Spotify</h5>
+<p class="card-text text-muted">Spotify is a digital music service that gives you access to millions of songs and podcasts...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.spotify.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Meta Logo" height="24" src="/images/logos/meta.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-warning">
+<i class="ti ti-medal"></i>
+                                                Premium
+                                            </span>
+</div>
+<h5 class="card-title mb-1">Meta</h5>
+<p class="card-text text-muted">Meta connects billions of people through its apps and services including Facebook, Instagram, and WhatsApp...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.meta.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Apple Logo" height="30" src="/images/logos/apple.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-light">Free</span>
+</div>
+<h5 class="card-title mb-1">Apple</h5>
+<p class="card-text text-muted">Apple designs and develops consumer electronics, software, and online services including iPhone...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.apple.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<div class="d-flex justify-content-between align-items-center mb-3">
+<span class="avatar-xl d-block mb-1">
+<span class="avatar-title bg-light bg-opacity-75 rounded">
+<img alt="Airbnb Logo" height="30" src="/images/logos/airbnb.svg"/>
+</span>
+</span>
+<span class="badge badge-label text-bg-warning">
+<i class="ti ti-medal"></i>
+                                                Premium
+                                            </span>
+</div>
+<h5 class="card-title mb-1">Airbnb</h5>
+<p class="card-text text-muted">Airbnb is an online marketplace for lodging, primarily homestays for vacation rentals, and tourism activities...</p>
+<div class="mb-3 d-flex align-items-center gap-1">
+<i class="ti ti-world"></i>
+<a class="link-reset" href="/#!">www.airbnb.com</a>
+</div>
+<div class="d-flex gap-2">
+<button class="btn btn-success w-50">Connect</button>
+<button class="btn btn-outline-secondary w-50" data-bs-toggle="tooltip" title="View more information">
+                                                Learn More
+                                                <i class="ti ti-arrow-right ms-1"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="col-12 mb-3">
+<nav>
+<ul class="pagination pagination-boxed pagination-rounded justify-content-center">
+<li class="page-item">
+<a aria-label="Previous" class="page-link" href="/javascript: void(0);">
+<i class="ti ti-chevron-left align-middle fs-lg"></i>
+</a>
+</li>
+<li class="page-item">
+<a class="page-link" href="/javascript: void(0);">1</a>
+</li>
+<li class="page-item active">
+<a class="page-link" href="/javascript: void(0);">2</a>
+</li>
+<li class="page-item">
+<a class="page-link" href="/javascript: void(0);">3</a>
+</li>
+<li class="page-item">
+<a class="page-link" href="/javascript: void(0);">4</a>
+</li>
+<li class="page-item">
+<a class="page-link" href="/javascript: void(0);">5</a>
+</li>
+<li class="page-item">
+<a aria-label="Next" class="page-link" href="/javascript: void(0);">
+<i class="ti ti-chevron-right align-middle fs-lg"></i>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+<!-- end row-->
+</div>
+<!-- container -->
+</div>
+<!-- end container-fluid-->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+    
+
+@section Scripts {
+
+}

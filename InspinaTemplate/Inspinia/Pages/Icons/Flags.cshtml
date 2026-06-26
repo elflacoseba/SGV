@@ -1,0 +1,83 @@
+@page "/icons/flags"
+@model Inspinia.Pages.Icons.FlagsModel
+
+
+@{
+    ViewBag.title = "Flags";
+    ViewBag.subtitle = "Icons";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="row justify-content-center">
+<div class="col-xxl-10">
+<div class="card">
+<div class="card-header justify-content-between">
+<div>
+<h4 class="card-title mb-1 d-flex align-items-center gap-2">Flags Listing (SVG)</h4>
+<p class="mb-0 text-muted">We offer a set of scalable SVG flags, perfect for language selectors and international content.</p>
+</div>
+<div class="app-search">
+<input class="form-control" id="countrySearch" placeholder="Search country..." type="search"/>
+<i class="ti ti-search app-search-icon text-muted"></i>
+</div>
+</div>
+<div class="card-body">
+<div class="table-responsive">
+<table class="table table-bordered align-middle text-center w-100" id="flagTable">
+<thead>
+<tr class="fs-xxs">
+<th>Flag</th>
+<th>Country Name</th>
+<th>Path</th>
+<th>Flag</th>
+<th>Country Name</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+<!-- end card-body-->
+</div>
+<!-- end card-->
+</div>
+<!-- end col-->
+</div>
+<!-- end row-->
+</div>
+<!-- container -->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+
+        <!-- Page only -->
+
+
+
+@section Scripts {
+<script src="/js/pages/flags-listing.js"></script>
+}

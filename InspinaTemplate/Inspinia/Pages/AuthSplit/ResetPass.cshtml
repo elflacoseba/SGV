@@ -1,0 +1,78 @@
+@page "/auth-split/reset-pass"
+@model Inspinia.Pages.Authsplit.ResetPassModel
+
+
+@{
+    ViewBag.title = "Reset Password";
+}
+
+
+@section Styles {
+
+}
+
+
+<div class="auth-box p-0 w-100">
+<div class="row w-100 g-0">
+<div class="col">
+<div class="h-100 position-relative card-side-img rounded-0 overflow-hidden" style='background-image: url(/images/auth.jpg)'>
+<div class="p-4 card-img-overlay auth-overlay d-flex align-items-end justify-content-center"></div>
+</div>
+</div>
+<div class="col-xl-auto">
+<!--Auth Box content -->
+<div class="card auth-box-form border-0 mb-0">
+<div class="card-body min-vh-100 d-flex flex-column justify-content-center">
+<div class="auth-brand mb-0 text-center">
+<a class="logo-dark" href="/">
+<img alt="dark logo" src="/images/logo-black.png"/>
+</a>
+<a class="logo-light" href="/">
+<img alt="logo" src="/images/logo.png"/>
+</a>
+</div>
+<div class="mt-auto text-center">
+<h4 class="fw-bold">Forgot Password?</h4>
+<p class="text-muted auth-sub-text mx-auto">Enter your email address and we'll send you a link to reset your password.</p>
+<form class="mt-4">
+<div class="mb-3">
+<div class="input-group">
+<input class="form-control py-2 px-3 bg-light bg-opacity-40 border-light" id="userEmail" placeholder="Enter email" required="" type="email"/>
+</div>
+</div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="form-check">
+<input class="form-check-input form-check-input-light fs-14" id="termAndPolicy" type="checkbox"/>
+<label class="form-check-label" for="termAndPolicy">Agree the Terms &amp; Policy</label>
+</div>
+</div>
+<div class="d-grid">
+<button class="btn btn-primary fw-semibold py-2" type="submit">Send Request</button>
+</div>
+</form>
+</div>
+<p class="text-muted text-center mt-4 mb-0">
+                                Return to
+                                <a class="text-decoration-underline link-offset-3 fw-semibold" href="/auth-split/sign-in">Sign in</a>
+</p>
+<p class="text-center text-muted mt-auto mb-0">
+                                ©
+                                <script>
+                                    document.write(new Date().getFullYear())
+                                </script>
+                                Inspinia — by
+                                <span class="fw-bold">WebAppLayers</span>
+</p>
+</div>
+</div>
+<!-- End Auth Box Content -->
+</div>
+</div>
+</div>
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+    
+
+@section Scripts {
+
+}

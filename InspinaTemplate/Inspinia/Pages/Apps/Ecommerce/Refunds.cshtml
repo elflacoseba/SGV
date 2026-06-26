@@ -1,0 +1,710 @@
+@page "/apps/ecommerce/refunds"
+@model Inspinia.Pages.Apps.Ecommerce.RefundsModel
+
+
+@{
+    ViewBag.title = "Refunds";
+    ViewBag.subtitle = "Ecommerce";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="row row-cols-xxl-5 row-cols-md-3 row-cols-1 align-items-center g-1">
+<!-- Total Refund Requests -->
+<div class="col">
+<div class="card mb-1">
+<div class="card-body">
+<div class="d-flex align-items-center gap-2 mb-3">
+<div class="avatar-md flex-shrink-0">
+<span class="avatar-title text-bg-primary rounded-circle fs-22">
+<i class="ti ti-credit-card-refund"></i>
+</span>
+</div>
+<h3 class="mb-0">2,310</h3>
+</div>
+<p class="mb-0">
+                                        Total Refund Requests
+                                        <span class="float-end badge badge-soft-primary">+5.42%</span>
+</p>
+</div>
+</div>
+</div>
+<!-- Approved Refunds -->
+<div class="col">
+<div class="card mb-1">
+<div class="card-body">
+<div class="d-flex align-items-center gap-2 mb-3">
+<div class="avatar-md flex-shrink-0">
+<span class="avatar-title text-bg-success rounded-circle fs-22">
+<i class="ti ti-check"></i>
+</span>
+</div>
+<h3 class="mb-0">1,560</h3>
+</div>
+<p class="mb-0">
+                                        Approved Refunds
+                                        <span class="float-end badge badge-soft-success">+3.18%</span>
+</p>
+</div>
+</div>
+</div>
+<!-- Pending Refunds -->
+<div class="col">
+<div class="card mb-1">
+<div class="card-body">
+<div class="d-flex align-items-center gap-2 mb-3">
+<div class="avatar-md flex-shrink-0">
+<span class="avatar-title text-bg-warning rounded-circle fs-22">
+<i class="ti ti-alarm-snooze"></i>
+</span>
+</div>
+<h3 class="mb-0">430</h3>
+</div>
+<p class="mb-0">
+                                        Pending Refunds
+                                        <span class="float-end badge badge-soft-warning">-1.09%</span>
+</p>
+</div>
+</div>
+</div>
+<!-- Rejected Refunds -->
+<div class="col">
+<div class="card mb-1">
+<div class="card-body">
+<div class="d-flex align-items-center gap-2 mb-3">
+<div class="avatar-md flex-shrink-0">
+<span class="avatar-title text-bg-danger rounded-circle fs-22">
+<i class="ti ti-x"></i>
+</span>
+</div>
+<h3 class="mb-0">210</h3>
+</div>
+<p class="mb-0">
+                                        Rejected Refunds
+                                        <span class="float-end badge badge-soft-danger">-0.62%</span>
+</p>
+</div>
+</div>
+</div>
+<!-- Fully Refunded -->
+<div class="col">
+<div class="card mb-1">
+<div class="card-body">
+<div class="d-flex align-items-center gap-2 mb-3">
+<div class="avatar-md flex-shrink-0">
+<span class="avatar-title text-bg-info rounded-circle fs-22">
+<i class="ti ti-bolt"></i>
+</span>
+</div>
+<h3 class="mb-0">110</h3>
+</div>
+<p class="mb-0">
+                                        Fully Refunded
+                                        <span class="float-end badge badge-soft-info">+2.41%</span>
+</p>
+</div>
+</div>
+</div>
+</div>
+<!-- end row -->
+<div class="row">
+<div class="col-12">
+<div class="card" data-table="" data-table-rows-per-page="8">
+<div class="card-header border-light justify-content-between">
+<div class="d-flex gap-2">
+<div class="app-search">
+<input class="form-control" data-table-search="" placeholder="Search order..." type="search"/>
+<i class="ti ti-search app-search-icon text-muted"></i>
+</div>
+<button class="btn btn-danger d-none" data-table-delete-selected="">Delete</button>
+</div>
+<div class="d-flex align-items-center gap-2 flex-wrap">
+<span class="me-2 fw-semibold">Filter By:</span>
+<!-- Refund Status Filter -->
+<div class="app-search">
+<select class="form-select form-control my-1 my-md-0" data-table-filter="refund-status">
+<option value="All">Refund Status</option>
+<option value="Pending">Pending</option>
+<option value="Approved">Approved</option>
+<option value="Rejected">Rejected</option>
+<option value="Refunded">Refunded</option>
+</select>
+<i class="ti ti-credit-card-refund app-search-icon text-muted"></i>
+</div>
+<!-- Records Per Page -->
+<div>
+<select class="form-select form-control my-1 my-md-0" data-table-set-rows-per-page="">
+<option value="5">5</option>
+<option selected="" value="10">10</option>
+<option value="15">15</option>
+<option value="20">20</option>
+</select>
+</div>
+</div>
+<div class="d-flex gap-1">
+<a class="btn btn-primary ms-1" href="/#!"> <i class="ti ti-plus fs-sm me-2"></i> Create Refund </a>
+</div>
+</div>
+<div class="table-responsive">
+<table class="table table-custom table-centered table-select table-hover w-100 mb-0">
+<thead class="bg-light align-middle bg-opacity-25 thead-sm">
+<tr class="text-uppercase fs-xxs">
+<th class="ps-3" style="width: 1%">
+<input class="form-check-input form-check-input-light fs-14 mt-0" data-table-select-all="" type="checkbox" value="option"/>
+</th>
+<th data-table-sort="">Order ID</th>
+<th>Product</th>
+<th>Customer</th>
+<th>Reason</th>
+<th data-table-sort="">Payment</th>
+<th data-table-sort="">Amount</th>
+<th data-column="refund-status" data-table-sort="">Status</th>
+<th>Requested</th>
+<th>Processed</th>
+<th class="text-center" style="width: 1%">Actions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox" value="option"/>
+</td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/apps/ecommerce/order-details">#INV-10423</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/1.png" width="34"/>
+<div>
+<div class="fw-medium">NoiseCancel Headphones</div>
+<small class="text-muted">SKU: NC-900</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-start align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-2" class="img-fluid rounded-circle" src="/images/users/user-2.jpg"/>
+</div>
+<div>
+<h5 class="text-nowrap fs-base mb-0 lh-base" data-sort="customer">Mason Carter</h5>
+<p class="text-muted fs-xs mb-0">mason.carter@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Damaged on arrival</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/visa.svg"/> xxxx 7832</td>
+<td>$129.45</td>
+<td>
+<span class="badge badge-label badge-soft-warning">Pending</span>
+</td>
+<td><span class="text-nowrap">08 Oct 2025</span></td>
+<td>-</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox" value="option"/>
+</td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/apps/ecommerce/order-details">#INV-10407</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/2.png" width="34"/>
+<div>
+<div class="fw-medium">Smartwatch Pro</div>
+<small class="text-muted">SKU: SW-PRO</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-start align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-5" class="img-fluid rounded-circle" src="/images/users/user-5.jpg"/>
+</div>
+<div>
+<h5 class="text-nowrap fs-base mb-0 lh-base">Sofia Williams</h5>
+<p class="text-muted fs-xs mb-0">sofia.williams@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Wrong size received</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/mastercard.svg"/> xxxx 2294</td>
+<td>$79.99</td>
+<td><span class="badge badge-label badge-soft-success">Approved</span></td>
+<td><span class="text-nowrap">05 Oct 2025</span></td>
+<td><span class="text-nowrap">06 Oct 2025</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox" value="option"/>
+</td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/apps/ecommerce/order-details">#INV-10388</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/3.png" width="34"/>
+<div>
+<div class="fw-medium">4K Action Camera</div>
+<small class="text-muted">SKU: AC-4K</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-start align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-3" class="img-fluid rounded-circle" src="/images/users/user-3.jpg"/>
+</div>
+<div>
+<h5 class="text-nowrap fs-base mb-0 lh-base">Liam Brown</h5>
+<p class="text-muted fs-xs mb-0">liam.brown@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>No longer needed</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/american-express.svg"/> xxxx 1145</td>
+<td>$249.00</td>
+<td><span class="badge badge-label badge-soft-secondary">Refunded</span></td>
+<td><span class="text-nowrap">30 Sep 2025</span></td>
+<td><span class="text-nowrap">01 Oct 2025</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox" value="option"/>
+</td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/apps/ecommerce/order-details">#INV-10352</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/4.png" width="34"/>
+<div>
+<div class="fw-medium">Bluetooth Speaker Mini</div>
+<small class="text-muted">SKU: BS-MINI</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-start align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-7" class="img-fluid rounded-circle" src="/images/users/user-7.jpg"/>
+</div>
+<div>
+<h5 class="text-nowrap fs-base mb-0 lh-base">Emma Johnson</h5>
+<p class="text-muted fs-xs mb-0">emma.johnson@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Product not as described</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/paypal.svg"/> PayPal</td>
+<td>$59.99</td>
+<td><span class="badge badge-label badge-soft-danger">Rejected</span></td>
+<td><span class="text-nowrap">25 Sep 2025</span></td>
+<td>-</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox" value="option"/>
+</td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/apps/ecommerce/order-details">#INV-10341</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/5.png" width="34"/>
+<div>
+<div class="fw-medium">Wireless Mouse</div>
+<small class="text-muted">SKU: WM-450</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-8" class="img-fluid rounded-circle" src="/images/users/user-8.jpg"/>
+</div>
+<div>
+<h5 class="fs-base mb-0 lh-base">Oliver Garcia</h5>
+<p class="text-muted fs-xs mb-0">oliver.garcia@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Did not work as expected</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/visa.svg"/> xxxx 9821</td>
+<td>$39.00</td>
+<td><span class="badge badge-label badge-soft-warning">Pending</span></td>
+<td><span class="text-nowrap">22 Sep 2025</span></td>
+<td>-</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox"/>
+</td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/#">#INV-10322</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/6.png" width="34"/>
+<div>
+<div class="fw-medium">Ergonomic Office Chair</div>
+<small class="text-muted">SKU: CHR-550</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-4" class="img-fluid rounded-circle" src="/images/users/user-4.jpg"/>
+</div>
+<div>
+<h5 class="fs-base mb-0 lh-base">Lucas Turner</h5>
+<p class="text-muted fs-xs mb-0">lucas.turner@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Incorrect color delivered</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/american-express.svg"/> xxxx 6730</td>
+<td>$199.00</td>
+<td><span class="badge badge-label badge-soft-success">Approved</span></td>
+<td><span class="text-nowrap">20 Sep 2025</span></td>
+<td><span class="text-nowrap">21 Sep 2025</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox"/></td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/#">#INV-10305</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/7.png" width="34"/>
+<div>
+<div class="fw-medium">Portable Vacuum Cleaner</div>
+<small class="text-muted">SKU: VC-201</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-9" class="img-fluid rounded-circle" src="/images/users/user-9.jpg"/>
+</div>
+<div>
+<h5 class="fs-base mb-0 lh-base">Charlotte Davis</h5>
+<p class="text-muted fs-xs mb-0">charlotte.d@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Missing accessories</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/mastercard.svg"/> xxxx 8142</td>
+<td>$89.50</td>
+<td><span class="badge badge-label badge-soft-secondary">Refunded</span></td>
+<td><span class="text-nowrap">16 Sep 2025</span></td>
+<td><span class="text-nowrap">18 Sep 2025</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox"/></td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/#">#INV-10293</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/8.png" width="34"/>
+<div>
+<div class="fw-medium">Gaming Keyboard RGB</div>
+<small class="text-muted">SKU: GK-88</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-10" class="img-fluid rounded-circle" src="/images/users/user-10.jpg"/>
+</div>
+<div>
+<h5 class="fs-base mb-0 lh-base">Henry Martin</h5>
+<p class="text-muted fs-xs mb-0">henry.martin@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Keys not functioning</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/paypal.svg"/> PayPal</td>
+<td>$119.00</td>
+<td><span class="badge badge-label badge-soft-danger">Rejected</span></td>
+<td><span class="text-nowrap">12 Sep 2025</span></td>
+<td>-</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox"/></td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/#">#INV-10275</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/9.png" width="34"/>
+<div>
+<div class="fw-medium">Fitness Tracker Band</div>
+<small class="text-muted">SKU: FT-900</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-11" class="img-fluid rounded-circle" src="/images/users/user-3.jpg"/>
+</div>
+<div>
+<h5 class="fs-base mb-0 lh-base">Ella Rodriguez</h5>
+<p class="text-muted fs-xs mb-0">ella.rodriguez@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Did not sync with app</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/visa.svg"/> xxxx 9082</td>
+<td>$49.99</td>
+<td><span class="badge badge-label badge-soft-warning">Pending</span></td>
+<td><span class="text-nowrap">08 Sep 2025</span></td>
+<td>-</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 product-item-check mt-0" type="checkbox"/></td>
+<td>
+<h5 class="fs-sm mb-0"><a class="link-reset" href="/#">#INV-10261</a></h5>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<img alt="" class="rounded" height="34" src="/images/products/10.png" width="34"/>
+<div>
+<div class="fw-medium">Laptop Stand Adjustable</div>
+<small class="text-muted">SKU: LS-101</small>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-12" class="img-fluid rounded-circle" src="/images/users/user-2.jpg"/>
+</div>
+<div>
+<h5 class="fs-base mb-0 lh-base">James Anderson</h5>
+<p class="text-muted fs-xs mb-0">james.anderson@shopmail.com</p>
+</div>
+</div>
+</td>
+<td>Package arrived late</td>
+<td><img alt="" class="me-2" height="28" src="/images/cards/mastercard.svg"/> xxxx 3210</td>
+<td>$64.99</td>
+<td><span class="badge badge-label badge-soft-success">Approved</span></td>
+<td><span class="text-nowrap">05 Sep 2025</span></td>
+<td><span class="text-nowrap">06 Sep 2025</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-check fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-x fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+<button class="btn btn-light btn-icon btn-sm rounded-circle dropdown-toggle drop-arrow-none" data-bs-toggle="dropdown"><i class="ti ti-dots-vertical fs-lg"></i></button>
+<ul class="dropdown-menu dropdown-menu-end">
+<li><a class="dropdown-item" href="/#">View order</a></li>
+<li><a class="dropdown-item" href="/#">Contact customer</a></li>
+<li>
+<hr class="dropdown-divider"/>
+</li>
+<li><a class="dropdown-item" href="/#">Add note</a></li>
+</ul>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="card-footer border-0">
+<div class="d-flex justify-content-between align-items-center">
+<div data-table-pagination-info="orders"></div>
+<div data-table-pagination=""></div>
+</div>
+</div>
+</div>
+</div>
+<!-- end col -->
+</div>
+<!-- end row -->
+</div>
+<!-- container -->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+
+        <!-- Custom table -->
+
+
+
+@section Scripts {
+<script src="/js/pages/custom-table.js"></script>
+}

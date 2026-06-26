@@ -1,0 +1,586 @@
+@page "/apps/ecommerce/warehouse"
+@model Inspinia.Pages.Apps.Ecommerce.WarehouseModel
+
+
+@{
+    ViewBag.title = "Warehouse";
+    ViewBag.subtitle = "Ecommerce";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="row">
+<div class="col-12">
+<div class="card" data-table="" data-table-rows-per-page="10">
+<div class="card-header border-light justify-content-between">
+<div class="d-flex gap-2">
+<div class="app-search">
+<input class="form-control" data-table-search="" placeholder="Search..." type="search"/>
+<i class="ti ti-search app-search-icon text-muted"></i>
+</div>
+<button class="btn btn-danger d-none" data-table-delete-selected="">Delete</button>
+</div>
+<div class="d-flex align-items-center gap-2 flex-wrap">
+<span class="me-2 fw-semibold">Filter By:</span>
+<!-- Warehouse Status Filter -->
+<div class="app-search">
+<select class="form-select form-control my-1 my-md-0" data-table-filter="warehouse-status">
+<option value="All">Warehouse Status</option>
+<option value="Operational">Operational</option>
+<option value="Maintenance">Under Maintenance</option>
+<option value="Closed">Closed</option>
+</select>
+<i class="ti ti-building app-search-icon text-muted"></i>
+</div>
+<!-- Location Filter -->
+<div class="app-search">
+<select class="form-select form-control my-1 my-md-0" data-table-filter="warehouse-location">
+<option value="All">Location</option>
+<option value="New York, USA">New York</option>
+<option value="Boston, USA">Boston</option>
+<option value="Los Angeles, USA">Los Angeles</option>
+<option value="Berlin, Germany">Berlin</option>
+<option value="Singapore">Singapore</option>
+<option value="Dubai, UAE">Dubai</option>
+</select>
+<i class="ti ti-map-pin app-search-icon text-muted"></i>
+</div>
+<!-- Records Per Page -->
+<div>
+<select class="form-select form-control my-1 my-md-0" data-table-set-rows-per-page="">
+<option value="5">5</option>
+<option selected="" value="10">10</option>
+<option value="15">15</option>
+<option value="20">20</option>
+</select>
+</div>
+</div>
+<div class="d-flex gap-1">
+<a class="btn btn-danger ms-1" href="/#!"> <i class="ti ti-plus fs-sm me-2"></i> Add New </a>
+</div>
+</div>
+<div class="table-responsive">
+<table class="table table-custom table-centered table-select table-hover w-100 mb-0">
+<thead class="bg-light align-middle bg-opacity-25 thead-sm">
+<tr class="text-uppercase fs-xxs">
+<th class="ps-3" style="width: 1%">
+<input class="form-check-input form-check-input-light fs-14 mt-0" data-table-select-all="" type="checkbox"/>
+</th>
+<th data-table-sort="">ID</th>
+<th data-table-sort="">Name</th>
+<th data-column="warehouse-location" data-table-sort="">Location</th>
+<th data-table-sort="">Manager</th>
+<th data-table-sort="">Contact</th>
+<th data-table-sort="">Capacity</th>
+<th data-table-sort="">Avai. Stock</th>
+<th data-table-sort="">Stock Shipping</th>
+<th data-table-sort="">Revenue</th>
+<th data-column="warehouse-status" data-table-sort="">Status</th>
+<th class="text-center" style="width: 1%">Actions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-001</h5></td>
+<td>Central Distribution Hub</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>New York, USA</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-1" class="img-fluid rounded-circle" src="/images/users/user-1.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Olivia Brown</h6>
+<p class="text-muted fs-xs mb-0">olivia.brown@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+14165559876">+1 416 555 9876</a></td>
+<td>95,000 sq.ft</td>
+<td>38,240 units</td>
+<td>12,680 units</td>
+<td>$1.28M</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-002</h5></td>
+<td>East Coast Storage</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Boston, USA</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-2" class="img-fluid rounded-circle" src="/images/users/user-2.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Ethan Walker</h6>
+<p class="text-muted fs-xs mb-0">ethan.walker@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+14165551234">+1 416 555 1234</a></td>
+<td>68,000 sq.ft</td>
+<td>22,500 units</td>
+<td>9,340 units</td>
+<td>$870K</td>
+<td><span class="badge badge-soft-warning fs-xxs">Maintenance</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-003</h5></td>
+<td>West Coast Depot</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Los Angeles, USA</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-3" class="img-fluid rounded-circle" src="/images/users/user-3.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Sophia Green</h6>
+<p class="text-muted fs-xs mb-0">sophia.green@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+13105557654">+1 310 555 7654</a></td>
+<td>120,000 sq.ft</td>
+<td>51,800 units</td>
+<td>14,250 units</td>
+<td>$1.94M</td>
+<td><span class="badge badge-soft-danger fs-xxs">Closed</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-004</h5></td>
+<td>Europe Main Hub</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Berlin, Germany</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-4" class="img-fluid rounded-circle" src="/images/users/user-4.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Liam Becker</h6>
+<p class="text-muted fs-xs mb-0">liam.becker@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+49301234567">+49 30 1234 567</a></td>
+<td>88,000 sq.ft</td>
+<td>29,400 units</td>
+<td>10,200 units</td>
+<td>$980K</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-005</h5></td>
+<td>Asia-Pacific Logistics</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Singapore</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-5" class="img-fluid rounded-circle" src="/images/users/user-5.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Isabella Tan</h6>
+<p class="text-muted fs-xs mb-0">isabella.tan@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+6567892345">+65 6789 2345</a></td>
+<td>102,000 sq.ft</td>
+<td>47,600 units</td>
+<td>8,700 units</td>
+<td>$1.15M</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-006</h5></td>
+<td>Middle East Distribution</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Dubai, UAE</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-6" class="img-fluid rounded-circle" src="/images/users/user-6.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Omar Khalid</h6>
+<p class="text-muted fs-xs mb-0">omar.khalid@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+97145567890">+971 4 556 7890</a></td>
+<td>77,000 sq.ft</td>
+<td>33,900 units</td>
+<td>7,850 units</td>
+<td>$940K</td>
+<td><span class="badge badge-soft-warning fs-xxs">Maintenance</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-007</h5></td>
+<td>South America Hub</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>São Paulo, Brazil</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-7" class="img-fluid rounded-circle" src="/images/users/user-7.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Mateo Silva</h6>
+<p class="text-muted fs-xs mb-0">mateo.silva@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+551112345678">+55 11 1234 5678</a></td>
+<td>90,000 sq.ft</td>
+<td>41,200 units</td>
+<td>11,800 units</td>
+<td>$1.02M</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-008</h5></td>
+<td>Africa Distribution Center</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Johannesburg, South Africa</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-8" class="img-fluid rounded-circle" src="/images/users/user-8.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Ava Mokoena</h6>
+<p class="text-muted fs-xs mb-0">ava.mokoena@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+27115555678">+27 11 555 5678</a></td>
+<td>85,000 sq.ft</td>
+<td>36,900 units</td>
+<td>9,900 units</td>
+<td>$895K</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-009</h5></td>
+<td>Canada Regional Center</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Toronto, Canada</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-9" class="img-fluid rounded-circle" src="/images/users/user-9.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Noah Clarke</h6>
+<p class="text-muted fs-xs mb-0">noah.clarke@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+14165553456">+1 416 555 3456</a></td>
+<td>92,000 sq.ft</td>
+<td>40,850 units</td>
+<td>10,600 units</td>
+<td>$1.12M</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-010</h5></td>
+<td>Australia Main Warehouse</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Sydney, Australia</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-10" class="img-fluid rounded-circle" src="/images/users/user-10.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Amelia White</h6>
+<p class="text-muted fs-xs mb-0">amelia.white@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+61298765432">+61 2 9876 5432</a></td>
+<td>105,000 sq.ft</td>
+<td>50,200 units</td>
+<td>12,450 units</td>
+<td>$1.35M</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-011</h5></td>
+<td>Nordic Storage Facility</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Stockholm, Sweden</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-11" class="img-fluid rounded-circle" src="/images/users/user-1.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Freja Lind</h6>
+<p class="text-muted fs-xs mb-0">freja.lind@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+46855667890">+46 8 5566 7890</a></td>
+<td>80,000 sq.ft</td>
+<td>34,500 units</td>
+<td>7,450 units</td>
+<td>$880K</td>
+<td><span class="badge badge-soft-warning fs-xxs">Maintenance</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-012</h5></td>
+<td>Central Asia Logistics</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Almaty, Kazakhstan</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-12" class="img-fluid rounded-circle" src="/images/users/user-7.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Nursultan Aydin</h6>
+<p class="text-muted fs-xs mb-0">nursultan.aydin@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+77272345678">+7 727 234 5678</a></td>
+<td>70,000 sq.ft</td>
+<td>28,300 units</td>
+<td>8,200 units</td>
+<td>$760K</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+<tr>
+<td class="ps-3"><input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/></td>
+<td><h5 class="fs-sm mb-0">#WH-013</h5></td>
+<td>Japan Coastal Warehouse</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<i class="ti ti-map-pin text-muted fs-sm"></i>
+<span>Osaka, Japan</span>
+</div>
+</td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-13" class="img-fluid rounded-circle" src="/images/users/user-4.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Haruto Sato</h6>
+<p class="text-muted fs-xs mb-0">haruto.sato@company.com</p>
+</div>
+</div>
+</td>
+<td><a class="text-reset" href="/tel:+81678901234">+81 6 7890 1234</a></td>
+<td>99,000 sq.ft</td>
+<td>45,900 units</td>
+<td>11,600 units</td>
+<td>$1.22M</td>
+<td><span class="badge badge-soft-success fs-xxs">Operational</span></td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-eye fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!"><i class="ti ti-edit fs-lg"></i></a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#"><i class="ti ti-trash fs-lg"></i></a>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="card-footer border-0">
+<div class="d-flex justify-content-between align-items-center">
+<div data-table-pagination-info="orders"></div>
+<div data-table-pagination=""></div>
+</div>
+</div>
+</div>
+</div>
+<!-- end col -->
+</div>
+<!-- end row -->
+</div>
+<!-- container -->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+
+        <!-- Custom table -->
+
+
+
+@section Scripts {
+<script src="/js/pages/custom-table.js"></script>
+}

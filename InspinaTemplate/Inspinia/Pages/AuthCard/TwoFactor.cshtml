@@ -1,0 +1,94 @@
+@page "/auth-card/two-factor"
+@model Inspinia.Pages.Authcard.TwoFactorModel
+
+
+@{
+    ViewBag.title = "Two Factor Authentication";
+}
+
+
+@section Styles {
+
+}
+
+
+<div class="auth-box d-flex align-items-center">
+<div class="container-xxl">
+<div class="row align-items-center justify-content-center">
+<div class="col-xl-10">
+<div class="card rounded-4">
+<div class="row justify-content-between g-0">
+<div class="col-lg-6">
+<div class="card-body">
+<div class="auth-brand text-center mb-4">
+<a class="logo-dark" href="/">
+<img alt="dark logo" src="/images/logo-black.png"/>
+</a>
+<a class="logo-light" href="/">
+<img alt="logo" src="/images/logo.png"/>
+</a>
+<h4 class="fw-bold mt-4">Request sent Successfully!</h4>
+</div>
+<div class="text-center mb-4">
+<h5 class="text-muted fs-base mb-3">We've emailed you a 6-digit verification code we sent to</h5>
+<div class="fw-bold fs-3">******6789</div>
+</div>
+<form>
+<label class="form-label">
+                                                Enter your 6-digit code
+                                                <span class="text-danger">*</span>
+</label>
+<div class="d-flex gap-2 two-factor mb-3">
+<input class="form-control text-center" required="" type="password"/>
+<input class="form-control text-center" required="" type="password"/>
+<input class="form-control text-center" required="" type="password"/>
+<input class="form-control text-center" required="" type="password"/>
+<input class="form-control text-center" required="" type="password"/>
+<input class="form-control text-center" required="" type="password"/>
+</div>
+<div class="d-grid">
+<button class="btn btn-primary fw-semibold py-2" type="submit">Confirm</button>
+</div>
+</form>
+<p class="mt-4 text-muted text-center mb-4">
+                                            Don’t have a code?
+                                            <a class="text-decoration-underline link-offset-2 fw-semibold" href="/#">Resend</a>
+                                            or
+                                            <a class="text-decoration-underline link-offset-2 fw-semibold" href="/#">Call Us</a>
+</p>
+<p class="text-muted text-center mb-0">
+                                            Return to
+                                            <a class="text-decoration-underline link-offset-3 fw-semibold" href="/auth-card/sign-in">Sign in</a>
+</p>
+<p class="text-center text-muted mt-4 mb-0">
+                                            ©
+                                            <script>
+                                                document.write(new Date().getFullYear())
+                                            </script>
+                                            Inspinia — by
+                                            <span class="fw-bold">WebAppLayers</span>
+</p>
+</div>
+</div>
+<div class="col-lg-6 d-none d-lg-block">
+<div class="h-100 position-relative card-side-img rounded-end-4 rounded-end rounded-0 overflow-hidden" style='background-image: url(/images/auth.jpg)'>
+<div class="p-4 card-img-overlay rounded-4 rounded-start-0 auth-overlay d-flex align-items-end justify-content-center"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- end auth-fluid-->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+
+        <!-- Two Factor Validator Js -->
+
+
+
+@section Scripts {
+<script src="/js/pages/auth-two-factor.js"></script>
+}

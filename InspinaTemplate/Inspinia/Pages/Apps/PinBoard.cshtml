@@ -1,0 +1,163 @@
+@page "/apps/pin-board"
+@model Inspinia.Pages.Apps.PinBoardModel
+
+
+@{
+    ViewBag.title = "Pin Board";
+    ViewBag.subtitle = "Apps";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="row">
+<div class="col-12">
+<div class="card bg-transparent">
+<div class="card-body">
+<div class="pin-board d-flex flex-wrap">
+<div class="pin-board-item bg-primary-subtle" id="pin-1">
+<p class="text-end fs-10">14:22:07 08-04-2025</p>
+<h4 class="fs-md">Client feedback summary</h4>
+<p>Positive response on UI, requested dark mode toggle and faster load times.</p>
+<a class="pin-board-delete fs-lg" data-dismissible="#pin-1" href="/#">
+<i class="ti ti-trash"></i>
+</a>
+</div>
+<div class="pin-board-item bg-danger-subtle" id="pin-2">
+<p class="text-end fs-10">17:09:33 05-04-2025</p>
+<h4 class="fs-md">Blog content ideas</h4>
+<p>Write about upcoming trends in web design and practical CSS tips.</p>
+<a class="pin-board-delete fs-lg" data-dismissible="#pin-2" href="/#">
+<i class="ti ti-trash"></i>
+</a>
+</div>
+<div class="pin-board-item bg-warning-subtle" id="pin-3">
+<p class="text-end fs-10">10:55:10 02-04-2025</p>
+<h4 class="fs-md">Code optimization checklist</h4>
+<p>Refactor JS functions, minimize DOM manipulation, and lazy load assets.</p>
+<a class="pin-board-delete fs-lg" data-dismissible="#pin-3" href="/#">
+<i class="ti ti-trash"></i>
+</a>
+</div>
+<div class="pin-board-item bg-info-subtle" id="pin-4">
+<p class="text-end fs-10">09:30:44 30-03-2025</p>
+<h4 class="fs-md">Newsletter draft</h4>
+<p>Focus on April's product update, new feature highlights, and tutorials.</p>
+<a class="pin-board-delete fs-lg" data-dismissible="#pin-4" href="/#">
+<i class="ti ti-trash"></i>
+</a>
+</div>
+<div class="pin-board-item bg-dark-subtle" id="pin-5">
+<p class="text-end fs-10">16:47:25 28-03-2025</p>
+<h4 class="fs-md">Bug report log</h4>
+<p>Users reporting login timeout issues on mobile—investigate session handling.</p>
+<a class="pin-board-delete fs-lg" data-dismissible="#pin-5" href="/#">
+<i class="ti ti-trash"></i>
+</a>
+</div>
+<div class="pin-board-item bg-light-subtle" id="pin-6">
+<p class="text-end fs-10">11:18:03 26-03-2025</p>
+<h4 class="fs-md">Design review notes</h4>
+<p>Refine hero section spacing and use softer gradients for cards background.</p>
+<a class="pin-board-delete fs-lg" data-dismissible="#pin-6" href="/#">
+<i class="ti ti-trash"></i>
+</a>
+</div>
+<div class="pin-board-item bg-purple-subtle" id="pin-7">
+<p class="text-end fs-10">11:18:03 26-03-2025</p>
+<h4 class="fs-md">Design review notes</h4>
+<p>Refine hero section spacing and use softer gradients for cards background.</p>
+<a class="pin-board-delete fs-lg" data-dismissible="#pin-7" href="/#">
+<i class="ti ti-trash"></i>
+</a>
+</div>
+<div class="pin-board-item bg-success-subtle" id="pin-8">
+<p class="text-end fs-10">08:45:12 10-04-2025</p>
+<h4 class="fs-md">Team meeting recap</h4>
+<p>Discussed key milestones, delegated tasks, and set deadlines for the next sprint.</p>
+<a class="pin-board-delete fs-lg" data-dismissible="#pin-8" href="/#">
+<i class="ti ti-trash"></i>
+</a>
+</div>
+<div class="pin-board-item pin-board-add d-flex align-items-center justify-content-center">
+<a class="btn btn-icon btn-primary" data-bs-target="#addNoteModal" data-bs-toggle="modal" href="/#">
+<i class="ti ti-plus"></i>
+</a>
+</div>
+</div>
+</div>
+<!-- end card-body-->
+</div>
+<!-- end card-->
+</div>
+<!-- end col-->
+</div>
+<!-- end row-->
+<div aria-hidden="true" aria-labelledby="addNoteModalLabel" class="modal fade" id="addNoteModal" tabindex="-1">
+<div class="modal-dialog modal-md modal-dialog-centered">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title" id="addNoteModalLabel">Add New Note</h5>
+<button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+</div>
+<form id="addNoteForm">
+<div class="modal-body">
+<div class="mb-3">
+<label class="form-label fw-semibold">Title</label>
+<input class="form-control" name="noteTitle" placeholder="Enter note title" required="" type="text"/>
+</div>
+<div class="mb-3">
+<label class="form-label fw-semibold">Note Content</label>
+<textarea class="form-control" name="noteContent" placeholder="Write your note..." required="" rows="3"></textarea>
+</div>
+<div>
+<label class="form-label fw-semibold">Color Theme</label>
+<select class="form-select" name="noteColor">
+<option selected="" value="bg-success-subtle">Green (Success)</option>
+<option value="bg-primary-subtle">Blue (Primary)</option>
+<option value="bg-warning-subtle">Yellow (Warning)</option>
+<option value="bg-danger-subtle">Red (Danger)</option>
+<option value="bg-light">Light</option>
+</select>
+</div>
+</div>
+<div class="modal-footer">
+<button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
+<button class="btn btn-primary" type="submit">Add Note</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+<!-- end modal-->
+</div>
+<!-- container -->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+    
+
+@section Scripts {
+
+}

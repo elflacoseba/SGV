@@ -1,0 +1,78 @@
+@page "/auth/login-pin"
+@model Inspinia.Pages.Auth.LoginPinModel
+
+
+@{
+    ViewBag.title = "Login with Pin";
+}
+
+
+@section Styles {
+
+}
+
+
+<div class="auth-box overflow-hidden align-items-center d-flex">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-xxl-4 col-md-6 col-sm-8">
+<div class="auth-brand text-center mb-4">
+<a class="logo-dark" href="/">
+<img alt="dark logo" src="/images/logo-black.png"/>
+</a>
+<a class="logo-light" href="/">
+<img alt="logo" src="/images/logo.png"/>
+</a>
+<h4 class="fw-bold mt-3">Login with PIN!</h4>
+<p class="text-muted w-lg-75 mx-auto">This screen is locked. Enter your PIN to continue.</p>
+</div>
+<div class="card p-4">
+<div class="text-center mb-4">
+<img alt="thumbnail" class="rounded-circle img-thumbnail avatar-xxl mb-2" src="/images/users/user-1.jpg"/>
+<h5 class="fs-md">Damian D.</h5>
+</div>
+<form>
+<label class="form-label">
+                                    Enter your 6-digit code
+                                    <span class="text-danger">*</span>
+</label>
+<div class="d-flex gap-2 mb-3 two-factor">
+<input class="form-control text-center" required="" type="text"/>
+<input class="form-control text-center" required="" type="text"/>
+<input class="form-control text-center" required="" type="text"/>
+<input class="form-control text-center" required="" type="text"/>
+<input class="form-control text-center" required="" type="text"/>
+<input class="form-control text-center" required="" type="text"/>
+</div>
+<div class="d-grid">
+<button class="btn btn-primary fw-semibold py-2" type="submit">Confirm</button>
+</div>
+</form>
+<p class="text-muted text-center mt-4 mb-0">
+                                Not you? Return to
+                                <a class="text-decoration-underline link-offset-3 fw-semibold" href="/auth/sign-in">Sign in</a>
+</p>
+</div>
+<p class="text-center text-muted mt-4 mb-0">
+                            ©
+                            <script>
+                                document.write(new Date().getFullYear())
+                            </script>
+                            Inspinia — by
+                            <span class="fw-bold">WebAppLayers</span>
+</p>
+</div>
+</div>
+</div>
+</div>
+<!-- end auth-fluid-->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+
+        <!-- Two Factor Validator Js -->
+
+
+
+@section Scripts {
+<script src="/js/pages/auth-two-factor.js"></script>
+}

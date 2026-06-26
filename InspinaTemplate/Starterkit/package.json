@@ -1,0 +1,47 @@
+{
+  "name": "inspinia",
+  "version": "5.0.0",
+  "devDependencies": {
+    "autoprefixer": "^10.4.0",
+    "cssnano": "^7.0.0",
+    "gulp": "^4.0.2",
+    "gulp-concat": "^2.6.1",
+    "gulp-plumber": "^1.2.1",
+    "gulp-npm-dist": "^1.0.3",
+    "gulp-postcss": "^10.0.0",
+    "gulp-rename": "^2.0.0",
+    "gulp-replace": "^1.1.4",
+    "gulp-sass": "^5.1.0",
+    "gulp-uglify-es": "^3.0.0",
+    "node-sass-tilde-importer": "^1.0.2",
+    "pixrem": "^5.0.0",
+    "postcss": "^8.3.11",
+    "sass": "1.77.6",
+    "@popperjs/core": "^2.11.8",
+    "browser-sync": "^3.0.3",
+    "clean-css": "^5.3.1",
+    "del": "^6.1.1",
+    "gulp-autoprefixer": "^8.0.0",
+    "gulp-clean-css": "^4.2.0",
+    "gulp-file-include": "^2.3.0",
+    "gulp-newer": "^1.4.0",
+    "gulp-rtlcss": "^2.0.0",
+    "gulp-sourcemaps": "^3.0.0",
+    "gulp-uglify": "^3.0.2"
+  },
+  "scripts": {
+    "dev": "gulp",
+    "build": "gulp build"
+  },
+  "description": "Inspinia is the #1 best-selling admin dashboard template on Wrapmarket. Perfect for building CRM, CMS, project management tools, and custom web apps with clean UI, responsive design, and powerful features.",
+  "author": "WebAppLayers",
+  "dependencies": {
+    "@tabler/icons-webfont": "3.35.0",
+    "bootstrap": "^5.3.8",
+    "choices.js": "^11.1.0",
+    "echarts": "^6.0.0",
+    "flatpickr": "^4.6.13",
+    "prismjs": "^1.30.0",
+    "simplebar": "^6.3.3"
+  }
+}

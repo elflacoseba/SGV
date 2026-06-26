@@ -1,0 +1,72 @@
+@page "/error/408"
+@model Starterkit.Pages.Error.Error408Model
+
+
+@{
+    ViewBag.title = "408 Error";
+}
+
+
+@section Styles {
+
+}
+
+
+<div class="auth-box d-flex align-items-center">
+<div class="container-xxl">
+<div class="row align-items-center justify-content-center">
+<div class="col-xl-10">
+<div class="card rounded-3 p-0 rounded-4">
+<div class="card-body p-0">
+<div class="row justify-content-between g-0">
+<div class="col-lg-6">
+<div class="card mb-0 border-0 rounded-4">
+<div class="card-body">
+<div class="auth-brand text-center mb-3">
+<a class="logo-dark" href="/">
+<img alt="dark logo" src="/images/logo-black.png"/>
+</a>
+<a class="logo-light" href="/">
+<img alt="logo" src="/images/logo.png"/>
+</a>
+</div>
+<div class="p-2 text-center">
+<div class="error-wave-container error-text-alt justify-content-center gap-1">
+<span class="error-wave-char">4</span>
+<span class="error-wave-char">0</span>
+<span class="error-wave-char">8</span>
+</div>
+<h3 class="fw-bold text-uppercase">Request Timeout</h3>
+<p class="text-muted">Your request took too long, and the server timed out. Please try again later.</p>
+<button class="btn btn-primary mt-3 rounded-pill" onclick="window.location.href="/"">Back to Safety</button>
+</div>
+<p class="text-center text-muted mt-5 mb-0">
+                                                    ©
+                                                    <script>
+                                                        document.write(new Date().getFullYear())
+                                                    </script>
+                                                    Inspinia — by
+                                                    <span class="fw-bold">WebAppLayers</span>
+</p>
+</div>
+</div>
+</div>
+<div class="col-lg-6 d-none d-lg-block">
+<div class="h-100 position-relative card-side-img rounded-end-4 rounded-end rounded-0 overflow-hidden" style='background-image: url(/images/auth.jpg)'>
+<div class="p-4 card-img-overlay rounded-4 rounded-start-0 auth-overlay d-flex align-items-end justify-content-center"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- end auth-fluid-->
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+    
+
+@section Scripts {
+
+}

@@ -1,0 +1,571 @@
+@page "/apps/ecommerce/attributes"
+@model Inspinia.Pages.Apps.Ecommerce.AttributesModel
+
+
+@{
+    ViewBag.title = "Attributes";
+    ViewBag.subtitle = "Ecommerce";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="row">
+<div class="col-12">
+<div class="card" data-table="" data-table-rows-per-page="8">
+<div class="card-header border-light justify-content-between">
+<!-- Left Section: Search + Delete -->
+<div class="d-flex gap-2">
+<div class="app-search">
+<input class="form-control" data-table-search="" placeholder="Search attributes..." type="search"/>
+<i class="ti ti-search app-search-icon text-muted"></i>
+</div>
+<button class="btn btn-danger d-none" data-table-delete-selected="">Delete</button>
+</div>
+<!-- Center Section: Filters -->
+<div class="d-flex align-items-center gap-2 flex-wrap">
+<span class="me-2 fw-semibold">Filter By:</span>
+<!-- Attribute Type Filter -->
+<div class="app-search">
+<select class="form-select form-control my-1 my-md-0" data-table-filter="attri-type">
+<option value="All">Type</option>
+<option value="Dropdown">Dropdown</option>
+<option value="Text">Text</option>
+<option value="Number">Number</option>
+</select>
+<i class="ti ti-wand app-search-icon text-muted"></i>
+</div>
+<!-- Records Per Page -->
+<div>
+<select class="form-select form-control my-1 my-md-0" data-table-set-rows-per-page="">
+<option value="5">5</option>
+<option value="10">10</option>
+<option value="15">15</option>
+<option value="20">20</option>
+</select>
+</div>
+</div>
+<!-- Right Section: Add Button -->
+<div class="d-flex gap-1">
+<a class="btn btn-danger ms-1" data-bs-toggle="modal" href="/#addAttributeModal">
+<i class="ti ti-plus fs-sm me-2"></i>
+                                            Add Attribute
+                                        </a>
+</div>
+</div>
+<div class="table-responsive">
+<table class="table table-custom table-centered table-select table-hover w-100 mb-0">
+<thead class="bg-light align-middle bg-opacity-25 thead-sm">
+<tr class="text-uppercase fs-xxs">
+<th class="ps-3" style="width: 1%">
+<input class="form-check-input form-check-input-light fs-14 mt-0" data-table-select-all="" id="select-all-attributes" type="checkbox"/>
+</th>
+<th data-table-sort="">Attribute Name</th>
+<th data-column="attri-type" data-table-sort="">Type</th>
+<th data-table-sort="">Values</th>
+<th>Status</th>
+<th data-table-sort="">Created Date</th>
+<th data-table-sort="">Last Updated</th>
+<th data-table-sort="">Last Modified By</th>
+<th class="text-center" style="width: 1%">Actions</th>
+</tr>
+</thead>
+<tbody>
+<!-- Row 1 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Color</h6></td>
+<td>Dropdown</td>
+<td><span class="text-muted">Red, Blue, Green, Black</span></td>
+<td>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>04 Oct, 2025 <small class="text-muted">10:00 AM</small></td>
+<td>09 Oct, 2025 <small class="text-muted">11:30 AM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-4" class="img-fluid rounded-circle" src="/images/users/user-4.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Liam Becker</h6>
+<p class="text-muted fs-xs mb-0">Admin</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Size</h6></td>
+<td>Dropdown</td>
+<td><span class="text-muted">S, M, L, XL</span></td>
+<td>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>03 Oct, 2025 <small class="text-muted">01:20 PM</small></td>
+<td>08 Oct, 2025 <small class="text-muted">10:45 AM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-2" class="img-fluid rounded-circle" src="/images/users/user-2.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Emma Johnson</h6>
+<p class="text-muted fs-xs mb-0">Manager</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Material</h6></td>
+<td>Text</td>
+<td><span class="text-muted">Cotton, Leather, Metal</span></td>
+<td>
+<div class="form-check form-switch">
+<input class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>02 Oct, 2025 <small class="text-muted">04:40 PM</small></td>
+<td>06 Oct, 2025 <small class="text-muted">04:10 PM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-3" class="img-fluid rounded-circle" src="/images/users/user-3.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Sophia Turner</h6>
+<p class="text-muted fs-xs mb-0">Editor</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Brand</h6></td>
+<td>Dropdown</td>
+<td><span class="text-muted">Nike, Apple, Samsung</span></td>
+<td>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>01 Oct, 2025 <small class="text-muted">11:05 AM</small></td>
+<td>05 Oct, 2025 <small class="text-muted">01:25 PM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-6" class="img-fluid rounded-circle" src="/images/users/user-6.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Oliver Hayes</h6>
+<p class="text-muted fs-xs mb-0">Moderator</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Warranty</h6></td>
+<td>Number</td>
+<td><span class="text-muted">6 Months, 1 Year, 2 Years</span></td>
+<td>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>03 Oct, 2025 <small class="text-muted">08:50 AM</small></td>
+<td>07 Oct, 2025 <small class="text-muted">09:10 AM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-1" class="img-fluid rounded-circle" src="/images/users/user-1.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Ava Mitchell</h6>
+<p class="text-muted fs-xs mb-0">Admin</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 6 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Weight</h6></td>
+<td>Number</td>
+<td><span class="text-muted">500g, 1kg, 2kg, 5kg</span></td>
+<td>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>05 Oct, 2025 <small class="text-muted">09:00 AM</small></td>
+<td>09 Oct, 2025 <small class="text-muted">01:15 PM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-7" class="img-fluid rounded-circle" src="/images/users/user-7.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Noah Carter</h6>
+<p class="text-muted fs-xs mb-0">Editor</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 7 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Fabric Type</h6></td>
+<td>Text</td>
+<td><span class="text-muted">Cotton, Silk, Linen, Polyester</span></td>
+<td>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>04 Oct, 2025 <small class="text-muted">02:30 PM</small></td>
+<td>08 Oct, 2025 <small class="text-muted">03:10 PM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-8" class="img-fluid rounded-circle" src="/images/users/user-8.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Chloe Anderson</h6>
+<p class="text-muted fs-xs mb-0">Designer</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 8 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Voltage</h6></td>
+<td>Number</td>
+<td><span class="text-muted">110V, 220V, 240V</span></td>
+<td>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>01 Oct, 2025 <small class="text-muted">10:20 AM</small></td>
+<td>07 Oct, 2025 <small class="text-muted">09:30 AM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-9" class="img-fluid rounded-circle" src="/images/users/user-9.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Lucas Rivera</h6>
+<p class="text-muted fs-xs mb-0">Technician</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 9 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Capacity</h6></td>
+<td>Dropdown</td>
+<td><span class="text-muted">250ml, 500ml, 1L, 2L</span></td>
+<td>
+<div class="form-check form-switch">
+<input class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>03 Oct, 2025 <small class="text-muted">09:40 AM</small></td>
+<td>08 Oct, 2025 <small class="text-muted">05:20 PM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-10" class="img-fluid rounded-circle" src="/images/users/user-10.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Amelia Scott</h6>
+<p class="text-muted fs-xs mb-0">Supervisor</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+<!-- Row 10 -->
+<tr>
+<td class="ps-3">
+<input class="form-check-input form-check-input-light fs-14 mt-0" type="checkbox"/>
+</td>
+<td><h6 class="mb-0 fw-medium fs-base">Origin</h6></td>
+<td>Dropdown</td>
+<td><span class="text-muted">USA, Germany, China, Japan</span></td>
+<td>
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" type="checkbox"/>
+</div>
+</td>
+<td>02 Oct, 2025 <small class="text-muted">03:15 PM</small></td>
+<td>09 Oct, 2025 <small class="text-muted">06:45 PM</small></td>
+<td>
+<div class="d-flex align-items-center gap-2">
+<div class="avatar avatar-sm">
+<img alt="avatar-5" class="img-fluid rounded-circle" src="/images/users/user-5.jpg"/>
+</div>
+<div>
+<h6 class="mb-0 fw-semibold">Ethan Brooks</h6>
+<p class="text-muted fs-xs mb-0">Admin</p>
+</div>
+</div>
+</td>
+<td>
+<div class="d-flex justify-content-center gap-1">
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-eye fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" href="/#!">
+<i class="ti ti-edit fs-lg"></i>
+</a>
+<a class="btn btn-light btn-icon btn-sm rounded-circle" data-table-delete-row="" href="/#!">
+<i class="ti ti-trash fs-lg"></i>
+</a>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="card-footer border-0">
+<div class="d-flex justify-content-between align-items-center">
+<div data-table-pagination-info="products"></div>
+<div data-table-pagination=""></div>
+</div>
+</div>
+</div>
+</div>
+<!-- end col -->
+</div>
+<!-- end row -->
+<!-- Add New Attribute Modal -->
+<div aria-hidden="true" aria-labelledby="addAttributeModalLabel" class="modal fade" id="addAttributeModal" tabindex="-1">
+<div class="modal-dialog modal-dialog-centered modal-lg">
+<div class="modal-content border-light rounded-3 shadow-sm">
+<div class="modal-header">
+<h5 class="modal-title fw-semibold" id="addAttributeModalLabel"><i class="ti ti-circle-dashed-plus me-2"></i> Add New Attribute</h5>
+<button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+</div>
+<form id="addAttributeForm">
+<div class="modal-body">
+<div class="row g-3">
+<!-- Attribute Name -->
+<div class="col-md-6">
+<label class="form-label fw-semibold" for="attributeName">Attribute Name</label>
+<input class="form-control" id="attributeName" placeholder="e.g. Color, Size, Material" required="" type="text"/>
+</div>
+<!-- Attribute Type -->
+<div class="col-md-6">
+<label class="form-label fw-semibold" for="attributeType">Type</label>
+<select class="form-select" id="attributeType" required="">
+<option value="">Select Type</option>
+<option value="Dropdown">Dropdown</option>
+<option value="Text">Text</option>
+<option value="Number">Number</option>
+</select>
+</div>
+<!-- Attribute Values -->
+<div class="col-12">
+<label class="form-label fw-semibold" for="attributeValues">Values</label>
+<textarea class="form-control" id="attributeValues" placeholder="Separate multiple values with commas (e.g. Red, Blue, Green)" rows="2"></textarea>
+<small class="text-muted d-block mt-1">Applicable only for Dropdown or selectable attributes.</small>
+</div>
+<!-- Status Switch -->
+<div class="col-12">
+<div class="form-check form-switch">
+<input checked="" class="form-check-input" id="attributeStatus" type="checkbox"/>
+<label class="form-check-label fw-semibold" for="attributeStatus">Active</label>
+</div>
+</div>
+</div>
+</div>
+<div class="modal-footer">
+<button class="btn btn-light" data-bs-dismiss="modal" type="button">Cancel</button>
+<button class="btn btn-danger" type="submit"><i class="ti ti-device-floppy me-1"></i> Save Attribute</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+<!-- end modal -->
+</div>
+<!-- container -->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+
+        <!-- Custom table -->
+
+
+
+@section Scripts {
+<script src="/js/pages/custom-table.js"></script>
+}

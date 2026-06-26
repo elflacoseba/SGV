@@ -1,0 +1,541 @@
+@page "/apps/ecommerce/marketplace"
+@model Inspinia.Pages.Apps.Ecommerce.MarketplaceModel
+
+
+@{
+    ViewBag.title = "Marketplace";
+    ViewBag.subtitle = "Ecommerce";
+}
+
+
+@section Styles {
+
+}
+
+
+<!-- Begin page -->
+<div class="wrapper">
+            @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
+
+            <!-- ============================================================== -->
+<!-- Start Main Content -->
+<!-- ============================================================== -->
+<div class="content-page">
+<div class="container-fluid">
+                    @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+                    <div class="container-xxl">
+<div class="row pt-3">
+<!-- For Men -->
+<div class="col-md-4">
+<div class="card bg-success bg-opacity-10 bg-gradient">
+<div class="card-body pb-0 d-flex align-items-center justify-content-between">
+<div>
+<h5 class="fw-semibold mb-3">For Men</h5>
+<ul class="list-unstyled mb-0 text-body">
+<li><a class="text-reset d-block py-1" href="/#">Sports suits</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Trousers</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Jackets and coats</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Shirts</a></li>
+</ul>
+<a class="fw-semibold link-reset d-inline-block my-3" href="/apps/ecommerce/products-grid"> View All <i class="ti ti-arrow-right bi align-middle fs-lg"></i> </a>
+</div>
+<img alt="For men" class="img-fluid mt-auto" src="/images/products/man.png" style="max-height: 220px"/>
+</div>
+</div>
+</div>
+<!-- For Women -->
+<div class="col-md-4">
+<div class="card bg-warning bg-opacity-10 bg-gradient">
+<div class="card-body pb-0 d-flex align-items-center justify-content-between">
+<div>
+<h5 class="fw-semibold mb-3">For Women</h5>
+<ul class="list-unstyled mb-0 text-body">
+<li><a class="text-reset d-block py-1" href="/#">Dresses</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Pants and jeans</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Shirts and blouses</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Sweatshirts</a></li>
+</ul>
+<a class="fw-semibold link-reset d-inline-block my-3" href="/apps/ecommerce/products-grid"> View All <i class="ti ti-arrow-right bi align-middle fs-lg"></i> </a>
+</div>
+<img alt="For women" class="img-fluid mt-auto" src="/images/products/women.png" style="max-height: 220px"/>
+</div>
+</div>
+</div>
+<!-- Accessories -->
+<div class="col-md-4">
+<div class="card bg-danger bg-opacity-10 bg-gradient">
+<div class="card-body pb-0 d-flex align-items-center justify-content-between">
+<div>
+<h5 class="fw-semibold mb-3">Accessories</h5>
+<ul class="list-unstyled mb-0 text-body">
+<li><a class="text-reset d-block py-1" href="/#">Caps and hats</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Sunglasses</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Handbags</a></li>
+<li><a class="text-reset d-block py-1" href="/#">Jewelry</a></li>
+</ul>
+<a class="fw-semibold link-reset d-inline-block my-3" href="/apps/ecommerce/products-grid"> View All <i class="ti ti-arrow-right bi align-middle fs-lg"></i> </a>
+</div>
+<img alt="Accessories" class="img-fluid mt-auto" src="/images/products/hanbag.png" style="max-height: 220px"/>
+</div>
+</div>
+</div>
+</div>
+<!-- end row -->
+<div class="row pt-4">
+<div class="col-12 text-center">
+<span class="text-muted rounded-3 d-inline-block">👕 Discover styles tailored for everyone</span>
+<h3 class="mt-2 fw-bold mb-4">Find Your <mark>Perfect Style</mark></h3>
+<div class="d-flex pt-1 justify-content-center align-items-center gap-1">
+<a class="badge badge-default rounded-pill px-3 py-2 fs-6 text-primary" href="/#!">Best Sellers</a>
+<a class="badge badge-default rounded-pill px-3 py-2 fs-6 text-muted" href="/#!">New Arrived</a>
+<a class="badge badge-default rounded-pill px-3 py-2 fs-6 text-muted" href="/#!">Sale Items</a>
+<a class="badge badge-default rounded-pill px-3 py-2 fs-6 text-muted" href="/#!">Top Rated</a>
+</div>
+</div>
+</div>
+<div class="row row-cols-xxl-4 row-cols-lg-3 row-cols-sm-2 row-col-1 mt-3">
+<div class="col">
+<article class="card card-h-100">
+<!-- Badge -->
+<div class="badge text-bg-success badge-label fs-base rounded position-absolute top-0 start-0 m-3">15% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="modern-sofa" class="img-fluid" src="/images/products/1.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Modern Minimalist Fabric Sofa Single Seater</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(45)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-success d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$899.00</span>
+                                                $764.15
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+<div class="col">
+<article class="card card-h-100">
+<!-- Badge -->
+<div class="badge text-bg-danger badge-label fs-base rounded position-absolute top-0 start-0 m-3">25% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="funky-shoes" class="img-fluid" src="/images/products/2.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Funky Streetwear Sneakers - Neon Splash</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(32)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-danger d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$59.99</span>
+                                                $44.99
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+<div class="col">
+<article class="card card-h-100">
+<!-- Badge -->
+<div class="badge text-bg-danger badge-label fs-base rounded position-absolute top-0 start-0 m-3">15% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="earbuds" class="img-fluid" src="/images/products/3.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Noise Canceling Wireless Earbuds - Black Edition</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(58)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-danger d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$49.99</span>
+                                                $42.49
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+<div class="col">
+<article class="card card-h-100">
+<!-- Badge -->
+<div class="badge text-bg-danger badge-label fs-base rounded position-absolute top-0 start-0 m-3">20% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="wooden-chair" class="img-fluid" src="/images/products/4.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Minimalist Solid Wood Dining Chair</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(46)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-danger d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$120.00</span>
+                                                $96.00
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+<div class="col">
+<article class="card card-h-100">
+<!-- Badge -->
+<div class="badge text-bg-danger badge-label fs-base rounded position-absolute top-0 start-0 m-3">20% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="black-wall-watch" class="img-fluid" src="/images/products/5.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Modern Black Minimalist Wall Clock</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(62)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-danger d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$49.99</span>
+                                                $39.99
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+<div class="col">
+<article class="card card-h-100">
+<!-- Badge -->
+<div class="badge text-bg-danger badge-label fs-base rounded position-absolute top-0 start-0 m-3">20% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="brown-chair" class="img-fluid" src="/images/products/6.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Elegant Brown Wooden Chair</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(48)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-danger d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$120.00</span>
+                                                $96.00
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+<div class="col">
+<article class="card card-h-100">
+<!-- Badge -->
+<div class="badge text-bg-danger badge-label fs-base rounded position-absolute top-0 start-0 m-3">20% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="imac" class="img-fluid" src="/images/products/7.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Apple iMac 24" Retina 4.5K Display</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(65)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-danger d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$1,299.00</span>
+                                                $1,039.20
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+<div class="col">
+<article class="card card-h-100">
+<!-- Badge -->
+<div class="badge text-bg-danger badge-label fs-base rounded position-absolute top-0 start-0 m-3">20% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="coolest-chair" class="img-fluid" src="/images/products/8.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Coolest Ergonomic Lounge Chair</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(52)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-danger d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$320.00</span>
+                                                $256.00
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+<div class="col">
+<article class="card card-h-100 d-none d-lg-block d-xxl-none">
+<!-- Badge -->
+<div class="badge text-bg-danger badge-label fs-base rounded position-absolute top-0 start-0 m-3">20% OFF</div>
+<!-- Card Body -->
+<div class="card-body">
+<div class="p-3">
+<img alt="ipad" class="img-fluid" src="/images/products/9.png"/>
+</div>
+<!-- Title -->
+<h6 class="card-title fs-sm lh-base mb-2">
+<a class="link-reset" href="/apps/ecommerce/product-details">Apple iPad 10.9" Wi-Fi 64GB - Silver</a>
+</h6>
+<div>
+<span class="text-warning">
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star-filled"></i>
+<i class="ti ti-star"></i>
+</span>
+<span class="ms-1">
+<a class="link-reset fw-semibold" href="/apps/ecommerce/reviews">(142)</a>
+</span>
+</div>
+</div>
+<!-- Card footer -->
+<div class="card-footer bg-transparent d-flex justify-content-between border-dashed border-top">
+<div class="d-flex justify-content-start align-items-center gap-2">
+<h4 class="text-danger d-flex align-items-center gap-2 mb-0">
+<span class="text-muted text-decoration-line-through">$449.00</span>
+                                                $359.20
+                                            </h4>
+</div>
+<a class="btn btn-sm btn-icon btn-primary" href="/#!">
+<i class="ti ti-basket fs-lg"></i>
+</a>
+</div>
+</article>
+</div>
+<!-- end col -->
+</div>
+<!-- end row-->
+<div class="row">
+<div class="col-12 text-end">
+<a class="btn btn-success mt-3" href="/apps/ecommerce/products-grid"> View More Products <i class="ti ti-arrow-right bi align-middle fs-lg"></i> </a>
+</div>
+</div>
+<div class="row pt-4">
+<div class="col-12 text-center">
+<h3 class="fw-bold mb-2">Shop by <mark>Brand</mark></h3>
+<span class="text-muted rounded-3 d-inline-block"> 🏷️ Discover trusted names loved by millions </span>
+</div>
+</div>
+<!-- end row -->
+<div class="row justify-content-center mb-5 mt-3">
+<div class="col-xxl-9">
+<div class="d-flex justify-content-center align-items-center flex-wrap gap-3 mt-4">
+<div class="border rounded p-3">
+<a class="d-block" href="/#!">
+<img alt="logo" height="42" src="/images/clients/01.svg"/>
+</a>
+</div>
+<div class="border rounded p-3">
+<a class="d-block" href="/#!">
+<img alt="logo" height="42" src="/images/clients/02.svg"/>
+</a>
+</div>
+<div class="border rounded p-3">
+<a class="d-block" href="/#!">
+<img alt="logo" height="42" src="/images/clients/03.svg"/>
+</a>
+</div>
+<div class="border rounded p-3">
+<a class="d-block" href="/#!">
+<img alt="logo" height="42" src="/images/clients/04.svg"/>
+</a>
+</div>
+<div class="border rounded p-3">
+<a class="d-block" href="/#!">
+<img alt="logo" height="42" src="/images/clients/05.svg"/>
+</a>
+</div>
+<div class="border rounded p-3">
+<a class="d-block" href="/#!">
+<img alt="logo" height="42" src="/images/clients/06.svg"/>
+</a>
+</div>
+<div class="border rounded p-3">
+<a class="d-block" href="/#!">
+<img alt="logo" height="42" src="/images/clients/07.svg"/>
+</a>
+</div>
+</div>
+</div>
+</div>
+<!-- end row-->
+</div>
+<!-- container-xxl -->
+</div>
+<!-- container -->
+
+                @await Html.PartialAsync("~/Pages/Shared/Partials/_Footer.cshtml")
+            </div>
+<!-- ============================================================== -->
+<!-- End of Main Content -->
+<!-- ============================================================== -->
+</div>
+<!-- END wrapper -->
+
+        @await Html.PartialAsync("~/Pages/Shared/Partials/_Customizer.cshtml") @await Html.PartialAsync("~/Pages/Shared/Partials/_FooterScripts.cshtml")
+    
+
+@section Scripts {
+
+}
