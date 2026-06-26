@@ -42,6 +42,7 @@
     "echarts": "^6.0.0",
     "flatpickr": "^4.6.13",
     "prismjs": "^1.30.0",
-    "simplebar": "^6.3.3"
+    "simplebar": "^6.3.3",
+    "sweetalert2": "^11.26.3"
   }
 }
