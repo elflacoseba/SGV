@@ -74,7 +74,7 @@ public sealed class WebAuthenticationTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Sign In", content);
+        Assert.Contains("Iniciar sesión", content);
         Assert.DoesNotContain("Forgot Password?", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Create an account", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -105,7 +105,7 @@ public sealed class WebAuthenticationTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Invalid username/email or password.", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Credenciales inv&#xE1;lidas.", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("role=\"alert\"", content, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -69,3 +69,4 @@ Desktop.ini
 .DS_Store
 .atl/.skill-registry.cache.json
 .atl/skill-registry.md
+src/SGV.Web/node_modules/

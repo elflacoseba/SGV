@@ -19,4 +19,11 @@ module.exports = [
         name: "echarts",
         assets: ["./node_modules/echarts/dist/echarts.min.js"],
     },
+    {
+        name: "sweetalert2",
+        assets: [
+            "./node_modules/sweetalert2/dist/sweetalert2.all.min.js",
+            "./node_modules/sweetalert2/dist/sweetalert2.min.css"
+        ],
+    },
 ]

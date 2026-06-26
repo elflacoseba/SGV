@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using SGV.Web.Integration.Auth;
+using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Tests.Web;
 
@@ -16,22 +18,28 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
 {
     private readonly Action<IServiceCollection>? _configureServices;
     private readonly HttpMessageHandler? _authApiHandler;
+    private readonly IUnidadOrganizativaApiClient? _unidadOrganizativaApiClient;
 
     public SgvWebApplicationFactory()
     {
     }
 
-    private SgvWebApplicationFactory(Action<IServiceCollection>? configureServices, HttpMessageHandler? authApiHandler)
+    private SgvWebApplicationFactory(
+        Action<IServiceCollection>? configureServices,
+        HttpMessageHandler? authApiHandler,
+        IUnidadOrganizativaApiClient? unidadOrganizativaApiClient)
     {
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
+        _unidadOrganizativaApiClient = unidadOrganizativaApiClient;
     }
 
     public SgvWebApplicationFactory WithOverrides(
         Action<IServiceCollection>? configureServices = null,
-        HttpMessageHandler? authApiHandler = null)
+        HttpMessageHandler? authApiHandler = null,
+        IUnidadOrganizativaApiClient? unidadOrganizativaApiClient = null)
     {
-        return new SgvWebApplicationFactory(configureServices, authApiHandler);
+        return new SgvWebApplicationFactory(configureServices, authApiHandler, unidadOrganizativaApiClient);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -40,21 +48,26 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         {
             _configureServices?.Invoke(services);
 
-            if (_authApiHandler is null)
+            if (_authApiHandler is not null)
             {
-                return;
+                services.RemoveAll<IAuthApiClient>();
+                services.AddTransient<IAuthApiClient>(serviceProvider =>
+                {
+                    var apiOptions = serviceProvider.GetRequiredService<IOptions<SgvApiOptions>>().Value;
+                    var client = new HttpClient(_authApiHandler, disposeHandler: false)
+                    {
+                        BaseAddress = new Uri(apiOptions.BaseUrl, UriKind.Absolute)
+                    };
+
+                    return new AuthApiClient(client);
+                });
             }
 
-            services.AddTransient<IAuthApiClient>(serviceProvider =>
+            if (_unidadOrganizativaApiClient is not null)
             {
-                var apiOptions = serviceProvider.GetRequiredService<IOptions<SgvApiOptions>>().Value;
-                var client = new HttpClient(_authApiHandler, disposeHandler: false)
-                {
-                    BaseAddress = new Uri(apiOptions.BaseUrl, UriKind.Absolute)
-                };
-
-                return new AuthApiClient(client);
-            });
+                services.RemoveAll<IUnidadOrganizativaApiClient>();
+                services.AddSingleton(_unidadOrganizativaApiClient);
+            }
         });
     }
 }

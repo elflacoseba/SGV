@@ -1,3 +1,9 @@
+@{
+    var currentPath = Context.Request.Path;
+    var homeActive = currentPath == "/" ? "active" : string.Empty;
+    var unidadesOrganizativasActive = currentPath.StartsWithSegments("/organizacion/unidades-organizativas") ? "active" : string.Empty;
+}
+
 <div class="sidenav-menu">
 <!-- Brand Logo -->
 <a class="logo" href="/">
@@ -23,9 +29,15 @@
 <div id="sidenav-menu">
 <ul class="side-nav">
 <li class="side-nav-item">
-<a class="side-nav-link" href="/">
+<a class="side-nav-link @homeActive" href="/">
 <span class="menu-icon"><i class="ti ti-home"></i></span>
 <span class="menu-text">Home</span>
+</a>
+</li>
+<li class="side-nav-item">
+<a class="side-nav-link @unidadesOrganizativasActive" href="/organizacion/unidades-organizativas">
+<span class="menu-icon"><i class="ti ti-building"></i></span>
+<span class="menu-text">Unidades Organizativas</span>
 </a>
 </li>
 </ul>
