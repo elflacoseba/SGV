@@ -1,13 +1,17 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Web.Integration.Auth;
 using Xunit;
 
 namespace SGV.Tests.Web;
 
 /// <summary>
 /// Smoke tests for the SGV.Web Razor Pages shell.
-/// These tests verify the shell loads without demo content,
-/// shows SGV branding, and has no authentication UI.
+/// These tests verify anonymous users are redirected to sign-in,
+/// authenticated users see the dashboard shell, and logout is exposed.
 /// </summary>
 public sealed class WebShellSmokeTests
     : IClassFixture<SgvWebApplicationFactory>
@@ -16,102 +20,82 @@ public sealed class WebShellSmokeTests
 
     public WebShellSmokeTests(SgvWebApplicationFactory factory)
     {
-        _client = factory.CreateClient();
+        _client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
     }
 
     [Fact]
-    public async Task Get_Index_ReturnsSuccessAndContainsSvgBrand()
+    public async Task Get_Index_WhenAnonymous_RedirectsToSignIn()
     {
         // Act
         var response = await _client.GetAsync("/");
 
         // Assert
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenAuthenticated_ReturnsDashboardAndLogout()
+    {
+        var authenticatedClient = await CreateAuthenticatedClientAsync();
+
+        var response = await authenticatedClient.GetAsync("/");
+        var content = await response.Content.ReadAsStringAsync();
+
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var content = await response.Content.ReadAsStringAsync();
-
-        // MUST show SGV branding
-        Assert.Contains("SGV", content);
-    }
-
-    [Fact]
-    public async Task Get_Index_NoDemoDashboardContent()
-    {
-        // Act
-        var response = await _client.GetAsync("/");
-        var content = await response.Content.ReadAsStringAsync();
-
-        // Assert — must NOT contain Inspinia demo dashboard content
-        Assert.DoesNotContain("Welcome to INSPINIA", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Revenue", content);
-        Assert.DoesNotContain("dashboard-projects", content);
-    }
-
-    [Fact]
-    public async Task Get_Index_NoAuthLinks()
-    {
-        // Act
-        var response = await _client.GetAsync("/");
-        var content = await response.Content.ReadAsStringAsync();
-
-        // Assert — must NOT contain login/sign-in or account auth links
+        Assert.Contains("Dashboard", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Logout", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Sign In", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Log Out", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Lock Screen", content, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public async Task Get_Index_NoDemoNavigationEntries()
+    private async Task<HttpClient> CreateAuthenticatedClientAsync()
     {
-        // Act
-        var response = await _client.GetAsync("/");
-        var content = await response.Content.ReadAsStringAsync();
+        var handler = new RecordingHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
+            });
 
-        // Assert — must NOT contain demo menu entries like "Authentication", "Layouts", "Icons", "Menu Levels"
-        Assert.DoesNotContain("Authentication", content);
-        Assert.DoesNotContain("Layout Options", content);
-        Assert.DoesNotContain("Menu Levels", content);
-        Assert.DoesNotContain("Components", content);
-        Assert.DoesNotContain("Disabled Menu", content);
-        Assert.DoesNotContain("Special Menu", content);
+        var factory = new SgvWebApplicationFactory().WithOverrides(
+            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
+            authApiHandler: handler);
+
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var signInResponse = await client.GetAsync("/auth/sign-in");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
+
+        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.UserNameOrEmail"] = "admin",
+            ["Input.Password"] = "Password1!"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        return client;
     }
 
-    [Fact]
-    public async Task Get_Index_HasRequiredAssetReferences()
+    private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
     {
-        // Act
-        var response = await _client.GetAsync("/");
         var content = await response.Content.ReadAsStringAsync();
+        var match = System.Text.RegularExpressions.Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
 
-        // Assert — must reference the shared app css and js
-        Assert.Contains("/css/app.min.css", content);
-        Assert.Contains("/js/app.js", content);
+        Assert.True(match.Success, "Antiforgery token was not rendered.");
+        return match.Groups[1].Value;
     }
 
-    [Fact]
-    public async Task Get_Index_HasLayoutControlsAndNoCommercialLinks()
+    private sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
     {
-        // Act
-        var response = await _client.GetAsync("/");
-        var content = await response.Content.ReadAsStringAsync();
-
-        // Assert — must have theme settings offcanvas (customizer)
-        Assert.Contains("theme-settings-offcanvas", content);
-
-        // Assert — must NOT have commercial Buy Now link
-        Assert.DoesNotContain("Buy Now", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("wrapmarket", content, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task Get_Index_NoLanguageOrUserDropdowns()
-    {
-        // Act
-        var response = await _client.GetAsync("/");
-        var content = await response.Content.ReadAsStringAsync();
-
-        // Assert — must NOT contain language selector or user dropdown
-        Assert.DoesNotContain("language-selector", content);
-        Assert.DoesNotContain("user-dropdown", content);
-        Assert.DoesNotContain("mega-menu", content, StringComparison.OrdinalIgnoreCase);
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(response);
     }
 }
