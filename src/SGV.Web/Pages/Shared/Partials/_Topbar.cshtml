@@ -41,7 +41,7 @@
 @if (User.Identity?.IsAuthenticated == true)
 {
 <form asp-page="/Auth/Logout" class="d-inline" method="post">
-<button class="topbar-link btn btn-link text-decoration-none" type="submit">Logout</button>
+<button id="logout-button" class="topbar-link btn btn-link text-decoration-none" data-bs-toggle="tooltip" title="Cerrar Sesión" type="submit">Salir</button>
 </form>
 }
 <div class="topbar-item d-none d-sm-flex" id="theme-toggler">
