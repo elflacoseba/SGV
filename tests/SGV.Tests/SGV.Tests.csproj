@@ -4,6 +4,7 @@
     <ProjectReference Include="..\..\src\SGV.Aplicacion\SGV.Aplicacion.csproj" />
     <ProjectReference Include="..\..\src\SGV.Infraestructura\SGV.Infraestructura.csproj" />
     <ProjectReference Include="..\..\src\SGV.Api\SGV.Api.csproj" />
+    <ProjectReference Include="..\..\src\SGV.Web\SGV.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

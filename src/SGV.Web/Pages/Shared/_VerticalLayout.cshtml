@@ -1,4 +1,4 @@
-﻿﻿<!DOCTYPE html>
+﻿<!DOCTYPE html>
 @{
     var html_attributes = ViewBag.HTMLAttributes ?? "";
     var html_class =  ViewBag.HTMLClass ?? "";
@@ -18,9 +18,9 @@
 
 <div class="wrapper">
 
-    @await Html.PartialAsync("~/Pages/Shared/Partials/_TopBar.cshtml")
+    @await Html.PartialAsync("~/Pages/Shared/Partials/_Topbar.cshtml")
 
-    @await Html.PartialAsync("~/Pages/Shared/Partials/_SideNav.cshtml")
+    @await Html.PartialAsync("~/Pages/Shared/Partials/_Sidenav.cshtml")
 
     <div class="content-page">
 
