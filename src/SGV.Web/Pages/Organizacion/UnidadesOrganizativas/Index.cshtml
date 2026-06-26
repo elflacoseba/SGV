@@ -33,10 +33,10 @@
                 <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
             </div>
             <div class="card-header border-0">
-                <form class="row g-2 align-items-center" method="get">
-                    <div class="col-md-6 col-xl-5">
+                <form class="row g-2 align-items-center w-100" method="get">
+                    <div class="col-md-6 col-xl-4">
                         <div class="app-search">
-                            <input class="form-control" name="search" placeholder="Buscar por código o nombre..." type="search" value="@Model.Search" />
+                            <input class="form-control" name="search" placeholder="Buscar..." data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Buscar por código o nombre..." type="search" value="@Model.Search" />
                             <i class="ti ti-search app-search-icon text-muted"></i>
                         </div>
                     </div>
