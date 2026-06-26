@@ -29,7 +29,7 @@ public sealed class SignInModel(IAuthApiClient authApiClient) : PageModel
 
         if (response is null)
         {
-            ModelState.AddModelError(string.Empty, "Invalid username/email or password.");
+            ModelState.AddModelError(string.Empty, "Credenciales inválidas.");
             return Page();
         }
 
@@ -42,10 +42,10 @@ public sealed class SignInModel(IAuthApiClient authApiClient) : PageModel
 
     public sealed class InputModel
     {
-        [Required]
+        [Required(ErrorMessage = "El usuario o el correo electrónico son obligatorios.")]
         public string UserNameOrEmail { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "La contraseña es obligatoria.")]
         [DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
     }

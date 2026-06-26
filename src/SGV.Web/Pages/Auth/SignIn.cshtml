@@ -2,7 +2,7 @@
 @model SGV.Web.Pages.Auth.SignInModel
 
 @{
-    ViewBag.title = "Sign In";
+    ViewBag.title = "Iniciar sesión";
 }
 
 <div class="auth-box overflow-hidden align-items-center d-flex">
@@ -13,8 +13,8 @@
                     <a class="logo-dark" href="/">
                         <img alt="SGV" src="/images/logo-black.png" />
                     </a>
-                    <h4 class="fw-bold mt-3">Sign In</h4>
-                    <p class="text-muted w-lg-75 mx-auto">Use your SGV credentials to continue.</p>
+                    <h4 class="fw-bold mt-3">Iniciar sesión</h4>
+                    <p class="text-muted w-lg-75 mx-auto">Usa tus credenciales de SGV para continuar.</p>
                 </div>
 
                 <div class="card p-4">
@@ -22,19 +22,19 @@
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
                         <div class="mb-3">
-                            <label asp-for="Input.UserNameOrEmail" class="form-label">Username or email</label>
+                            <label asp-for="Input.UserNameOrEmail" class="form-label">Usuario o correo electrónico</label>
                             <input asp-for="Input.UserNameOrEmail" class="form-control" autocomplete="username" />
                             <span asp-validation-for="Input.UserNameOrEmail" class="text-danger"></span>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="Input.Password" class="form-label">Password</label>
+                            <label asp-for="Input.Password" class="form-label">Contraseña</label>
                             <input asp-for="Input.Password" class="form-control" autocomplete="current-password" />
                             <span asp-validation-for="Input.Password" class="text-danger"></span>
                         </div>
 
                         <div class="d-grid">
-                            <button class="btn btn-primary fw-semibold py-2" type="submit">Sign In</button>
+                            <button class="btn btn-primary fw-semibold py-2" type="submit">Iniciar sesión</button>
                         </div>
                     </form>
                 </div>
