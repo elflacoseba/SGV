@@ -94,7 +94,7 @@
                                             <input name="page" type="hidden" value="@Model.CurrentPage" />
                                             <input name="search" type="hidden" value="@Model.Search" />
                                             <input name="sort" type="hidden" value="@Model.Sort" />
-                                            <button aria-label="Eliminar @item.Nombre" class="btn btn-light btn-icon btn-sm rounded-circle" data-uo-delete-button data-uo-item-name="@item.Nombre" formaction="?handler=Delete" type="submit">
+                                            <button aria-label="Eliminar @item.Nombre" class="btn btn-danger btn-icon btn-sm rounded-circle" data-uo-delete-button data-uo-item-name="@item.Nombre" data-uo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
                                                 <i class="ti ti-trash fs-lg"></i>
                                             </button>
                                         </form>

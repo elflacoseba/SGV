@@ -14,7 +14,7 @@ function wireUnidadOrganizativaDeleteConfirmation(root, swal) {
 
             swal.fire({
                 title: '¿Eliminar unidad organizativa?',
-                text: 'Se eliminará ' + (button.getAttribute('data-uo-item-name') || 'la unidad seleccionada') + '.',
+                text: 'Se eliminará la unidad organizativa ' + (button.getAttribute('data-uo-item-name') || '') + ' (' + (button.getAttribute('data-uo-item-code') || '') + ').',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Sí, eliminar',
@@ -22,7 +22,7 @@ function wireUnidadOrganizativaDeleteConfirmation(root, swal) {
                 reverseButtons: true
             }).then(function (result) {
                 if (result.isConfirmed) {
-                    form.submit();
+                    form.requestSubmit(button);
                 }
             });
         });
