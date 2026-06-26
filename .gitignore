@@ -67,3 +67,5 @@ TestResults/
 Thumbs.db
 Desktop.ini
 .DS_Store
+.atl/.skill-registry.cache.json
+.atl/skill-registry.md
