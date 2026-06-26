@@ -25,17 +25,17 @@ Chain strategy: pending
 
 ## Phase 1: Base de integración
 
-- [ ] 1.1 RED: crear `tests/SGV.Tests/Web/WebAuthenticationTests.cs` con escenarios de login público, redirect anónimo a `/`, login 401 y logout inválida sesión.
+- [x] 1.1 RED: crear `tests/SGV.Tests/Web/WebAuthenticationTests.cs` con escenarios de login público, redirect anónimo a `/`, login 401 y logout inválida sesión.
 - [x] 1.2 GREEN: crear `src/SGV.Api/Contracts/AuthApiRoutes.cs` y ajustar `src/SGV.Api/Controllers/AuthController.cs` para reutilizar rutas públicas.
 - [x] 1.3 GREEN: actualizar `src/SGV.Web/SGV.Web.csproj`, `src/SGV.Web/Program.cs`, `src/SGV.Web/appsettings*.json`, `src/SGV.Web/Integration/Auth/SgvApiOptions.cs` y `AuthApiClient.cs` con referencia a `SGV.Api`, cookie auth y `HttpClient` tipado.
 - [x] 1.4 REFACTOR: extender `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs` para override de `HttpMessageHandler`/servicios sin acoplar los tests a red real.
 
 ## Phase 2: Login y logout
 
-- [ ] 2.1 RED: agregar asserts de UX en `WebAuthenticationTests.cs` para ocultar register/forgot-password y mostrar error de autenticación.
-- [ ] 2.2 GREEN: crear `src/SGV.Web/Pages/Auth/SignIn.cshtml`, `SignIn.cshtml.cs`, `_ViewStart.cshtml` y `Pages/Shared/_AuthLayout.cshtml` usando Inspinia `Auth/SignIn` con PRG y validación server-side.
-- [ ] 2.3 GREEN: crear `src/SGV.Web/Pages/Auth/Logout.cshtml.cs` con handler POST-only y `SignOutAsync`.
-- [ ] 2.4 REFACTOR: encapsular mapeo de claims/token del login en una unidad pequeña reutilizable dentro de `src/SGV.Web/Integration/Auth/` o `Pages/Auth/`.
+- [x] 2.1 RED: agregar asserts de UX en `WebAuthenticationTests.cs` para ocultar register/forgot-password y mostrar error de autenticación.
+- [x] 2.2 GREEN: crear `src/SGV.Web/Pages/Auth/SignIn.cshtml`, `SignIn.cshtml.cs`, `_ViewStart.cshtml` y `Pages/Shared/_AuthLayout.cshtml` usando Inspinia `Auth/SignIn` con PRG y validación server-side.
+- [x] 2.3 GREEN: crear `src/SGV.Web/Pages/Auth/Logout.cshtml.cs` con handler POST-only y `SignOutAsync`.
+- [x] 2.4 REFACTOR: encapsular mapeo de claims/token del login en una unidad pequeña reutilizable dentro de `src/SGV.Web/Integration/Auth/` o `Pages/Auth/`.
 
 ## Phase 3: Shell protegido
 

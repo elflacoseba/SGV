@@ -1,31 +1,32 @@
 # Apply Progress — implementar-login-frontend
 
-## Status: Phase 1 slice complete (auth foundation)
+## Status: Phase 2 complete (login/logout)
 
 ### RED ✅
-- Added `tests/SGV.Tests/Web/WebAuthenticationTests.cs` to cover centralized auth route resolution and `AuthApiClient` behavior.
-- The new tests failed before implementation, as expected.
+- Added behavioral coverage in `tests/SGV.Tests/Web/WebAuthenticationTests.cs` for public login UX, invalid login error, successful login redirect, and logout.
 
 ### GREEN ✅
-- Added `src/SGV.Api/Contracts/AuthApiRoutes.cs` and updated `src/SGV.Api/Controllers/AuthController.cs` to use the shared route constants.
-- Added `src/SGV.Web/Integration/Auth/SgvApiOptions.cs`, `IAuthApiClient.cs`, and `AuthApiClient.cs`.
-- Updated `src/SGV.Web/SGV.Web.csproj`, `src/SGV.Web/Program.cs`, and `src/SGV.Web/appsettings*.json` to wire the API base URL, cookie auth, authorization, and the typed auth client.
+- Added `src/SGV.Web/Pages/Auth/SignIn.cshtml` and `SignIn.cshtml.cs` with server-side validation, PRG on success, and cookie sign-in.
+- Added `src/SGV.Web/Pages/Auth/Logout.cshtml` and `Logout.cshtml.cs` with POST-only sign-out.
+- Added `src/SGV.Web/Pages/Auth/_ViewStart.cshtml` and `src/SGV.Web/Pages/Shared/_AuthLayout.cshtml` for the auth shell.
 
 ### REFACTOR ✅
-- Extended `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs` with a default fixture constructor plus `WithOverrides(...)` so tests can inject fake services/handlers without breaking xUnit fixtures.
+- Added `src/SGV.Web/Integration/Auth/AuthSessionFactory.cs` to centralize claims/cookie ticket creation for login.
+- Kept `SGV.Web` consuming centralized auth routes from `SGV.Api` through the existing shared contract.
 
 ### Verification ✅
-- `dotnet test SGV.slnx --filter FullyQualifiedName~SGV.Tests.Web`
+- `dotnet test SGV.slnx --filter FullyQualifiedName~SGV.Tests.Web.WebAuthenticationTests`
 - `dotnet build SGV.slnx`
-- `dotnet test SGV.slnx` still reports unrelated pre-existing API/persistence failures outside this slice.
+- `dotnet test SGV.slnx` still reports pre-existing unrelated API/persistence failures outside this slice.
 
 ## TDD Cycle Evidence
 
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
 |------|-----------|-------|------------|-----|-------|-------------|----------|
-| 1.2 | `tests/SGV.Tests/Web/WebAuthenticationTests.cs` | Unit | N/A (new) | ✅ Written | ✅ Passed | ✅ 2 cases | ✅ Clean |
-| 1.3 | `tests/SGV.Tests/Web/WebAuthenticationTests.cs` | Unit | N/A (new) | ✅ Written | ✅ Passed | ✅ 2 cases | ✅ Clean |
-| 1.4 | `tests/SGV.Tests/Web/WebAuthenticationTests.cs` | Integration-style unit | N/A (new) | ✅ Written | ✅ Passed | ✅ 2 cases | ✅ Clean |
+| 2.1 | `tests/SGV.Tests/Web/WebAuthenticationTests.cs` | Integration-style web | ✅ Existing web suite passed | ✅ Written | ✅ Passed | ✅ 2+ scenarios | ✅ Clean |
+| 2.2 | `tests/SGV.Tests/Web/WebAuthenticationTests.cs` | Integration-style web | ✅ Existing web suite passed | ✅ Written | ✅ Passed | ✅ 2 scenarios | ✅ Clean |
+| 2.3 | `tests/SGV.Tests/Web/WebAuthenticationTests.cs` | Integration-style web | ✅ Existing web suite passed | ✅ Written | ✅ Passed | ✅ 1 scenario | ✅ Clean |
+| 2.4 | `tests/SGV.Tests/Web/WebAuthenticationTests.cs` | Refactor support | ✅ Existing web suite passed | ➖ N/A | ✅ Passed | ➖ Single responsibility | ✅ Clean |
 
 ## Next
-- Finish the remaining login/logout and protected-shell slice in the next PR.
+- Ready for Phase 3: shell protegido.
