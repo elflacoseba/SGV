@@ -12,7 +12,8 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
     protected override IQueryable<UnidadOrganizativaEntity> Query => base
         .Query
         .Where(u => u.IsActive)
-        .Include(u => u.TipoUnidadOrganizativa);
+        .Include(u => u.TipoUnidadOrganizativa)
+        .Include(u => u.UnidadPadre);
 
     protected override UnidadOrganizativa MapToDomain(UnidadOrganizativaEntity entity) => PersistenceToDomainMapper.ToDomain(entity);
 
@@ -152,7 +153,8 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
             .Set<UnidadOrganizativaEntity>()
             .AsNoTracking()
             .Where(u => u.IsActive && !u.IsDeleted)
-            .Include(u => u.TipoUnidadOrganizativa);
+            .Include(u => u.TipoUnidadOrganizativa)
+            .Include(u => u.UnidadPadre);
 
         if (!string.IsNullOrWhiteSpace(search))
         {

@@ -1,24 +1,30 @@
 schema: spec-driven
 
 context: |
-  Tech stack: C# 14, .NET 10, ASP.NET Core, Entity Framework Core 9.x, Pomelo MySQL 8
-  Architecture: Clean Architecture (Dominio / Aplicacion / Infraestructura)
-  Nullable: enabled
-  ImplicitUsings: enabled
-  Conventions: PascalCase for public members, camelCase for locals/params, Async suffix for async methods
-  Domain: Sistema de Gestión de Vacantes (SGV) — recruitment, applications, skill compatibility, organizational structure
-  Provider: Pomelo.EntityFrameworkCore.MySql 9.0.0 (SQL Server is NOT supported)
-  EF Core packages: pinned to 9.x (Pomelo 9 requires EF relational >= 9.0.0 && < 9.0.999)
+  Tech stack: C# 14, .NET 10 (net10.0), ASP.NET Core Web API + Razor Pages shell
+  Architecture: Clean Architecture (Dominio / Aplicacion / Infraestructura) with SGV.Web as composition shell
+  Persistence: EF Core 9.x + Pomelo MySQL 8, Identity string keys, EF interceptor auditing
+  Frontend: SGV.Web uses Inspinia starterkit assets with Bun/Gulp pipeline
+  Testing: xUnit 2.9.2, coverlet 6.0.2, WebApplicationFactory integration tests, MySQL-backed repository tests
+  Style: nullable and implicit usings enabled, PascalCase public members, camelCase locals/params, Async suffix
 
 strict_tdd: true
 
 testing:
   runner: xUnit 2.9.2
-  command: dotnet test
+  command: dotnet test SGV.slnx
   coverage: coverlet 6.0.2
-  coverage_command: dotnet test --collect:"XPlat Code Coverage"
+  coverage_command: dotnet test SGV.slnx --collect:"XPlat Code Coverage"
   layers:
-    unit: xUnit
+    unit:
+      available: true
+      tool: xUnit
+    integration:
+      available: true
+      tool: Microsoft.AspNetCore.Mvc.Testing + WebApplicationFactory, MySqlFact
+    e2e:
+      available: false
+      tool: —
   quality:
     linter: false
     type_checker: false

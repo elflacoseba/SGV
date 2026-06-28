@@ -111,6 +111,63 @@ public sealed class UnidadesOrganizativasControllerTests
     }
 
     [Fact]
+    public async Task GetById_JsonResponseContieneUnidadPadreCodigoYNombre()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/unidades-organizativas/{FakeUnidadOrganizativaServicio.UnidadId1}");
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+
+        // The fake root unit has null parent, so values are null but keys must exist
+        Assert.True(doc.RootElement.TryGetProperty("unidadPadreCodigo", out var padreCodigo),
+            "Response JSON MUST include 'unidadPadreCodigo'");
+        Assert.True(doc.RootElement.TryGetProperty("unidadPadreNombre", out var padreNombre),
+            "Response JSON MUST include 'unidadPadreNombre'");
+        Assert.Equal(JsonValueKind.Null, padreCodigo.ValueKind);
+        Assert.Equal(JsonValueKind.Null, padreNombre.ValueKind);
+    }
+
+    [Fact]
+    public async Task GetById_ConPadre_JsonResponseIncluyeUnidadPadreCodigoNombreNoNulos()
+    {
+        var unidadConPadre = new UnidadOrganizativaDto(
+            Guid.Parse("a0000000-0000-0000-0000-000000000002"),
+            "AREA-01", "Área Operativa",
+            TipoUnidadOrganizativaConstantes.AreaId, "Área",
+            null, null, null,
+            FakeUnidadOrganizativaServicio.UnidadId1,
+            "GER", "Gerencia General");
+
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioConsulta>();
+            var fakeWithParent = new FakeUnidadOrganizativaServicio(withPadreData: true);
+            services.AddSingleton<IUnidadOrganizativaServicioConsulta>(fakeWithParent);
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/unidades-organizativas/{FakeUnidadOrganizativaServicio.UnidadConPadreId}");
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+
+        Assert.True(doc.RootElement.TryGetProperty("unidadPadreCodigo", out var padreCodigo),
+            "Response JSON MUST include 'unidadPadreCodigo'");
+        Assert.True(doc.RootElement.TryGetProperty("unidadPadreNombre", out var padreNombre),
+            "Response JSON MUST include 'unidadPadreNombre'");
+        Assert.Equal(JsonValueKind.String, padreCodigo.ValueKind);
+        Assert.Equal(JsonValueKind.String, padreNombre.ValueKind);
+        Assert.Equal("GER", padreCodigo.GetString());
+        Assert.Equal("Gerencia General", padreNombre.GetString());
+        Assert.True(doc.RootElement.TryGetProperty("unidadPadreId", out var padreId),
+            "Response JSON MUST include 'unidadPadreId'");
+        Assert.Equal(FakeUnidadOrganizativaServicio.UnidadId1.ToString(), padreId.GetString()!.ToLowerInvariant());
+    }
+
+    [Fact]
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
         using var factory = new ApiWebApplicationFactory();
@@ -389,6 +446,26 @@ public sealed class UnidadesOrganizativasControllerTests
         var result = await ReadAsAsync<PagedResult<UnidadOrganizativaDto>>(response);
         Assert.NotEmpty(result.Items);
         Assert.Contains(result.Items, d => d.Codigo.Contains("GER", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Consulta_JsonResponseContieneUnidadPadreCodigoYNombre()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+
+        var items = doc.RootElement.GetProperty("items");
+        Assert.True(items.GetArrayLength() > 0);
+        var first = items.EnumerateArray().First();
+
+        Assert.True(first.TryGetProperty("unidadPadreCodigo", out _),
+            "Consulta item MUST include 'unidadPadreCodigo'");
+        Assert.True(first.TryGetProperty("unidadPadreNombre", out _),
+            "Consulta item MUST include 'unidadPadreNombre'");
     }
 
     [Fact]

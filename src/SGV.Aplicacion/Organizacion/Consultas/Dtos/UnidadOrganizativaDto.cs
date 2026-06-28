@@ -12,5 +12,7 @@ public sealed record UnidadOrganizativaDto(
     string? Descripcion,
     DateOnly? VigenteDesde,
     DateOnly? VigenteHasta,
-    Guid? UnidadPadreId
+    Guid? UnidadPadreId,
+    string? UnidadPadreCodigo,
+    string? UnidadPadreNombre
 );
