@@ -38,9 +38,9 @@ Chain strategy: stacked-to-develop
 
 ## Phase 3: Create y Details
 
-- [ ] 3.1 **RED**: agregar en `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` escenarios de auth, carga de catálogos, create exitoso, validación por campo y detail con padre legible o estado no disponible.
-- [ ] 3.2 **GREEN**: crear `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml(.cs)`, `Details.cshtml(.cs)` y `_Form.cshtml` con PRG, antiforgery, catálogos de tipo/padre y acción visible de volver.
-- [ ] 3.3 **REFACTOR**: reutilizar el parcial `_Form.cshtml` y normalizar mapeo de `ValidationProblemDetails` a `ModelState` para conservar datos ingresados.
+- [x] 3.1 **RED**: agregar en `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` escenarios de auth, carga de catálogos, create exitoso, validación por campo y detail con padre legible o estado no disponible.
+- [x] 3.2 **GREEN**: crear `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml(.cs)`, `Details.cshtml(.cs)` y `_Form.cshtml` con PRG, antiforgery, catálogos de tipo/padre y acción visible de volver.
+- [x] 3.3 **REFACTOR**: reutilizar el parcial `_Form.cshtml` y normalizar mapeo de `ValidationProblemDetails` a `ModelState` para conservar datos ingresados.
 
 ## Phase 4: Edit y warning de éxito parcial
 

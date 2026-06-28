@@ -1,0 +1,39 @@
+@page "/organizacion/unidades-organizativas/crear"
+@model SGV.Web.Pages.Organizacion.UnidadesOrganizativas.CreateModel
+
+@{
+    ViewBag.title = "Crear unidad organizativa";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-12 col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Nueva unidad organizativa</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="page" value="@Model.ReturnPage" />
+                    <input type="hidden" name="search" value="@Model.ReturnSearch" />
+                    <input type="hidden" name="sort" value="@Model.ReturnSort" />
+
+                    @await Html.PartialAsync("_Form", Model)
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <a class="btn btn-light" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.ReturnPage, search = Model.ReturnSearch, sort = Model.ReturnSort })">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
