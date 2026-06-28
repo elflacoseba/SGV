@@ -31,6 +31,7 @@ public sealed class DetailsModel(
 
     public async Task<IActionResult> OnGetAsync(
         Guid id,
+        string? p = null,
         string? page = null,
         string? search = null,
         string? sort = null,
@@ -39,7 +40,7 @@ public sealed class DetailsModel(
         string? returnSort = null,
         CancellationToken cancellationToken = default)
     {
-        ReturnPage = returnPage ?? page ?? string.Empty;
+        ReturnPage = returnPage ?? p ?? page ?? string.Empty;
         ReturnSearch = returnSearch ?? search ?? string.Empty;
         ReturnSort = returnSort ?? sort ?? string.Empty;
 

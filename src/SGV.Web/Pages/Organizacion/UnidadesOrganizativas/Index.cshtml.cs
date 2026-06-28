@@ -36,7 +36,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
     [TempData]
     public string? TempDataStatusKind { get; set; }
 
-    public async Task OnGetAsync([FromQuery(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
         Search = Normalize(search);
@@ -58,7 +58,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, cancellationToken);
             TempData[nameof(StatusMessage)] = "La unidad organizativa se eliminó correctamente.";
             TempData[nameof(StatusKind)] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { page = redirectPage, search = normalizedSearch, sort = normalizedSort });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort });
         }
 
         var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
@@ -70,7 +70,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         TempData[nameof(StatusMessage)] = message;
         TempData[nameof(StatusKind)] = "danger";
 
-        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { page = currentPage, search = normalizedSearch, sort = normalizedSort });
+        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort });
     }
 
     public string GetSortRoute(string column)
@@ -100,7 +100,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
     /// </summary>
     public object ReturnToListRouteValues => new
     {
-        page = CurrentPage,
+        p = CurrentPage,
         search = Search,
         sort = Sort
     };

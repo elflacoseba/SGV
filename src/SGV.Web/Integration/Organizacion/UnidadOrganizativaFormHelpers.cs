@@ -16,7 +16,7 @@ public static class UnidadOrganizativaFormHelpers
 
         if (!string.IsNullOrWhiteSpace(page))
         {
-            query.Add(new KeyValuePair<string, string?>("page", page));
+            query.Add(new KeyValuePair<string, string?>("p", page));
         }
 
         if (!string.IsNullOrWhiteSpace(search))

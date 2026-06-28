@@ -101,7 +101,7 @@ public sealed class UnidadOrganizativaWebTests
 
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/unidades-organizativas?page=2");
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?p=2");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -122,7 +122,7 @@ public sealed class UnidadOrganizativaWebTests
 
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/unidades-organizativas?page=2&sort=nombre_desc");
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?p=2&sort=nombre_desc");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -190,7 +190,7 @@ public sealed class UnidadOrganizativaWebTests
 
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?page=2&search=dir&sort=nombre_desc");
+        var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?p=2&search=dir&sort=nombre_desc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/unidades-organizativas?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
@@ -204,7 +204,7 @@ public sealed class UnidadOrganizativaWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(itemToDelete.Id, Assert.Single(apiClient.DeleteCalls));
-        Assert.Equal("/organizacion/unidades-organizativas?search=dir&sort=nombre_desc", response.Headers.Location?.OriginalString);
+        Assert.Equal("/organizacion/unidades-organizativas?p=1&search=dir&sort=nombre_desc", response.Headers.Location?.OriginalString);
 
         var refreshed = await client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
@@ -239,7 +239,7 @@ public sealed class UnidadOrganizativaWebTests
         }));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal("/organizacion/unidades-organizativas?search=dep&sort=nombre_asc", response.Headers.Location?.OriginalString);
+        Assert.Equal("/organizacion/unidades-organizativas?p=1&search=dep&sort=nombre_asc", response.Headers.Location?.OriginalString);
 
         var refreshed = await client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
@@ -293,7 +293,7 @@ public sealed class UnidadOrganizativaWebTests
             CreatePage(2, 10, 25, item));
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/unidades-organizativas?page=2&search=test&sort=nombre_desc");
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?p=2&search=test&sort=nombre_desc");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -594,7 +594,7 @@ public sealed class UnidadOrganizativaWebTests
 
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?page=2&search=test&sort=nombre_desc");
+        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?p=2&search=test&sort=nombre_desc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
 
         var postResponse = await client.PostAsync($"/organizacion/unidades-organizativas/editar/{unitId}", new FormUrlEncodedContent(new Dictionary<string, string>
@@ -622,7 +622,7 @@ public sealed class UnidadOrganizativaWebTests
 
         Assert.Equal(HttpStatusCode.OK, detailsResponse.StatusCode);
         Assert.Contains("New Parent", detailsContent, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("href=\"/organizacion/unidades-organizativas?page=2&search=test&sort=nombre_desc\"", detailsContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=2&search=test&sort=nombre_desc\"", detailsContent, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -650,7 +650,7 @@ public sealed class UnidadOrganizativaWebTests
 
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?page=1&search=test&sort=nombre_asc");
+        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?p=1&search=test&sort=nombre_asc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
 
         var postResponse = await client.PostAsync($"/organizacion/unidades-organizativas/editar/{unitId}", new FormUrlEncodedContent(new Dictionary<string, string>

@@ -21,15 +21,18 @@ public sealed class CreateModel(
 
     public string? ErrorMessage { get; private set; }
 
-    public string ReturnPage { get; private set; } = string.Empty;
+    [BindProperty]
+    public string? ReturnPage { get; set; }
 
-    public string ReturnSearch { get; private set; } = string.Empty;
+    [BindProperty]
+    public string? ReturnSearch { get; set; }
 
-    public string ReturnSort { get; private set; } = string.Empty;
+    [BindProperty]
+    public string? ReturnSort { get; set; }
 
-    public async Task OnGetAsync(string? page = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    public async Task OnGetAsync(string? p = null, string? page = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
     {
-        ReturnPage = page ?? string.Empty;
+        ReturnPage = p ?? page ?? string.Empty;
         ReturnSearch = search ?? string.Empty;
         ReturnSort = sort ?? string.Empty;
 

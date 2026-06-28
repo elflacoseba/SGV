@@ -41,6 +41,7 @@ public sealed class EditModel(
 
     public async Task<IActionResult> OnGetAsync(
         Guid id,
+        string? p = null,
         string? page = null,
         string? search = null,
         string? sort = null,
@@ -49,7 +50,7 @@ public sealed class EditModel(
         string? returnSort = null,
         CancellationToken cancellationToken = default)
     {
-        ReturnPage = returnPage ?? page;
+        ReturnPage = returnPage ?? p ?? page;
         ReturnSearch = returnSearch ?? search;
         ReturnSort = returnSort ?? sort;
 
@@ -60,7 +61,7 @@ public sealed class EditModel(
             {
                 TempData["StatusMessage"] = "La unidad organizativa solicitada no existe o ya no está disponible.";
                 TempData["StatusKind"] = "warning";
-                return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { page = ReturnPage, search = ReturnSearch, sort = ReturnSort });
+                return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = ReturnPage, search = ReturnSearch, sort = ReturnSort });
             }
 
             await LoadCatalogsAsync(id, cancellationToken);
@@ -128,7 +129,7 @@ public sealed class EditModel(
                     // Partial success: data saved but parent change failed
                     TempData["StatusMessage"] = "Se guardaron los datos generales, pero no se pudo actualizar la unidad padre.";
                     TempData["StatusKind"] = "warning";
-                    return RedirectToPage("/Organizacion/UnidadesOrganizativas/Edit", new { id, page = ReturnPage, search = ReturnSearch, sort = ReturnSort });
+                    return RedirectToPage("/Organizacion/UnidadesOrganizativas/Edit", new { id, p = ReturnPage, search = ReturnSearch, sort = ReturnSort });
                 }
             }
 
