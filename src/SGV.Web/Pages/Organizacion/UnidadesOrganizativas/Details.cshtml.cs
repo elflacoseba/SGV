@@ -17,17 +17,31 @@ public sealed class DetailsModel(
 
     public bool HasParent => Unidad?.UnidadPadreId is not null;
 
+    public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
+
+    public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
+
     public string ReturnPage { get; private set; } = string.Empty;
 
     public string ReturnSearch { get; private set; } = string.Empty;
 
     public string ReturnSort { get; private set; } = string.Empty;
 
-    public async Task<IActionResult> OnGetAsync(Guid id, string? page = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort);
+
+    public async Task<IActionResult> OnGetAsync(
+        Guid id,
+        string? page = null,
+        string? search = null,
+        string? sort = null,
+        string? returnPage = null,
+        string? returnSearch = null,
+        string? returnSort = null,
+        CancellationToken cancellationToken = default)
     {
-        ReturnPage = page ?? string.Empty;
-        ReturnSearch = search ?? string.Empty;
-        ReturnSort = sort ?? string.Empty;
+        ReturnPage = returnPage ?? page ?? string.Empty;
+        ReturnSearch = returnSearch ?? search ?? string.Empty;
+        ReturnSort = returnSort ?? sort ?? string.Empty;
 
         try
         {
