@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
@@ -253,7 +254,7 @@ public sealed class UnidadOrganizativaWebTests
         => new(items, totalCount, page, pageSize);
 
     private static UnidadOrganizativaDto CreateItem(string codigo, string nombre, string tipoNombre)
-        => new(Guid.NewGuid(), codigo, nombre, Guid.NewGuid(), tipoNombre, null, null, null, null);
+        => new(Guid.NewGuid(), codigo, nombre, Guid.NewGuid(), tipoNombre, null, null, null, null, null, null);
 
     private static async Task<HttpClient> CreateAuthenticatedClientAsync(FakeUnidadOrganizativaApiClient apiClient)
     {
@@ -439,6 +440,15 @@ main().catch(error => {
 
         public UnidadOrganizativaDeleteResult DeleteResult { get; set; } = new(false, HttpStatusCode.Conflict, null, null);
 
+        public UnidadOrganizativaCommandResult CommandResult { get; set; } = UnidadOrganizativaCommandResult.Failure(
+            new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, "NotImplemented", "Not yet implemented"));
+
+        public UnidadOrganizativaDto? GetByIdResult { get; set; }
+
+        public IReadOnlyList<UnidadOrganizativaTreeNodeDto> TreeResult { get; set; } = [];
+
+        public IReadOnlyList<TipoUnidadOrganizativaDto> TiposResult { get; set; } = [];
+
         public static FakeUnidadOrganizativaApiClient WithPages(params PagedResult<UnidadOrganizativaDto>[] pages)
             => new(pages, null);
 
@@ -457,6 +467,24 @@ main().catch(error => {
             Assert.NotEmpty(_pages);
             return Task.FromResult(_pages.Dequeue());
         }
+
+        public Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+            => Task.FromResult(GetByIdResult);
+
+        public Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(TreeResult);
+
+        public Task<IReadOnlyList<TipoUnidadOrganizativaDto>> GetTiposAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(TiposResult);
+
+        public Task<UnidadOrganizativaCommandResult> CreateAsync(CrearUnidadOrganizativaRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(CommandResult);
+
+        public Task<UnidadOrganizativaCommandResult> UpdateAsync(Guid id, ActualizarUnidadOrganizativaRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(CommandResult);
+
+        public Task<UnidadOrganizativaCommandResult> ChangeParentAsync(Guid id, CambiarUnidadPadreRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(CommandResult);
 
         public Task<UnidadOrganizativaDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
         {
