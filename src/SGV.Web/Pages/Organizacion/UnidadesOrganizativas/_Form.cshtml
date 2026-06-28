@@ -1,0 +1,66 @@
+@* Shared form partial for create/edit of organizational units. *@
+@* Expects a model that implements IUnidadOrganizativaForm. *@
+@using SGV.Web.Integration.Organizacion
+@model IUnidadOrganizativaForm
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Codigo" class="form-control" placeholder="Código" />
+            <label asp-for="Input.Codigo">Código</label>
+            <span asp-validation-for="Input.Codigo" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Nombre" class="form-control" placeholder="Nombre" />
+            <label asp-for="Input.Nombre">Nombre</label>
+            <span asp-validation-for="Input.Nombre" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-floating">
+            <textarea asp-for="Input.Descripcion" class="form-control" placeholder="Descripción" style="min-height: 80px"></textarea>
+            <label asp-for="Input.Descripcion">Descripción</label>
+            <span asp-validation-for="Input.Descripcion" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <select asp-for="Input.TipoUnidadOrganizativaId" class="form-select" asp-items="@(new SelectList(Model.TipoOptions, "Id", "Nombre"))">
+                <option value="">Seleccionar tipo...</option>
+            </select>
+            <label asp-for="Input.TipoUnidadOrganizativaId">Tipo</label>
+            <span asp-validation-for="Input.TipoUnidadOrganizativaId" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <select asp-for="Input.UnidadPadreId" class="form-select">
+                <option value="">Sin padre (unidad raíz)</option>
+                @foreach (var option in Model.ParentOptions)
+                {
+                    <option value="@option.Value">@option.IndentedText</option>
+                }
+            </select>
+            <label asp-for="Input.UnidadPadreId">Unidad padre</label>
+            <span asp-validation-for="Input.UnidadPadreId" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.VigenteDesde" class="form-control" type="date" placeholder="Vigente desde" />
+            <label asp-for="Input.VigenteDesde">Vigente desde</label>
+            <span asp-validation-for="Input.VigenteDesde" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.VigenteHasta" class="form-control" type="date" placeholder="Vigente hasta" />
+            <label asp-for="Input.VigenteHasta">Vigente hasta</label>
+            <span asp-validation-for="Input.VigenteHasta" class="text-danger"></span>
+        </div>
+    </div>
+</div>

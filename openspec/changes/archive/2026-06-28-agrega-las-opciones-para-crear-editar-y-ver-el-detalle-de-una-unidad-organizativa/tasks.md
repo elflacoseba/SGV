@@ -32,23 +32,23 @@ Chain strategy: stacked-to-develop
 
 ## Phase 2: Listado y navegación
 
-- [ ] 2.1 **RED**: extender `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` para exigir botón crear, acciones detalle/editar por fila y preservación de `page/search/sort` al volver.
-- [ ] 2.2 **GREEN**: modificar `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Index.cshtml` y `Index.cshtml.cs` para renderizar enlaces create/detail/edit y helpers de retorno reutilizables.
-- [ ] 2.3 **REFACTOR**: consolidar el armado de rutas/mensajes de navegación en view models/helpers de `src/SGV.Web/Integration/Organizacion/` sin mezclar lógica de negocio en PageModels.
+- [x] 2.1 **RED**: extender `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` para exigir botón crear, acciones detalle/editar por fila y preservación de `page/search/sort` al volver.
+- [x] 2.2 **GREEN**: modificar `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Index.cshtml` y `Index.cshtml.cs` para renderizar enlaces create/detail/edit y helpers de retorno reutilizables.
+- [x] 2.3 **REFACTOR**: consolidar el armado de rutas/mensajes de navegación en view models/helpers de `src/SGV.Web/Integration/Organizacion/` sin mezclar lógica de negocio en PageModels.
 
 ## Phase 3: Create y Details
 
-- [ ] 3.1 **RED**: agregar en `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` escenarios de auth, carga de catálogos, create exitoso, validación por campo y detail con padre legible o estado no disponible.
-- [ ] 3.2 **GREEN**: crear `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml(.cs)`, `Details.cshtml(.cs)` y `_Form.cshtml` con PRG, antiforgery, catálogos de tipo/padre y acción visible de volver.
-- [ ] 3.3 **REFACTOR**: reutilizar el parcial `_Form.cshtml` y normalizar mapeo de `ValidationProblemDetails` a `ModelState` para conservar datos ingresados.
+- [x] 3.1 **RED**: agregar en `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` escenarios de auth, carga de catálogos, create exitoso, validación por campo y detail con padre legible o estado no disponible.
+- [x] 3.2 **GREEN**: crear `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml(.cs)`, `Details.cshtml(.cs)` y `_Form.cshtml` con PRG, antiforgery, catálogos de tipo/padre y acción visible de volver.
+- [x] 3.3 **REFACTOR**: reutilizar el parcial `_Form.cshtml` y normalizar mapeo de `ValidationProblemDetails` a `ModelState` para conservar datos ingresados.
 
 ## Phase 4: Edit y warning de éxito parcial
 
-- [ ] 4.1 **RED**: ampliar `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` con edit exitoso, cambio de padre, conflicto 409, validación 400 y warning cuando `PATCH /unidad-padre` falla tras un `PUT` exitoso.
-- [ ] 4.2 **GREEN**: crear `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml(.cs)` con snapshot del padre original, exclusión de self/descendientes en opciones y flujo `PUT` seguido de `PATCH` solo si cambia el padre.
-- [ ] 4.3 **REFACTOR**: centralizar banners/status de éxito parcial y recarga recuperable en `Edit.cshtml.cs` + cliente tipado para evitar duplicación entre create/edit/detail.
+- [x] 4.1 **RED**: ampliar `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` con edit exitoso, cambio de padre, conflicto 409, validación 400 y warning cuando `PATCH /unidad-padre` falla tras un `PUT` exitoso.
+- [x] 4.2 **GREEN**: crear `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml(.cs)` con snapshot del padre original, exclusión de self/descendientes en opciones y flujo `PUT` seguido de `PATCH` solo si cambia el padre.
+- [x] 4.3 **REFACTOR**: centralizar banners/status de éxito parcial y recarga recuperable en `Edit.cshtml.cs` + cliente tipado para evitar duplicación entre create/edit/detail.
 
 ## Phase 5: Verificación final
 
-- [ ] 5.1 Ejecutar `dotnet test SGV.slnx --filter "UnidadOrganizativa|UnidadesOrganizativasController|UnidadOrganizativaWebTests"` y corregir desvíos contra los escenarios de specs antes de marcar apply.
-- [ ] 5.2 Ejecutar `dotnet build SGV.slnx` y registrar en `tasks.md`/`apply-progress.md` qué work unit quedó listo para PR 1, PR 2 o PR 3 según la estrategia elegida.
+- [x] 5.1 Ejecutar `dotnet test SGV.slnx --filter "UnidadOrganizativa|UnidadesOrganizativasController|UnidadOrganizativaWebTests"` y corregir desvíos contra los escenarios de specs antes de marcar apply.
+- [x] 5.2 Ejecutar `dotnet build SGV.slnx` y registrar en `tasks.md`/`apply-progress.md` qué work unit quedó listo para PR 1, PR 2 o PR 3 según la estrategia elegida.
