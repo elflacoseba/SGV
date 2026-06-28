@@ -2,14 +2,17 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Infraestructura.Persistencia;
 
 namespace SGV.Infraestructura.Seguridad;
 
 public sealed class AuthServicio(
     UserManager<SgvIdentityUser> userManager,
+    SgvDbContext dbContext,
     IOptions<JwtOptions> options) : IAuthServicio
 {
     public async Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -30,12 +33,17 @@ public sealed class AuthServicio(
         var jwt = options.Value;
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(jwt.TokenLifetimeMinutes);
         var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
+        var persona = await dbContext.Personas
+            .FirstOrDefaultAsync(p => p.Id == user.PersonaId, cancellationToken)
+            .ConfigureAwait(false);
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id),
             new(ClaimTypes.NameIdentifier, user.Id),
             new(ClaimTypes.Name, user.UserName ?? string.Empty),
-            new("persona_id", user.PersonaId.ToString())
+            new("persona_id", user.PersonaId.ToString()),
+            new("nombres", persona?.Nombres ?? string.Empty),
+            new("apellidos", persona?.Apellidos ?? string.Empty)
         };
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
