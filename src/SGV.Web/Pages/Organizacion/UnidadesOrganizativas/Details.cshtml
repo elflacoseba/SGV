@@ -8,13 +8,18 @@
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
 
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
 @if (Model.IsNotFound)
 {
     <div class="alert alert-warning" role="alert">
         <h5 class="alert-heading">Unidad no disponible</h5>
         <p class="mb-0">La unidad organizativa solicitada no existe o ya no está disponible.</p>
     </div>
-    <a class="btn btn-primary" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.ReturnPage, search = Model.ReturnSearch, sort = Model.ReturnSort })">
+    <a class="btn btn-primary" href="@Model.ReturnToListUrl">
         Volver al listado
     </a>
 }
@@ -77,10 +82,10 @@ else if (Model.Unidad is not null)
                     </dl>
                 </div>
                 <div class="card-footer d-flex gap-2">
-                    <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, page = Model.ReturnPage, search = Model.ReturnSearch, sort = Model.ReturnSort })">
+                    <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, returnPage = Model.ReturnPage, returnSearch = Model.ReturnSearch, returnSort = Model.ReturnSort })">
                         <i class="ti ti-edit me-1"></i>Editar
                     </a>
-                    <a class="btn btn-light" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.ReturnPage, search = Model.ReturnSearch, sort = Model.ReturnSort })">
+                    <a class="btn btn-light" href="@Model.ReturnToListUrl">
                         Volver al listado
                     </a>
                 </div>

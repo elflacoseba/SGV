@@ -28,17 +28,30 @@ public sealed class EditModel(
 
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
 
-    public string ReturnPage { get; private set; } = string.Empty;
+    [BindProperty]
+    public string? ReturnPage { get; set; }
 
-    public string ReturnSearch { get; private set; } = string.Empty;
+    [BindProperty]
+    public string? ReturnSearch { get; set; }
 
-    public string ReturnSort { get; private set; } = string.Empty;
+    [BindProperty]
+    public string? ReturnSort { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(Guid id, string? page = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort);
+
+    public async Task<IActionResult> OnGetAsync(
+        Guid id,
+        string? page = null,
+        string? search = null,
+        string? sort = null,
+        string? returnPage = null,
+        string? returnSearch = null,
+        string? returnSort = null,
+        CancellationToken cancellationToken = default)
     {
-        ReturnPage = page ?? string.Empty;
-        ReturnSearch = search ?? string.Empty;
-        ReturnSort = sort ?? string.Empty;
+        ReturnPage = returnPage ?? page;
+        ReturnSearch = returnSearch ?? search;
+        ReturnSort = returnSort ?? sort;
 
         try
         {
@@ -73,6 +86,10 @@ public sealed class EditModel(
 
     public async Task<IActionResult> OnPostAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        ReturnPage = string.IsNullOrWhiteSpace(ReturnPage) ? NormalizePostedValue(Request.Form[nameof(ReturnPage)]) : ReturnPage;
+        ReturnSearch = string.IsNullOrWhiteSpace(ReturnSearch) ? NormalizePostedValue(Request.Form[nameof(ReturnSearch)]) : ReturnSearch;
+        ReturnSort = string.IsNullOrWhiteSpace(ReturnSort) ? NormalizePostedValue(Request.Form[nameof(ReturnSort)]) : ReturnSort;
+
         if (!ModelState.IsValid)
         {
             await LoadCatalogsAsync(id, cancellationToken);
@@ -115,7 +132,7 @@ public sealed class EditModel(
                 }
             }
 
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort });
         }
 
         if (result.Error is not null)
@@ -153,4 +170,7 @@ public sealed class EditModel(
             ErrorMessage = "No se pudieron cargar los catálogos necesarios. Intentá nuevamente.";
         }
     }
+
+    private static string? NormalizePostedValue(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 }

@@ -108,3 +108,28 @@ None — all 12 tasks (Phases 1-5) complete.
 
 ## Status
 12/12 tasks complete. Ready for verify phase / PR creation.
+
+## Corrective Batch: Verify fixes
+
+### Completed Tasks
+- [x] Added runtime auth coverage for anonymous GET to `Edit`
+- [x] Strengthened create success coverage to require visible confirmation in `Details`
+- [x] Strengthened edit success coverage to require preserved listing context through `Details`
+- [x] Fixed delete confirmation script fallback for the Node harness and browser compatibility
+- [x] Restored visible success banners and stable contextual back-links in `Details`/`Edit`
+
+### TDD Cycle Evidence (Corrective Batch)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| verify-fix-1 | `UnidadOrganizativaWebTests.cs` | Web | ✅ 3/3 targeted baseline | ✅ 4 targeted tests executed first, 3 failed | ✅ 4/4 targeted tests pass after fixes | ✅ auth, success banner, context roundtrip, JS confirm fallback | ✅ Extracted shared return-to-list URL helper and kept fix localized |
+
+### Files Changed (Corrective Batch)
+
+| File | Action | Description |
+|------|--------|-------------|
+| `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` | Modified | Added anonymous Edit auth coverage and upgraded create/edit success assertions to verify visible confirmation + contextual back-link behavior |
+| `src/SGV.Web/wwwroot/js/pages/unidades-organizativas-index.js` | Modified | Added `requestSubmit` fallback to `submit()` for current test harness compatibility without changing browser behavior |
+| `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Details.cshtml(.cs)` | Modified | Render TempData status banner and accept preserved contextual return params |
+| `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml(.cs)` | Modified | Preserve return context across POST success flow and reuse stable back-link URL |
+| `src/SGV.Web/Integration/Organizacion/UnidadOrganizativaFormHelpers.cs` | Modified | Added helper to build return-to-list URLs without losing `page/search/sort` |

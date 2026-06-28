@@ -1,4 +1,6 @@
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -7,6 +9,31 @@ namespace SGV.Web.Integration.Organizacion;
 /// </summary>
 public static class UnidadOrganizativaFormHelpers
 {
+    public static string BuildReturnToListUrl(IUrlHelper url, string? page, string? search, string? sort)
+    {
+        var baseUrl = url.Page("/Organizacion/UnidadesOrganizativas/Index") ?? "/organizacion/unidades-organizativas";
+        var query = new List<KeyValuePair<string, string?>>();
+
+        if (!string.IsNullOrWhiteSpace(page))
+        {
+            query.Add(new KeyValuePair<string, string?>("page", page));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query.Add(new KeyValuePair<string, string?>("search", search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort))
+        {
+            query.Add(new KeyValuePair<string, string?>("sort", sort));
+        }
+
+        return query.Count == 0
+            ? baseUrl
+            : $"{baseUrl}{QueryString.Create(query)}";
+    }
+
     /// <summary>
     /// Flattens a hierarchical tree of organizational units into a list of parent-option view models,
     /// optionally excluding a specific unit and all its descendants (useful when editing a unit to

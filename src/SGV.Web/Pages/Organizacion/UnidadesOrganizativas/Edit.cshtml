@@ -28,15 +28,15 @@
                 <form method="post">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="OriginalUnidadPadreId" />
-                    <input type="hidden" name="page" value="@Model.ReturnPage" />
-                    <input type="hidden" name="search" value="@Model.ReturnSearch" />
-                    <input type="hidden" name="sort" value="@Model.ReturnSort" />
+                    <input type="hidden" asp-for="ReturnPage" />
+                    <input type="hidden" asp-for="ReturnSearch" />
+                    <input type="hidden" asp-for="ReturnSort" />
 
                     @await Html.PartialAsync("_Form", Model)
 
                     <div class="d-flex gap-2 mt-4">
                         <button type="submit" class="btn btn-primary">Guardar cambios</button>
-                        <a class="btn btn-light" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.ReturnPage, search = Model.ReturnSearch, sort = Model.ReturnSort })">Cancelar</a>
+                        <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
                     </div>
                 </form>
             </div>
