@@ -71,7 +71,9 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
             entity.Descripcion,
             entity.VigenteDesde,
             entity.VigenteHasta,
-            entity.UnidadPadreId
+            entity.UnidadPadreId,
+            entity.UnidadPadre?.Codigo,
+            entity.UnidadPadre?.Nombre
         );
     }
 }

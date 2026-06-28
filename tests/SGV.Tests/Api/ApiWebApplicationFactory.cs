@@ -76,15 +76,36 @@ internal sealed class FakeTipoUnidadOrganizativaServicio : ITipoUnidadOrganizati
 internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServicioConsulta
 {
     public static readonly Guid UnidadId1 = Guid.Parse("a0000000-0000-0000-0000-000000000001");
+    public static readonly Guid UnidadConPadreId = Guid.Parse("a0000000-0000-0000-0000-000000000002");
 
     private readonly IReadOnlyList<UnidadOrganizativaDto> _data;
 
-    public FakeUnidadOrganizativaServicio(bool isEmpty = false)
+    public FakeUnidadOrganizativaServicio(bool isEmpty = false, bool withPadreData = false)
     {
-        _data = isEmpty
-            ? []
-            : [new(UnidadId1, "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección",
-                  "Máxima autoridad ejecutiva", null, null, null)];
+        if (isEmpty)
+        {
+            _data = [];
+            return;
+        }
+
+        if (withPadreData)
+        {
+            _data =
+            [
+                new(UnidadId1, "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección",
+                    "Máxima autoridad ejecutiva", null, null, null, null, null),
+                new(UnidadConPadreId, "AREA-01", "Área Operativa", TipoUnidadOrganizativaConstantes.AreaId, "Área",
+                    null, null, null, UnidadId1, "GER", "Gerencia General")
+            ];
+        }
+        else
+        {
+            _data =
+            [
+                new(UnidadId1, "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección",
+                    "Máxima autoridad ejecutiva", null, null, null, null, null)
+            ];
+        }
     }
 
     public Task<IReadOnlyList<UnidadOrganizativaDto>> ListAsync(CancellationToken ct = default)
@@ -340,7 +361,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(DefaultUnidadId, request.Codigo, request.Nombre,
                 request.TipoUnidadOrganizativaId, string.Empty, request.Descripcion, request.VigenteDesde,
-                request.VigenteHasta, request.UnidadPadreId)));
+                request.VigenteHasta, request.UnidadPadreId, null, null)));
     }
 
     public Task<UnidadOrganizativaCommandResult> ActualizarAsync(
@@ -352,7 +373,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(id, request.Codigo, request.Nombre,
                 request.TipoUnidadOrganizativaId, string.Empty, request.Descripcion, request.VigenteDesde,
-                request.VigenteHasta, null)));
+                request.VigenteHasta, null, null, null)));
     }
 
     public Task<UnidadOrganizativaCommandResult> CambiarUnidadPadreAsync(
@@ -362,7 +383,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     {
         if (CambiarUnidadPadreHandler is not null) return CambiarUnidadPadreHandler(id, request, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
-            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, request.UnidadPadreId)));
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, request.UnidadPadreId, null, null)));
     }
 
     public Task<UnidadOrganizativaCommandResult> EliminarAsync(
@@ -371,7 +392,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     {
         if (EliminarHandler is not null) return EliminarHandler(id, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
-            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null)));
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null, null, null)));
     }
 
     public Task<UnidadOrganizativaCommandResult> ReactivarAsync(
@@ -379,8 +400,8 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         CancellationToken cancellationToken = default)
     {
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
-            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null)));
-    }
+            new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null, null, null)));
+}
 }
 
 internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos

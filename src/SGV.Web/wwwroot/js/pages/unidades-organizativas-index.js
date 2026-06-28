@@ -22,7 +22,12 @@ function wireUnidadOrganizativaDeleteConfirmation(root, swal) {
                 reverseButtons: true
             }).then(function (result) {
                 if (result.isConfirmed) {
-                    form.requestSubmit(button);
+                    if (typeof form.requestSubmit === 'function') {
+                        form.requestSubmit(button);
+                        return;
+                    }
+
+                    form.submit();
                 }
             });
         });

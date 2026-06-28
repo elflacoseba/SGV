@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
@@ -249,11 +250,516 @@ public sealed class UnidadOrganizativaWebTests
         Assert.Contains("Departamento Legal", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ──────────────────────────────────────────────
+    // Phase 2: Navigation — Create, Detail, Edit
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Index_WhenAuthenticated_RendersCreateButtonLink()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(1, 10, 1, CreateItem("A01", "Rectorado", "Institución")));
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Crear", content);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas/crear", content);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenAuthenticated_RendersDetailAndEditPerRow()
+    {
+        var item = CreateItem("A01", "Rectorado", "Institución");
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(1, 10, 1, item));
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"/organizacion/unidades-organizativas/detalles/{item.Id}", content);
+        Assert.Contains($"/organizacion/unidades-organizativas/editar/{item.Id}", content);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenNavigatingToDetailOrEdit_PreservesPageSearchSort()
+    {
+        var item = CreateItem("A01", "Rectorado", "Institución");
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(2, 10, 25, item));
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?page=2&search=test&sort=nombre_desc");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Detail and Edit links render with the item ID in the URL
+        var itemIdStr = item.Id.ToString();
+        Assert.Contains($"/organizacion/unidades-organizativas/detalles/{itemIdStr}", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"/organizacion/unidades-organizativas/editar/{itemIdStr}", content, StringComparison.OrdinalIgnoreCase);
+
+        // Context preservation is visible: search input shows current search term
+        Assert.Contains("value=\"test\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // Phase 3: Create + Details
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Create_WhenAnonymous_RedirectsToSignIn()
+    {
+        using var factory = new SgvWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/crear");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenAnonymous_RedirectsToSignIn()
+    {
+        using var factory = new SgvWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/detalles/" + Guid.NewGuid());
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Edit_WhenAnonymous_RedirectsToSignIn()
+    {
+        using var factory = new SgvWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/editar/" + Guid.NewGuid());
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Create_WhenAuthenticated_LoadsCatalogs()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(Guid.NewGuid(), "DIR", "Dirección")];
+        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Crear unidad organizativa", content);
+        Assert.Contains("Dirección", content);
+        Assert.Contains("Rectorado", content);
+        Assert.Contains("name=\"Input.Codigo\"", content);
+        Assert.Contains("name=\"Input.Nombre\"", content);
+        Assert.Contains("name=\"Input.Descripcion\"", content);
+        Assert.Contains("name=\"Input.VigenteDesde\"", content);
+        Assert.Contains("name=\"Input.VigenteHasta\"", content);
+        Assert.Contains("name=\"Input.TipoUnidadOrganizativaId\"", content);
+        Assert.Contains("name=\"Input.UnidadPadreId\"", content);
+    }
+
+    [Fact]
+    public async Task Post_Create_WhenSuccessful_RedirectsToDetailsWithVisibleConfirmation()
+    {
+        var newId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        var createdUnit = new UnidadOrganizativaDto(newId, "NEW01", "Nueva Unidad", tipoId, "Dirección", null, null, null, null, null, null);
+        apiClient.CommandResult = UnidadOrganizativaCommandResult.Success(createdUnit);
+        apiClient.GetByIdResult = createdUnit;
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/unidades-organizativas/crear");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var postResponse = await client.PostAsync("/organizacion/unidades-organizativas/crear", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "NEW01",
+            ["Input.Nombre"] = "Nueva Unidad",
+            ["Input.TipoUnidadOrganizativaId"] = Guid.NewGuid().ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+        Assert.Contains($"/organizacion/unidades-organizativas/detalles/{newId}", postResponse.Headers.Location?.OriginalString);
+
+        var detailsResponse = await client.GetAsync(postResponse.Headers.Location!);
+        var detailsContent = HttpUtility.HtmlDecode(await detailsResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, detailsResponse.StatusCode);
+        Assert.Contains("se creó correctamente", detailsContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Nueva Unidad", detailsContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Create_WhenValidationFails_ReturnsPageWithFieldErrorsAndPreservesCatalogs()
+    {
+        var tipoId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.CommandResult = UnidadOrganizativaCommandResult.Failure(
+            new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "ValidationError", "One or more fields are invalid."),
+            new Dictionary<string, string[]> { ["Codigo"] = ["El código ya existe."] });
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/unidades-organizativas/crear");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var postResponse = await client.PostAsync("/organizacion/unidades-organizativas/crear", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "EXIST",
+            ["Input.Nombre"] = "Unidad Existente",
+            ["Input.TipoUnidadOrganizativaId"] = tipoId.ToString()
+        }));
+
+        var content = HttpUtility.HtmlDecode(await postResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+        Assert.Contains("El código ya existe.", content);
+        Assert.Contains("Dirección", content); // catalogs still loaded
+        Assert.Contains("Rectorado", content); // tree still loaded
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenAuthenticated_ShowsUnitWithParent()
+    {
+        var unitId = Guid.NewGuid();
+        var parentId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", Guid.NewGuid(), "Departamento",
+            "Descripción", DateOnly.Parse("2024-01-01"), null, parentId, "RECT", "Rectorado");
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync($"/organizacion/unidades-organizativas/detalles/{unitId}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Departamento Test", content);
+        Assert.Contains("DEPT01", content);
+        Assert.Contains("RECT", content);
+        Assert.Contains("Rectorado", content);
+        Assert.Contains("Descripción", content);
+        Assert.Contains("01/01/2024", content);
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenNotFound_ShowsNotAvailableState()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = null;
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync($"/organizacion/unidades-organizativas/detalles/{Guid.NewGuid()}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("no disponible", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Volver al listado", content);
+    }
+
+    // ──────────────────────────────────────────────
+    // Phase 4: Edit — PUT / PATCH flow
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Edit_WhenAuthenticated_LoadsCatalogsAndData()
+    {
+        var unitId = Guid.NewGuid();
+        var parentId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", Guid.NewGuid(), "Departamento",
+            null, null, null, parentId, "RECT", "Rectorado");
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(Guid.NewGuid(), "DIR", "Dirección")];
+        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Editar unidad organizativa", content);
+        Assert.Contains("DEPT01", content);
+        Assert.Contains("Departamento Test", content);
+        Assert.Contains("Dirección", content);
+        Assert.Contains("Rectorado", content);
+        Assert.Contains("Guardar cambios", content);
+    }
+
+    [Fact]
+    public async Task Get_Edit_WhenNotFound_RedirectsToIndexWithWarning()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = null;
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/organizacion/unidades-organizativas", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+
+        var followResponse = await client.GetAsync(response.Headers.Location!);
+        var followContent = HttpUtility.HtmlDecode(await followResponse.Content.ReadAsStringAsync());
+
+        Assert.Contains("no existe o ya no está disponible", followContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenSuccessfulWithoutParentChange_RedirectsToDetails()
+    {
+        var unitId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        var parentId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
+            null, null, null, parentId, "RECT", "Rectorado");
+        apiClient.CommandResult = UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(unitId, "DEPT01", "Departamento Test Updated", tipoId, "Departamento",
+                null, null, null, parentId, "RECT", "Rectorado"));
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var postResponse = await client.PostAsync($"/organizacion/unidades-organizativas/editar/{unitId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "DEPT01",
+            ["Input.Nombre"] = "Departamento Test Updated",
+            ["Input.TipoUnidadOrganizativaId"] = tipoId.ToString(),
+            ["Input.UnidadPadreId"] = parentId.ToString(),
+            ["OriginalUnidadPadreId"] = parentId.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+        Assert.Contains($"/organizacion/unidades-organizativas/detalles/{unitId}", postResponse.Headers.Location?.OriginalString);
+        Assert.Empty(apiClient.ChangeParentCalls);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenSuccessfulWithParentChange_PreservesListContextInDetails()
+    {
+        var unitId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        var oldParentId = Guid.NewGuid();
+        var newParentId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        var updatedUnit = new UnidadOrganizativaDto(unitId, "DEPT01", "Departamento Test Updated", tipoId, "Departamento",
+                null, null, null, newParentId, "NEW", "New Parent");
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
+            null, null, null, oldParentId, "OLD", "Old Parent");
+        apiClient.CommandResult = UnidadOrganizativaCommandResult.Success(updatedUnit);
+        apiClient.ChangeParentCommandResult = UnidadOrganizativaCommandResult.Success(updatedUnit);
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?page=2&search=test&sort=nombre_desc");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var postResponse = await client.PostAsync($"/organizacion/unidades-organizativas/editar/{unitId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "DEPT01",
+            ["Input.Nombre"] = "Departamento Test Updated",
+            ["Input.TipoUnidadOrganizativaId"] = tipoId.ToString(),
+            ["Input.UnidadPadreId"] = newParentId.ToString(),
+            ["OriginalUnidadPadreId"] = oldParentId.ToString(),
+            ["ReturnPage"] = "2",
+            ["ReturnSearch"] = "test",
+            ["ReturnSort"] = "nombre_desc"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+        var redirectLocation = postResponse.Headers.Location?.OriginalString;
+        Assert.Contains($"/organizacion/unidades-organizativas/detalles/{unitId}", redirectLocation, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(unitId, Assert.Single(apiClient.ChangeParentCalls));
+
+        apiClient.GetByIdResult = updatedUnit;
+
+        var detailsResponse = await client.GetAsync(postResponse.Headers.Location!);
+        var detailsContent = HttpUtility.HtmlDecode(await detailsResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, detailsResponse.StatusCode);
+        Assert.Contains("New Parent", detailsContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?page=2&search=test&sort=nombre_desc\"", detailsContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenParentChangeFails_RedirectsToEditWithWarning()
+    {
+        var unitId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        var oldParentId = Guid.NewGuid();
+        var newParentId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
+            null, null, null, oldParentId, "OLD", "Old Parent");
+        apiClient.CommandResult = UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(unitId, "DEPT01", "Departamento Test Updated", tipoId, "Departamento",
+                null, null, null, oldParentId, "OLD", "Old Parent"));
+        apiClient.ChangeParentCommandResult = UnidadOrganizativaCommandResult.Failure(
+            new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "ParentChangeFailed", "No se pudo actualizar la unidad padre."));
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+
+        // Re-set GetByIdResult for the follow-up GET after redirect
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test Updated", tipoId, "Departamento",
+            null, null, null, oldParentId, "OLD", "Old Parent");
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?page=1&search=test&sort=nombre_asc");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var postResponse = await client.PostAsync($"/organizacion/unidades-organizativas/editar/{unitId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "DEPT01",
+            ["Input.Nombre"] = "Departamento Test Updated",
+            ["Input.TipoUnidadOrganizativaId"] = tipoId.ToString(),
+            ["Input.UnidadPadreId"] = newParentId.ToString(),
+            ["OriginalUnidadPadreId"] = oldParentId.ToString(),
+            ["ReturnPage"] = "1",
+            ["ReturnSearch"] = "test",
+            ["ReturnSort"] = "nombre_asc"
+        }));
+
+        // Should redirect back to Edit with a warning
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+        Assert.Contains($"/organizacion/unidades-organizativas/editar/{unitId}", postResponse.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(unitId, Assert.Single(apiClient.ChangeParentCalls));
+
+        // Follow redirect to verify warning is shown
+        var followResponse = await client.GetAsync(postResponse.Headers.Location!);
+        var followContent = HttpUtility.HtmlDecode(await followResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, followResponse.StatusCode);
+        Assert.Contains("no se pudo actualizar la unidad padre", followContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Departamento Test Updated", followContent);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenConflict_ShowsErrorAndKeepsCatalogs()
+    {
+        var unitId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        var parentId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
+            null, null, null, parentId, "RECT", "Rectorado");
+        apiClient.CommandResult = UnidadOrganizativaCommandResult.Failure(
+            new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "Conflict", "La unidad tiene dependencias activas."));
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var postResponse = await client.PostAsync($"/organizacion/unidades-organizativas/editar/{unitId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "DEPT01",
+            ["Input.Nombre"] = "Departamento Test",
+            ["Input.TipoUnidadOrganizativaId"] = tipoId.ToString(),
+            ["Input.UnidadPadreId"] = parentId.ToString(),
+            ["OriginalUnidadPadreId"] = parentId.ToString()
+        }));
+
+        var content = HttpUtility.HtmlDecode(await postResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+        Assert.Contains("tiene dependencias activas", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Dirección", content); // catalogs still rendered
+        Assert.Contains("Rectorado", content); // tree still rendered
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenValidationFails_ShowsFieldErrorsAndKeepsCatalogs()
+    {
+        var unitId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
+            null, null, null, null, null, null);
+        apiClient.CommandResult = UnidadOrganizativaCommandResult.Failure(
+            new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "ValidationError", "One or more fields are invalid."),
+            new Dictionary<string, string[]> { ["Codigo"] = ["El código ya existe."] });
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var postResponse = await client.PostAsync($"/organizacion/unidades-organizativas/editar/{unitId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "DEPT01",
+            ["Input.Nombre"] = "Departamento Test",
+            ["Input.TipoUnidadOrganizativaId"] = tipoId.ToString(),
+            ["OriginalUnidadPadreId"] = ""
+        }));
+
+        var content = HttpUtility.HtmlDecode(await postResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+        Assert.Contains("El código ya existe.", content);
+        Assert.Contains("Dirección", content); // catalogs still loaded
+        Assert.Contains("Rectorado", content); // tree still loaded
+    }
+
     private static PagedResult<UnidadOrganizativaDto> CreatePage(int page, int pageSize, int totalCount, params UnidadOrganizativaDto[] items)
         => new(items, totalCount, page, pageSize);
 
     private static UnidadOrganizativaDto CreateItem(string codigo, string nombre, string tipoNombre)
-        => new(Guid.NewGuid(), codigo, nombre, Guid.NewGuid(), tipoNombre, null, null, null, null);
+        => new(Guid.NewGuid(), codigo, nombre, Guid.NewGuid(), tipoNombre, null, null, null, null, null, null);
 
     private static async Task<HttpClient> CreateAuthenticatedClientAsync(FakeUnidadOrganizativaApiClient apiClient)
     {
@@ -439,6 +945,19 @@ main().catch(error => {
 
         public UnidadOrganizativaDeleteResult DeleteResult { get; set; } = new(false, HttpStatusCode.Conflict, null, null);
 
+        public UnidadOrganizativaCommandResult CommandResult { get; set; } = UnidadOrganizativaCommandResult.Failure(
+            new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, "NotImplemented", "Not yet implemented"));
+
+        public UnidadOrganizativaCommandResult? ChangeParentCommandResult { get; set; }
+
+        public UnidadOrganizativaDto? GetByIdResult { get; set; }
+
+        public IReadOnlyList<UnidadOrganizativaTreeNodeDto> TreeResult { get; set; } = [];
+
+        public IReadOnlyList<TipoUnidadOrganizativaDto> TiposResult { get; set; } = [];
+
+        public List<Guid> ChangeParentCalls { get; } = [];
+
         public static FakeUnidadOrganizativaApiClient WithPages(params PagedResult<UnidadOrganizativaDto>[] pages)
             => new(pages, null);
 
@@ -456,6 +975,27 @@ main().catch(error => {
 
             Assert.NotEmpty(_pages);
             return Task.FromResult(_pages.Dequeue());
+        }
+
+        public Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+            => Task.FromResult(GetByIdResult);
+
+        public Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(TreeResult);
+
+        public Task<IReadOnlyList<TipoUnidadOrganizativaDto>> GetTiposAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(TiposResult);
+
+        public Task<UnidadOrganizativaCommandResult> CreateAsync(CrearUnidadOrganizativaRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(CommandResult);
+
+        public Task<UnidadOrganizativaCommandResult> UpdateAsync(Guid id, ActualizarUnidadOrganizativaRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(CommandResult);
+
+        public Task<UnidadOrganizativaCommandResult> ChangeParentAsync(Guid id, CambiarUnidadPadreRequest request, CancellationToken cancellationToken = default)
+        {
+            ChangeParentCalls.Add(id);
+            return Task.FromResult(ChangeParentCommandResult ?? CommandResult);
         }
 
         public Task<UnidadOrganizativaDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)

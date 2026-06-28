@@ -95,6 +95,21 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             : "ti ti-arrow-up";
     }
 
+    /// <summary>
+    /// Builds query-string parameters for return-to-list links, preserving the current page, search, and sort.
+    /// </summary>
+    public object ReturnToListRouteValues => new
+    {
+        page = CurrentPage,
+        search = Search,
+        sort = Sort
+    };
+
+    /// <summary>
+    /// Builds the return URL for the listado, preserving current page, search, and sort.
+    /// </summary>
+    public string ReturnToListUrl => Url.Page("/Organizacion/UnidadesOrganizativas/Index", ReturnToListRouteValues);
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         try

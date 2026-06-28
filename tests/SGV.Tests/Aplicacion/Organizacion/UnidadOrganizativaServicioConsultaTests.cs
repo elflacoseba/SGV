@@ -103,6 +103,85 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         Assert.Null(resultado);
     }
 
+    // ---- UnidadPadreCodigo/nombre en DTO (Phase 1) ----
+
+    [Fact]
+    public async Task GetByIdAsync_UnidadConPadre_IncluyeUnidadPadreCodigoNombre()
+    {
+        var padre = CrearUnidadActiva(); // root — no parent
+        var hija = CrearUnidadActivaHija(OtraUnidadId, UnidadId, "AREA-01", "Área Operativa");
+
+        // Set navigation to the padre on the child entity
+        SetNavigation(hija, nameof(UnidadOrganizativa.UnidadPadre), padre);
+
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [padre, hija] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.GetByIdAsync(OtraUnidadId, default);
+
+        Assert.NotNull(resultado);
+        Assert.Equal(padre.Codigo, resultado!.UnidadPadreCodigo);
+        Assert.Equal(padre.Nombre, resultado.UnidadPadreNombre);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_UnidadRaiz_TieneUnidadPadreNulo()
+    {
+        var raiz = CrearUnidadActiva();
+        raiz.CambiarUnidadPadre(null); // ensure it's a root
+
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [raiz] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.GetByIdAsync(UnidadId, default);
+
+        Assert.NotNull(resultado);
+        Assert.Null(resultado!.UnidadPadreCodigo);
+        Assert.Null(resultado.UnidadPadreNombre);
+    }
+
+    [Fact]
+    public async Task ListAsync_UnidadConPadre_IncluyeUnidadPadreCodigoNombre()
+    {
+        var padre = CrearUnidadActiva();
+        var hija = CrearUnidadActivaHija(OtraUnidadId, UnidadId, "AREA-01", "Área Operativa");
+        SetNavigation(hija, nameof(UnidadOrganizativa.UnidadPadre), padre);
+
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [padre, hija] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.ListAsync(default);
+
+        var dtoHija = resultado.Single(r => r.Id == OtraUnidadId);
+        Assert.Equal(padre.Codigo, dtoHija.UnidadPadreCodigo);
+        Assert.Equal(padre.Nombre, dtoHija.UnidadPadreNombre);
+
+        var dtoRaiz = resultado.Single(r => r.Id == UnidadId);
+        Assert.Null(dtoRaiz.UnidadPadreCodigo);
+        Assert.Null(dtoRaiz.UnidadPadreNombre);
+    }
+
+    [Fact]
+    public async Task QueryAsync_UnidadConPadre_IncluyeUnidadPadreCodigoNombre()
+    {
+        var padre = CrearUnidadActiva();
+        var hija = CrearUnidadActivaHija(OtraUnidadId, UnidadId, "AREA-01", "Área Operativa");
+        SetNavigation(hija, nameof(UnidadOrganizativa.UnidadPadre), padre);
+
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [padre, hija] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(new UnidadOrganizativaQuery(1, 10), default);
+
+        var dtoHija = resultado.Items.Single(r => r.Id == OtraUnidadId);
+        Assert.Equal(padre.Codigo, dtoHija.UnidadPadreCodigo);
+        Assert.Equal(padre.Nombre, dtoHija.UnidadPadreNombre);
+
+        var dtoRaiz = resultado.Items.Single(r => r.Id == UnidadId);
+        Assert.Null(dtoRaiz.UnidadPadreCodigo);
+        Assert.Null(dtoRaiz.UnidadPadreNombre);
+    }
+
     // ---- QueryAsync tests (Task 3.1 / 3.3) ----
 
     [Fact]

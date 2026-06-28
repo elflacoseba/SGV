@@ -1,0 +1,95 @@
+@page "/organizacion/unidades-organizativas/detalles/{id:guid}"
+@model SGV.Web.Pages.Organizacion.UnidadesOrganizativas.DetailsModel
+
+@{
+    ViewBag.title = Model.IsNotFound ? "Unidad no disponible" : "Detalle de unidad organizativa";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
+@if (Model.IsNotFound)
+{
+    <div class="alert alert-warning" role="alert">
+        <h5 class="alert-heading">Unidad no disponible</h5>
+        <p class="mb-0">La unidad organizativa solicitada no existe o ya no está disponible.</p>
+    </div>
+    <a class="btn btn-primary" href="@Model.ReturnToListUrl">
+        Volver al listado
+    </a>
+}
+else if (Model.Unidad is not null)
+{
+    <div class="row">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">@Model.Unidad.Nombre</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3 fw-normal text-muted">Código</dt>
+                        <dd class="col-sm-9">@Model.Unidad.Codigo</dd>
+
+                        <dt class="col-sm-3 fw-normal text-muted">Nombre</dt>
+                        <dd class="col-sm-9">@Model.Unidad.Nombre</dd>
+
+                        @if (!string.IsNullOrWhiteSpace(Model.Unidad.Descripcion))
+                        {
+                            <dt class="col-sm-3 fw-normal text-muted">Descripción</dt>
+                            <dd class="col-sm-9">@Model.Unidad.Descripcion</dd>
+                        }
+
+                        <dt class="col-sm-3 fw-normal text-muted">Tipo</dt>
+                        <dd class="col-sm-9"><span class="badge badge-soft-secondary">@Model.Unidad.TipoUnidadNombre</span></dd>
+
+                        <dt class="col-sm-3 fw-normal text-muted">Unidad padre</dt>
+                        <dd class="col-sm-9">
+                            @if (Model.HasParent)
+                            {
+                                <span>@Model.Unidad.UnidadPadreCodigo — @Model.Unidad.UnidadPadreNombre</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted fst-italic">Sin padre (unidad raíz)</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3 fw-normal text-muted">Vigencia</dt>
+                        <dd class="col-sm-9">
+                            @if (Model.Unidad.VigenteDesde is null && Model.Unidad.VigenteHasta is null)
+                            {
+                                <span>Vigencia abierta</span>
+                            }
+                            else if (Model.Unidad.VigenteDesde is not null && Model.Unidad.VigenteHasta is null)
+                            {
+                                <span>Desde @Model.Unidad.VigenteDesde.Value.ToString("dd/MM/yyyy")</span>
+                            }
+                            else if (Model.Unidad.VigenteDesde is null)
+                            {
+                                <span>Hasta @Model.Unidad.VigenteHasta!.Value.ToString("dd/MM/yyyy")</span>
+                            }
+                            else
+                            {
+                                <span>@Model.Unidad.VigenteDesde.Value.ToString("dd/MM/yyyy") — @Model.Unidad.VigenteHasta!.Value.ToString("dd/MM/yyyy")</span>
+                            }
+                        </dd>
+                    </dl>
+                </div>
+                <div class="card-footer d-flex gap-2">
+                    <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, returnPage = Model.ReturnPage, returnSearch = Model.ReturnSearch, returnSort = Model.ReturnSort })">
+                        <i class="ti ti-edit me-1"></i>Editar
+                    </a>
+                    <a class="btn btn-light" href="@Model.ReturnToListUrl">
+                        Volver al listado
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}

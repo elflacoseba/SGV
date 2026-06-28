@@ -1,0 +1,45 @@
+@page "/organizacion/unidades-organizativas/editar/{id:guid}"
+@model SGV.Web.Pages.Organizacion.UnidadesOrganizativas.EditModel
+
+@{
+    ViewBag.title = "Editar unidad organizativa";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-12 col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Editar: @Model.Input.Codigo</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="OriginalUnidadPadreId" />
+                    <input type="hidden" asp-for="ReturnPage" />
+                    <input type="hidden" asp-for="ReturnSearch" />
+                    <input type="hidden" asp-for="ReturnSort" />
+
+                    @await Html.PartialAsync("_Form", Model)
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                        <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
