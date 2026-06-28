@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 
@@ -14,11 +15,18 @@ public sealed class EditModel(
     [BindProperty]
     public UnidadOrganizativaInputModel Input { get; set; } = new();
 
+    [BindProperty]
+    public string? OriginalUnidadPadreId { get; set; }
+
     public IReadOnlyList<TipoUnidadOrganizativaDto> TipoOptions { get; private set; } = [];
 
     public IReadOnlyList<ParentOptionViewModel> ParentOptions { get; private set; } = [];
 
     public string? ErrorMessage { get; private set; }
+
+    public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
+
+    public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
 
     public string ReturnPage { get; private set; } = string.Empty;
 
@@ -51,6 +59,7 @@ public sealed class EditModel(
             Input.UnidadPadreId = unidad.UnidadPadreId;
             Input.VigenteDesde = unidad.VigenteDesde;
             Input.VigenteHasta = unidad.VigenteHasta;
+            OriginalUnidadPadreId = unidad.UnidadPadreId?.ToString();
 
             return Page();
         }
@@ -70,7 +79,7 @@ public sealed class EditModel(
             return Page();
         }
 
-        var request = new SGV.Aplicacion.Organizacion.Comandos.ActualizarUnidadOrganizativaRequest(
+        var request = new ActualizarUnidadOrganizativaRequest(
             Input.Codigo,
             Input.Nombre,
             Input.TipoUnidadOrganizativaId,
@@ -84,6 +93,28 @@ public sealed class EditModel(
         {
             TempData["StatusMessage"] = $"La unidad organizativa \"{result.Value.Nombre}\" se actualizó correctamente.";
             TempData["StatusKind"] = "success";
+
+            // Detect parent change by comparing original snapshot with submitted value
+            Guid? originalParentId = null;
+            if (Guid.TryParse(OriginalUnidadPadreId, out var parsed))
+                originalParentId = parsed;
+
+            if (originalParentId != Input.UnidadPadreId)
+            {
+                var changeResult = await unidadOrganizativaApiClient.ChangeParentAsync(
+                    id,
+                    new CambiarUnidadPadreRequest(Input.UnidadPadreId),
+                    cancellationToken);
+
+                if (!changeResult.IsSuccess)
+                {
+                    // Partial success: data saved but parent change failed
+                    TempData["StatusMessage"] = "Se guardaron los datos generales, pero no se pudo actualizar la unidad padre.";
+                    TempData["StatusKind"] = "warning";
+                    return RedirectToPage("/Organizacion/UnidadesOrganizativas/Edit", new { id, page = ReturnPage, search = ReturnSearch, sort = ReturnSort });
+                }
+            }
+
             return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id });
         }
 

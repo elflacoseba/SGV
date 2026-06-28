@@ -8,6 +8,11 @@
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
 
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
 @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
 {
     <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
@@ -22,6 +27,7 @@
             <div class="card-body">
                 <form method="post">
                     @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="OriginalUnidadPadreId" />
                     <input type="hidden" name="page" value="@Model.ReturnPage" />
                     <input type="hidden" name="search" value="@Model.ReturnSearch" />
                     <input type="hidden" name="sort" value="@Model.ReturnSort" />

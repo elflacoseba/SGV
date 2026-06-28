@@ -44,11 +44,11 @@ Chain strategy: stacked-to-develop
 
 ## Phase 4: Edit y warning de éxito parcial
 
-- [ ] 4.1 **RED**: ampliar `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` con edit exitoso, cambio de padre, conflicto 409, validación 400 y warning cuando `PATCH /unidad-padre` falla tras un `PUT` exitoso.
-- [ ] 4.2 **GREEN**: crear `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml(.cs)` con snapshot del padre original, exclusión de self/descendientes en opciones y flujo `PUT` seguido de `PATCH` solo si cambia el padre.
-- [ ] 4.3 **REFACTOR**: centralizar banners/status de éxito parcial y recarga recuperable en `Edit.cshtml.cs` + cliente tipado para evitar duplicación entre create/edit/detail.
+- [x] 4.1 **RED**: ampliar `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` con edit exitoso, cambio de padre, conflicto 409, validación 400 y warning cuando `PATCH /unidad-padre` falla tras un `PUT` exitoso.
+- [x] 4.2 **GREEN**: crear `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml(.cs)` con snapshot del padre original, exclusión de self/descendientes en opciones y flujo `PUT` seguido de `PATCH` solo si cambia el padre.
+- [x] 4.3 **REFACTOR**: centralizar banners/status de éxito parcial y recarga recuperable en `Edit.cshtml.cs` + cliente tipado para evitar duplicación entre create/edit/detail.
 
 ## Phase 5: Verificación final
 
-- [ ] 5.1 Ejecutar `dotnet test SGV.slnx --filter "UnidadOrganizativa|UnidadesOrganizativasController|UnidadOrganizativaWebTests"` y corregir desvíos contra los escenarios de specs antes de marcar apply.
-- [ ] 5.2 Ejecutar `dotnet build SGV.slnx` y registrar en `tasks.md`/`apply-progress.md` qué work unit quedó listo para PR 1, PR 2 o PR 3 según la estrategia elegida.
+- [x] 5.1 Ejecutar `dotnet test SGV.slnx --filter "UnidadOrganizativa|UnidadesOrganizativasController|UnidadOrganizativaWebTests"` y corregir desvíos contra los escenarios de specs antes de marcar apply.
+- [x] 5.2 Ejecutar `dotnet build SGV.slnx` y registrar en `tasks.md`/`apply-progress.md` qué work unit quedó listo para PR 1, PR 2 o PR 3 según la estrategia elegida.
