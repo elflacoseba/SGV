@@ -83,6 +83,18 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             : $"{column}_asc";
     }
 
+    public string? GetSortIcon(string column)
+    {
+        if (Sort is null) return null;
+
+        var isSameColumn = Sort.StartsWith(column, StringComparison.OrdinalIgnoreCase);
+        if (!isSameColumn) return null;
+
+        return Sort.EndsWith("_desc", StringComparison.OrdinalIgnoreCase)
+            ? "ti ti-arrow-down"
+            : "ti ti-arrow-up";
+    }
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         try

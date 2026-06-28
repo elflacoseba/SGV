@@ -50,14 +50,37 @@
                 <table class="table table-custom table-centered table-hover w-100 mb-0">
                     <thead class="bg-light align-middle bg-opacity-25 thead-sm">
                         <tr class="text-uppercase fs-xxs">
+                            @{
+                                var codigoIcon = Model.GetSortIcon("codigo");
+                                var nombreIcon = Model.GetSortIcon("nombre");
+                                var tipoIcon = Model.GetSortIcon("tipo");
+                            }
                             <th>
-                                <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo") })">Código</a>
+                                <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo") })">
+                                    Código
+                                    @if (!string.IsNullOrEmpty(codigoIcon))
+                                    {
+                                        <i class="@codigoIcon ms-1"></i>
+                                    }
+                                </a>
                             </th>
                             <th>
-                                <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre") })">Nombre</a>
+                                <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre") })">
+                                    Nombre
+                                    @if (!string.IsNullOrEmpty(nombreIcon))
+                                    {
+                                        <i class="@nombreIcon ms-1"></i>
+                                    }
+                                </a>
                             </th>
                             <th>
-                                <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("tipo") })">Tipo</a>
+                                <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { page = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("tipo") })">
+                                    Tipo
+                                    @if (!string.IsNullOrEmpty(tipoIcon))
+                                    {
+                                        <i class="@tipoIcon ms-1"></i>
+                                    }
+                                </a>
                             </th>
                             <th>Vigencia</th>
                             <th class="text-center" style="width: 1%">Acciones</th>
