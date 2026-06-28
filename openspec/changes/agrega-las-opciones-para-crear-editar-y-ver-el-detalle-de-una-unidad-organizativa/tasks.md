@@ -32,9 +32,9 @@ Chain strategy: stacked-to-develop
 
 ## Phase 2: Listado y navegación
 
-- [ ] 2.1 **RED**: extender `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` para exigir botón crear, acciones detalle/editar por fila y preservación de `page/search/sort` al volver.
-- [ ] 2.2 **GREEN**: modificar `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Index.cshtml` y `Index.cshtml.cs` para renderizar enlaces create/detail/edit y helpers de retorno reutilizables.
-- [ ] 2.3 **REFACTOR**: consolidar el armado de rutas/mensajes de navegación en view models/helpers de `src/SGV.Web/Integration/Organizacion/` sin mezclar lógica de negocio en PageModels.
+- [x] 2.1 **RED**: extender `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` para exigir botón crear, acciones detalle/editar por fila y preservación de `page/search/sort` al volver.
+- [x] 2.2 **GREEN**: modificar `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Index.cshtml` y `Index.cshtml.cs` para renderizar enlaces create/detail/edit y helpers de retorno reutilizables.
+- [x] 2.3 **REFACTOR**: consolidar el armado de rutas/mensajes de navegación en view models/helpers de `src/SGV.Web/Integration/Organizacion/` sin mezclar lógica de negocio en PageModels.
 
 ## Phase 3: Create y Details
 

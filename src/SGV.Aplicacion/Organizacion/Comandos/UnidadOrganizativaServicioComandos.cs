@@ -286,7 +286,9 @@ public sealed class UnidadOrganizativaServicioComandos(
             unidad.Descripcion,
             unidad.VigenteDesde,
             unidad.VigenteHasta,
-            unidad.UnidadPadreId);
+            unidad.UnidadPadreId,
+            unidad.UnidadPadre?.Codigo,
+            unidad.UnidadPadre?.Nombre);
     }
 
     /// <summary>
