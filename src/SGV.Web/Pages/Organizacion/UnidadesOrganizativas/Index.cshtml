@@ -1,5 +1,6 @@
 @page "/organizacion/unidades-organizativas"
 @model SGV.Web.Pages.Organizacion.UnidadesOrganizativas.IndexModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 @{
     ViewBag.title = "Unidades Organizativas";
@@ -233,15 +234,7 @@
                     }
                     else
                     {
-                        <ul class="list-unstyled mb-0">
-                            @foreach (var node in Model.TreeItems)
-                            {
-                                @await Html.PartialAsync("_TreeNode", node, new ViewDataDictionary(ViewData)
-                                {
-                                    ["returnView"] = Model.CurrentView
-                                })
-                            }
-                        </ul>
+                        <div id="orgchart" style="width:100%; min-height:500px; overflow:auto;"></div>
                     }
                 </div>
             }
@@ -249,7 +242,13 @@
     </div>
 </div>
 
+<script>
+    // API runs on a different port in development; use appsettings value
+    window.__sgvApiBaseUrl = '@(Configuration["SgvApi:BaseUrl"] ?? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}")';
+</script>
+
 @section scripts {
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
     <script src="/plugins/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="/js/pages/unidades-organizativas-index.js"></script>
 }

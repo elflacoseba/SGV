@@ -165,10 +165,9 @@ public sealed class UnidadOrganizativaWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Vista árbol", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Rectorado", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Facultad de Ingeniería", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"/organizacion/unidades-organizativas/detalles/{facultyId}?returnView=tree", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"/organizacion/unidades-organizativas/editar/{departmentId}?returnView=tree", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("orgchart", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Rectorado", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Facultad de Ingeniería", content, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, apiClient.TreeCalls);
         Assert.Empty(apiClient.QueryCalls);
     }

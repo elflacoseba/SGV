@@ -109,6 +109,23 @@ builder.Services.AddAplicacionServicios();
 // Infrastructure services (repositories, UoW, query services)
 builder.Services.AddInfraestructuraServicios();
 
+// CORS: allow web app origin in development
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins).AllowCredentials();
+        }
+        else
+        {
+            policy.AllowAnyOrigin().AllowCredentials();
+        }
+    });
+});
+
 var app = builder.Build();
 
 // Middleware pipeline
@@ -118,8 +135,10 @@ app.UseStatusCodePages();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-app.UseSwaggerUI();
+    app.UseSwaggerUI();
 }
+
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
