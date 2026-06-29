@@ -592,4 +592,70 @@ public sealed class SwaggerConfigurationTests
 
         Assert.Contains("patch", reactivarOps);
     }
+
+    [Fact]
+    public async Task ConsultaEndpoint_DocumentaParametroStatus()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+        var consultaPath = paths.GetProperty("/api/v1/unidades-organizativas/consulta");
+        var getOp = consultaPath.GetProperty("get");
+        var parameters = getOp.GetProperty("parameters");
+
+        // Find the status parameter among declared parameters
+        var statusParam = parameters.EnumerateArray()
+            .FirstOrDefault(p => p.GetProperty("name").GetString() == "status");
+
+        Assert.NotEqual(default, statusParam);
+        Assert.Equal("query", statusParam.GetProperty("in").GetString());
+    }
+
+    [Fact]
+    public async Task ConsultaEndpoint_StatusParameter_DocumentaValoresActivasYEliminadas()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+        var consultaPath = paths.GetProperty("/api/v1/unidades-organizativas/consulta");
+        var getOp = consultaPath.GetProperty("get");
+        var parameters = getOp.GetProperty("parameters");
+
+        var statusParam = parameters.EnumerateArray()
+            .FirstOrDefault(p => p.GetProperty("name").GetString() == "status");
+
+        Assert.NotEqual(default, statusParam);
+
+        // Check schema/description documents the enum values
+        var description = statusParam.GetProperty("description").GetString() ?? "";
+        Assert.Contains("activas", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("eliminadas", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("por defecto", description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ConsultaEndpoint_StatusParameter_NoApareceEnArbol()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+        var arbolPath = paths.GetProperty("/api/v1/unidades-organizativas/arbol");
+        var getOp = arbolPath.GetProperty("get");
+
+        // The arbol endpoint should NOT have a status parameter
+        Assert.False(getOp.TryGetProperty("parameters", out _),
+            "Tree endpoint should not declare any parameters");
+    }
 }

@@ -483,6 +483,65 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.All(result.Items, d => Assert.Equal(TipoUnidadOrganizativaConstantes.DireccionId, d.TipoUnidadOrganizativaId));
     }
 
+    // ---- Consulta endpoint with status segmento (Phase 2) ----
+
+    [Fact]
+    public async Task Consulta_ConStatusActivas_RetornaSoloActivas()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioConsulta>();
+            services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
+                new FakeUnidadOrganizativaServicio(withEliminadas: true));
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta?status=activas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await ReadAsAsync<PagedResult<UnidadOrganizativaDto>>(response);
+        Assert.NotEmpty(result.Items);
+        Assert.All(result.Items, d => Assert.Equal("GER", d.Codigo));
+    }
+
+    [Fact]
+    public async Task Consulta_ConStatusEliminadas_RetornaSoloEliminadas()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioConsulta>();
+            services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
+                new FakeUnidadOrganizativaServicio(withEliminadas: true));
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta?status=eliminadas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await ReadAsAsync<PagedResult<UnidadOrganizativaDto>>(response);
+        Assert.NotEmpty(result.Items);
+        Assert.All(result.Items, d => Assert.Equal("ELIM-01", d.Codigo));
+    }
+
+    [Fact]
+    public async Task Consulta_SinStatus_PorDefectoActivas()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioConsulta>();
+            services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
+                new FakeUnidadOrganizativaServicio(withEliminadas: true));
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await ReadAsAsync<PagedResult<UnidadOrganizativaDto>>(response);
+        Assert.NotEmpty(result.Items);
+        Assert.All(result.Items, d => Assert.Equal("GER", d.Codigo));
+    }
+
     // ---- Tree endpoint (Task 3.4 / 3.5) ----
 
     [Fact]

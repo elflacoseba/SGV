@@ -554,7 +554,7 @@ internal sealed class FakeUnidadOrganizativaReadRepository : IUnidadOrganizativa
     public Task<bool> HasActivePuestosAsync(Guid unidadId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<bool> IsDescendantAsync(Guid candidateDescendantId, Guid ancestorId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task<IReadOnlyList<UnidadOrganizativa>> ListTreeAsync(CancellationToken ct = default) => throw new NotSupportedException();
-    public Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(string? search, Guid? tipoUnidadOrganizativaId, Guid? unidadPadreId, DateOnly? vigenteEn, int page, int pageSize, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(string? search, Guid? tipoUnidadOrganizativaId, Guid? unidadPadreId, DateOnly? vigenteEn, int page, int pageSize, UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas, CancellationToken ct = default) => throw new NotSupportedException();
     public Task ReactivateAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
     public Task UpdateAsync(UnidadOrganizativa unidad, CancellationToken ct = default) => throw new NotSupportedException();
 }

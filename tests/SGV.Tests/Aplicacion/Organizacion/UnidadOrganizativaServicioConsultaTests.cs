@@ -1,6 +1,7 @@
 using System.Reflection;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Dominio.Comun;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
@@ -292,6 +293,77 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         Assert.Empty(arbol);
     }
 
+    // ---- QueryAsync segmento tests (Phase 1) ----
+
+    private static UnidadOrganizativa CrearUnidadEliminada()
+    {
+        var unidad = CrearUnidadActiva();
+        entityIsDeleted(unidad, true);
+        entityIsActive(unidad, false);
+        return unidad;
+    }
+
+    private static void entityIsDeleted(UnidadOrganizativa entity, bool isDeleted)
+    {
+        var field = typeof(EntidadAuditable).GetField($"<{nameof(EntidadAuditable.IsDeleted)}>k__BackingField",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        field?.SetValue(entity, isDeleted);
+    }
+
+    private static void entityIsActive(UnidadOrganizativa entity, bool isActive)
+    {
+        var field = typeof(UnidadOrganizativa).GetField($"<{nameof(UnidadOrganizativa.IsActive)}>k__BackingField",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        field?.SetValue(entity, isActive);
+    }
+
+    [Fact]
+    public async Task QueryAsync_PorDefecto_RetornaSoloActivas()
+    {
+        var activa = CrearUnidadActiva();
+        var eliminada = CrearUnidadEliminada();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [activa, eliminada] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(new UnidadOrganizativaQuery(1, 10), default);
+
+        Assert.Single(resultado.Items);
+        Assert.Equal(activa.Id, resultado.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task QueryAsync_ConSegmentoEliminadas_RetornaSoloEliminadas()
+    {
+        var activa = CrearUnidadActiva();
+        var eliminada = CrearUnidadEliminada();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [activa, eliminada] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(1, 10, Segmento: UnidadOrganizativaSegmentoListado.Eliminadas), default);
+
+        Assert.Single(resultado.Items);
+        Assert.Equal(eliminada.Id, resultado.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task QueryAsync_SegmentosNoSeMezclan()
+    {
+        var activa = CrearUnidadActiva();
+        var eliminada = CrearUnidadEliminada();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [activa, eliminada] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var activas = await servicio.QueryAsync(new UnidadOrganizativaQuery(1, 10), default);
+        var eliminadas = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(1, 10, Segmento: UnidadOrganizativaSegmentoListado.Eliminadas), default);
+
+        Assert.Single(activas.Items);
+        Assert.Equal(activa.Id, activas.Items[0].Id);
+        Assert.Single(eliminadas.Items);
+        Assert.Equal(eliminada.Id, eliminadas.Items[0].Id);
+    }
+
     [Fact]
     public async Task GetTreeAsync_DtoIncluyeTipoUnidadOrganizativaId()
     {
@@ -387,9 +459,15 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
         DateOnly? vigenteEn,
         int page,
         int pageSize,
+        UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {
         var filtered = Datos.AsEnumerable();
+
+        // Apply segmento filter first
+        filtered = segmento == UnidadOrganizativaSegmentoListado.Activas
+            ? filtered.Where(u => u.IsActive && !u.IsDeleted)
+            : filtered.Where(u => !u.IsActive && u.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(search))
         {

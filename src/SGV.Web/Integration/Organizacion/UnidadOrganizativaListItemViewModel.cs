@@ -17,7 +17,7 @@ public sealed record UnidadOrganizativaListItemViewModel(
 /// <summary>
 /// Query contract for the unidades organizativas listing page.
 /// </summary>
-public sealed record UnidadOrganizativaListQuery(int Page, int PageSize, string? Search, string? Sort);
+public sealed record UnidadOrganizativaListQuery(int Page, int PageSize, string? Search, string? Sort, string? Status = null);
 
 /// <summary>
 /// Delete result contract for the unidades organizativas listing page.

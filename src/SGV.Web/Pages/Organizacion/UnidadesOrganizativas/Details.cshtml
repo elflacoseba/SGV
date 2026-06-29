@@ -27,6 +27,7 @@
             <input name="returnSearch" type="hidden" value="@Model.ReturnSearch" />
             <input name="returnSort" type="hidden" value="@Model.ReturnSort" />
             <input name="returnView" type="hidden" value="@Model.ReturnView" />
+            <input name="returnStatus" type="hidden" value="@Model.ReturnStatus" />
             <button type="submit" class="btn btn-success me-2" formaction="?handler=Reactivate&id=@Model.CurrentId">Reactivar</button>
         </form>
     }
@@ -93,7 +94,7 @@ else if (Model.Unidad is not null)
                     </dl>
                 </div>
                 <div class="card-footer d-flex gap-2">
-                    <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, returnPage = Model.ReturnPage, returnSearch = Model.ReturnSearch, returnSort = Model.ReturnSort, returnView = Model.ReturnView })">
+                    <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, returnPage = Model.ReturnPage, returnSearch = Model.ReturnSearch, returnSort = Model.ReturnSort, returnView = Model.ReturnView, returnStatus = Model.ReturnStatus })">
                         <i class="ti ti-edit me-1"></i>Editar
                     </a>
                     <a class="btn btn-light" href="@Model.ReturnToListUrl">

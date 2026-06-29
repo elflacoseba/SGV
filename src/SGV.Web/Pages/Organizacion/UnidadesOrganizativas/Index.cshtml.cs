@@ -14,6 +14,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
     private const int DefaultPageSize = 10;
     private const string ListView = "list";
     private const string TreeView = "tree";
+    private const string DeletedView = "eliminadas";
 
     public IReadOnlyList<UnidadOrganizativaListItemViewModel> Items { get; private set; } = [];
 
@@ -35,6 +36,10 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
 
     public bool IsTreeView => string.Equals(CurrentView, TreeView, StringComparison.OrdinalIgnoreCase);
 
+    public string? Segmento { get; private set; }
+
+    public bool IsDeletedView => string.Equals(Segmento, DeletedView, StringComparison.OrdinalIgnoreCase);
+
     public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
 
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
@@ -49,12 +54,13 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
 
     public bool HasLastDeleted => !string.IsNullOrWhiteSpace(LastDeletedId);
 
-    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, Guid? deletedId = null, CancellationToken cancellationToken = default)
+    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, Guid? deletedId = null, string? status = null, CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
         Search = Normalize(search);
         Sort = Normalize(sort);
         CurrentView = NormalizeView(view);
+        Segmento = NormalizeSegmento(status);
 
         if (deletedId.HasValue)
         {
@@ -64,11 +70,12 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         await LoadAsync(cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, string? status = null, CancellationToken cancellationToken = default)
     {
         var normalizedSearch = Normalize(search);
         var normalizedSort = Normalize(sort);
         var normalizedView = NormalizeView(view);
+        var normalizedSegmento = NormalizeSegmento(status);
         currentPage = Math.Max(1, currentPage);
 
         var result = await unidadOrganizativaApiClient.DeleteAsync(id, cancellationToken);
@@ -78,7 +85,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, cancellationToken);
             TempData[nameof(StatusMessage)] = "La unidad organizativa se eliminó correctamente.";
             TempData[nameof(StatusKind)] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, deletedId = id });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, deletedId = id, status = normalizedSegmento });
         }
 
         var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
@@ -90,14 +97,15 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         TempData[nameof(StatusMessage)] = message;
         TempData[nameof(StatusKind)] = "danger";
 
-        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView });
+        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, status = normalizedSegmento });
     }
 
-    public async Task<IActionResult> OnPostReactivateAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnPostReactivateAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, string? status = null, CancellationToken cancellationToken = default)
     {
         var normalizedSearch = Normalize(search);
         var normalizedSort = Normalize(sort);
         var normalizedView = NormalizeView(view);
+        var normalizedSegmento = NormalizeSegmento(status);
         currentPage = Math.Max(1, currentPage);
 
         var result = await unidadOrganizativaApiClient.ReactivateAsync(id, cancellationToken);
@@ -107,6 +115,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             TempData[nameof(StatusMessage)] = "La unidad organizativa se reactivó correctamente.";
             TempData[nameof(StatusKind)] = "success";
             ClearLastDeleted();
+            // After success, redirect to activas list
             return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView });
         }
 
@@ -120,7 +129,8 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         TempData[nameof(StatusMessage)] = message;
         TempData[nameof(StatusKind)] = "danger";
 
-        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView });
+        // After failure, stay in the same segment (eliminadas) so user can retry
+        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, status = normalizedSegmento });
     }
 
     public string GetSortRoute(string column)
@@ -146,18 +156,19 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
     }
 
     /// <summary>
-    /// Builds query-string parameters for return-to-list links, preserving the current page, search, and sort.
+    /// Builds query-string parameters for return-to-list links, preserving the current page, search, sort, and segmento.
     /// </summary>
     public object ReturnToListRouteValues => new
     {
         p = CurrentPage,
         search = Search,
         sort = Sort,
-        view = IsTreeView ? CurrentView : null
+        view = IsTreeView ? CurrentView : null,
+        status = IsTreeView ? null : Segmento
     };
 
     /// <summary>
-    /// Builds the return URL for the listado, preserving current page, search, and sort.
+    /// Builds the return URL for the listado, preserving current page, search, sort, and segmento.
     /// </summary>
     public string ReturnToListUrl => Url.Page("/Organizacion/UnidadesOrganizativas/Index", ReturnToListRouteValues) ?? "/organizacion/unidades-organizativas";
 
@@ -166,7 +177,8 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         p = CurrentPage,
         search = Search,
         sort = Sort,
-        view = IsTreeView ? CurrentView : null
+        view = IsTreeView ? CurrentView : null,
+        status = IsTreeView ? null : Segmento
     };
 
     public object BuildDetailsRouteValues(Guid id) => new
@@ -175,7 +187,8 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         p = CurrentPage,
         search = Search,
         sort = Sort,
-        returnView = IsTreeView ? CurrentView : null
+        returnView = IsTreeView ? CurrentView : null,
+        returnStatus = IsTreeView ? null : Segmento
     };
 
     public object BuildEditRouteValues(Guid id) => new
@@ -184,7 +197,8 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         p = CurrentPage,
         search = Search,
         sort = Sort,
-        returnView = IsTreeView ? CurrentView : null
+        returnView = IsTreeView ? CurrentView : null,
+        returnStatus = IsTreeView ? null : Segmento
     };
 
     public object BuildViewToggleRouteValues(string view) => new
@@ -192,7 +206,8 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         p = CurrentPage,
         search = Search,
         sort = Sort,
-        view = NormalizeView(view)
+        view = NormalizeView(view),
+        status = string.Equals(view, ListView, StringComparison.OrdinalIgnoreCase) ? Segmento : null
     };
 
     private async Task LoadAsync(CancellationToken cancellationToken)
@@ -212,7 +227,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
     {
         try
         {
-            var result = await unidadOrganizativaApiClient.QueryAsync(new UnidadOrganizativaListQuery(CurrentPage, DefaultPageSize, Search, Sort), cancellationToken);
+            var result = await unidadOrganizativaApiClient.QueryAsync(new UnidadOrganizativaListQuery(CurrentPage, DefaultPageSize, Search, Sort, Segmento), cancellationToken);
             CurrentPage = Math.Max(1, result.Page);
             TotalCount = Math.Max(0, result.TotalCount);
             TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, result.PageSize)));
@@ -342,4 +357,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
 
     private static string NormalizeView(string? view)
         => string.Equals(view, TreeView, StringComparison.OrdinalIgnoreCase) ? TreeView : ListView;
+
+    private static string? NormalizeSegmento(string? status)
+        => string.Equals(status, DeletedView, StringComparison.OrdinalIgnoreCase) ? DeletedView : null;
 }

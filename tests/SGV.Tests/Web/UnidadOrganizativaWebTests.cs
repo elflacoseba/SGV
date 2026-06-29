@@ -568,6 +568,159 @@ public sealed class UnidadOrganizativaWebTests
     }
 
     // ──────────────────────────────────────────────
+    // Phase 3: Status segmento toggle — Activas / Eliminadas
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Index_WhenStatusDeleted_RendersDeletedUnitsWithContextualEmptyState()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(1, 10, 2,
+                CreateItem("DEL01", "Unidad Eliminada A", "Dirección"),
+                CreateItem("DEL02", "Unidad Eliminada B", "Secretaría")));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Unidad Eliminada A", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Unidad Eliminada B", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-uo-delete-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("eliminadas", apiClient.QueryCalls[0].Status);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenStatusDeletedAndNoResults_ShowsContextualEmptyState()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("No se encontraron unidades organizativas eliminadas", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-uo-delete-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("eliminadas", apiClient.QueryCalls[0].Status);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenStatusDeleted_ShowsToggleBetweenActivasAndDeleted()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 1, CreateItem("DEL01", "Eliminada", "Dirección")));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Activas", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Eliminadas", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenStatusDeleted_ShowsReactivateButtonPerRow()
+    {
+        var item = CreateItem("DEL01", "Unidad para Reactivar", "Dirección");
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(1, 10, 1, item));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Unidad para Reactivar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-uo-delete-button", content, StringComparison.OrdinalIgnoreCase);
+        // The reactivate button should be present per row in this view
+        Assert.Contains("Reactivar", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_ReactivateFromDeletedList_WhenSuccessful_RedirectsToActivasWithConfirmation()
+    {
+        var reactivatedId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(1, 10, 1, CreateItem("DEL01", "Unidad a Reactivar", "Dirección")));
+        apiClient.ReactivateResult = UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(reactivatedId, "R01", "Unidad Reactivada", Guid.NewGuid(), "Dirección", null, null, null, null, null, null));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&p=1&search=test&sort=nombre_asc");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/unidades-organizativas?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = reactivatedId.ToString(),
+            ["page"] = "1",
+            ["search"] = "test",
+            ["sort"] = "nombre_asc",
+            ["status"] = "eliminadas"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        // After success, redirect to activas (no status param = default activas)
+        var location = response.Headers.Location?.OriginalString;
+        Assert.StartsWith("/organizacion/unidades-organizativas", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("p=1", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=test", location, StringComparison.OrdinalIgnoreCase);
+        // Status should be activas (not eliminated anymore)
+        Assert.DoesNotContain("status=eliminadas", location, StringComparison.OrdinalIgnoreCase);
+
+        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Contains("se reactivó correctamente", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_ReactivateFromDeletedList_WhenConflict_StaysInDeletedWithError()
+    {
+        var conflictId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(1, 10, 1, CreateItem("DEL02", "Unidad en Conflicto", "Dirección")));
+        apiClient.ReactivateResult = UnidadOrganizativaCommandResult.Failure(
+            new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
+                "Ya existe una unidad activa con el mismo código."));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&p=1&search=test&sort=nombre_asc");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/unidades-organizativas?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = conflictId.ToString(),
+            ["page"] = "1",
+            ["search"] = "test",
+            ["sort"] = "nombre_asc",
+            ["status"] = "eliminadas"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        // After conflict, stay in deleted view
+        var location = response.Headers.Location?.OriginalString;
+        Assert.StartsWith("/organizacion/unidades-organizativas", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("status=eliminadas", location, StringComparison.OrdinalIgnoreCase);
+
+        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Contains("No se pudo reactivar", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("código", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
     // Phase 5: Reactivation flow from Details/Edit
     // ──────────────────────────────────────────────
 

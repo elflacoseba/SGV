@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
@@ -703,6 +704,105 @@ public sealed class UnidadOrganizativaRepositoryTests
         finally
         {
             context.Set<UnidadOrganizativaEntity>().RemoveRange(unidades);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_SegmentoActivas_RetornaSoloActivas()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var activa = RepositoryTestData.CreateUnidadOrganizativa("UO-SEG-ACT");
+        var eliminada = RepositoryTestData.CreateUnidadOrganizativa("UO-SEG-DEL", isDeleted: true, isActive: false);
+        eliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<UnidadOrganizativaEntity>().AddRangeAsync([activa, eliminada]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            var (items, totalCount) = await repo.QueryAsync(
+                null, null, null, null, 1, 20,
+                UnidadOrganizativaSegmentoListado.Activas, default);
+
+            Assert.Contains(items, i => i.Id == activa.Id);
+            Assert.DoesNotContain(items, i => i.Id == eliminada.Id);
+            Assert.All(items, i =>
+            {
+                Assert.True(i.IsActive);
+                Assert.False(i.IsDeleted);
+            });
+        }
+        finally
+        {
+            context.Set<UnidadOrganizativaEntity>().RemoveRange(activa, eliminada);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_SegmentoEliminadas_RetornaSoloEliminadas()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var activa = RepositoryTestData.CreateUnidadOrganizativa("UO-SEG-ACT2");
+        var eliminada = RepositoryTestData.CreateUnidadOrganizativa("UO-SEG-DEL2", isDeleted: true, isActive: false);
+        eliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<UnidadOrganizativaEntity>().AddRangeAsync([activa, eliminada]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            var (items, totalCount) = await repo.QueryAsync(
+                null, null, null, null, 1, 20,
+                UnidadOrganizativaSegmentoListado.Eliminadas, default);
+
+            Assert.Contains(items, i => i.Id == eliminada.Id);
+            Assert.DoesNotContain(items, i => i.Id == activa.Id);
+            Assert.All(items, i =>
+            {
+                Assert.False(i.IsActive);
+                Assert.True(i.IsDeleted);
+            });
+        }
+        finally
+        {
+            context.Set<UnidadOrganizativaEntity>().RemoveRange(activa, eliminada);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_SegmentosNoSeMezclan()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var activa = RepositoryTestData.CreateUnidadOrganizativa("UO-SEG-MIX-A");
+        var eliminada = RepositoryTestData.CreateUnidadOrganizativa("UO-SEG-MIX-D", isDeleted: true, isActive: false);
+        eliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<UnidadOrganizativaEntity>().AddRangeAsync([activa, eliminada]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            var (activas, totalActivas) = await repo.QueryAsync(
+                null, null, null, null, 1, 20,
+                UnidadOrganizativaSegmentoListado.Activas, default);
+            var (eliminadas, totalEliminadas) = await repo.QueryAsync(
+                null, null, null, null, 1, 20,
+                UnidadOrganizativaSegmentoListado.Eliminadas, default);
+
+            Assert.Contains(activas, i => i.Id == activa.Id);
+            Assert.DoesNotContain(activas, i => i.Id == eliminada.Id);
+            Assert.Contains(eliminadas, i => i.Id == eliminada.Id);
+            Assert.DoesNotContain(eliminadas, i => i.Id == activa.Id);
+        }
+        finally
+        {
+            context.Set<UnidadOrganizativaEntity>().RemoveRange(activa, eliminada);
             await context.SaveChangesAsync();
         }
     }

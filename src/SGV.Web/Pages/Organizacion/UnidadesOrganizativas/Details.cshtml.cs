@@ -34,7 +34,9 @@ public sealed class DetailsModel(
 
     public string ReturnView { get; private set; } = string.Empty;
 
-    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView);
+    public string ReturnStatus { get; private set; } = string.Empty;
+
+    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView, ReturnStatus);
 
     public async Task<IActionResult> OnGetAsync(
         Guid id,
@@ -47,12 +49,14 @@ public sealed class DetailsModel(
         string? returnSearch = null,
         string? returnSort = null,
         string? returnView = null,
+        string? returnStatus = null,
         CancellationToken cancellationToken = default)
     {
         ReturnPage = returnPage ?? p ?? page ?? string.Empty;
         ReturnSearch = returnSearch ?? search ?? string.Empty;
         ReturnSort = returnSort ?? sort ?? string.Empty;
         ReturnView = returnView ?? view ?? string.Empty;
+        ReturnStatus = returnStatus ?? string.Empty;
         CurrentId = id;
 
         try
@@ -81,6 +85,7 @@ public sealed class DetailsModel(
         ReturnSearch = Request.Form[nameof(ReturnSearch)].FirstOrDefault() ?? string.Empty;
         ReturnSort = Request.Form[nameof(ReturnSort)].FirstOrDefault() ?? string.Empty;
         ReturnView = Request.Form[nameof(ReturnView)].FirstOrDefault() ?? string.Empty;
+        ReturnStatus = Request.Form[nameof(ReturnStatus)].FirstOrDefault() ?? string.Empty;
         CurrentId = id;
 
         var result = await unidadOrganizativaApiClient.ReactivateAsync(id, cancellationToken);
@@ -89,7 +94,7 @@ public sealed class DetailsModel(
         {
             TempData["StatusMessage"] = "La unidad organizativa se reactivó correctamente.";
             TempData["StatusKind"] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus });
         }
 
         var message = result.Error?.Type switch

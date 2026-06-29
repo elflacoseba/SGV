@@ -153,6 +153,7 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <param name="tipoUnidadOrganizativaId">Filtro por tipo de unidad.</param>
     /// <param name="unidadPadreId">Filtro por unidad padre.</param>
     /// <param name="vigenteEn">Filtro por vigencia activa en una fecha.</param>
+    /// <param name="status">Filtro de estado: <c>activas</c> (por defecto) devuelve solo unidades activas; <c>eliminadas</c> devuelve solo unidades eliminadas. No mezcla ambos conjuntos.</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Resultado paginado de unidades organizativas.</returns>
     /// <response code="200">Resultado paginado devuelto correctamente.</response>
@@ -165,9 +166,14 @@ public class UnidadesOrganizativasController : ControllerBase
         [FromQuery] Guid? tipoUnidadOrganizativaId = null,
         [FromQuery] Guid? unidadPadreId = null,
         [FromQuery] DateOnly? vigenteEn = null,
+        [FromQuery] string? status = null,
         CancellationToken cancellationToken = default)
     {
-        var query = new UnidadOrganizativaQuery(page, pageSize, search, tipoUnidadOrganizativaId, unidadPadreId, vigenteEn);
+        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? UnidadOrganizativaSegmentoListado.Eliminadas
+            : UnidadOrganizativaSegmentoListado.Activas;
+
+        var query = new UnidadOrganizativaQuery(page, pageSize, search, tipoUnidadOrganizativaId, unidadPadreId, vigenteEn, Segmento: segmento);
         var result = await _servicio.QueryAsync(query, cancellationToken);
         return Ok(result);
     }
