@@ -9,7 +9,7 @@ namespace SGV.Web.Integration.Organizacion;
 /// </summary>
 public static class UnidadOrganizativaFormHelpers
 {
-    public static string BuildReturnToListUrl(IUrlHelper url, string? page, string? search, string? sort)
+    public static string BuildReturnToListUrl(IUrlHelper url, string? page, string? search, string? sort, string? view = null)
     {
         var baseUrl = url.Page("/Organizacion/UnidadesOrganizativas/Index") ?? "/organizacion/unidades-organizativas";
         var query = new List<KeyValuePair<string, string?>>();
@@ -27,6 +27,11 @@ public static class UnidadOrganizativaFormHelpers
         if (!string.IsNullOrWhiteSpace(sort))
         {
             query.Add(new KeyValuePair<string, string?>("sort", sort));
+        }
+
+        if (string.Equals(view, "tree", StringComparison.OrdinalIgnoreCase))
+        {
+            query.Add(new KeyValuePair<string, string?>("view", "tree"));
         }
 
         return query.Count == 0

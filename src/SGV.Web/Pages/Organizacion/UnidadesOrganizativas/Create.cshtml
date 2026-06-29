@@ -25,12 +25,13 @@
                     <input type="hidden" asp-for="ReturnPage" />
                     <input type="hidden" asp-for="ReturnSearch" />
                     <input type="hidden" asp-for="ReturnSort" />
+                    <input type="hidden" asp-for="ReturnView" />
 
                     @await Html.PartialAsync("_Form", Model)
 
                     <div class="d-flex gap-2 mt-4">
                         <button type="submit" class="btn btn-primary">Guardar</button>
-                        <a class="btn btn-light" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.ReturnPage, search = Model.ReturnSearch, sort = Model.ReturnSort })">Cancelar</a>
+                        <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
                     </div>
                 </form>
             </div>

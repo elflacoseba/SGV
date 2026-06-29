@@ -1,0 +1,34 @@
+@model SGV.Web.Pages.Organizacion.UnidadesOrganizativas.UnidadOrganizativaTreeNodeViewModel
+
+@{
+    var returnView = ViewData["returnView"] as string;
+}
+
+<li class="mb-3">
+    <div class="border rounded-3 p-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <div>
+                <div class="fw-semibold">@Model.Codigo — @Model.Nombre</div>
+                <span class="badge badge-soft-secondary fs-xs mt-2">@Model.Tipo</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-info btn-sm" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Details", new { id = Model.Id, returnView })">
+                    <i class="ti ti-eye me-1"></i>Detalle
+                </a>
+                <a class="btn btn-warning btn-sm" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Id, returnView })">
+                    <i class="ti ti-edit me-1"></i>Editar
+                </a>
+            </div>
+        </div>
+
+        @if (Model.Children.Count > 0)
+        {
+            <ul class="list-unstyled ps-3 mt-3 border-start">
+                @foreach (var child in Model.Children)
+                {
+                    @await Html.PartialAsync("_TreeNode", child, new ViewDataDictionary(ViewData))
+                }
+            </ul>
+        }
+    </div>
+</li>

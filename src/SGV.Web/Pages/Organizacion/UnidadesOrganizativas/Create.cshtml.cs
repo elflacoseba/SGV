@@ -30,11 +30,17 @@ public sealed class CreateModel(
     [BindProperty]
     public string? ReturnSort { get; set; }
 
-    public async Task OnGetAsync(string? p = null, string? page = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    [BindProperty]
+    public string? ReturnView { get; set; }
+
+    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView);
+
+    public async Task OnGetAsync(string? p = null, string? page = null, string? search = null, string? sort = null, string? view = null, string? returnView = null, CancellationToken cancellationToken = default)
     {
         ReturnPage = p ?? page ?? string.Empty;
         ReturnSearch = search ?? string.Empty;
         ReturnSort = sort ?? string.Empty;
+        ReturnView = returnView ?? view ?? string.Empty;
 
         await LoadCatalogsAsync(cancellationToken);
     }
@@ -62,7 +68,7 @@ public sealed class CreateModel(
         {
             TempData["StatusMessage"] = $"La unidad organizativa \"{result.Value.Nombre}\" se creó correctamente.";
             TempData["StatusKind"] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id = result.Value.Id });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id = result.Value.Id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView });
         }
 
         // Validation or conflict

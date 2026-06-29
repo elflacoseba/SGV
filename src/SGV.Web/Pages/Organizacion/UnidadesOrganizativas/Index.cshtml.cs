@@ -11,8 +11,12 @@ namespace SGV.Web.Pages.Organizacion.UnidadesOrganizativas;
 public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaApiClient, ILogger<IndexModel> logger) : PageModel
 {
     private const int DefaultPageSize = 10;
+    private const string ListView = "list";
+    private const string TreeView = "tree";
 
     public IReadOnlyList<UnidadOrganizativaListItemViewModel> Items { get; private set; } = [];
+
+    public IReadOnlyList<UnidadOrganizativaTreeNodeViewModel> TreeItems { get; private set; } = [];
 
     public int CurrentPage { get; private set; } = 1;
 
@@ -26,6 +30,10 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
 
     public string? LoadErrorMessage { get; private set; }
 
+    public string CurrentView { get; private set; } = ListView;
+
+    public bool IsTreeView => string.Equals(CurrentView, TreeView, StringComparison.OrdinalIgnoreCase);
+
     public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
 
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
@@ -36,11 +44,12 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
     [TempData]
     public string? TempDataStatusKind { get; set; }
 
-    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
         Search = Normalize(search);
         Sort = Normalize(sort);
+        CurrentView = NormalizeView(view);
 
         await LoadAsync(cancellationToken);
     }
@@ -102,15 +111,63 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
     {
         p = CurrentPage,
         search = Search,
-        sort = Sort
+        sort = Sort,
+        view = IsTreeView ? CurrentView : null
     };
 
     /// <summary>
     /// Builds the return URL for the listado, preserving current page, search, and sort.
     /// </summary>
-    public string ReturnToListUrl => Url.Page("/Organizacion/UnidadesOrganizativas/Index", ReturnToListRouteValues);
+    public string ReturnToListUrl => Url.Page("/Organizacion/UnidadesOrganizativas/Index", ReturnToListRouteValues) ?? "/organizacion/unidades-organizativas";
+
+    public object CreateRouteValues => new
+    {
+        p = CurrentPage,
+        search = Search,
+        sort = Sort,
+        view = IsTreeView ? CurrentView : null
+    };
+
+    public object BuildDetailsRouteValues(Guid id) => new
+    {
+        id,
+        p = CurrentPage,
+        search = Search,
+        sort = Sort,
+        returnView = IsTreeView ? CurrentView : null
+    };
+
+    public object BuildEditRouteValues(Guid id) => new
+    {
+        id,
+        p = CurrentPage,
+        search = Search,
+        sort = Sort,
+        returnView = IsTreeView ? CurrentView : null
+    };
+
+    public object BuildViewToggleRouteValues(string view) => new
+    {
+        p = CurrentPage,
+        search = Search,
+        sort = Sort,
+        view = NormalizeView(view)
+    };
 
     private async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        LoadErrorMessage = null;
+
+        if (IsTreeView)
+        {
+            await LoadTreeAsync(cancellationToken);
+            return;
+        }
+
+        await LoadListAsync(cancellationToken);
+    }
+
+    private async Task LoadListAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -122,14 +179,39 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             Items = ApplyVisibleSort(result.Items, Sort)
                 .Select(MapToViewModel)
                 .ToArray();
+            TreeItems = [];
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to load unidades organizativas page.");
             Items = [];
+            TreeItems = [];
             TotalCount = 0;
             TotalPages = 1;
             LoadErrorMessage = "No se pudo cargar el listado. Intentá nuevamente.";
+        }
+    }
+
+    private async Task LoadTreeAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await unidadOrganizativaApiClient.GetTreeAsync(cancellationToken);
+            TreeItems = result.Select(MapToTreeViewModel).ToArray();
+            Items = [];
+            TotalCount = CountTreeNodes(TreeItems);
+            TotalPages = 1;
+            CurrentPage = 1;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to load unidades organizativas tree page.");
+            TreeItems = [];
+            Items = [];
+            TotalCount = 0;
+            TotalPages = 1;
+            CurrentPage = 1;
+            LoadErrorMessage = "No se pudo cargar el árbol. Intentá nuevamente o volvé al listado.";
         }
     }
 
@@ -181,6 +263,17 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             item.UnidadPadreId,
             BuildVigencia(item.VigenteDesde, item.VigenteHasta));
 
+    private static UnidadOrganizativaTreeNodeViewModel MapToTreeViewModel(UnidadOrganizativaTreeNodeDto item)
+        => new(
+            item.Id,
+            item.Codigo,
+            item.Nombre,
+            item.TipoUnidadNombre,
+            item.Hijas.Select(MapToTreeViewModel).ToArray());
+
+    private static int CountTreeNodes(IReadOnlyList<UnidadOrganizativaTreeNodeViewModel> nodes)
+        => nodes.Sum(static node => 1 + CountTreeNodes(node.Children));
+
     private static string BuildVigencia(DateOnly? vigenteDesde, DateOnly? vigenteHasta)
     {
         if (vigenteDesde is null && vigenteHasta is null)
@@ -200,4 +293,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
 
         return $"{vigenteDesde:dd/MM/yyyy} - {vigenteHasta:dd/MM/yyyy}";
     }
+
+    private static string NormalizeView(string? view)
+        => string.Equals(view, TreeView, StringComparison.OrdinalIgnoreCase) ? TreeView : ListView;
 }

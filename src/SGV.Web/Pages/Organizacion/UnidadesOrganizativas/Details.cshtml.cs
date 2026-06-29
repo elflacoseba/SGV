@@ -27,7 +27,9 @@ public sealed class DetailsModel(
 
     public string ReturnSort { get; private set; } = string.Empty;
 
-    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort);
+    public string ReturnView { get; private set; } = string.Empty;
+
+    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView);
 
     public async Task<IActionResult> OnGetAsync(
         Guid id,
@@ -35,14 +37,17 @@ public sealed class DetailsModel(
         string? page = null,
         string? search = null,
         string? sort = null,
+        string? view = null,
         string? returnPage = null,
         string? returnSearch = null,
         string? returnSort = null,
+        string? returnView = null,
         CancellationToken cancellationToken = default)
     {
         ReturnPage = returnPage ?? p ?? page ?? string.Empty;
         ReturnSearch = returnSearch ?? search ?? string.Empty;
         ReturnSort = returnSort ?? sort ?? string.Empty;
+        ReturnView = returnView ?? view ?? string.Empty;
 
         try
         {

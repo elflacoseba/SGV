@@ -94,6 +94,82 @@ public sealed class UnidadOrganizativaWebTests
     }
 
     [Fact]
+    public async Task Get_Index_WhenTreeViewRequested_RendersHierarchyAndUsesTreeEndpoint()
+    {
+        var facultyId = Guid.NewGuid();
+        var departmentId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.TreeResult =
+        [
+            new UnidadOrganizativaTreeNodeDto(
+                facultyId,
+                "RECT",
+                "Rectorado",
+                Guid.NewGuid(),
+                "Institución",
+                [
+                    new UnidadOrganizativaTreeNodeDto(
+                        departmentId,
+                        "FI",
+                        "Facultad de Ingeniería",
+                        Guid.NewGuid(),
+                        "Facultad",
+                        [])
+                ])
+        ];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?view=tree");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Vista árbol", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Rectorado", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Facultad de Ingeniería", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"/organizacion/unidades-organizativas/detalles/{facultyId}?returnView=tree", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"/organizacion/unidades-organizativas/editar/{departmentId}?returnView=tree", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, apiClient.TreeCalls);
+        Assert.Empty(apiClient.QueryCalls);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenTreeViewHasNoNodes_ShowsTreeEmptyState()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.TreeResult = [];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?view=tree");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("No hay unidades organizativas para mostrar en el árbol", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<table", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, apiClient.TreeCalls);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenTreeViewFails_ShowsVisibleErrorAndFallbackActions()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.TreeException = new HttpRequestException("tree-boom");
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?view=tree");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("No se pudo cargar el árbol", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("view=list", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Vista árbol", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, apiClient.TreeCalls);
+        Assert.Empty(apiClient.QueryCalls);
+    }
+
+    [Fact]
     public async Task Get_Index_WhenChangingPage_ShowsRequestedPageAndCurrentIndicator()
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
@@ -954,9 +1030,13 @@ main().catch(error => {
 
         public IReadOnlyList<UnidadOrganizativaTreeNodeDto> TreeResult { get; set; } = [];
 
+        public Exception? TreeException { get; set; }
+
         public IReadOnlyList<TipoUnidadOrganizativaDto> TiposResult { get; set; } = [];
 
         public List<Guid> ChangeParentCalls { get; } = [];
+
+        public int TreeCalls { get; private set; }
 
         public static FakeUnidadOrganizativaApiClient WithPages(params PagedResult<UnidadOrganizativaDto>[] pages)
             => new(pages, null);
@@ -981,7 +1061,16 @@ main().catch(error => {
             => Task.FromResult(GetByIdResult);
 
         public Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(TreeResult);
+        {
+            TreeCalls++;
+
+            if (TreeException is not null)
+            {
+                throw TreeException;
+            }
+
+            return Task.FromResult(TreeResult);
+        }
 
         public Task<IReadOnlyList<TipoUnidadOrganizativaDto>> GetTiposAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(TiposResult);
