@@ -18,29 +18,48 @@
     <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
 }
 
-<div class="row">
-    <div class="col-12 col-lg-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Editar: @Model.Input.Codigo — @Model.Input.Nombre</h5>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" asp-for="OriginalUnidadPadreId" />
-                    <input type="hidden" asp-for="ReturnPage" />
-                    <input type="hidden" asp-for="ReturnSearch" />
-                    <input type="hidden" asp-for="ReturnSort" />
-                    <input type="hidden" asp-for="ReturnView" />
+@if (Model.IsRecoverable)
+{
+    <div class="alert alert-warning" role="alert">
+        <h5 class="alert-heading">Unidad no disponible</h5>
+        <p class="mb-0">La unidad organizativa solicitada no existe o ya no está disponible.</p>
+    </div>
+    <form method="post" class="d-inline">
+        @Html.AntiForgeryToken()
+        <input name="returnPage" type="hidden" value="@Model.ReturnPage" />
+        <input name="returnSearch" type="hidden" value="@Model.ReturnSearch" />
+        <input name="returnSort" type="hidden" value="@Model.ReturnSort" />
+        <input name="returnView" type="hidden" value="@Model.ReturnView" />
+        <button type="submit" class="btn btn-success me-2" formaction="?handler=Reactivate&id=@Model.CurrentId">Reactivar</button>
+        <a class="btn btn-primary" href="@Model.ReturnToListUrl">Volver al listado</a>
+    </form>
+}
+else
+{
+    <div class="row">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Editar: @Model.Input.Codigo — @Model.Input.Nombre</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="OriginalUnidadPadreId" />
+                        <input type="hidden" asp-for="ReturnPage" />
+                        <input type="hidden" asp-for="ReturnSearch" />
+                        <input type="hidden" asp-for="ReturnSort" />
+                        <input type="hidden" asp-for="ReturnView" />
 
-                    @await Html.PartialAsync("_Form", Model)
+                        @await Html.PartialAsync("_Form", Model)
 
-                    <div class="d-flex gap-2 mt-4">
-                        <button type="submit" class="btn btn-primary">Guardar cambios</button>
-                        <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
-                    </div>
-                </form>
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                            <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}

@@ -19,6 +19,17 @@
         <h5 class="alert-heading">Unidad no disponible</h5>
         <p class="mb-0">La unidad organizativa solicitada no existe o ya no está disponible.</p>
     </div>
+    @if (Model.IsRecoverable)
+    {
+        <form method="post" class="d-inline">
+            @Html.AntiForgeryToken()
+            <input name="returnPage" type="hidden" value="@Model.ReturnPage" />
+            <input name="returnSearch" type="hidden" value="@Model.ReturnSearch" />
+            <input name="returnSort" type="hidden" value="@Model.ReturnSort" />
+            <input name="returnView" type="hidden" value="@Model.ReturnView" />
+            <button type="submit" class="btn btn-success me-2" formaction="?handler=Reactivate&id=@Model.CurrentId">Reactivar</button>
+        </form>
+    }
     <a class="btn btn-primary" href="@Model.ReturnToListUrl">
         Volver al listado
     </a>

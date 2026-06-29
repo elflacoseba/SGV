@@ -49,7 +49,7 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
-    public async Task SwaggerDocument_DefinesBearerSchemeWithoutGlobalSecurityRequirement()
+    public async Task SwaggerDocument_DefinesBearerSchemeWithGlobalSecurityRequirement()
     {
         var client = _factory.CreateClient();
 
@@ -63,7 +63,9 @@ public sealed class SwaggerConfigurationTests
         Assert.True(securitySchemes.TryGetProperty("Bearer", out var bearer));
         Assert.Equal("http", bearer.GetProperty("type").GetString());
         Assert.Equal("bearer", bearer.GetProperty("scheme").GetString());
-        Assert.False(root.TryGetProperty("security", out _));
+        Assert.True(root.TryGetProperty("security", out var security));
+        var securityArray = security.EnumerateArray();
+        Assert.Single(securityArray);
         Assert.DoesNotContain("oauth2", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("oauth2", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -97,6 +99,7 @@ public sealed class SwaggerConfigurationTests
         }
 
         Assert.Contains("/api/v1/unidades-organizativas", actualPaths);
+        Assert.Contains("/api/v1/unidades-organizativas/{id}/reactivar", actualPaths);
         Assert.Contains("/api/v1/cargos", actualPaths);
         Assert.Contains("/api/v1/cargos/{id}", actualPaths);
         Assert.Contains("/api/v1/cargos/{id}/reactivar", actualPaths);
@@ -114,6 +117,62 @@ public sealed class SwaggerConfigurationTests
         Assert.Contains("/api/v1/ocupaciones/{id}", actualPaths);
         Assert.Contains("/api/v1/ocupaciones/{id}/finalizar", actualPaths);
         Assert.Contains("/api/v1/ocupaciones/{id}/reactivar", actualPaths);
+    }
+
+    [Fact]
+    public async Task UnidadesOrganizativas_ReactivarEndpoint_Documents200ResponseWithDto()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+        var reactivarPath = paths.GetProperty("/api/v1/unidades-organizativas/{id}/reactivar");
+        var patchOp = reactivarPath.GetProperty("patch");
+        var responses = patchOp.GetProperty("responses");
+
+        // 200 response must exist with application/json content referencing UnidadOrganizativaDto
+        var okResponse = responses.GetProperty("200");
+        var okContent = okResponse.GetProperty("content");
+        var jsonContent = okContent.GetProperty("application/json");
+        var schema = jsonContent.GetProperty("schema");
+        Assert.Equal("#/components/schemas/UnidadOrganizativaDto", schema.GetProperty("$ref").GetString());
+    }
+
+    [Fact]
+    public async Task UnidadesOrganizativas_ReactivarEndpoint_Documents404Response()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+        var reactivarPath = paths.GetProperty("/api/v1/unidades-organizativas/{id}/reactivar");
+        var patchOp = reactivarPath.GetProperty("patch");
+        var responses = patchOp.GetProperty("responses");
+
+        Assert.True(responses.TryGetProperty("404", out _));
+    }
+
+    [Fact]
+    public async Task UnidadesOrganizativas_ReactivarEndpoint_Documents409Response()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+        var reactivarPath = paths.GetProperty("/api/v1/unidades-organizativas/{id}/reactivar");
+        var patchOp = reactivarPath.GetProperty("patch");
+        var responses = patchOp.GetProperty("responses");
+
+        Assert.True(responses.TryGetProperty("409", out _));
     }
 
     [Fact]
@@ -230,6 +289,14 @@ public sealed class SwaggerConfigurationTests
             parentOps.Add(op.Name.ToLowerInvariant());
 
         Assert.Contains("patch", parentOps);
+
+        // Check reactivar path exposes PATCH
+        var reactivarPath = paths.GetProperty("/api/v1/unidades-organizativas/{id}/reactivar");
+        var reactivarOps = new HashSet<string>();
+        foreach (var op in reactivarPath.EnumerateObject())
+            reactivarOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("patch", reactivarOps);
     }
 
     [Fact]

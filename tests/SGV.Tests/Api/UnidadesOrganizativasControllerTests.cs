@@ -543,6 +543,73 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.Equal("UnidadConHijasActivas", problem.Title);
     }
 
+    // ---- PATCH reactivar ----
+
+    [Fact]
+    public async Task Reactivate_ExistentDeletedUnidad_Returns200OkWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await ReadAsAsync<UnidadOrganizativaDto>(response);
+        Assert.Equal(UnidadId, dto.Id);
+        Assert.Equal("GER", dto.Codigo);
+    }
+
+    [Fact]
+    public async Task Reactivate_NonExistentUnidad_Returns404WithProblemDetails()
+    {
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            ReactivarHandler = (id, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad no existe.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{Guid.NewGuid()}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(404, problem.Status);
+    }
+
+    [Fact]
+    public async Task Reactivate_ConflictByActiveCode_Returns409WithProblemDetails()
+    {
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            ReactivarHandler = (id, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Failure(
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
+                        "Ya existe una unidad activa con el mismo código.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(409, problem.Status);
+        Assert.Equal("CodigoDuplicado", problem.Title);
+    }
+
     // ---- DELETE (soft-delete) ----
 
     [Fact]
