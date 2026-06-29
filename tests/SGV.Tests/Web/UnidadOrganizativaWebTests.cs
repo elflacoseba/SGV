@@ -731,6 +731,25 @@ public sealed class UnidadOrganizativaWebTests
     }
 
     [Fact]
+    public async Task Get_Index_SwitchSegment_ResetsPageToOne()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(2, 10, 25,
+                CreateItem("DEL11", "Unidad Eliminada 11", "Dirección")));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?p=2&status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // The toggle link to activas must reset to page 1
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=1", content, StringComparison.OrdinalIgnoreCase);
+        // The toggle link to eliminadas must also reset to page 1
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=1", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Post_ReactivateFromDeletedList_WhenSuccessful_RedirectsToActivasWithConfirmation()
     {
         var reactivatedId = Guid.NewGuid();

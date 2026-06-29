@@ -52,8 +52,8 @@
                     @if (!Model.IsTreeView)
                     {
                         <div class="btn-group" role="group" aria-label="Filtrar por estado">
-                            <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })">Activas</a>
-                            <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.Sort, status = "eliminadas" })">Eliminadas</a>
+                            <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort })">Activas</a>
+                            <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort, status = "eliminadas" })">Eliminadas</a>
                         </div>
                     }
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
