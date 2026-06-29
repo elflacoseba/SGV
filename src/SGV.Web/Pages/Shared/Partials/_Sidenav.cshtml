@@ -35,10 +35,30 @@
 </a>
 </li>
 <li class="side-nav-item">
-<a class="side-nav-link @unidadesOrganizativasActive" href="/organizacion/unidades-organizativas">
+<a aria-controls="unidades-organizativas" aria-expanded="false" class="side-nav-link side-nav-link-toggle @unidadesOrganizativasActive" data-bs-toggle="collapse" href="#unidades-organizativas">
 <span class="menu-icon"><i class="ti ti-building"></i></span>
 <span class="menu-text">Unidades Organizativas</span>
+<span class="menu-arrow"></span>
 </a>
+<div class="collapse" id="unidades-organizativas">
+<ul class="sub-menu">
+<li class="side-nav-item">
+<a class="side-nav-link @unidadesOrganizativasActive" href="/organizacion/unidades-organizativas">
+<span class="menu-text">Listado</span>
+</a>
+</li>
+<li class="side-nav-item">
+<a class="side-nav-link" href="/organizacion/unidades-organizativas/crear">
+<span class="menu-text">Nueva</span>
+</a>
+</li>
+<li class="side-nav-item">
+<a class="side-nav-link" href="/organizacion/unidades-organizativas/organigrama">
+<span class="menu-text">Organigrama</span>
+</a>
+</li>
+</ul>
+</div>
 </li>
 </ul>
 </div>
