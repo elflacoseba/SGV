@@ -62,6 +62,26 @@ public sealed class UnidadOrganizativaWebTests
     }
 
     [Fact]
+    public async Task Get_Index_WhenAuthenticated_DefaultsToActivasAndShowsDeletedToggle()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(1, 10, 1, CreateItem("A01", "Rectorado", "Institución")));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=1\">Activas</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=1&status=eliminadas\">Eliminadas</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("aria-label=\"Reactivar", content, StringComparison.OrdinalIgnoreCase);
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Null(query.Status);
+    }
+
+    [Fact]
     public async Task Get_Index_WhenSearchHasNoResults_ShowsEmptyState()
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
@@ -91,6 +111,26 @@ public sealed class UnidadOrganizativaWebTests
         Assert.Contains("No se pudo cargar el listado", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"search\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Buscar", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenDeletedQueryFails_KeepsDeletedSegmentForRetry()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithFailure(new HttpRequestException("boom"));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&search=dep");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("No se pudo cargar el listado", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"status\" type=\"hidden\" value=\"eliminadas\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=1&search=dep&status=eliminadas\">Eliminadas</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(">Crear<", content, StringComparison.OrdinalIgnoreCase);
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal("eliminadas", query.Status);
     }
 
     [Fact]
@@ -620,6 +660,55 @@ public sealed class UnidadOrganizativaWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Activas", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Eliminadas", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenStatusDeleted_KeptInPaginationLinks()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(2, 10, 25,
+                CreateItem("DEL11", "Unidad Eliminada 11", "Dirección"),
+                CreateItem("DEL12", "Unidad Eliminada 12", "Secretaría")));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&p=2&search=del");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Página 2 de 3", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=1&search=del&status=eliminadas\">Anterior</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=3&search=del&status=eliminadas\">Siguiente</a>", content, StringComparison.OrdinalIgnoreCase);
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(2, query.Page);
+        Assert.Equal("del", query.Search);
+        Assert.Equal("eliminadas", query.Status);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenStatusDeleted_KeptInSortLinksAndCurrentPage()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
+            CreatePage(2, 10, 25,
+                CreateItem("DEL21", "Unidad Eliminada B", "Dirección"),
+                CreateItem("DEL22", "Unidad Eliminada A", "Secretaría")));
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&p=2&search=del&sort=nombre_desc");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Página 2 de 3", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=2&search=del&sort=codigo_asc&status=eliminadas\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=2&search=del&sort=nombre_asc&status=eliminadas\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/unidades-organizativas?p=2&search=del&sort=tipo_asc&status=eliminadas\"", content, StringComparison.OrdinalIgnoreCase);
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(2, query.Page);
+        Assert.Equal("nombre_desc", query.Sort);
+        Assert.Equal("eliminadas", query.Status);
     }
 
     [Fact]

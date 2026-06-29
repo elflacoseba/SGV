@@ -49,3 +49,12 @@ Chain strategy: size-exception
 
 - [x] 4.1 Ejecutar `dotnet test SGV.slnx --filter "FullyQualifiedName~UnidadOrganizativaServicioConsultaTests|FullyQualifiedName~UnidadOrganizativaRepositoryTests|FullyQualifiedName~UnidadesOrganizativasControllerTests|FullyQualifiedName~SwaggerConfigurationTests|FullyQualifiedName~UnidadOrganizativaWebTests"` al cerrar cada ciclo RED/GREEN/REFACTOR.
 - [x] 4.2 Ejecutar `dotnet test SGV.slnx` y, por cambios en `src/SGV.Web`, `bun run build` antes de pasar a `sdd-verify`.
+
+## Phase 5: Remediación post-verify
+
+- [x] 5.1 RED: ampliar `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs` con escenarios explícitos para `status=eliminadas` en carga inicial, paginación, orden y error de consulta.
+- [x] 5.2 RED: ampliar `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` para probar que `GET /api/v1/unidades-organizativas/consulta` documenta `UnidadOrganizativaDto` también para eliminadas y no documenta respuesta mixta.
+- [x] 5.3 GREEN: ajustar código y/o fakes mínimos para cubrir los gaps detectados sin ensanchar alcance funcional.
+- [x] 5.4 GREEN: ejecutar evidencia runtime de persistencia MySQL para `tests/SGV.Tests/Persistencia/UnidadOrganizativaRepositoryTests.cs` en un entorno con MySQL disponible.
+- [x] 5.5 REFACTOR: actualizar `openspec/changes/reactivar-y-filtrar-unidades-organizativas-eliminadas/apply-progress.md` con trazabilidad TDD acumulada de las fases 1, 2, 4 y 5.
+- [x] 5.6 REFACTOR: estabilizar los tests MySQL de `QueryAsync` para que no dependan de la primera página de una base compartida y mantener evidencia runtime determinista.

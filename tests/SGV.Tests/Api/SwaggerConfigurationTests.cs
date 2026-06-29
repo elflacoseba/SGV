@@ -642,6 +642,65 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
+    public async Task ConsultaEndpoint_ResponseSchema_ReusesUnidadOrganizativaDtoForDeletedView()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var root = doc.RootElement;
+        var consultaGet = root.GetProperty("paths")
+            .GetProperty("/api/v1/unidades-organizativas/consulta")
+            .GetProperty("get");
+
+        var responseSchema = consultaGet.GetProperty("responses")
+            .GetProperty("200")
+            .GetProperty("content")
+            .GetProperty("application/json")
+            .GetProperty("schema");
+
+        var pagedSchemaRef = responseSchema.GetProperty("$ref").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(pagedSchemaRef));
+
+        var pagedSchemaName = pagedSchemaRef!.Split('/').Last();
+        var pagedSchema = root.GetProperty("components")
+            .GetProperty("schemas")
+            .GetProperty(pagedSchemaName);
+
+        var itemRef = pagedSchema.GetProperty("properties")
+            .GetProperty("items")
+            .GetProperty("items")
+            .GetProperty("$ref")
+            .GetString();
+
+        Assert.Equal("#/components/schemas/UnidadOrganizativaDto", itemRef);
+    }
+
+    [Fact]
+    public async Task ConsultaEndpoint_ResponseDescription_StatesDeletedViewKeepsSameContractWithoutMixedResults()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var responseDescription = doc.RootElement.GetProperty("paths")
+            .GetProperty("/api/v1/unidades-organizativas/consulta")
+            .GetProperty("get")
+            .GetProperty("responses")
+            .GetProperty("200")
+            .GetProperty("description")
+            .GetString() ?? string.Empty;
+
+        Assert.Contains("UnidadOrganizativaDto", responseDescription, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("eliminadas", responseDescription, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no mezcla", responseDescription, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ConsultaEndpoint_StatusParameter_NoApareceEnArbol()
     {
         var client = _factory.CreateClient();
