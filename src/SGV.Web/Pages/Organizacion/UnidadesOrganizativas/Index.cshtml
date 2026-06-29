@@ -153,7 +153,7 @@
                                                 </a>
                                                 @if (Model.IsDeletedView)
                                                 {
-                                                    <form method="post">
+                                                    <form data-uo-reactivate-form method="post">
                                                         @Html.AntiForgeryToken()
                                                         <input name="id" type="hidden" value="@item.Id" />
                                                         <input name="page" type="hidden" value="@Model.CurrentPage" />
@@ -161,7 +161,7 @@
                                                         <input name="sort" type="hidden" value="@Model.Sort" />
                                                         <input name="view" type="hidden" value="@Model.CurrentView" />
                                                         <input name="status" type="hidden" value="@Model.Segmento" />
-                                                        <button aria-label="Reactivar @item.Nombre" class="btn btn-success btn-icon btn-sm rounded-circle" data-bs-toggle="tooltip" data-bs-title="Reactivar" formaction="?handler=Reactivate" type="submit">
+                                                        <button aria-label="Reactivar @item.Nombre" class="btn btn-success btn-icon btn-sm rounded-circle" data-uo-reactivate-button data-uo-item-name="@item.Nombre" data-uo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Reactivar" formaction="?handler=Reactivate" type="submit">
                                                             <i class="ti ti-refresh fs-lg"></i>
                                                         </button>
                                                     </form>
