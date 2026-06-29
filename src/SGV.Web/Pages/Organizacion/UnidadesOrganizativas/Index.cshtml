@@ -148,9 +148,12 @@
                                         <td>@item.Vigencia</td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
-                                                <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Details", Model.BuildDetailsRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
-                                                    <i class="ti ti-eye fs-lg"></i>
-                                                </a>
+                                                @if (!Model.IsDeletedView)
+                                                {
+                                                    <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Details", Model.BuildDetailsRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
+                                                        <i class="ti ti-eye fs-lg"></i>
+                                                    </a>
+                                                }
                                                 @if (Model.IsDeletedView)
                                                 {
                                                     <form data-uo-reactivate-form method="post">
