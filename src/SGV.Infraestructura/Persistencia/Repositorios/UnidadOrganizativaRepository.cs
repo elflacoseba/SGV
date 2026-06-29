@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Organizacion.Consultas;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
@@ -147,12 +148,15 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
         DateOnly? vigenteEn,
         int page,
         int pageSize,
+        UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {
         IQueryable<UnidadOrganizativaEntity> query = Context
             .Set<UnidadOrganizativaEntity>()
             .AsNoTracking()
-            .Where(u => u.IsActive && !u.IsDeleted)
+            .Where(u => segmento == UnidadOrganizativaSegmentoListado.Activas
+                ? (u.IsActive && !u.IsDeleted)
+                : (!u.IsActive && u.IsDeleted))
             .Include(u => u.TipoUnidadOrganizativa)
             .Include(u => u.UnidadPadre);
 

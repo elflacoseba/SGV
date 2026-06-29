@@ -19,7 +19,7 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
     /// <inheritdoc />
     public async Task<PagedResult<UnidadOrganizativaDto>> QueryAsync(UnidadOrganizativaListQuery query, CancellationToken cancellationToken = default)
     {
-        var requestUri = BuildQueryUri(query.Page, query.PageSize, query.Search);
+        var requestUri = BuildQueryUri(query.Page, query.PageSize, query.Search, query.Status);
         var response = await httpClient.GetAsync(requestUri, cancellationToken);
         response.EnsureSuccessStatusCode();
 
@@ -180,7 +180,7 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
             new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "Unexpected", "Unexpected response status."));
     }
 
-    private static string BuildQueryUri(int page, int pageSize, string? search)
+    private static string BuildQueryUri(int page, int pageSize, string? search, string? status = null)
     {
         var builder = new StringBuilder($"{BaseRoute}/consulta?page={page}&pageSize={pageSize}");
 
@@ -188,6 +188,12 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
         {
             builder.Append("&search=");
             builder.Append(Uri.EscapeDataString(search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            builder.Append("&status=");
+            builder.Append(Uri.EscapeDataString(status));
         }
 
         return builder.ToString();

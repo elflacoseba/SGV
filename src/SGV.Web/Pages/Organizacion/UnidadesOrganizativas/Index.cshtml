@@ -49,10 +49,20 @@
                         <a class="btn btn-sm @(Model.IsTreeView ? "btn-light" : "btn-primary")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", Model.BuildViewToggleRouteValues("list"))">Listado</a>
                         <a class="btn btn-sm @(Model.IsTreeView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", Model.BuildViewToggleRouteValues("tree"))">Vista árbol</a>
                     </div>
+                    @if (!Model.IsTreeView)
+                    {
+                        <div class="btn-group" role="group" aria-label="Filtrar por estado">
+                            <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort })">Activas</a>
+                            <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort, status = "eliminadas" })">Eliminadas</a>
+                        </div>
+                    }
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
-                    <a class="btn btn-primary btn-sm" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Create", Model.CreateRouteValues)">
-                        <i class="ti ti-plus me-1"></i>Crear
-                    </a>
+                    @if (!Model.IsDeletedView)
+                    {
+                        <a class="btn btn-primary btn-sm" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Create", Model.CreateRouteValues)">
+                            <i class="ti ti-plus me-1"></i>Crear
+                        </a>
+                    }
                 </div>
             </div>
             @if (!Model.IsTreeView)
@@ -66,6 +76,7 @@
                             </div>
                         </div>
                         <input name="sort" type="hidden" value="@Model.Sort" />
+                        <input name="status" type="hidden" value="@Model.Segmento" />
                         <div class="col-auto">
                             <button class="btn btn-primary" type="submit">Buscar</button>
                         </div>
@@ -81,7 +92,7 @@
                                     var tipoIcon = Model.GetSortIcon("tipo");
                                 }
                                 <th>
-                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo") })">
+                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo"), status = Model.Segmento })">
                                         Código
                                         @if (!string.IsNullOrEmpty(codigoIcon))
                                         {
@@ -90,7 +101,7 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre") })">
+                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre"), status = Model.Segmento })">
                                         Nombre
                                         @if (!string.IsNullOrEmpty(nombreIcon))
                                         {
@@ -99,7 +110,7 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("tipo") })">
+                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("tipo"), status = Model.Segmento })">
                                         Tipo
                                         @if (!string.IsNullOrEmpty(tipoIcon))
                                         {
@@ -115,7 +126,7 @@
                             @if (Model.Items.Count == 0)
                             {
                                 <tr>
-                                    <td class="text-center text-muted py-4" colspan="5">No se encontraron unidades organizativas.</td>
+                                    <td class="text-center text-muted py-4" colspan="5">@(Model.IsDeletedView ? "No se encontraron unidades organizativas eliminadas." : "No se encontraron unidades organizativas.")</td>
                                 </tr>
                             }
                             else
@@ -137,23 +148,45 @@
                                         <td>@item.Vigencia</td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
-                                                <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Details", Model.BuildDetailsRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
-                                                    <i class="ti ti-eye fs-lg"></i>
-                                                </a>
-                                                <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
-                                                    <i class="ti ti-edit fs-lg"></i>
-                                                </a>
-                                                <form data-uo-delete-form method="post">
-                                                    @Html.AntiForgeryToken()
-                                                    <input name="id" type="hidden" value="@item.Id" />
-                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
-                                                    <input name="search" type="hidden" value="@Model.Search" />
-                                                    <input name="sort" type="hidden" value="@Model.Sort" />
-                                                    <input name="view" type="hidden" value="@Model.CurrentView" />
-                                                    <button aria-label="Eliminar @item.Nombre" class="btn btn-danger btn-icon btn-sm rounded-circle" data-uo-delete-button data-uo-item-name="@item.Nombre" data-uo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
-                                                        <i class="ti ti-trash fs-lg"></i>
-                                                    </button>
-                                                </form>
+                                                @if (!Model.IsDeletedView)
+                                                {
+                                                    <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Details", Model.BuildDetailsRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
+                                                        <i class="ti ti-eye fs-lg"></i>
+                                                    </a>
+                                                }
+                                                @if (Model.IsDeletedView)
+                                                {
+                                                    <form data-uo-reactivate-form method="post">
+                                                        @Html.AntiForgeryToken()
+                                                        <input name="id" type="hidden" value="@item.Id" />
+                                                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                        <input name="search" type="hidden" value="@Model.Search" />
+                                                        <input name="sort" type="hidden" value="@Model.Sort" />
+                                                        <input name="view" type="hidden" value="@Model.CurrentView" />
+                                                        <input name="status" type="hidden" value="@Model.Segmento" />
+                                                        <button aria-label="Reactivar @item.Nombre" class="btn btn-success btn-icon btn-sm rounded-circle" data-uo-reactivate-button data-uo-item-name="@item.Nombre" data-uo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Reactivar" formaction="?handler=Reactivate" type="submit">
+                                                            <i class="ti ti-refresh fs-lg"></i>
+                                                        </button>
+                                                    </form>
+                                                }
+                                                else
+                                                {
+                                                    <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
+                                                        <i class="ti ti-edit fs-lg"></i>
+                                                    </a>
+                                                    <form data-uo-delete-form method="post">
+                                                        @Html.AntiForgeryToken()
+                                                        <input name="id" type="hidden" value="@item.Id" />
+                                                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                        <input name="search" type="hidden" value="@Model.Search" />
+                                                        <input name="sort" type="hidden" value="@Model.Sort" />
+                                                        <input name="view" type="hidden" value="@Model.CurrentView" />
+                                                        <input name="status" type="hidden" value="@Model.Segmento" />
+                                                        <button aria-label="Eliminar @item.Nombre" class="btn btn-danger btn-icon btn-sm rounded-circle" data-uo-delete-button data-uo-item-name="@item.Nombre" data-uo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
+                                                            <i class="ti ti-trash fs-lg"></i>
+                                                        </button>
+                                                    </form>
+                                                }
                                             </div>
                                         </td>
                                     </tr>
@@ -167,16 +200,16 @@
                     <nav aria-label="Paginación de unidades organizativas">
                         <ul class="pagination pagination-sm mb-0">
                             <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
-                                <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage - 1, search = Model.Search, sort = Model.Sort })">Anterior</a>
+                                <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage - 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">Anterior</a>
                             </li>
                             @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
                             {
                                 <li class="page-item @(pageNumber == Model.CurrentPage ? "active" : null)">
-                                    <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = pageNumber, search = Model.Search, sort = Model.Sort })">@pageNumber</a>
+                                    <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = pageNumber, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">@pageNumber</a>
                                 </li>
                             }
                             <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
-                                <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage + 1, search = Model.Search, sort = Model.Sort })">Siguiente</a>
+                                <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage + 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">Siguiente</a>
                             </li>
                         </ul>
                     </nav>

@@ -43,7 +43,10 @@ public sealed class EditModel(
     [BindProperty]
     public string? ReturnView { get; set; }
 
-    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView);
+    [BindProperty]
+    public string? ReturnStatus { get; set; }
+
+    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView, ReturnStatus);
 
     public async Task<IActionResult> OnGetAsync(
         Guid id,
@@ -56,12 +59,14 @@ public sealed class EditModel(
         string? returnSearch = null,
         string? returnSort = null,
         string? returnView = null,
+        string? returnStatus = null,
         CancellationToken cancellationToken = default)
     {
         ReturnPage = returnPage ?? p ?? page;
         ReturnSearch = returnSearch ?? search;
         ReturnSort = returnSort ?? sort;
         ReturnView = returnView ?? view;
+        ReturnStatus = returnStatus;
 
         CurrentId = id;
 
@@ -101,6 +106,7 @@ public sealed class EditModel(
         ReturnSearch = string.IsNullOrWhiteSpace(ReturnSearch) ? NormalizePostedValue(Request.Form[nameof(ReturnSearch)]) : ReturnSearch;
         ReturnSort = string.IsNullOrWhiteSpace(ReturnSort) ? NormalizePostedValue(Request.Form[nameof(ReturnSort)]) : ReturnSort;
         ReturnView = string.IsNullOrWhiteSpace(ReturnView) ? NormalizePostedValue(Request.Form[nameof(ReturnView)]) : ReturnView;
+        ReturnStatus = string.IsNullOrWhiteSpace(ReturnStatus) ? NormalizePostedValue(Request.Form[nameof(ReturnStatus)]) : ReturnStatus;
 
         if (!ModelState.IsValid)
         {
@@ -140,11 +146,11 @@ public sealed class EditModel(
                     // Partial success: data saved but parent change failed
                     TempData["StatusMessage"] = "Se guardaron los datos generales, pero no se pudo actualizar la unidad padre.";
                     TempData["StatusKind"] = "warning";
-                    return RedirectToPage("/Organizacion/UnidadesOrganizativas/Edit", new { id, p = ReturnPage, search = ReturnSearch, sort = ReturnSort, returnView = ReturnView });
+                    return RedirectToPage("/Organizacion/UnidadesOrganizativas/Edit", new { id, p = ReturnPage, search = ReturnSearch, sort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus });
                 }
             }
 
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus });
         }
 
         if (result.Error is not null)
@@ -170,6 +176,7 @@ public sealed class EditModel(
         ReturnSearch = NormalizePostedValue(Request.Form[nameof(ReturnSearch)].FirstOrDefault());
         ReturnSort = NormalizePostedValue(Request.Form[nameof(ReturnSort)].FirstOrDefault());
         ReturnView = NormalizePostedValue(Request.Form[nameof(ReturnView)].FirstOrDefault());
+        ReturnStatus = NormalizePostedValue(Request.Form[nameof(ReturnStatus)].FirstOrDefault());
 
         var result = await unidadOrganizativaApiClient.ReactivateAsync(id, cancellationToken);
 
@@ -177,7 +184,7 @@ public sealed class EditModel(
         {
             TempData["StatusMessage"] = "La unidad organizativa se reactivó correctamente.";
             TempData["StatusKind"] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus });
         }
 
         var message = result.Error?.Type switch

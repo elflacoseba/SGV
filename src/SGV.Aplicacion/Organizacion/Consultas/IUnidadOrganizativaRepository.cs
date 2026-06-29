@@ -1,4 +1,5 @@
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 
 namespace SGV.Aplicacion.Organizacion.Consultas;
@@ -65,7 +66,8 @@ public interface IUnidadOrganizativaRepository : IReadOnlyRepository<UnidadOrgan
     Task<bool> HasActivePuestosAsync(Guid unidadId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns a filtered, paginated set of active organizational units and the total count matching the filters.
+    /// Returns a filtered, paginated set of organizational units and the total count matching the filters.
+    /// The <paramref name="segmento"/> parameter controls which segment to return: active or deleted units.
     /// </summary>
     Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(
         string? search,
@@ -74,6 +76,7 @@ public interface IUnidadOrganizativaRepository : IReadOnlyRepository<UnidadOrgan
         DateOnly? vigenteEn,
         int page,
         int pageSize,
+        UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas,
         CancellationToken cancellationToken = default);
 
     /// <summary>

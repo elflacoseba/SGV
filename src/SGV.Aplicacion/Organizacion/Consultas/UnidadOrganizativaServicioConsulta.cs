@@ -29,6 +29,7 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
             query.VigenteEn,
             query.Page,
             query.PageSize,
+            query.Segmento,
             cancellationToken);
 
         return new PagedResult<UnidadOrganizativaDto>(

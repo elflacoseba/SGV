@@ -78,19 +78,21 @@ internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServic
     public static readonly Guid UnidadId1 = Guid.Parse("a0000000-0000-0000-0000-000000000001");
     public static readonly Guid UnidadConPadreId = Guid.Parse("a0000000-0000-0000-0000-000000000002");
 
-    private readonly IReadOnlyList<UnidadOrganizativaDto> _data;
+    private readonly IReadOnlyList<UnidadOrganizativaDto> _activas;
+    private readonly IReadOnlyList<UnidadOrganizativaDto> _eliminadas;
 
-    public FakeUnidadOrganizativaServicio(bool isEmpty = false, bool withPadreData = false)
+    public FakeUnidadOrganizativaServicio(bool isEmpty = false, bool withPadreData = false, bool withEliminadas = false)
     {
         if (isEmpty)
         {
-            _data = [];
+            _activas = [];
+            _eliminadas = [];
             return;
         }
 
         if (withPadreData)
         {
-            _data =
+            _activas =
             [
                 new(UnidadId1, "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección",
                     "Máxima autoridad ejecutiva", null, null, null, null, null),
@@ -100,24 +102,31 @@ internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServic
         }
         else
         {
-            _data =
+            _activas =
             [
                 new(UnidadId1, "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección",
                     "Máxima autoridad ejecutiva", null, null, null, null, null)
             ];
         }
+
+        _eliminadas = withEliminadas
+            ? [new(Guid.Parse("e0000000-0000-0000-0000-000000000001"), "ELIM-01", "Unidad Eliminada",
+                TipoUnidadOrganizativaConstantes.AreaId, "Área",
+                null, null, null, null, null, null)]
+            : [];
     }
 
     public Task<IReadOnlyList<UnidadOrganizativaDto>> ListAsync(CancellationToken ct = default)
-        => Task.FromResult(_data);
+        => Task.FromResult(_activas);
 
     public Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+        => Task.FromResult(_activas.Concat(_eliminadas).FirstOrDefault(d => d.Id == id));
 
     public Task<PagedResult<UnidadOrganizativaDto>> QueryAsync(
         UnidadOrganizativaQuery query, CancellationToken ct = default)
     {
-        var filtered = _data.AsEnumerable();
+        var source = query.Segmento == UnidadOrganizativaSegmentoListado.Eliminadas ? _eliminadas : _activas;
+        var filtered = source.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(query.Search))
             filtered = filtered.Where(d =>
                 d.Codigo.Contains(query.Search, StringComparison.OrdinalIgnoreCase) ||
@@ -136,8 +145,8 @@ internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServic
 
     public Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken ct = default)
     {
-        var roots = _data.Where(d => d.UnidadPadreId is null).ToList();
-        var tree = roots.Select(r => BuildTreeNode(r, _data)).ToList();
+        var roots = _activas.Where(d => d.UnidadPadreId is null).ToList();
+        var tree = roots.Select(r => BuildTreeNode(r, _activas)).ToList();
         return Task.FromResult<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>(tree);
     }
 
