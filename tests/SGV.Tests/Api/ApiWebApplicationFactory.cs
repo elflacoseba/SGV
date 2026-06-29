@@ -352,6 +352,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     public Func<Guid, ActualizarUnidadOrganizativaRequest, CancellationToken, Task<UnidadOrganizativaCommandResult>>? ActualizarHandler { get; set; }
     public Func<Guid, CambiarUnidadPadreRequest, CancellationToken, Task<UnidadOrganizativaCommandResult>>? CambiarUnidadPadreHandler { get; set; }
     public Func<Guid, CancellationToken, Task<UnidadOrganizativaCommandResult>>? EliminarHandler { get; set; }
+    public Func<Guid, CancellationToken, Task<UnidadOrganizativaCommandResult>>? ReactivarHandler { get; set; }
 
     public Task<UnidadOrganizativaCommandResult> CrearAsync(
         CrearUnidadOrganizativaRequest request,
@@ -399,9 +400,10 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
         Guid id,
         CancellationToken cancellationToken = default)
     {
+        if (ReactivarHandler is not null) return ReactivarHandler(id, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(id, "GER", "Gerencia", TipoUnidadOrganizativaConstantes.DireccionId, "Dirección", null, null, null, null, null, null)));
-}
+    }
 }
 
 internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos

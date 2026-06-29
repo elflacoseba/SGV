@@ -460,6 +460,51 @@ public sealed class UnidadOrganizativaRepositoryTests
         }
     }
 
+    // ===================== ReactivateAsync tests =====================
+
+    [MySqlFact]
+    public async Task ReactivateAsync_UnidadEliminada_RestauraFlags()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        var entity = RepositoryTestData.CreateUnidadOrganizativa("UO-REACT", isDeleted: true, isActive: false);
+        entity.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(entity);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            await repo.ReactivateAsync(entity.Id, default);
+            await context.SaveChangesAsync();
+
+            var reactivated = await context.Set<UnidadOrganizativaEntity>()
+                .FirstOrDefaultAsync(e => e.Id == entity.Id);
+            Assert.NotNull(reactivated);
+            Assert.True(reactivated!.IsActive);
+            Assert.False(reactivated.IsDeleted);
+            Assert.Null(reactivated.DeletedAt);
+        }
+        finally
+        {
+            context.Set<UnidadOrganizativaEntity>().Remove(entity);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task ReactivateAsync_UnidadInexistente_NoLanzaExcepcion()
+    {
+        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+
+        var repo = new UnidadOrganizativaRepository(context);
+
+        var exception = await Record.ExceptionAsync(() =>
+            repo.ReactivateAsync(Guid.NewGuid(), default));
+
+        Assert.Null(exception);
+    }
+
     // ===================== QueryAsync tests =====================
 
     [MySqlFact]

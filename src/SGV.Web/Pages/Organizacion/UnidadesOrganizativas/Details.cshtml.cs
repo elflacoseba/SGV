@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 
@@ -14,6 +15,10 @@ public sealed class DetailsModel(
     public UnidadOrganizativaDto? Unidad { get; private set; }
 
     public bool IsNotFound { get; private set; }
+
+    public bool IsRecoverable { get; private set; }
+
+    public Guid CurrentId { get; private set; }
 
     public bool HasParent => Unidad?.UnidadPadreId is not null;
 
@@ -48,6 +53,7 @@ public sealed class DetailsModel(
         ReturnSearch = returnSearch ?? search ?? string.Empty;
         ReturnSort = returnSort ?? sort ?? string.Empty;
         ReturnView = returnView ?? view ?? string.Empty;
+        CurrentId = id;
 
         try
         {
@@ -62,9 +68,43 @@ public sealed class DetailsModel(
         if (Unidad is null)
         {
             IsNotFound = true;
+            IsRecoverable = true;
             return Page();
         }
 
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        ReturnPage = Request.Form[nameof(ReturnPage)].FirstOrDefault() ?? string.Empty;
+        ReturnSearch = Request.Form[nameof(ReturnSearch)].FirstOrDefault() ?? string.Empty;
+        ReturnSort = Request.Form[nameof(ReturnSort)].FirstOrDefault() ?? string.Empty;
+        ReturnView = Request.Form[nameof(ReturnView)].FirstOrDefault() ?? string.Empty;
+        CurrentId = id;
+
+        var result = await unidadOrganizativaApiClient.ReactivateAsync(id, cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            TempData["StatusMessage"] = "La unidad organizativa se reactivó correctamente.";
+            TempData["StatusKind"] = "success";
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView });
+        }
+
+        var message = result.Error?.Type switch
+        {
+            UnidadOrganizativaErrorType.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
+            UnidadOrganizativaErrorType.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
+            _ => "No se pudo reactivar la unidad organizativa. Intentá nuevamente."
+        };
+
+        TempData["StatusMessage"] = message;
+        TempData["StatusKind"] = "danger";
+
+        IsNotFound = true;
+        IsRecoverable = true;
+        CurrentId = id;
         return Page();
     }
 }

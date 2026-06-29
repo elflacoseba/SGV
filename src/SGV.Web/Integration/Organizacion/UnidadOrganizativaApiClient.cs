@@ -102,6 +102,20 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
     }
 
     /// <inheritdoc />
+    public async Task<UnidadOrganizativaCommandResult> ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PatchAsync($"{BaseRoute}/{id}/reactivar", null, cancellationToken);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var dto = await response.Content.ReadFromJsonAsync<UnidadOrganizativaDto>(cancellationToken: cancellationToken);
+            return UnidadOrganizativaCommandResult.Success(dto!);
+        }
+
+        return await ToCommandResultAsync(response, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<UnidadOrganizativaDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var response = await httpClient.DeleteAsync($"{BaseRoute}/{id}", cancellationToken);

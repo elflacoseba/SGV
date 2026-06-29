@@ -12,6 +12,9 @@ public sealed class EditModel(
     IUnidadOrganizativaApiClient unidadOrganizativaApiClient,
     ILogger<EditModel> logger) : PageModel, IUnidadOrganizativaForm
 {
+    public Guid CurrentId { get; private set; }
+
+    public bool IsRecoverable { get; private set; }
     [BindProperty]
     public UnidadOrganizativaInputModel Input { get; set; } = new();
 
@@ -60,14 +63,15 @@ public sealed class EditModel(
         ReturnSort = returnSort ?? sort;
         ReturnView = returnView ?? view;
 
+        CurrentId = id;
+
         try
         {
             var unidad = await unidadOrganizativaApiClient.GetByIdAsync(id, cancellationToken);
             if (unidad is null)
             {
-                TempData["StatusMessage"] = "La unidad organizativa solicitada no existe o ya no está disponible.";
-                TempData["StatusKind"] = "warning";
-                return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = ReturnPage, search = ReturnSearch, sort = ReturnSort });
+                IsRecoverable = true;
+                return Page();
             }
 
             await LoadCatalogsAsync(id, cancellationToken);
@@ -157,6 +161,36 @@ public sealed class EditModel(
         }
 
         await LoadCatalogsAsync(id, cancellationToken);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        ReturnPage = NormalizePostedValue(Request.Form[nameof(ReturnPage)].FirstOrDefault());
+        ReturnSearch = NormalizePostedValue(Request.Form[nameof(ReturnSearch)].FirstOrDefault());
+        ReturnSort = NormalizePostedValue(Request.Form[nameof(ReturnSort)].FirstOrDefault());
+        ReturnView = NormalizePostedValue(Request.Form[nameof(ReturnView)].FirstOrDefault());
+
+        var result = await unidadOrganizativaApiClient.ReactivateAsync(id, cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            TempData["StatusMessage"] = "La unidad organizativa se reactivó correctamente.";
+            TempData["StatusKind"] = "success";
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView });
+        }
+
+        var message = result.Error?.Type switch
+        {
+            UnidadOrganizativaErrorType.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
+            UnidadOrganizativaErrorType.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
+            _ => "No se pudo reactivar la unidad organizativa. Intentá nuevamente."
+        };
+
+        TempData["StatusMessage"] = message;
+        TempData["StatusKind"] = "danger";
+        IsRecoverable = true;
+        CurrentId = id;
         return Page();
     }
 

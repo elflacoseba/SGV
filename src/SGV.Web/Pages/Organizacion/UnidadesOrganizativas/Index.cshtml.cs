@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 
@@ -44,20 +45,30 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
     [TempData]
     public string? TempDataStatusKind { get; set; }
 
-    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, CancellationToken cancellationToken = default)
+    public string? LastDeletedId => TempData[nameof(LastDeletedId)] as string;
+
+    public bool HasLastDeleted => !string.IsNullOrWhiteSpace(LastDeletedId);
+
+    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, Guid? deletedId = null, CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
         Search = Normalize(search);
         Sort = Normalize(sort);
         CurrentView = NormalizeView(view);
 
+        if (deletedId.HasValue)
+        {
+            TempData[nameof(LastDeletedId)] = deletedId.Value.ToString();
+        }
+
         await LoadAsync(cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, CancellationToken cancellationToken = default)
     {
         var normalizedSearch = Normalize(search);
         var normalizedSort = Normalize(sort);
+        var normalizedView = NormalizeView(view);
         currentPage = Math.Max(1, currentPage);
 
         var result = await unidadOrganizativaApiClient.DeleteAsync(id, cancellationToken);
@@ -67,7 +78,7 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, cancellationToken);
             TempData[nameof(StatusMessage)] = "La unidad organizativa se eliminó correctamente.";
             TempData[nameof(StatusKind)] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, deletedId = id });
         }
 
         var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
@@ -79,7 +90,37 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         TempData[nameof(StatusMessage)] = message;
         TempData[nameof(StatusKind)] = "danger";
 
-        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort });
+        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView });
+    }
+
+    public async Task<IActionResult> OnPostReactivateAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, CancellationToken cancellationToken = default)
+    {
+        var normalizedSearch = Normalize(search);
+        var normalizedSort = Normalize(sort);
+        var normalizedView = NormalizeView(view);
+        currentPage = Math.Max(1, currentPage);
+
+        var result = await unidadOrganizativaApiClient.ReactivateAsync(id, cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            TempData[nameof(StatusMessage)] = "La unidad organizativa se reactivó correctamente.";
+            TempData[nameof(StatusKind)] = "success";
+            ClearLastDeleted();
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView });
+        }
+
+        var message = result.Error?.Type switch
+        {
+            UnidadOrganizativaErrorType.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
+            UnidadOrganizativaErrorType.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
+            _ => "No se pudo reactivar la unidad organizativa. Intentá nuevamente."
+        };
+
+        TempData[nameof(StatusMessage)] = message;
+        TempData[nameof(StatusKind)] = "danger";
+
+        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView });
     }
 
     public string GetSortRoute(string column)
@@ -232,6 +273,11 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             logger.LogWarning(ex, "Failed to recalculate redirect page after deleting unidad organizativa.");
             return currentPage;
         }
+    }
+
+    private void ClearLastDeleted()
+    {
+        TempData.Remove(nameof(LastDeletedId));
     }
 
     private static string? Normalize(string? value)

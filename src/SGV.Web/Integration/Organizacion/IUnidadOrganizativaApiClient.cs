@@ -47,4 +47,10 @@ public interface IUnidadOrganizativaApiClient
     /// Deletes a unidad organizativa.
     /// </summary>
     Task<UnidadOrganizativaDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reactivates a previously deleted (soft-deleted) unidad organizativa.
+    /// Returns success with the reactivated DTO, or a failure with NotFound/Conflict error.
+    /// </summary>
+    Task<UnidadOrganizativaCommandResult> ReactivateAsync(Guid id, CancellationToken cancellationToken = default);
 }
