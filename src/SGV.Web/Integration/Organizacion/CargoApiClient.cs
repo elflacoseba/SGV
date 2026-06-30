@@ -57,6 +57,9 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         catch (HttpRequestException)
         {
         }
+        catch (System.Text.Json.JsonException)
+        {
+        }
 
         return new CargoDeleteResult(
             false,
