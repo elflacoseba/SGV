@@ -137,8 +137,8 @@ public sealed class CargoIndexPageTests
     [Fact]
     public async Task Post_Delete_WhenSuccessful_RedirectsPreservingFiltersAndRefreshRemovesRow()
     {
-        var toDelete = CreateCargo("DEL-01", "Analista a Eliminar", "Desc", "Junior");
-        var remaining = CreateCargo("DEL-02", "Otro Cargo", null, "Senior");
+        var toDelete = CreateCargo("DEL-01", "Analista Senior", "Desc", "Junior");
+        var remaining = CreateCargo("DEL-02", "Analista Junior", null, "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(toDelete, remaining);
         apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
@@ -164,14 +164,14 @@ public sealed class CargoIndexPageTests
         Assert.Contains("search=ana", location, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("sort=nombre_desc", location, StringComparison.OrdinalIgnoreCase);
 
-        // Al refrescar el listado, el cargo eliminado ya no aparece
+        // Al refrescar el listado, el cargo eliminado ya no aparece pero el otro sigue visible
         var refreshed = await client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         Assert.Contains("se eliminó correctamente", refreshedContent, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(toDelete.Nombre, refreshedContent, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(remaining.Nombre, refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Analista Senior", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Analista Junior", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
