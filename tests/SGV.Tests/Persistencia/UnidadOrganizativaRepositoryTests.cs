@@ -21,7 +21,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_ExcluyeEntidadesInactivasYEliminadas()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var visible = RepositoryTestData.CreateUnidadOrganizativa("UO-VISIBLE");
         var inactive = RepositoryTestData.CreateUnidadOrganizativa("UO-INACTIVE", isActive: false);
         var deleted = RepositoryTestData.CreateUnidadOrganizativa("UO-DELETED", isDeleted: true);
@@ -54,7 +54,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task GetByIdAsync_RetornaEntidadCuandoExiste()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var expected = RepositoryTestData.CreateUnidadOrganizativa("UO-BY-ID");
 
         await context.Set<UnidadOrganizativaEntity>().AddAsync(expected);
@@ -83,7 +83,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task GetByIdAsync_RetornaNull_CuandoNoExiste()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new UnidadOrganizativaRepository(context);
         var noExiste = await repo.GetByIdAsync(Guid.NewGuid(), default);
@@ -96,7 +96,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task AddAsync_PersisteEntidadYAsignaId()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new UnidadOrganizativaRepository(context);
         var unidad = new UnidadOrganizativa("UO-ADD", "Unidad Add Test", TipoUnidadOrganizativaConstantes.AreaId)
         {
@@ -128,7 +128,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_ModificaEntidadExistente()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateUnidadOrganizativa("UO-UPD");
         await context.Set<UnidadOrganizativaEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -159,7 +159,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task DeleteAsync_MarcaInactivoYEliminado()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateUnidadOrganizativa("UO-DEL");
         await context.Set<UnidadOrganizativaEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -186,7 +186,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_CodigoActivoDuplicado_RetornaTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateUnidadOrganizativa("UO-DUP");
         await context.Set<UnidadOrganizativaEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -208,7 +208,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_ExcluyendoPropioId_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateUnidadOrganizativa("UO-EXCL");
         await context.Set<UnidadOrganizativaEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -230,7 +230,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task IsDescendantAsync_RelacionDirecta_RetornaTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var padre = RepositoryTestData.CreateUnidadOrganizativa("UO-PADRE");
         var hijo = RepositoryTestData.CreateUnidadOrganizativa("UO-HIJO");
         hijo.UnidadPadreId = padre.Id;
@@ -255,7 +255,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task IsDescendantAsync_SinRelacion_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad1 = RepositoryTestData.CreateUnidadOrganizativa("UO-A");
         var unidad2 = RepositoryTestData.CreateUnidadOrganizativa("UO-B");
         await context.Set<UnidadOrganizativaEntity>().AddRangeAsync([unidad1, unidad2]);
@@ -280,7 +280,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task HasActiveChildrenAsync_UnidadConHijaActiva_RetornaTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var padre = RepositoryTestData.CreateUnidadOrganizativa("UO-PADRE");
         var hija = RepositoryTestData.CreateUnidadOrganizativa("UO-HIJA");
         hija.UnidadPadreId = padre.Id;
@@ -305,7 +305,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task HasActiveChildrenAsync_UnidadSinHijas_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var padre = RepositoryTestData.CreateUnidadOrganizativa("UO-SIN-HIJAS");
 
         await context.Set<UnidadOrganizativaEntity>().AddAsync(padre);
@@ -328,7 +328,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task HasActiveChildrenAsync_UnidadConHijaInactiva_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var padre = RepositoryTestData.CreateUnidadOrganizativa("UO-PADRE");
         var hijaInactiva = RepositoryTestData.CreateUnidadOrganizativa("UO-HIJA-INACT", isActive: false);
         hijaInactiva.UnidadPadreId = padre.Id;
@@ -355,7 +355,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task HasActivePuestosAsync_UnidadConPuestoActivo_RetornaTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("UO-PUESTO");
         var cargo = RepositoryTestData.CreateCargo("CARGO-PUESTO");
         var puesto = RepositoryTestData.CreatePuesto("PUESTO-ACT", unidad, cargo, isActive: true);
@@ -384,7 +384,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task HasActivePuestosAsync_UnidadSinPuestos_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("UO-SIN-PUESTOS");
 
         await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
@@ -407,7 +407,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task HasActivePuestosAsync_UnidadConPuestoEliminado_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("UO-PUESTO-DEL");
         var cargo = RepositoryTestData.CreateCargo("CARGO-DEL");
         var puesto = RepositoryTestData.CreatePuesto("PUESTO-DEL", unidad, cargo, isActive: false, isDeleted: true);
@@ -436,7 +436,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task HasActivePuestosAsync_UnidadConPuestoInactivo_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("UO-PUESTO-INACT");
         var cargo = RepositoryTestData.CreateCargo("CARGO-INACT");
         var puesto = RepositoryTestData.CreatePuesto("PUESTO-INACT", unidad, cargo, isActive: false);
@@ -467,7 +467,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task ReactivateAsync_UnidadEliminada_RestauraFlags()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateUnidadOrganizativa("UO-REACT", isDeleted: true, isActive: false);
         entity.DeletedAt = DateTime.UtcNow;
 
@@ -497,7 +497,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task ReactivateAsync_UnidadInexistente_NoLanzaExcepcion()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new UnidadOrganizativaRepository(context);
 
@@ -512,7 +512,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_SinFiltros_RetornaTodasLasActivas()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead);
         var searchToken = $"SF{Guid.NewGuid():N}"[..10];
         var u1 = RepositoryTestData.CreateUnidadOrganizativa($"UO-{searchToken}-A");
@@ -561,7 +561,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_FiltroPorTipoUnidadOrganizativaId_RetornaSoloCoincidencias()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var u1 = RepositoryTestData.CreateUnidadOrganizativa("UO-Q-TIPO-1");
         // Create a dedicated TipoUnidadOrganizativa to avoid collisions with seeded data.
         var tipoFiltro = new TipoUnidadOrganizativaEntity
@@ -604,7 +604,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_BusquedaPorCodigo_RetornaCoincidencias()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var u1 = RepositoryTestData.CreateUnidadOrganizativa("UO-SEARCH");
         var u2 = RepositoryTestData.CreateUnidadOrganizativa("OTRA-UO");
 
@@ -630,7 +630,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_BusquedaPorNombre_RetornaCoincidencias()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var prefix = Guid.NewGuid().ToString("N")[..8];
         var u1 = new UnidadOrganizativaEntity
         {
@@ -672,7 +672,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_FiltroPorUnidadPadreId_RetornaSoloCoincidencias()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var padre = RepositoryTestData.CreateUnidadOrganizativa("UO-PADRE-FILTER");
         var hija = RepositoryTestData.CreateUnidadOrganizativa("UO-HIJA-FILTER");
         hija.UnidadPadreId = padre.Id;
@@ -702,7 +702,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_Paginacion_RetornaPaginaCorrecta()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidades = Enumerable.Range(0, 5)
             .Select(i => RepositoryTestData.CreateUnidadOrganizativa($"UO-PAGE-{i}"))
             .ToArray();
@@ -729,7 +729,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_SegmentoActivas_RetornaSoloActivas()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var searchToken = $"SA{Guid.NewGuid():N}"[..10];
         var activa = RepositoryTestData.CreateUnidadOrganizativa($"UO-{searchToken}");
         activa.Nombre = $"Unidad {searchToken}";
@@ -767,7 +767,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_SegmentoEliminadas_RetornaSoloEliminadas()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var searchToken = $"SD{Guid.NewGuid():N}"[..10];
         var activa = RepositoryTestData.CreateUnidadOrganizativa($"ACT-{searchToken}");
         activa.Nombre = $"Unidad activa {searchToken}";
@@ -805,7 +805,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_SegmentosNoSeMezclan()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var searchToken = $"SM{Guid.NewGuid():N}"[..10];
         var activa = RepositoryTestData.CreateUnidadOrganizativa($"ACT-{searchToken}");
         activa.Nombre = $"Unidad activa {searchToken}";
@@ -845,7 +845,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task QueryAsync_SinResultados_RetornaListaVaciaYTotalCero()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new UnidadOrganizativaRepository(context);
         var (items, totalCount) = await repo.QueryAsync(
@@ -860,7 +860,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task ListTreeAsync_IncluyeTipoUnidadOrganizativa()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var u = new UnidadOrganizativaEntity
         {
             Id = Guid.NewGuid(),
@@ -891,7 +891,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task ListTreeAsync_RetornaUnidadesActivasConTipoUnidad()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var u = RepositoryTestData.CreateUnidadOrganizativa("UO-TREE");
 
         await context.Set<UnidadOrganizativaEntity>().AddAsync(u);
@@ -918,7 +918,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task ListTreeAsync_ExcluyeUnidadesInactivasYEliminadas()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var activa = RepositoryTestData.CreateUnidadOrganizativa("UO-TREE-ACT", isActive: true);
         var inactiva = RepositoryTestData.CreateUnidadOrganizativa("UO-TREE-INACT", isActive: false);
         var eliminada = RepositoryTestData.CreateUnidadOrganizativa("UO-TREE-DEL", isActive: false, isDeleted: true);
@@ -945,7 +945,7 @@ public sealed class UnidadOrganizativaRepositoryTests
     [MySqlFact]
     public async Task SoftDelete_ReutilizaCodigo_EnNuevaUnidadActiva()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var original = RepositoryTestData.CreateUnidadOrganizativa("UO-REUSE");
         await context.Set<UnidadOrganizativaEntity>().AddAsync(original);
         await context.SaveChangesAsync();

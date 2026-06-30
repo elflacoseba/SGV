@@ -14,7 +14,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_Default_ReturnsOnlyActiveRows()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-LIST-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-LIST-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-LIST-CARGO");
@@ -46,7 +46,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ListAllIncludingHistoryAsync_ReturnsAllRows()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-HIST-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-HIST-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-HIST-CARGO");
@@ -77,7 +77,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task GetByIdForUpdateAsync_Active_ReturnsWithNavigation()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-FUPD-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-FUPD-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-FUPD-CARGO");
@@ -108,7 +108,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task GetByIdForUpdateAsync_Finalized_ReturnsNull()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-FUP2-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-FUP2-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-FUP2-CARGO");
@@ -133,7 +133,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task GetByIdIncludingHistoryAsync_ReturnsEvenIfDeleted()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-GHIS-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-GHIS-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-GHIS-CARGO");
@@ -169,7 +169,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_WithSoftDelete_SavesIsDeleted()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-SDEL-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-SDEL-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-SDEL-CARGO");
@@ -203,7 +203,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_WithFinalize_SavesFechaFin()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-SFIN-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-SFIN-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-SFIN-CARGO");
@@ -236,7 +236,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_WithReactivation_ClearsFechaFinAndIsDeleted()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-SREA-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-SREA-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-SREA-CARGO");
@@ -274,7 +274,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveByPuestoAsync_Active_ReturnsTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-EPUE-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-EPUE-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-EPUE-CARGO");
@@ -299,7 +299,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveByPuestoAsync_NoActive_ReturnsFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new OcupacionRepository(context);
 
         var exists = await repo.ExistsActiveByPuestoAsync(Guid.NewGuid(), cancellationToken: default);
@@ -310,7 +310,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveByPuestoAsync_Finalized_ReturnsFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-EPU2-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-EPU2-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-EPU2-CARGO");
@@ -335,7 +335,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveByPuestoAsync_ExcludingId_IgnoresSelf()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-EPU3-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-EPU3-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-EPU3-CARGO");
@@ -360,7 +360,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveByPersonaYPuestoAsync_Active_ReturnsTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-EPP-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-EPP-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-EPP-CARGO");
@@ -385,7 +385,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveByPersonaYPuestoAsync_DifferentPersona_ReturnsFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona1 = RepositoryTestData.CreatePersona("OCUP-EPP2-P1");
         var persona2 = RepositoryTestData.CreatePersona("OCUP-EPP2-P2");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-EPP2-UO");
@@ -411,7 +411,7 @@ public sealed class OcupacionRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveByPersonaYPuestoAsync_ExcludingId_IgnoresSelf()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var persona = RepositoryTestData.CreatePersona("OCUP-EPP3-PER");
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("OCUP-EPP3-UO");
         var cargo = RepositoryTestData.CreateCargo("OCUP-EPP3-CARGO");

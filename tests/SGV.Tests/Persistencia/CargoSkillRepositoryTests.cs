@@ -17,7 +17,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task AddAsync_AgregaCargoHabilidad_YLuegoSePuedeConsultar()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var cargo = RepositoryTestData.CreateCargo("CSK-ADD", NivelCargoConstantes.DirectivoId);
@@ -56,7 +56,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task AddAsync_DuplicadoPorCargoHabilidad_LanzaDbUpdateException()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var cargo = RepositoryTestData.CreateCargo("CSK-DUP", NivelCargoConstantes.DirectivoId);
@@ -80,7 +80,7 @@ public sealed class CargoSkillRepositoryTests
         finally
         {
             // Use a fresh context for cleanup to avoid tracking conflicts
-            await using var cleanContext = new SgvDbContextFactory().CreateDbContext([]);
+            await using var cleanContext = new TestSgvDbContextFactory().CreateDbContext([]);
             cleanContext.Set<CargoHabilidadEntity>().RemoveRange(
                 await cleanContext.Set<CargoHabilidadEntity>()
                     .Where(ch => ch.CargoId == cargo.Id)
@@ -100,7 +100,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_ActualizaNivelRequerido()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var cargo = RepositoryTestData.CreateCargo("CSK-UPD", NivelCargoConstantes.DirectivoId);
@@ -147,7 +147,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task DeleteAsync_EliminaFisicamente()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var cargo = RepositoryTestData.CreateCargo("CSK-DEL", NivelCargoConstantes.DirectivoId);
@@ -194,7 +194,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task ListDetailedByCargoIdAsync_RetornaNestedSkillYNivel()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var cargo = RepositoryTestData.CreateCargo("CSK-DET", NivelCargoConstantes.DirectivoId);
@@ -236,7 +236,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task ListDetailedByCargoIdAsync_SinAsignaciones_RetornaVacio()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var resultado = await repo.ListDetailedByCargoIdAsync(Guid.NewGuid(), default);
@@ -248,7 +248,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task ListByCargoIdAsync_RetornaSoloLasDelCargo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var cargo1 = RepositoryTestData.CreateCargo("CSK-L1", NivelCargoConstantes.DirectivoId);
@@ -287,7 +287,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task GetByCargoAndSkillAsync_NoExistente_RetornaNull()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var resultado = await repo.GetByCargoAndSkillAsync(Guid.NewGuid(), Guid.NewGuid(), default);
@@ -298,7 +298,7 @@ public sealed class CargoSkillRepositoryTests
     [MySqlFact]
     public async Task ListByCargoIdAsync_SinAsignaciones_RetornaVacio()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoSkillRepository(context);
 
         var resultado = await repo.ListByCargoIdAsync(Guid.NewGuid(), default);

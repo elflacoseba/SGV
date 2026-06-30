@@ -12,7 +12,7 @@ namespace SGV.Tests.Persistencia;
 
 public sealed class ModeloPersistenciaTests
 {
-    private readonly SgvDbContext _contexto = new SgvDbContextFactory().CreateDbContext([]);
+    private readonly SgvDbContext _contexto = new TestSgvDbContextFactory().CreateDbContext([]);
 
     [Fact]
     public void Proveedor_UsaPomeloMySqlYNoSqlServer()
@@ -332,7 +332,7 @@ public sealed class ModeloPersistenciaTests
     public void Migraciones_PuedenConectarseAlServidorMySql()
     {
         // Verifies the database server is reachable with the configured connection.
-        using var contexto = new SgvDbContextFactory().CreateDbContext([]);
+        using var contexto = new TestSgvDbContextFactory().CreateDbContext([]);
         var canConnect = contexto.Database.CanConnect();
 
         Assert.True(canConnect);
@@ -347,7 +347,7 @@ public sealed class ModeloPersistenciaTests
     [Fact]
     public void Migraciones_SnapshotUsaTiposEntityYNoDominio()
     {
-        using var contexto = new SgvDbContextFactory().CreateDbContext([]);
+        using var contexto = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var migrationsAssembly = contexto.Database.GetService<IMigrationsAssembly>();
         var snapshot = migrationsAssembly.ModelSnapshot;
@@ -386,7 +386,7 @@ public sealed class ModeloPersistenciaTests
     [MySqlFact]
     public void Migraciones_ScriptIdempotenteNoGeneraDDL()
     {
-        using var contexto = new SgvDbContextFactory().CreateDbContext([]);
+        using var contexto = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var migrator = contexto.Database.GetService<IMigrator>();
         var migrationsAssembly = contexto.Database.GetService<IMigrationsAssembly>();

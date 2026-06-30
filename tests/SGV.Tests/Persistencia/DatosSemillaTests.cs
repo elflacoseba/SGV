@@ -54,7 +54,7 @@ public sealed class DatosSemillaTests
     [Fact]
     public void DatosSemilla_SoloIncluyeRolesFijosDeSgv()
     {
-        using var context = new SgvDbContextFactory().CreateDbContext([]);
+        using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var designModel = context.GetService<IDesignTimeModel>().Model;
         var roles = designModel.FindEntityType(typeof(IdentityRole))!
             .GetSeedData()

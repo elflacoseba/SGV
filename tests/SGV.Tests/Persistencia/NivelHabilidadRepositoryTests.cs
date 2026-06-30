@@ -12,7 +12,7 @@ public sealed class NivelHabilidadRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_RetornaNivelesHabilidadSembrados()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new NivelHabilidadRepository(context);
 
         var niveles = await repo.ListAllAsync(default);
@@ -25,7 +25,7 @@ public sealed class NivelHabilidadRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_RetornaNivelesOrdenadosPorCodigo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new NivelHabilidadRepository(context);
 
         var niveles = await repo.ListAllAsync(default);
@@ -40,7 +40,7 @@ public sealed class NivelHabilidadRepositoryTests
     [MySqlFact]
     public async Task GetByIdAsync_NivelExistente_RetornaNivel()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new NivelHabilidadRepository(context);
 
         var nivel = await repo.GetByIdAsync(DatosSemilla.NivelBasicoId, default);
@@ -53,7 +53,7 @@ public sealed class NivelHabilidadRepositoryTests
     [MySqlFact]
     public async Task GetByIdAsync_NivelInexistente_RetornaNull()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new NivelHabilidadRepository(context);
 
         var nivel = await repo.GetByIdAsync(Guid.NewGuid(), default);

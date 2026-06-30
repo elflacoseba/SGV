@@ -18,7 +18,7 @@ public sealed class PersonaRepositoryUniqueConstraintsTests
     [MySqlFact]
     public async Task AddAsync_LegajoDuplicadoActivo_LanzaDbUpdateException()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaRepository(context);
         var legajoCompartido = "LEG-UNIQ-" + Guid.NewGuid().ToString("N")[..8];
 
@@ -55,7 +55,7 @@ public sealed class PersonaRepositoryUniqueConstraintsTests
     [MySqlFact]
     public async Task AddAsync_EmailDuplicadoActivo_LanzaDbUpdateException()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaRepository(context);
         var emailCompartido = "dup-email-" + Guid.NewGuid().ToString("N")[..8] + "@test.com";
         var legajo1 = "LEG-EML1-" + Guid.NewGuid().ToString("N")[..8];
@@ -92,7 +92,7 @@ public sealed class PersonaRepositoryUniqueConstraintsTests
     [MySqlFact]
     public async Task AddAsync_DocumentoDuplicadoActivo_LanzaDbUpdateException()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaRepository(context);
         var legajo1 = "LEG-DOC1-" + Guid.NewGuid().ToString("N")[..8];
         var legajo2 = "LEG-DOC2-" + Guid.NewGuid().ToString("N")[..8];
@@ -134,7 +134,7 @@ public sealed class PersonaRepositoryUniqueConstraintsTests
     [MySqlFact]
     public async Task AddAsync_LegajoReutilizadoTrasBaja_PermiteCreacion()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaRepository(context);
         var legajoReutilizado = "LEG-REUSE-" + Guid.NewGuid().ToString("N")[..8];
 
@@ -174,7 +174,7 @@ public sealed class PersonaRepositoryUniqueConstraintsTests
     [MySqlFact]
     public async Task AddAsync_EmailReutilizadoTrasBaja_PermiteCreacion()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaRepository(context);
         var emailReutilizado = "reuse-email-" + Guid.NewGuid().ToString("N")[..8] + "@test.com";
         var legajo1 = "LEG-RSEML1-" + Guid.NewGuid().ToString("N")[..8];

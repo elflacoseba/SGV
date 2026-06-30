@@ -16,7 +16,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task AddAsync_AgregaPersonaHabilidad_YLuegoSePuedeConsultar()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var persona = RepositoryTestData.CreatePersona("PSK-ADD");
@@ -53,7 +53,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task AddAsync_DuplicadoPorPersonaHabilidad_LanzaDbUpdateException()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var persona = RepositoryTestData.CreatePersona("PSK-DUP");
@@ -76,7 +76,7 @@ public sealed class PersonaSkillRepositoryTests
         }
         finally
         {
-            await using var cleanContext = new SgvDbContextFactory().CreateDbContext([]);
+            await using var cleanContext = new TestSgvDbContextFactory().CreateDbContext([]);
             cleanContext.Set<PersonaHabilidadEntity>().RemoveRange(
                 await cleanContext.Set<PersonaHabilidadEntity>()
                     .Where(ph => ph.PersonaId == persona.Id)
@@ -96,7 +96,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_ActualizaNivelHabilidad()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var persona = RepositoryTestData.CreatePersona("PSK-UPD");
@@ -140,7 +140,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task DeleteAsync_EliminaFisicamente()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var persona = RepositoryTestData.CreatePersona("PSK-DEL");
@@ -184,7 +184,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task ListDetailedByPersonaIdAsync_RetornaNestedSkillYNivel()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var persona = RepositoryTestData.CreatePersona("PSK-DET");
@@ -226,7 +226,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task ListDetailedByPersonaIdAsync_SinAsignaciones_RetornaVacio()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var resultado = await repo.ListDetailedByPersonaIdAsync(Guid.NewGuid(), default);
@@ -238,7 +238,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task ListByPersonaIdAsync_RetornaSoloLasDeLaPersona()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var persona1 = RepositoryTestData.CreatePersona("PSK-L1");
@@ -278,7 +278,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task GetByPersonaAndSkillAsync_NoExistente_RetornaNull()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var resultado = await repo.GetByPersonaAndSkillAsync(Guid.NewGuid(), Guid.NewGuid(), default);
@@ -289,7 +289,7 @@ public sealed class PersonaSkillRepositoryTests
     [MySqlFact]
     public async Task ListByPersonaIdAsync_SinAsignaciones_RetornaVacio()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PersonaSkillRepository(context);
 
         var resultado = await repo.ListByPersonaIdAsync(Guid.NewGuid(), default);

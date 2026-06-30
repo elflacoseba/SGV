@@ -18,7 +18,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_ExcluyeEntidadesEliminadas()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new HabilidadRepository(context);
         var entidades = await repo.ListAllAsync(default);
@@ -32,7 +32,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_RetornaHabilidadesOrdenadasPorCodigo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new HabilidadRepository(context);
         var entidades = await repo.ListAllAsync(default);
@@ -47,7 +47,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task GetByIdAsync_RetornaNull_CuandoNoExiste()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new HabilidadRepository(context);
         var noExiste = await repo.GetByIdAsync(Guid.NewGuid(), default);
@@ -60,7 +60,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task AddAsync_AgregaHabilidad_YLuegoSePuedeConsultar()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new HabilidadRepository(context);
         var habilidad = new Habilidad("TEST-HAB-01", "Test Habilidad", "Test", "Test desc");
 
@@ -89,7 +89,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task GetByIdForUpdateAsync_RetornaHabilidadActiva()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateHabilidad("HAB-UPDATE");
         await context.Set<HabilidadEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -113,7 +113,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task GetByIdForUpdateAsync_HabilidadInactiva_RetornaNull()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateHabilidad("HAB-INACT");
         entity.IsActive = false;
         await context.Set<HabilidadEntity>().AddAsync(entity);
@@ -136,7 +136,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task GetByIdIncludingDeletedAsync_RetornaHabilidadInactiva()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateHabilidad("HAB-DEL");
         entity.IsDeleted = true;
         entity.DeletedAt = DateTime.UtcNow;
@@ -161,7 +161,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_ModificaCampos()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateHabilidad("HAB-MOD");
         await context.Set<HabilidadEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -194,7 +194,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task DeleteAsync_MarcaComoInactivoYEliminado()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateHabilidad("HAB-DEL2");
         await context.Set<HabilidadEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -225,7 +225,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task ReactivateAsync_RestauraEstadoActivo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateHabilidad("HAB-REACT");
         await context.Set<HabilidadEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -254,7 +254,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_CodigoExistente_RetornaTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateHabilidad("HAB-EXIST");
         await context.Set<HabilidadEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -277,7 +277,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_ExcluyendoId_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateHabilidad("HAB-EXCL");
         await context.Set<HabilidadEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -302,7 +302,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task AddAsync_DuplicateActiveCodigo_LanzaDbUpdateException()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new HabilidadRepository(context);
         var codigoCompartido = "UNIQ-DUP-" + Guid.NewGuid().ToString("N")[..8];
 
@@ -331,7 +331,7 @@ public sealed class HabilidadRepositoryTests
     [MySqlFact]
     public async Task DeleteAsync_HabilidadReferenciada_NoAlteraCargoHabilidad()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new HabilidadRepository(context);
 
         var cargoEntity = RepositoryTestData.CreateCargo("CRG-REF", NivelCargoConstantes.DirectivoId);

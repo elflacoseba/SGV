@@ -9,7 +9,7 @@ namespace SGV.Tests.Persistencia;
 
 public sealed class SgvIdentityUserConfiguracionTests
 {
-    private readonly SgvDbContext _context = new SgvDbContextFactory().CreateDbContext([]);
+    private readonly SgvDbContext _context = new TestSgvDbContextFactory().CreateDbContext([]);
 
     [Fact]
     public void SgvIdentityUser_ConfiguresRequiredPersonaId()
@@ -51,7 +51,7 @@ public sealed class IdentityUserPersistenceTests
     [MySqlFact]
     public async Task IdentityUser_LinkedToPersona_SurvivesPersonaDeactivateAndReactivate()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         // Arrange: create a Persona and an SgvIdentityUser linked to it
         var persona = new PersonaEntity
@@ -120,7 +120,7 @@ public sealed class IdentityUserPersistenceTests
     [MySqlFact]
     public async Task SaveIdentityUser_WithInvalidPersonaId_ThrowsDbUpdateException()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var invalidPersonaId = Guid.NewGuid(); // Does not exist in Personas table
 

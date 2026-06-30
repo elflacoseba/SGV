@@ -12,7 +12,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_ExcluyeEntidadesInactivasYEliminadas()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-UO-LIST");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-CARGO-LIST");
         var visible = RepositoryTestData.CreatePuesto("PUESTO-VISIBLE", unidad, cargo);
@@ -51,7 +51,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_IncluyeRelacionesUnidadOrganizativaYCargo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-UO-REL");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-CARGO-REL");
         var visible = RepositoryTestData.CreatePuesto("PUESTO-REL", unidad, cargo);
@@ -89,7 +89,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task GetByIdAsync_IncluyeRelaciones()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-UO-BY-ID");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-CARGO-BY-ID");
         var expected = RepositoryTestData.CreatePuesto("PUESTO-BY-ID", unidad, cargo);
@@ -128,7 +128,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task AddAsync_PersistePuestoActivoConRelaciones()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-ADD-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-ADD-CARGO");
 
@@ -170,7 +170,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task GetByIdForUpdateAsync_RetornaPuestoActivoConRelaciones()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-UPD-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-UPD-CARGO");
         var puestoEntity = RepositoryTestData.CreatePuesto("PUESTO-UPD", unidad, cargo);
@@ -204,7 +204,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task GetByIdForUpdateAsync_Eliminado_RetornaNull()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-UPD2-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-UPD2-CARGO");
         var puestoEntity = RepositoryTestData.CreatePuesto("PUESTO-UPD2", unidad, cargo, isDeleted: true);
@@ -233,7 +233,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task GetByIdIncludingDeletedAsync_RetornaIncluyendoEliminados()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-INCDEL-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-INCDEL-CARGO");
         var activo = RepositoryTestData.CreatePuesto("PUESTO-INCDEL-ACT", unidad, cargo);
@@ -270,7 +270,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task DeleteAsync_AplicaBajaLogica()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-DEL-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-DEL-CARGO");
         var puestoEntity = RepositoryTestData.CreatePuesto("PUESTO-DEL", unidad, cargo);
@@ -307,7 +307,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task ReactivateAsync_RestauraEstadoActivo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-REACT-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-REACT-CARGO");
         var puestoEntity = RepositoryTestData.CreatePuesto("PUESTO-REACT", unidad, cargo, isDeleted: true);
@@ -344,7 +344,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task ReactivateAsync_ConservaRelaciones()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-REACT-REL-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-REACT-REL-CARGO");
         var superior = RepositoryTestData.CreatePuesto("PUESTO-REACT-REL-SUP", unidad, cargo);
@@ -384,7 +384,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_Activo_RetornaTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-EXIST-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-EXIST-CARGO");
         var puestoEntity = RepositoryTestData.CreatePuesto("PUESTO-EXIST", unidad, cargo);
@@ -414,7 +414,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_SinActivo_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new PuestoRepository(context);
 
         var existe = await repo.ExistsActiveCodeAsync("NO-EXISTE-99999", default);
@@ -425,7 +425,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_Eliminado_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-EXDEL-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-EXDEL-CARGO");
         var puestoEntity = RepositoryTestData.CreatePuesto("PUESTO-EXDEL", unidad, cargo, isDeleted: true);
@@ -455,7 +455,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_ExcluyendoId_IgnoraElPropio()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-EXID-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-EXID-CARGO");
         var puestoEntity = RepositoryTestData.CreatePuesto("PUESTO-EXID", unidad, cargo);
@@ -485,7 +485,7 @@ public sealed class PuestoRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_ActualizaCamposEditables()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-UPDT-UO");
         var cargo = RepositoryTestData.CreateCargo("PUESTO-UPDT-CARGO");
         var puestoEntity = RepositoryTestData.CreatePuesto("PUESTO-UPDT", unidad, cargo);

@@ -20,7 +20,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_ExcluyeEntidadesInactivasYEliminadas()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var visible = RepositoryTestData.CreateCargo("CRG-VISIBLE", NivelIdValido);
         var inactive = RepositoryTestData.CreateCargo("CRG-INACTIVE", NivelIdValido);
         inactive.IsActive = false;
@@ -47,7 +47,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task ListAllAsync_RetornaCargosOrdenadosPorCodigo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new CargoRepository(context);
         var entidades = await repo.ListAllAsync(default);
@@ -62,7 +62,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task GetByIdAsync_RetornaNull_CuandoNoExiste()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new CargoRepository(context);
         var noExiste = await repo.GetByIdAsync(Guid.NewGuid(), default);
@@ -75,7 +75,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task AddAsync_AgregaCargo_YLuegoSePuedeConsultar()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new CargoRepository(context);
         var cargo = new Cargo("TEST-CRG-01", "Test Cargo", NivelIdValido, "Test desc");
 
@@ -104,7 +104,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task GetByIdForUpdateAsync_RetornaCargoActivo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateCargo("CRG-UPDATE", NivelIdValido);
         await context.Set<CargoEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -128,7 +128,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task GetByIdForUpdateAsync_CargoInactivo_RetornaNull()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateCargo("CRG-INACT", NivelIdValido);
         entity.IsActive = false;
         await context.Set<CargoEntity>().AddAsync(entity);
@@ -151,7 +151,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task GetByIdIncludingDeletedAsync_RetornaCargoInactivo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateCargo("CRG-DEL", NivelIdValido);
         entity.IsDeleted = true;
         entity.DeletedAt = DateTime.UtcNow;
@@ -176,7 +176,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task UpdateAsync_ModificaCampos()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateCargo("CRG-MOD", NivelIdValido);
         await context.Set<CargoEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -209,7 +209,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task DeleteAsync_MarcaComoInactivoYEliminado()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateCargo("CRG-DEL2", NivelIdValido);
         await context.Set<CargoEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -240,7 +240,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task ReactivateAsync_RestauraEstadoActivo()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateCargo("CRG-REACT", NivelIdValido);
         await context.Set<CargoEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -269,7 +269,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_CodigoExistente_RetornaTrue()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateCargo("CRG-EXIST", NivelIdValido);
         await context.Set<CargoEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
@@ -292,7 +292,7 @@ public sealed class CargoRepositoryTests
     [MySqlFact]
     public async Task ExistsActiveCodeAsync_ExcluyendoId_RetornaFalse()
     {
-        await using var context = new SgvDbContextFactory().CreateDbContext([]);
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var entity = RepositoryTestData.CreateCargo("CRG-EXCL", NivelIdValido);
         await context.Set<CargoEntity>().AddAsync(entity);
         await context.SaveChangesAsync();
