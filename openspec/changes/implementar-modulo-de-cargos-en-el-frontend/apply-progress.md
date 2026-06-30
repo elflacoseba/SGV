@@ -7,7 +7,7 @@
 - Estrategia de entrega: chained PRs (stacked-to-develop)
 - PR actual: **PR 2 / 3** — Listado activo y baja lógica (Phase 2)
 - Branch: `feat/cargos-web-listado-baja`
-- PR abierta: <https://github.com/elflacoseba/SGV/pull/56>
+- PR abierta: <https://github.com/elflacoseba/SGV/pull/57>
 - Estado PR: OPEN — pendiente de revisión humana (no merge desde el ejecutor).
 - Review budget PR 2: ~960 líneas netas (+1003 ins / -43 del). Supera el budget de 400 líneas; aceptado por el orquestador junto con PR 1 cuando eligió `stacked-to-develop`. PR 2 está acotado a `SGV.Web` (`Pages/Organizacion/Cargos/Index.*` + `wwwroot/js/pages/cargos-index.js`) + `tests/SGV.Tests/Web/Cargo/**` (nuevo `CargoIndexPageTests.cs`, nuevo `FakeCargoApiClient.cs` extraído, ajuste de `CargoWebSeamTests.cs` para consumir el fake compartido).
 - Estado de tests (PR 2 scope): `dotnet test --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests|FullyQualifiedName~CargoIndexPageTests"` → 25/25 PASS.
@@ -192,7 +192,7 @@ Todos los mensajes respetan conventional commits; sin `Co-Authored-By` ni atribu
 
 ## Next steps recomendados (Phase 2)
 
-1. Revisión humana de PR 2 (PR #56).
+1. Revisión humana de PR 2 (PR #57).
 2. Una vez aprobado, merge de PR 2 en `feat/cargos-web-foundation` (o rebase + merge directo en develop, según la decisión final sobre PR 1).
 3. Abrir PR 3 (`feat/cargos-web-detalle-readonly`) con la implementación completa de `Details.cshtml` + `Details.cshtml.cs`.
 4. Phase 4: `bun run build` (o `gulp build`) en `src/SGV.Web` + `dotnet test SGV.slnx` sin filtro verde.
