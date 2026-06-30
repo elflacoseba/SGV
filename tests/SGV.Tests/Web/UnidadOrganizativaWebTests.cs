@@ -134,7 +134,7 @@ public sealed class UnidadOrganizativaWebTests
     }
 
     [Fact]
-    public async Task Get_Index_WhenTreeViewRequested_RendersHierarchyAndUsesTreeEndpoint()
+    public async Task Get_Organigrama_WhenTreeHasNodes_RendersHierarchyAndUsesTreeEndpoint()
     {
         var facultyId = Guid.NewGuid();
         var departmentId = Guid.NewGuid();
@@ -160,12 +160,14 @@ public sealed class UnidadOrganizativaWebTests
 
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/unidades-organizativas?view=tree");
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/organigrama");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Vista árbol", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("orgchart", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Organigrama", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=\"orgchart\"", content, StringComparison.OrdinalIgnoreCase);
+        // Los nombres del árbol los renderiza el JS de Google Charts en el cliente;
+        // el HTML inicial no debe contenerlos porque se inyectan en runtime.
         Assert.DoesNotContain("Rectorado", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Facultad de Ingeniería", content, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, apiClient.TreeCalls);
@@ -173,37 +175,37 @@ public sealed class UnidadOrganizativaWebTests
     }
 
     [Fact]
-    public async Task Get_Index_WhenTreeViewHasNoNodes_ShowsTreeEmptyState()
+    public async Task Get_Organigrama_WhenTreeIsEmpty_ShowsEmptyState()
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
         apiClient.TreeResult = [];
 
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/unidades-organizativas?view=tree");
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/organigrama");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("No hay unidades organizativas para mostrar en el árbol", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No hay unidades organizativas para mostrar en el organigrama", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<table", content, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, apiClient.TreeCalls);
     }
 
     [Fact]
-    public async Task Get_Index_WhenTreeViewFails_ShowsVisibleErrorAndFallbackActions()
+    public async Task Get_Organigrama_WhenTreeFails_ShowsVisibleErrorAndFallbackActions()
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
         apiClient.TreeException = new HttpRequestException("tree-boom");
 
         using var client = await CreateAuthenticatedClientAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/unidades-organizativas?view=tree");
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/organigrama");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("No se pudo cargar el árbol", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("view=list", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Vista árbol", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No se pudo cargar el organigrama", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/organizacion/unidades-organizativas", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Volver al listado", content, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, apiClient.TreeCalls);
         Assert.Empty(apiClient.QueryCalls);
     }
