@@ -202,3 +202,85 @@ dotnet test SGV.slnx --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedNa
 ```
 
 Ambos deben pasar en verde local (25/25). La CI levantará MySQL y ejecutará la suite completa.
+
+---
+
+# PR 3 — Detalle readonly (Phase 3)
+
+## Estado de Phase 3
+
+- Branch: `feat/cargos-web-detalle-readonly`
+- Base: `develop` (PR 2 mergeado en `7de20163`).
+- Commits: 3 (`test RED` → `feat GREEN` → `docs REFACTOR`).
+- Tareas 3.1–3.5 completas.
+- Tests: 2 nuevos (RED directo) = 27/27 PASS en el scope PR 3.
+- Build: `dotnet build SGV.slnx` → 0 warnings, 0 errors.
+- `grep` de tokens prohibidos (`Crear|Editar|Habilidades|Reactivar`) sobre `src/SGV.Web/Pages/Organizacion/Cargos/*` → 0 matches (alcance de PR 3 honrado).
+
+## TDD Cycle Evidence (Strict TDD, Phase 3)
+
+| Tarea | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| 3.1 | `tests/SGV.Tests/Web/Cargo/CargoDetailsPageTests.cs::Get_Details_WhenAuthenticated_ShowsCargoReadOnly` | Integration (`WebApplicationFactory` + fake `ICargoApiClient`) | ✅ 25/25 baseline (Phase 1+2) | ✅ Written; falla con "C-001" ausente (el placeholder no renderizaba datos) | ✅ Passing tras `OnGetAsync` + `dl` readonly en `Details.cshtml` | ➖ Single — el escenario cubre "detalle existente" sin ramas de variación (los campos son fijos) | ➖ Sin duplicación a extraer (página nueva, sin lógica compartida con Index) |
+| 3.2 | `tests/SGV.Tests/Web/Cargo/CargoDetailsPageTests.cs::Get_Details_WhenCargoNotFound_ShowsNotAvailableState` | Integration | ✅ 25/25 baseline | ✅ Written; falla con "no está disponible" ausente | ✅ Passing tras rama `IsNotFound` + `<div class="card">` con mensaje informativo | ➖ Single — un único camino "no encontrado", sin branching interno | ➖ Sin refactor (código mínimo) |
+| 3.3 | n/a (GREEN impl) | n/a | ✅ 25/25 | ✅ Tests 3.1, 3.2 en RED | ✅ `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml.cs`: `[Authorize]`, ctor primario (`ICargoApiClient`, `ILogger`), `OnGetAsync(id, p, search, sort)`, log warning en 404, log error en excepción, `IsNotFound` + retorno preservando filtros. | n/a | ✅ XML docs en todos los miembros públicos |
+| 3.4 | n/a (GREEN impl) | n/a | ✅ 25/25 | ✅ Tests 3.1, 3.2 en RED | ✅ `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml`: `@page "/organizacion/cargos/detalles/{id:guid}"`, `dl.row` con `dt.col-sm-3`/`dd.col-sm-9` para cada campo, rama `IsNotFound` con `<div class="card text-center">`, enlace "Volver al listado" preservando `p/search/sort` vía `Url.Page`. Sin Crear/Editar/Habilidades/Reactivar. | n/a | ➖ Sin refactor |
+| 3.5 | n/a (refactor + verify) | n/a | n/a | n/a | n/a | n/a | ✅ Código mínimo sin duplicación. ✅ `dotnet test --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests|FullyQualifiedName~CargoIndexPageTests|FullyQualifiedName~CargoDetailsPageTests"` → 27/27 PASS. ✅ Build 0 warnings. ✅ Tokens prohibidos ausentes. |
+
+### Test Summary (Phase 3)
+
+- **Total tests written**: 2 nuevos en `CargoDetailsPageTests.cs` (RED → GREEN).
+- **Total tests passing**: 27/27 (3 `CargoWebTests` + 7 `CargoApiClientTests` + 7 `CargoWebSeamTests` + 8 `CargoIndexPageTests` + 2 `CargoDetailsPageTests`).
+- **Layers used**: Integration (2 — `WebApplicationFactory` con `ICargoApiClient` falso).
+- **Approval tests** (refactoring): 0 — no se refactorizó código preexistente.
+- **Pure functions created**: 0 — el detalle es UI pura (lectura de API + render condicional).
+
+### Commits del PR 3
+
+| SHA | Tipo | Mensaje |
+|---|---|---|
+| _pendiente_ | test | `test(cargos-web): agregar RED para detalle readonly de cargos` |
+| _pendiente_ | feat | `feat(cargos-web): implementar detalle readonly con dl y estado no disponible` |
+| _pendiente_ | docs | `docs(cargos-web): documentar evidencia TDD de Phase 3 y marcar tareas 3.1-3.5 como completas` |
+
+Todos los mensajes respetan conventional commits; sin `Co-Authored-By` ni atribución a IA.
+
+### Archivos tocados (PR 3)
+
+| Archivo | Acción | Resumen |
+|---|---|---|
+| `tests/SGV.Tests/Web/Cargo/CargoDetailsPageTests.cs` | Creado | 2 tests: 3.1 (detalle existente con Codigo/Nombre/Descripcion/Nivel + Volver al listado), 3.2 (cargo no encontrado con estado recuperable). Helpers: `CreateCargo`, `CreateAuthenticatedClientAsync`, `ExtractAntiforgeryTokenAsync`, `RecordingHttpMessageHandler`. |
+| `tests/SGV.Tests/Web/Cargo/FakeCargoApiClient.cs` | Modificado | `GetByIdAsync` ahora busca en `_getAllResult` por Id (backward compatible: null si no está, null si eliminado, devuelve el cargo si existe). |
+| `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml` | Reemplazado | Implementación completa: `dl.row` readonly para Codigo/Nombre/Descripcion/Nivel + rama `IsNotFound` con mensaje informativo + enlace "Volver al listado" con `Url.Page` preservando `p/search/sort`. |
+| `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml.cs` | Reemplazado | `[Authorize]`, ctor primario (`ICargoApiClient`, `ILogger`), `OnGetAsync(id, p, search, sort)`, carga desde API, `IsNotFound` en null/exception, log warning/error según el caso. |
+| `openspec/changes/implementar-modulo-de-cargos-en-el-frontend/tasks.md` | Modificado | Phase 3 marcada como completada (3.1–3.5 `[x]`). |
+
+## Hallazgos / desviaciones (Phase 3)
+
+- **`FakeCargoApiClient.GetByIdAsync` actualizado para devolver datos reales**: antes devolvía `null` siempre. Ahora busca en `_getAllResult` por Id y filúa eliminados. Es 100% backward compatible: los tests existentes (Phase 1/2) nunca ejercitaban `GetByIdAsync`.
+- **Test 3.2 corregido durante RED**: la aserción original buscaba `"no disponible"` pero el texto visible es `"no está disponible"`. Se corrigió durante la fase RED antes de pasar a GREEN. Esto validó que el contenido HTML real se renderiza correctamente.
+
+## Riesgos residuales (Phase 3)
+
+- **Bajo (PR scope)**: el detalle readonly no ejerce el `HttpClient` real (usa fake). Las pruebas unitarias del `CargoApiClient` (7 tests) cubren la traducción de respuestas HTTP incluyendo el caso 200 y 404.
+- **Bajo (límite de PR)**: PR 3 es pequeño (~180 líneas estimadas, dentro del budget de 400). No requiere excepción.
+
+## PR Boundary (Phase 3)
+
+- **Starts from**: `develop` (PR 2 mergeado en `7de20163`).
+- **Ends with**: detalle readonly con `dl` + rama `IsNotFound` + "Volver al listado" preservando contexto. **NO incluye**: create/edit, skills, eliminados, reactivación, cambios backend, migraciones, `bun run build`, suite completa sin filtro (Phase 4).
+
+## Next steps recomendados (Phase 3)
+
+1. Revisión humana de PR 3.
+2. Una vez aprobado y mergeado, ejecutar Phase 4: `bun run build` en `src/SGV.Web` + `dotnet test SGV.slnx` sin filtro.
+3. Considerar cambio aparte para cerrar la regresión latente de `JsonException` en `UnidadOrganizativaApiClient.DeleteAsync` (detectada en PR 1).
+
+## Cómo reproducir la verificación (Phase 3)
+
+```bash
+dotnet build SGV.slnx
+dotnet test SGV.slnx --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests|FullyQualifiedName~CargoIndexPageTests|FullyQualifiedName~CargoDetailsPageTests" --no-build
+```
+
+Ambos deben pasar en verde local (27/27).

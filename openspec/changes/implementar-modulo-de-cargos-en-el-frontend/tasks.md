@@ -50,11 +50,11 @@ Chain strategy: pending
 
 ## Phase 3 — Detalle readonly (PR 3)
 
-- [ ] 3.1 RED: `Get_Details_WhenAuthenticated_ShowsCargoReadOnly` (`Codigo/Nombre/Descripcion/Nivel` + `Volver al listado`).
-- [ ] 3.2 RED: `Get_Details_WhenCargoNotFound_ShowsNotAvailableState`.
-- [ ] 3.3 GREEN: `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml.cs` (`[Authorize]`, `OnGetAsync(id, p, search, sort)`, log + estado no disponible).
-- [ ] 3.4 GREEN: `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml` con `dl` readonly y rama `IsNotFound` (sin reactivación).
-- [ ] 3.5 REFACTOR+VERIFY: `dotnet build SGV.slnx` y suite `CargoWebTests` completa en GREEN.
+- [x] 3.1 RED: `Get_Details_WhenAuthenticated_ShowsCargoReadOnly` (`Codigo/Nombre/Descripcion/Nivel` + `Volver al listado`).
+- [x] 3.2 RED: `Get_Details_WhenCargoNotFound_ShowsNotAvailableState`.
+- [x] 3.3 GREEN: `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml.cs` (`[Authorize]`, `OnGetAsync(id, p, search, sort)`, log + estado no disponible).
+- [x] 3.4 GREEN: `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml` con `dl` readonly y rama `IsNotFound` (sin reactivación).
+- [x] 3.5 REFACTOR+VERIFY: `dotnet build SGV.slnx` y suite `CargoWebTests` completa en GREEN.
 
 ## Phase 4 — Verificación final del slice
 

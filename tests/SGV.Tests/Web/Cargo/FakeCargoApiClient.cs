@@ -83,7 +83,16 @@ public sealed class FakeCargoApiClient : ICargoApiClient
     }
 
     public Task<CargoDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-        => Task.FromResult<CargoDto?>(null);
+    {
+        if (_getAllResult is null)
+            return Task.FromResult<CargoDto?>(null);
+
+        if (_deletedIds.Contains(id))
+            return Task.FromResult<CargoDto?>(null);
+
+        var cargo = _getAllResult.FirstOrDefault(c => c.Id == id);
+        return Task.FromResult(cargo);
+    }
 
     public Task<CargoDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
