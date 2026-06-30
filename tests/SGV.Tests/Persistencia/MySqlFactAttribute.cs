@@ -26,7 +26,20 @@ public sealed class MySqlFactAttribute : FactAttribute
         try
         {
             using var context = new TestSgvDbContextFactory().CreateDbContext([]);
-            return context.Database.CanConnect();
+
+            if (!context.Database.CanConnect())
+            {
+                return false;
+            }
+
+            // Bootstrap the test database schema once per test session. Migrate
+            // is idempotent: it creates the database if it doesn't exist and
+            // applies only the pending migrations. Tests that depend on a clean
+            // schema (auditoria interceptor, repos, unique constraints) can
+            // then insert/update/delete against sgv_test without extra setup.
+            context.Database.Migrate();
+
+            return true;
         }
         catch
         {
