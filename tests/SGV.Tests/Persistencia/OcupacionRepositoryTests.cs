@@ -482,7 +482,23 @@ public sealed class OcupacionRepositoryTests
 
     private static async Task CleanupAsync(SgvDbContext context, params object[] entities)
     {
-        foreach (var entity in entities)
+        // Delete in topological order: dependents first, principals last.
+        // Without this, marking a required-relationship parent (Persona)
+        // while its children (Ocupacion) are still tracked triggers the
+        // navigation fixer's "association severed" exception, since the
+        // FK Ocupacion.PersonaId is non-nullable and there is no cascade
+        // delete configured.
+        var ordered = entities.OrderBy(e => e switch
+        {
+            OcupacionEntity => 0,
+            PuestoEntity => 1,
+            CargoEntity => 2,
+            UnidadOrganizativaEntity => 3,
+            PersonaEntity => 4,
+            _ => 99,
+        });
+
+        foreach (var entity in ordered)
         {
             switch (entity)
             {
