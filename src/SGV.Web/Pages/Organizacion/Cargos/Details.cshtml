@@ -7,13 +7,62 @@
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
 
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h4 class="card-title mb-1">Detalle de cargo</h4>
-                <p class="text-muted mb-0">El detalle readonly se implementará en PR 3.</p>
+@if (Model.IsNotFound)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">El cargo solicitado no está disponible.</h5>
+                    <p class="text-muted mb-0">Es posible que el cargo haya sido eliminado o que haya ocurrido un error al consultarlo.</p>
+                </div>
             </div>
         </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-1">@Model.Cargo!.Nombre</h4>
+                    <p class="text-muted mb-0">@Model.Cargo!.Codigo</p>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3 text-muted">Código</dt>
+                        <dd class="col-sm-9">@Model.Cargo!.Codigo</dd>
+
+                        <dt class="col-sm-3 text-muted">Nombre</dt>
+                        <dd class="col-sm-9">@Model.Cargo!.Nombre</dd>
+
+                        <dt class="col-sm-3 text-muted">Descripción</dt>
+                        <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.Cargo!.Descripcion) ? "—" : Model.Cargo!.Descripcion)</dd>
+
+                        <dt class="col-sm-3 text-muted">Nivel</dt>
+                        <dd class="col-sm-9">
+                            @if (!string.IsNullOrWhiteSpace(Model.Cargo!.NivelNombre))
+                            {
+                                <span class="badge badge-soft-secondary">@Model.Cargo!.NivelNombre</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row mt-3">
+    <div class="col-12">
+        <a class="btn btn-outline-secondary" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })">
+            <i class="ti ti-arrow-left me-1"></i>Volver al listado
+        </a>
     </div>
 </div>
