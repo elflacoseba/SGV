@@ -2,6 +2,7 @@
     var currentPath = Context.Request.Path;
     var homeActive = currentPath == "/" ? "active" : string.Empty;
     var unidadesOrganizativasActive = currentPath.StartsWithSegments("/organizacion/unidades-organizativas") ? "active" : string.Empty;
+    var cargosActive = currentPath.StartsWithSegments("/organizacion/cargos") ? "active" : string.Empty;
 }
 
 <div class="sidenav-menu">
@@ -9,11 +10,11 @@
 <a class="logo" href="/">
 <span class="logo logo-light">
 <span class="logo-lg"><img alt="logo" src="/images/logo.png"/></span>
-<span class="logo-sm"><img alt="small logo" src="/images/logo-sm.png"/></span>
+<span class="logo logo-sm"><img alt="small logo" src="/images/logo-sm.png"/></span>
 </span>
 <span class="logo logo-dark">
 <span class="logo-lg"><img alt="dark logo" src="/images/logo-black.png"/></span>
-<span class="logo-sm"><img alt="small logo" src="/images/logo-sm.png"/></span>
+<span class="logo logo-sm"><img alt="small logo" src="/images/logo-sm.png"/></span>
 </span>
 </a>
 <!-- Sidebar Hover Menu Toggle Button -->
@@ -55,6 +56,22 @@
 <li class="side-nav-item">
 <a class="side-nav-link" href="/organizacion/unidades-organizativas/organigrama">
 <span class="menu-text">Organigrama</span>
+</a>
+</li>
+</ul>
+</div>
+</li>
+<li class="side-nav-item">
+<a aria-controls="cargos" aria-expanded="false" class="side-nav-link side-nav-link-toggle @cargosActive" data-bs-toggle="collapse" href="#cargos">
+<span class="menu-icon"><i class="ti ti-briefcase"></i></span>
+<span class="menu-text">Cargos</span>
+<span class="menu-arrow"></span>
+</a>
+<div class="collapse" id="cargos">
+<ul class="sub-menu">
+<li class="side-nav-item">
+<a class="side-nav-link @cargosActive" href="/organizacion/cargos">
+<span class="menu-text">Listado</span>
 </a>
 </li>
 </ul>

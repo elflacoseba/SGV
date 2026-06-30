@@ -19,6 +19,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly Action<IServiceCollection>? _configureServices;
     private readonly HttpMessageHandler? _authApiHandler;
     private readonly IUnidadOrganizativaApiClient? _unidadOrganizativaApiClient;
+    private readonly ICargoApiClient? _cargoApiClient;
 
     public SgvWebApplicationFactory()
     {
@@ -27,19 +28,22 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private SgvWebApplicationFactory(
         Action<IServiceCollection>? configureServices,
         HttpMessageHandler? authApiHandler,
-        IUnidadOrganizativaApiClient? unidadOrganizativaApiClient)
+        IUnidadOrganizativaApiClient? unidadOrganizativaApiClient,
+        ICargoApiClient? cargoApiClient)
     {
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
         _unidadOrganizativaApiClient = unidadOrganizativaApiClient;
+        _cargoApiClient = cargoApiClient;
     }
 
     public SgvWebApplicationFactory WithOverrides(
         Action<IServiceCollection>? configureServices = null,
         HttpMessageHandler? authApiHandler = null,
-        IUnidadOrganizativaApiClient? unidadOrganizativaApiClient = null)
+        IUnidadOrganizativaApiClient? unidadOrganizativaApiClient = null,
+        ICargoApiClient? cargoApiClient = null)
     {
-        return new SgvWebApplicationFactory(configureServices, authApiHandler, unidadOrganizativaApiClient);
+        return new SgvWebApplicationFactory(configureServices, authApiHandler, unidadOrganizativaApiClient, cargoApiClient);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -67,6 +71,12 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<IUnidadOrganizativaApiClient>();
                 services.AddSingleton(_unidadOrganizativaApiClient);
+            }
+
+            if (_cargoApiClient is not null)
+            {
+                services.RemoveAll<ICargoApiClient>();
+                services.AddSingleton(_cargoApiClient);
             }
         });
     }

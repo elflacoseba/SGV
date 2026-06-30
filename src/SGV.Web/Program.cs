@@ -39,6 +39,12 @@ builder.Services.AddHttpClient<IUnidadOrganizativaApiClient, UnidadOrganizativaA
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
 });
 
+builder.Services.AddHttpClient<ICargoApiClient, CargoApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
