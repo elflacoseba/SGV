@@ -78,6 +78,19 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - Si cambiás persistencia, índices únicos, soft delete, Identity o migraciones, no alcanza con pruebas puramente unitarias.
 - Si tocás `SGV.Web` o assets frontend, validá al menos `bun run build` además de la suite .NET relevante.
 
+## Tests de Integración con MySQL
+
+- Si tenés MySQL local con `root` sin password en puerto 3306 (setup default de Homebrew/Docker), los tests `[MySqlFact]` corren automáticamente contra la DB `sgv_test` **sin configuración adicional**.
+- El bootstrap es automático: `MySqlFactAttribute` aplica `Database.Migrate()` una vez por sesión de test. Crea `sgv_test` si no existe y aplica migraciones pendientes. Migrate es idempotente.
+- `TestSgvDbContextFactory` resuelve la connection string en este orden:
+  1. `ConnectionStrings__SgvDatabase` env var.
+  2. `appsettings.json` / `appsettings.Development.json` desde el CWD del test runner.
+  3. Default: `Server=localhost;Port=3306;Database=sgv_test;User=root;Password=;` (stock MySQL dev).
+  4. Si cae al stub `127.0.0.1:1` (sin configuración y sin MySQL), los `[MySqlFact]` se skipean limpio (146 tests).
+- Si tu MySQL local usa otro puerto, usuario o password, seteá `ConnectionStrings__SgvDatabase` en la shell antes de `dotnet test`.
+- El factory de producción (`SgvDbContextFactory`) **no usa estos defaults**: tira `InvalidOperationException` si no hay configuración, forzando al developer a usar `dotnet user-secrets` o env var en CI.
+- **Bug conocido (issue #59):** 12 tests de `OcupacionRepositoryTests` fallan contra MySQL real por un bug de tipo en la migración inicial (`ActivePuestoIdUnique INT` incompatible con `PuestoId CHAR(36)`). Pendiente de SDD change.
+
 ## Decisiones Técnicas que NO conviene romper
 
 - MySQL es el proveedor activo; no introducir supuestos de SQL Server.
