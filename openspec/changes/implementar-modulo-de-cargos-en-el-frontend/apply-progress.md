@@ -5,12 +5,12 @@
 - Cambio: `implementar-modulo-de-cargos-en-el-frontend`
 - Modo: Strict TDD (`openspec/config.yaml` → `strict_tdd: true`)
 - Estrategia de entrega: chained PRs (stacked-to-develop)
-- PR actual: **PR 1 / 3** — Fundación y shell (Phase 1)
-- Branch: `feat/cargos-web-foundation`
-- PR abierta: <https://github.com/elflacoseba/SGV/pull/55>
+- PR actual: **PR 2 / 3** — Listado activo y baja lógica (Phase 2)
+- Branch: `feat/cargos-web-listado-baja`
+- PR abierta: <https://github.com/elflacoseba/SGV/pull/57>
 - Estado PR: OPEN — pendiente de revisión humana (no merge desde el ejecutor).
-- Review budget PR 1: 350 líneas base + remediación de evidencia TDD (~313 líneas adicionales, mayormente tests). El ejecutor prioriza cerrar el CRITICAL del verify (RED directo en 1.3–1.7) por sobre el budget estricto; sigue siendo un PR acotado a `SGV.Web` + `SGV.Tests/Web` + artefacto SDD.
-- Estado de tests: `dotnet test --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests"` → 17/17 PASS.
+- Review budget PR 2: ~960 líneas netas (+1003 ins / -43 del). Supera el budget de 400 líneas; aceptado por el orquestador junto con PR 1 cuando eligió `stacked-to-develop`. PR 2 está acotado a `SGV.Web` (`Pages/Organizacion/Cargos/Index.*` + `wwwroot/js/pages/cargos-index.js`) + `tests/SGV.Tests/Web/Cargo/**` (nuevo `CargoIndexPageTests.cs`, nuevo `FakeCargoApiClient.cs` extraído, ajuste de `CargoWebSeamTests.cs` para consumir el fake compartido).
+- Estado de tests (PR 2 scope): `dotnet test --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests|FullyQualifiedName~CargoIndexPageTests"` → 25/25 PASS.
 - Estado de build: `dotnet build SGV.slnx` → success, 0 warnings, 0 errors.
 
 ## Resumen ejecutivo
@@ -106,7 +106,99 @@ Todos los mensajes respetan conventional commits; sin `Co-Authored-By` ni atribu
 
 ```bash
 dotnet build SGV.slnx
-dotnet test SGV.slnx --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests" --no-build
+dotnet test SGV.slnx --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests|FullyQualifiedName~CargoIndexPageTests" --no-build
 ```
 
-Ambos deben pasar en verde local (17/17). La CI levantará MySQL y ejecutará la suite completa, incluidos los escenarios preexistentes del módulo de unidades organizativas.
+Ambos deben pasar en verde local (25/25). La CI levantará MySQL y ejecutará la suite completa, incluidos los escenarios preexistentes del módulo de unidades organizativas.
+
+---
+
+# PR 2 — Listado activo y baja lógica (Phase 2)
+
+## Estado de Phase 2
+
+- Branch: `feat/cargos-web-listado-baja`
+- Base: `develop` (PR 1 mergeado en `01856599`).
+- Commits nuevos: 3 (`test RED` → `feat GREEN` → `refactor`).
+- Tareas 2.1–2.9 completas.
+- Tests: 8 nuevos (RED directo) + 2 existentes (`CargoWebSeamTests`) migrados al fake compartido = 25/25 PASS en el scope PR 2.
+- Build: `dotnet build SGV.slnx` → 0 warnings, 0 errors.
+- `grep` de tokens prohibidos (`Crear|Editar|Habilidades|Reactivar`) sobre `src/SGV.Web/Pages/Organizacion/Cargos/*` y `src/SGV.Web/wwwroot/js/pages/cargos-index.js` → 0 matches (alcance de PR 2 honrado).
+
+## TDD Cycle Evidence (Strict TDD, Phase 2)
+
+| Tarea | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| 2.1 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs::Get_Index_WhenAuthenticated_RendersActiveCargosTable` | Integration (`WebApplicationFactory` + fake `ICargoApiClient`) | ✅ 17/17 baseline antes de tocar páginas | ✅ Written; falla con `Assert.Contains` "C-001" ausente (la página era placeholder) | ✅ Passing tras `OnGetAsync` + tabla en `Index.cshtml` | ✅ 2 casos: 2 filas activas distintas ejercitan `.Select(MapToViewModel)` y los enlaces Detalle/Eliminar; ausencia explícita de Crear/Editar/Habilidades/Eliminadas | ➖ Sin duplicación a extraer (cada assertion es única y de comportamiento observable) |
+| 2.2 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs::Get_Index_WhenSearchHasNoResults_ShowsEmptyState` | Integration | ✅ 17/17 baseline | ✅ Written; falla con "No se encontraron cargos" ausente | ✅ Passing tras el render de la fila vacía contextual con `<td colspan="4">` | ✅ Single caso (lista vacía) | ➖ Sin refactor (placeholder `<td colspan="4">` ya quedó) |
+| 2.3 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs::Get_Index_WhenQueryFails_ShowsVisibleError` | Integration (fake que lanza `HttpRequestException`) | ✅ 17/17 baseline | ✅ Written; falla con "No se pudo cargar el listado" ausente y `Alert` sin clase `alert-danger` | ✅ Passing tras `LoadAsync` con `try/catch` + `LoadErrorMessage` + `<div class="alert alert-danger">` | ✅ 2 casos contra polaridad opuesta: 2.2 (datos vacíos controlados) y 2.3 (consulta rota con `HttpRequestException`) — cubren los dos caminos del `try/catch` | ➖ Sin refactor |
+| 2.4 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs::DeleteConfirmationScript_WhenCancelled_DoesNotSubmitForm` + `_WhenConfirmed_SubmitsFormOnce` | Unit (Node harness `.cjs` con DOM fake + `Swal` mock) | ✅ 17/17 baseline | ✅ Written; los 2 tests fallan porque `cargos-index.js` no existe todavía (`require` lanza ENOENT). Confirmado ejecutando `dotnet test --filter` antes de GREEN. | ✅ Passing tras `cargos-index.js` con `wireCargoDeleteConfirmation` (espejo del patrón de `unidades-organizativas-index.js`): `showCancelButton`, `reverseButtons`, `confirmButtonText = "Sí, eliminar"`, `cancelButtonText = "Cancelar"`. | ✅ 2 casos: cancelación (no submit) y confirmación (submit único). Cubren ambas ramas de `result.isConfirmed`. | ✅ `module.exports = { wireCargoDeleteConfirmation }` agregado al final del script para mantener simetría con el script de unidades y permitir el harness Node sin ejecutar el DOM real. |
+| 2.5 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs::Post_Delete_WhenSuccessful_RedirectsPreservingFiltersAndRefreshRemovesRow` + `_WhenConflict_ShowsFeedbackAndKeepsRowVisible` + `_WhenNotFound_ShowsFeedbackAndKeepsRowVisible` | Integration (POST + GET refresh) | ✅ 17/17 baseline | ✅ Written; 3 tests fallan: success porque `OnPostDeleteAsync` no existía, conflict porque la página no traducía `ProblemDetails.Detail`, not-found porque no había rama 404 | ✅ Passing tras `OnPostDeleteAsync` con `ResolveRedirectPageAsync`, `TempData` (success/danger) y 3 ramas de feedback (409/404/default). | ✅ 3 casos contra 3 ramas del contrato backend: 204, 409 (`CargoConPuestosActivos`), 404 (`CargoNoEncontrado`). El test de 409 valida la concatenación del prefijo "No se pudo eliminar el cargo." con el `ProblemDetails.Detail`. | ➖ Sin refactor posterior — la lógica de mensaje se mantuvo en un solo `switch` claro |
+| 2.6 | n/a (GREEN impl) | n/a | ✅ 17/17 | ✅ Tests 2.1–2.3, 2.5 en RED | ✅ `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs`: `[Authorize]`, ctor primario (`ICargoApiClient`, `ILogger`), `OnGetAsync`, `OnPostDeleteAsync`, `ResolveRedirectPageAsync`, `ApplyVisibleFilter/Sort`, `GetSortRoute/GetSortIcon`, `MapToViewModel`, manejo de errores con `LoadErrorMessage`. | n/a | ✅ Helpers `ApplyVisiblePage` y `ComputeTotalCount` extraídos en commit aparte para eliminar duplicación entre `LoadAsync` y `ResolveRedirectPageAsync`. |
+| 2.7 | n/a (GREEN impl) | n/a | ✅ 17/17 | ✅ Tests 2.1, 2.2 en RED | ✅ `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml`: tabla Inspinia (`table table-custom`), buscador con `app-search`, sort links con `GetSortIcon`, paginación con `page-item active/disabled`, fila vacía contextual con `colspan="4"`, `<form method="post" data-cargo-delete-form formaction="?handler=Delete">`, `@Html.AntiForgeryToken()`. | n/a | ➖ Sin CSS nuevo; el shell Inspinia ya cubre el patrón |
+| 2.8 | n/a (GREEN impl) | n/a | ✅ 17/17 | ✅ Tests 2.4 en RED | ✅ `src/SGV.Web/wwwroot/js/pages/cargos-index.js` con `wireCargoDeleteConfirmation` (SweetAlert2 + `reverseButtons`, mensajes en español, espejado de `unidades-organizativas-index.js`) | n/a | ➖ Sin refactor |
+| 2.9 | n/a (refactor + verify) | n/a | n/a | n/a | n/a | n/a | ✅ Helper extraction (commit `refactor`). ✅ `dotnet test --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests|FullyQualifiedName~CargoIndexPageTests"` → 25/25 PASS. ✅ Tokens prohibidos (Crear/Editar/Habilidades/Reactivar) no aparecen en los archivos del módulo. |
+
+### Test Summary (Phase 2)
+
+- **Total tests written**: 8 nuevos en `CargoIndexPageTests.cs` (RED → GREEN) + 2 migrados a la API actualizada del `FakeCargoApiClient` (de `DeleteResultFactory` a `DeleteResult`; siguen en GREEN).
+- **Total tests passing**: 25/25 (3 `CargoWebTests` + 7 `CargoApiClientTests` + 7 `CargoWebSeamTests` + 8 `CargoIndexPageTests`).
+- **Layers used**: Integration (10 — `WebApplicationFactory` con `ICargoApiClient` falso), Unit (1 — Node harness `.cjs` para `cargos-index.js`).
+- **Approval tests** (refactoring): 0 — no se refactorizó código preexistente fuera del scope PR 2.
+- **Pure functions created**: 3 (`ApplyVisibleFilter`, `Matches`, `ApplyVisibleSort`) en `Index.cshtml.cs`.
+- **JS harness**: Node 1.3.14 ya disponible; `npx node` resuelve el script sin requerir `bun`/`gulp`.
+
+### Commits del PR 2
+
+| SHA | Tipo | Mensaje |
+|---|---|---|
+| `7bb80ab6` | test | `test(cargos-web): agregar RED para listado, baja lógica y harness JS de confirmación` |
+| `f2bc3b7c` | feat | `feat(cargos-web): implementar listado activo y baja lógica confirmada con SweetAlert2` |
+| `f09bfdd4` | refactor | `refactor(cargos-web): extraer helpers ApplyVisiblePage y ComputeTotalCount` |
+
+Todos los mensajes respetan conventional commits; sin `Co-Authored-By` ni atribución a IA.
+
+### Archivos tocados (PR 2)
+
+| Archivo | Acción | Resumen |
+|---|---|---|
+| `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` | Creado | 8 tests: 2.1, 2.2, 2.3, 2.4 (×2), 2.5 (×3) + helpers (`CreateCargo`, `CreateAuthenticatedClientAsync`, `ExtractAntiforgeryTokenAsync`, `ExecuteDeleteConfirmationScriptAsync`, `RecordingHttpMessageHandler`, `DeleteScriptExecutionResult`). |
+| `tests/SGV.Tests/Web/Cargo/FakeCargoApiClient.cs` | Creado | Fake en memoria compartido por `CargoWebSeamTests` y `CargoIndexPageTests`. Configura resultado de `GetAllAsync`, fuerza excepción, registra llamadas y simula el filtrado post-borrado. |
+| `tests/SGV.Tests/Web/Cargo/CargoWebSeamTests.cs` | Modificado | Migrado para consumir el `FakeCargoApiClient` compartido (elimina la copia local duplicada). 2 tests ajustados al nuevo shape (`DeleteResult` + `DeleteCalls`). |
+| `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml` | Reemplazado | Implementación completa: tabla Inspinia, buscador, sort links, paginación, fila vacía, feedback, formulario de baja con `?handler=Delete`, scripts/secciones SweetAlert2. |
+| `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` | Reemplazado | `[Authorize]`, ctor primario (`ICargoApiClient`, `ILogger`), `OnGetAsync`, `OnPostDeleteAsync`, `ResolveRedirectPageAsync`, helpers de filtro/sort/paginación. |
+| `src/SGV.Web/wwwroot/js/pages/cargos-index.js` | Creado | `wireCargoDeleteConfirmation` (SweetAlert2, `reverseButtons`, español). |
+
+## Hallazgos / desviaciones (Phase 2)
+- **Filtro/sort/paginación en memoria** (decisión explícita del diseño): el backend solo expone `GET /api/v1/cargos` con la lista completa de activos, sin endpoint paginado. Por eso `Index.cshtml.cs` aplica `ApplyVisibleFilter`, `ApplyVisibleSort` y `Skip/Take` sobre la lista en memoria. Cobertura: 8 tests en memoria + 7 tests unitarios del `CargoApiClient` que validan el contrato HTTP.
+- **`FakeCargoApiClient` ahora filtra ids eliminados** en cada `GetAllAsync` posterior al `DeleteAsync` exitoso. Esto refleja el comportamiento real del backend (la baja lógica hace que el cargo deje de aparecer en el endpoint de activos) y permite que el test `Post_Delete_WhenSuccessful_RedirectsPreservingFiltersAndRefreshRemovesRow` valide la aserción "el cargo eliminado deja de verse" tras el refresh del redirect. El cambio es aislado al fake, no toca producción.
+- **Test de éxito ajustado durante RED→GREEN**: el primer setup usaba `toDelete.Nombre = "Analista a Eliminar"` y `remaining.Nombre = "Otro Cargo"` con `search = "ana"`. Tras el delete, el filtro "ana" dejaba a "Otro Cargo" fuera de la vista, contradiciendo la aserción "el otro cargo debe seguir visible". Reemplazado por nombres que ambos contienen "Ana" para que el filtro siga aplicando a la fila superviviente. El cambio es de datos de prueba, no de cobertura ni de comportamiento esperado.
+- **Helpers extraídos en REFACTOR** (commit aparte): `ApplyVisiblePage` y `ComputeTotalCount` eliminan duplicación entre `LoadAsync` y `ResolveRedirectPageAsync`. Tests siguen verdes (25/25) tras el refactor.
+- **JS harness con Node embebido**: se replica exactamente el patrón ya usado por `UnidadOrganizativaWebTests.ExecuteDeleteConfirmationScriptAsync` (Node 1.3.14, archivo `.cjs` temporal en `%TEMP%`, llamada a `Process.Start`). Cero dependencias nuevas en el proyecto.
+
+## Riesgos residuales (Phase 2)
+
+- **Resuelto (drift de base)**: el PR 2 se inició sobre `feat/cargos-web-foundation`. Tras merge de PR 1, se rebaseó sobre `develop` y PR #57 ahora apunta correctamente a `develop`. No queda drift pendiente.
+- **Bajo (JS harness en CI)**: el harness usa `node`; si la imagen de CI no incluye Node, los 2 tests 2.4 fallarían. Mitigación: el proyecto ya usa el mismo harness en `UnidadOrganizativaWebTests`, lo que confirma que Node está disponible en CI.
+- **Bajo (límite de PR)**: el tamaño del diff de PR 2 (~960 líneas netas) sigue siendo alto, pero el orquestador ya aceptó el excedente al elegir `stacked-to-develop`. La concentración de líneas se da en tests (`CargoIndexPageTests.cs` 432 + `FakeCargoApiClient.cs` 99 = ~530 líneas de tests contra ~430 líneas de código de producción).
+
+## PR Boundary (Phase 2)
+
+- **Starts from**: `develop` (PR 1 mergeado en `01856599`, rebase aplicado).
+- **Ends with**: listado activo (Inspinia, búsqueda, sort, paginación local en memoria) + `OnPostDeleteAsync` con TempData + `cargos-index.js` con `wireCargoDeleteConfirmation` + feedback para 204/409/404. **NO incluye**: detalle readonly (PR 3), create/edit, skills, eliminados, reactivación.
+- **Review budget**: 960 líneas netas (~1003 ins / -43 del). Aceptado por excedencia según `stacked-to-develop`.
+
+## Next steps recomendados (Phase 2)
+
+1. Revisión humana de PR 2 (PR #57). Ya apunta a `develop` con PR 1 mergeado.
+2. Una vez aprobado y mergeado, abrir PR 3 (`feat/cargos-web-detalle-readonly`) con `Details.cshtml` + `Details.cshtml.cs`.
+3. Phase 4: `bun run build` en `src/SGV.Web` + `dotnet test SGV.slnx` sin filtro verde.
+
+## Cómo reproducir la verificación (Phase 2)
+
+```bash
+dotnet build SGV.slnx
+dotnet test SGV.slnx --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedName~CargoApiClientTests|FullyQualifiedName~CargoWebSeamTests|FullyQualifiedName~CargoIndexPageTests" --no-build
+```
+
+Ambos deben pasar en verde local (25/25). La CI levantará MySQL y ejecutará la suite completa.
