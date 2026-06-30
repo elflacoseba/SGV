@@ -1,6 +1,5 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -70,7 +69,7 @@ public class CargoWebSeamTests
     {
         var fake = new FakeCargoApiClient
         {
-            DeleteResultFactory = _ => new CargoDeleteResult(
+            DeleteResult = new CargoDeleteResult(
                 Succeeded: true,
                 StatusCode: HttpStatusCode.NoContent,
                 Code: null,
@@ -86,7 +85,7 @@ public class CargoWebSeamTests
     }
 
     [Fact]
-    public async Task WithOverrides_CargoApiClient_DefaultFakeDeleteAsync_ReturnsSuccess()
+    public async Task WithOverrides_CargoApiClient_DefaultDeleteAsync_ReturnsSuccess()
     {
         var fake = new FakeCargoApiClient();
         var id = Guid.NewGuid();
@@ -95,15 +94,15 @@ public class CargoWebSeamTests
 
         Assert.True(result.Succeeded);
         Assert.Equal(HttpStatusCode.NoContent, result.StatusCode);
-        Assert.Contains(id, fake.DeletedIds);
+        Assert.Contains(id, fake.DeleteCalls);
     }
 
     [Fact]
-    public async Task WithOverrides_CargoApiClient_FakeDeleteAsync_ReturnsConfiguredConflictResult()
+    public async Task WithOverrides_CargoApiClient_ConfiguredDeleteResult_IsReturned()
     {
         var fake = new FakeCargoApiClient
         {
-            DeleteResultFactory = _ => new CargoDeleteResult(
+            DeleteResult = new CargoDeleteResult(
                 Succeeded: false,
                 StatusCode: HttpStatusCode.Conflict,
                 Code: "CargoConPuestosActivos",
@@ -117,32 +116,6 @@ public class CargoWebSeamTests
         Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
         Assert.Equal("CargoConPuestosActivos", result.Code);
         Assert.Equal("El cargo tiene puestos activos", result.Message);
-        Assert.Contains(id, fake.DeletedIds);
+        Assert.Contains(id, fake.DeleteCalls);
     }
-}
-
-/// <summary>
-/// In-memory <see cref="ICargoApiClient"/> used for tests. Tracks the ids sent
-/// to <see cref="DeleteAsync"/> and lets each test configure the response.
-/// </summary>
-public sealed class FakeCargoApiClient : ICargoApiClient
-{
-    public Func<Guid, CargoDeleteResult>? DeleteResultFactory { get; set; }
-
-    public List<Guid> DeletedIds { get; } = new();
-
-    public Task<CargoDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        DeletedIds.Add(id);
-        var result = DeleteResultFactory is null
-            ? new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null)
-            : DeleteResultFactory(id);
-        return Task.FromResult(result);
-    }
-
-    public Task<IReadOnlyList<CargoDto>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<CargoDto>>(Array.Empty<CargoDto>());
-
-    public Task<CargoDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        Task.FromResult<CargoDto?>(null);
 }
