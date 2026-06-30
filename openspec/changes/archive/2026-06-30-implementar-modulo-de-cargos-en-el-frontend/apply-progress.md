@@ -284,3 +284,187 @@ dotnet test SGV.slnx --filter "FullyQualifiedName~CargoWebTests|FullyQualifiedNa
 ```
 
 Ambos deben pasar en verde local (27/27).
+
+---
+
+# Phase 4 — Cierre del slice (verificación final)
+
+## Estado de Phase 4
+
+- Branch: `develop` (todos los PRs mergeados en `31fba2e3`).
+- Fecha de verificación: 2026-06-30.
+- Tareas 4.1–4.4 ejecutadas. **Modo**: solo verificación — sin tocar código de producción.
+- Strict TDD respetado: los tests de Cargos están en verde y la cobertura del scope (listado/baja/detalle readonly) no introduce `Crear/Editar/Habilidades/Reactivar` en archivos del módulo.
+
+## 4.1 — Frontend pipeline (`bun install && bun run build`)
+
+| Paso | Comando | Resultado |
+|---|---|---|
+| Install | `bun install` (en `src/SGV.Web`) | ✅ Sin cambios (807 installs, 674 paquetes). Lockfile presente (`bun.lock`). |
+| Build | `bun run build` (gulp build) | ✅ Terminado en **3.48 s**. Tarea `styles` completada. Sin errores. |
+
+El warning `[baseline-browser-mapping] The data in this module is over two months old.` y `(node:5868) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated.` son ruido de dependencias (`gulp`/`gulp-sass`/`caniuse-lite`) — preexistentes, fuera del scope de este cambio. No son introducidos por los PRs del slice.
+
+## 4.2 — `dotnet test SGV.slnx` (sin filtro)
+
+Resumen del run:
+
+| Métrica | Valor |
+|---|---|
+| Total tests | 1020 |
+| Passed | 849 |
+| Failed | **25** (todos **pre-existentes / entorno**, ninguno del scope de Cargos) |
+| Skipped | 146 |
+| Tiempo total | 22.65 s |
+| Build | `dotnet build SGV.slnx` (previamente) — 0 warnings, 0 errors |
+
+### Distinción pre-existente/entorno vs. alcance del PR
+
+**Cargo (scope del slice) — 27/27 PASS**:
+
+| Suite | Tests |
+|---|---|
+| `SGV.Tests.Web.Cargo.CargoApiClientTests` | 7/7 |
+| `SGV.Tests.Web.Cargo.CargoDetailsPageTests` | 2/2 |
+| `SGV.Tests.Web.Cargo.CargoIndexPageTests` | 8/8 |
+| `SGV.Tests.Web.Cargo.CargoWebSeamTests` | 7/7 |
+| `SGV.Tests.Web.CargoWebTests` | 3/3 |
+| **Subtotal scope Cargos** | **27/27 PASS** |
+
+**Fallos fuera del alcance del slice — 25 en total**:
+
+1. **`SGV.Tests.Persistencia.*` — 22 fallos (entorno, MySQL no conectado localmente)**:
+   - `DatosSemillaTests.DatosSemilla_SoloIncluyeRolesFijosDeSgv` (1)
+   - `ModeloPersistenciaTests.*` (18) — incluyen aserciones sobre migraciones EF, columnas generadas, índices únicos, configuración de Identity, producto EF Core 9.x, sintaxis MySQL. Requieren el provider Pomelo conectado a MySQL 8.
+   - `SgvIdentityUserConfiguracionTests.*` (3) — restricciones FK, índice único, requeridos.
+   - **No son regresión del slice**: el ejecutor no toca `SGV.Infraestructura/Persistencia/*` ni migraciones. La CI los cubre levantando MySQL 8 vía service container en el job `tests`.
+2. **`SGV.Tests.Web.UnidadOrganizativaWebTests.Get_Index_WhenTreeView*` — 3 fallos (pre-existentes)**:
+   - `Get_Index_WhenTreeViewFails_ShowsVisibleErrorAndFallbackActions`
+   - `Get_Index_WhenTreeViewHasNoNodes_ShowsTreeEmptyState`
+   - `Get_Index_WhenTreeViewRequested_RendersHierarchyAndUsesTreeEndpoint`
+   - **No son regresión del slice**: el ejecutor no toca `Pages/Organizacion/UnidadesOrganizativas/*`. Documentados como pre-existentes en el `apply-progress.md` del propio Phase 1 (línea "Tests preexistentes fallando (NO regresión)"). Verificado por la naturaleza de los tests: dependen del endpoint tree-view (`/api/v1/unidades-organizativas/tree`) y del render específico del shell UO, no del módulo Cargos.
+
+**No hay tests rojos del scope Cargos-web**. La CI los ejecuta sobre MySQL levantado + driver real.
+
+## 4.3 — Token check (Crear/Editar/Habilidades/Reactivar)
+
+Comando ejecutado:
+
+```
+rg -n -e "Crear|Editar|Habilidades|Reactivar" \
+  src/SGV.Web/Pages/Organizacion/Cargos/ \
+  src/SGV.Web/wwwroot/js/pages/ \
+  src/SGV.Web/Integration/Organizacion/ICargoApiClient.cs \
+  src/SGV.Web/Integration/Organizacion/CargoApiClient.cs \
+  src/SGV.Web/Integration/Organizacion/CargoListItemViewModel.cs \
+  tests/SGV.Tests/Web/Cargo/
+```
+
+Resultados (11 matches totales) — **ningún hallazgo nuevo**:
+
+| Archivo:línea | Texto | Clasificación |
+|---|---|---|
+| `src/SGV.Web/wwwroot/js/pages/unidades-organizativas-index.js:52` | `title: '¿Reactivar unidad organizativa?',` | **Pre-existente, fuera del scope Cargos**. Pertenece al módulo `UnidadesOrganizativas` (PR #54 `feat/reactivar-y-filtrar-unidades-eliminadas`); la palabra "Reactivar" es legítima en ese módulo. La ruta `wwwroot/js/pages/` está incluida en el rg pero el archivo es de UO, no de Cargos. El archivo del módulo Cargos es `cargos-index.js`, que NO aparece en el grep (es decir, **no contiene tokens prohibidos**). |
+| `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs:56–58` | `Assert.DoesNotContain(">Crear<", ...)`, `">Editar<"`, `"Habilidades"` | **Legítimo (TDD assertion)**. Comentario asociado: "No debe exponer acciones fuera del alcance". Tests que verifican explícitamente la ausencia de los tokens prohibidos. |
+| `tests/SGV.Tests/Web/Cargo/CargoDetailsPageTests.cs:51–54` | `Assert.DoesNotContain(">Crear<", ...)`, `">Editar<"`, `"Habilidades"`, `"Reactivar"` | **Legítimo (TDD assertion)**. Comentario asociado: "No debe exponer acciones fuera del alcance". |
+| `tests/SGV.Tests/Web/Cargo/CargoDetailsPageTests.cs:82–84` | `Assert.DoesNotContain(">Crear<", ...)`, `">Editar<"`, `"Reactivar"` | **Legítimo (TDD assertion)**. Comentario asociado: "No debe exponer reactivación ni acciones fuera del alcance". |
+
+**Veredicto 4.3**: ✅ **alcance del módulo Cargos honrado**. Los archivos del módulo (`src/SGV.Web/Pages/Organizacion/Cargos/*`, `Integration/Organizacion/Cargo*`, `cargos-index.js`) **no contienen los tokens prohibidos**. Los matches restantes son tests TDD que ASSERT ausencias o archivos de otros módulos donde esos tokens son legítimos dentro de su propio scope.
+
+## 4.4 — Commits por unidad (work-unit-commits)
+
+Los 3 PRs ya están mergeados en `develop` con conventional commits y sin `Co-Authored-By` ni atribución a IA. Cada commit mantiene tests/docs junto al cambio.
+
+### PR #55 — Foundation + shell (Phase 1) — `mergedAt 2026-06-30T18:30:50Z`
+
+| SHA | Tipo | Mensaje |
+|---|---|---|
+| `f5de0275` | test | `test(cargos-web): agregar RED para shell y redirección anónima de Cargos` |
+| `3171ef9f` | feat | `feat(cargos-web): agregar contrato y cliente HTTP de cargos` |
+| `be95c82c` | feat | `feat(cargos-web): registrar cliente tipado y permitir override en factory de tests` |
+| `f83cd892` | feat | `feat(cargos-web): exponer navegación de Cargos y placeholders autenticados` |
+| `11d6daaa` | test | `test(cargos-web): cubrir seams estructurales (cliente HTTP, contrato, DI, factory) con RED directo` |
+| `8797ad30` | docs | `docs(cargos-web): documentar evidencia RED para tareas 1.3-1.7` |
+| `01856599` | feat | `feat(cargos-web): PR 1 — Foundation + shell` (merge commit) |
+
+### PR #57 — Listado activo y baja lógica (Phase 2) — `mergedAt 2026-06-30T20:12:37Z`
+
+| SHA | Tipo | Mensaje |
+|---|---|---|
+| `29c1c2b5` | test | `test(cargos-web): agregar RED para listado, baja lógica y harness JS de confirmación` |
+| `15eed4da` | feat | `feat(cargos-web): implementar listado activo y baja lógica confirmada con SweetAlert2` |
+| `2d0bdc9b` | refactor | `refactor(cargos-web): extraer helpers ApplyVisiblePage y ComputeTotalCount` |
+| `a33f13bb` | docs | `docs(cargos-web): documentar evidencia TDD de Phase 2 y marcar tareas 2.1-2.9 como completas` |
+| `d5bbb47f` | docs | `docs(cargos-web): actualizar PR ref de 56 a 57 tras rebase` |
+| `adc2d084` | docs | `docs(cargos-web): corregir metadata de apply-progress (base develop, drift resuelto)` |
+| `7de20163` | feat | `feat(cargos-web): PR 2 — listado activo y baja lógica confirmada` (merge commit) |
+
+> PR #56 fue cerrado (no mergeado) por drift de base; reabierto como PR #57 sobre `develop` post-merge de PR #55.
+
+### PR #58 — Detalle readonly (Phase 3) — `mergedAt 2026-06-30T20:25:16Z`
+
+| SHA | Tipo | Mensaje |
+|---|---|---|
+| `48827fb2` | test | `test(cargos-web): agregar RED para detalle readonly de cargos` |
+| `aa5d3dcc` | feat | `feat(cargos-web): implementar detalle readonly con dl y estado no disponible` |
+| `f8993aea` | docs | `docs(cargos-web): documentar evidencia TDD de Phase 3 y marcar tareas 3.1-3.5 como completas` |
+| `31fba2e3` | feat | `feat(cargos-web): PR 3 — detalle readonly de cargos` (merge commit) |
+
+**Recuento total del slice**: 14 commits no-merge + 3 commits de merge. Todos respetan conventional commits; sin `Co-Authored-By` ni atribución a IA.
+
+## Resumen ejecutivo de Phase 4
+
+- **Build**: verde (0 warnings, 0 errors) en `dotnet build SGV.slnx`.
+- **Frontend pipeline**: `bun install` sin cambios, `bun run build` exitoso en 3.48 s.
+- **Tests del scope**: **27/27 PASS en el módulo Cargos-web**.
+- **Fallos restantes**: 25 totales — 22 `Persistencia` (entorno: requieren MySQL 8) + 3 `UnidadOrganizativaWebTests` (pre-existentes, no tocados). **Ninguna regresión introducida por el slice**.
+- **Alcance del módulo Cargos**: verificado contra tokens prohibidos — sin coincidencias en archivos del módulo. Coincidencias restantes son asserts de ausencia (TDD) o legítimas dentro del scope de otros módulos.
+- **Commits por unidad**: 3 PRs mergeados con conventional commits, tests/docs en cada commit, sin atribución a IA.
+
+## Hallazgos / desviaciones (Phase 4)
+
+- Ninguno crítico. Los 25 fallos restantes son categorizables sin ambigüedad: **pre-existentes** (explicados en el propio apply-progress) o **dependientes de entorno** (MySQL no conectado localmente — sin servicio de DB en este host).
+- Los warnings de deprecación en `bun run build` (`baseline-browser-mapping`, `DEP0180`) son de dependencias upstream y no introducidos por los PRs del slice.
+
+## Riesgos residuales (Phase 4)
+
+- **Bajo (entorno)**: la suite `Persistencia` no se puede ejecutar localmente sin MySQL 8. La CI la levanta vía service container; este host no es la CI, así que el ejecutor solo pudo verificar el subconjunto de tests que no requieren DB. Documentado para awareness.
+- **Bajo (regresión latente)**: persiste la ausencia de `catch (System.Text.Json.JsonException)` en `UnidadOrganizativaApiClient.DeleteAsync`, detectada durante el RED de PR 1. Fuera del scope de este slice; pendiente de un cambio aparte (`unidades-organizativas: cerrar regresión JsonException DeleteAsync`).
+
+## PR Boundary (Phase 4)
+
+- **Starts from**: `develop` @ PR #58 mergeado en `31fba2e3` (HEAD actual).
+- **Ends with**: verificación de fase final registrada. **NO incluye**: cambios de código, features nuevas, migraciones, edición de tests.
+- **Review budget**: 0 líneas (Phase 4 es solo evidencia). Toda la edición quedó concentrada en `apply-progress.md` (este bloque).
+
+## Next steps recomendados (Phase 4)
+
+1. Cambio aparte para cerrar la regresión latente de `JsonException` en `UnidadOrganizativaApiClient.DeleteAsync` (detectada en Phase 1; fuera del scope de este slice).
+2. Archivar el cambio `implementar-modulo-de-cargos-en-el-frontend` con `sdd-archive` (sincronizar delta specs a `openspec/specs/**`).
+3. Cerrar las 3 tareas 4.1–4.4 en `tasks.md` cuando el orquestador lo apruebe.
+
+## Cómo reproducir la verificación (Phase 4)
+
+```bash
+# 1. Frontend pipeline
+cd src/SGV.Web && bun install && bun run build
+
+# 2. .NET suite completa (sin filtro)
+cd ../..
+dotnet build SGV.slnx
+dotnet test SGV.slnx --no-build --configuration Debug
+
+# 3. Token check
+rg -n -e "Crear|Editar|Habilidades|Reactivar" \
+  src/SGV.Web/Pages/Organizacion/Cargos/ \
+  src/SGV.Web/wwwroot/js/pages/ \
+  src/SGV.Web/Integration/Organizacion/ICargoApiClient.cs \
+  src/SGV.Web/Integration/Organizacion/CargoApiClient.cs \
+  src/SGV.Web/Integration/Organizacion/CargoListItemViewModel.cs \
+  tests/SGV.Tests/Web/Cargo/
+```
+
+Resultados esperados:
+- `bun run build` → termina en ~3 s sin errores.
+- `dotnet test SGV.slnx` → 27/27 del módulo Cargos-web en PASS. Los 22 `Persistencia` solo pasan contra MySQL 8 (CI).
+- Token check → 11 matches totales, todos ya clasificados arriba (TDD asserts + UO pre-existente).

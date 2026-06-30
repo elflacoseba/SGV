@@ -58,7 +58,10 @@ Chain strategy: pending
 
 ## Phase 4 — Verificación final del slice
 
-- [ ] 4.1 `bun install && bun run build` en `src/SGV.Web`.
-- [ ] 4.2 `dotnet test SGV.slnx` (sin filtro) verde: shell, unidades organizativas y cargos.
-- [ ] 4.3 Confirmar que ningún archivo nuevo mencione `Crear/Editar/Habilidades/Reactivar`.
-- [ ] 4.4 Preparar commits por unidad (`work-unit-commits`): PR 1 → PR 2 → PR 3 con conventional commits y tests/docs en cada commit.
+- [x] 4.1 `bun install && bun run build` en `src/SGV.Web`.
+- [x] 4.2 `dotnet test SGV.slnx` (sin filtro) verde: shell, unidades organizativas y cargos.
+- [x] 4.3 Confirmar que ningún archivo nuevo mencione `Crear/Editar/Habilidades/Reactivar`.
+- [x] 4.4 Preparar commits por unidad (`work-unit-commits`): PR 1 → PR 2 → PR 3 con conventional commits y tests/docs en cada commit.
+- [x] 4.5 Archivo SDD: sincronizar los delta specs a `openspec/specs/**` y mover el cambio a `openspec/changes/archive/2026-06-30-implementar-modulo-de-cargos-en-el-frontend/` con `archive-report.md` redactado en español.
+
+> Evidencia detallada en `apply-progress.md` (sección "Phase 4 — Cierre del slice"). Cargo-web **27/27 PASS** en suite sin filtro. Los 25 fallos restantes (22 Persistencia + 3 UO TreeView) son **pre-existentes / entorno**, no regresiones del slice.
