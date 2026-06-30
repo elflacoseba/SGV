@@ -158,10 +158,8 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         try
         {
             var all = await cargoApiClient.GetAllAsync(cancellationToken);
-            var filtered = ApplyVisibleFilter(all, Search);
-            var ordered = ApplyVisibleSort(filtered, Sort);
 
-            TotalCount = filtered.Count;
+            TotalCount = ComputeTotalCount(all, Search);
             TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)DefaultPageSize));
 
             // Si la página pedida excede las disponibles, se acota a la última.
@@ -170,11 +168,7 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
                 CurrentPage = TotalPages;
             }
 
-            Items = ordered
-                .Skip((CurrentPage - 1) * DefaultPageSize)
-                .Take(DefaultPageSize)
-                .Select(MapToViewModel)
-                .ToArray();
+            ApplyVisiblePage(all, Search, Sort, pageItems => Items = pageItems.Select(MapToViewModel).ToArray());
         }
         catch (Exception ex)
         {
@@ -186,6 +180,26 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
             LoadErrorMessage = "No se pudo cargar el listado de cargos. Intentá nuevamente.";
         }
     }
+
+    /// <summary>
+    /// Aplica filtro, sort y paginación sobre el resultado del backend y
+    /// entrega la página visible al callback provisto. Encapsula la
+    /// transformación compartida entre carga inicial y recálculo de página.
+    /// </summary>
+    private void ApplyVisiblePage(IReadOnlyList<CargoDto> all, string? search, string? sort, Action<IReadOnlyList<CargoDto>> pageWriter)
+    {
+        var filtered = ApplyVisibleFilter(all, search);
+        var ordered = ApplyVisibleSort(filtered, sort);
+        var pageItems = ordered
+            .Skip((CurrentPage - 1) * DefaultPageSize)
+            .Take(DefaultPageSize)
+            .ToArray();
+
+        pageWriter(pageItems);
+    }
+
+    private static int ComputeTotalCount(IReadOnlyList<CargoDto> all, string? search)
+        => ApplyVisibleFilter(all, search).Count;
 
     private async Task<int> ResolveRedirectPageAsync(int currentPage, string? search, string? sort, CancellationToken cancellationToken)
     {
