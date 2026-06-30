@@ -118,7 +118,7 @@ Ambos deben pasar en verde local (25/25). La CI levantará MySQL y ejecutará la
 ## Estado de Phase 2
 
 - Branch: `feat/cargos-web-listado-baja`
-- Base: `origin/feat/cargos-web-foundation` (PR 1, aún OPEN — ver "Drift" abajo).
+- Base: `develop` (PR 1 mergeado en `01856599`).
 - Commits nuevos: 3 (`test RED` → `feat GREEN` → `refactor`).
 - Tareas 2.1–2.9 completas.
 - Tests: 8 nuevos (RED directo) + 2 existentes (`CargoWebSeamTests`) migrados al fake compartido = 25/25 PASS en el scope PR 2.
@@ -170,8 +170,6 @@ Todos los mensajes respetan conventional commits; sin `Co-Authored-By` ni atribu
 | `src/SGV.Web/wwwroot/js/pages/cargos-index.js` | Creado | `wireCargoDeleteConfirmation` (SweetAlert2, `reverseButtons`, español). |
 
 ## Hallazgos / desviaciones (Phase 2)
-
-- **Drift detectado en la consigna del orquestador**: la consigna afirma que PR 1 "ya está mergeado en develop" y que la rama PR 2 debe basarse en `develop`. Sin embargo, al iniciar el trabajo, `origin/develop` no contenía ningún commit de PR 1 (HEAD `4c1c3032`, mientras que `origin/feat/cargos-web-foundation` está en `8797ad30`). Para mantener la compilabilidad de PR 2 y conservar un diff acotado al trabajo propio, la rama PR 2 se basó en `origin/feat/cargos-web-foundation` y la PR se abrió contra `feat/cargos-web-foundation` como base (consistente con el patrón `stacked-to-develop`: PR 1 → PR 2 → develop). Cuando PR 1 se mergee a develop, esta PR 2 se podrá rebasar sobre develop y mergear limpiamente. **Esto NO fue silenciado**: está documentado aquí y se reflejará en el resumen de retorno.
 - **Filtro/sort/paginación en memoria** (decisión explícita del diseño): el backend solo expone `GET /api/v1/cargos` con la lista completa de activos, sin endpoint paginado. Por eso `Index.cshtml.cs` aplica `ApplyVisibleFilter`, `ApplyVisibleSort` y `Skip/Take` sobre la lista en memoria. Cobertura: 8 tests en memoria + 7 tests unitarios del `CargoApiClient` que validan el contrato HTTP.
 - **`FakeCargoApiClient` ahora filtra ids eliminados** en cada `GetAllAsync` posterior al `DeleteAsync` exitoso. Esto refleja el comportamiento real del backend (la baja lógica hace que el cargo deje de aparecer en el endpoint de activos) y permite que el test `Post_Delete_WhenSuccessful_RedirectsPreservingFiltersAndRefreshRemovesRow` valide la aserción "el cargo eliminado deja de verse" tras el refresh del redirect. El cambio es aislado al fake, no toca producción.
 - **Test de éxito ajustado durante RED→GREEN**: el primer setup usaba `toDelete.Nombre = "Analista a Eliminar"` y `remaining.Nombre = "Otro Cargo"` con `search = "ana"`. Tras el delete, el filtro "ana" dejaba a "Otro Cargo" fuera de la vista, contradiciendo la aserción "el otro cargo debe seguir visible". Reemplazado por nombres que ambos contienen "Ana" para que el filtro siga aplicando a la fila superviviente. El cambio es de datos de prueba, no de cobertura ni de comportamiento esperado.
@@ -180,22 +178,21 @@ Todos los mensajes respetan conventional commits; sin `Co-Authored-By` ni atribu
 
 ## Riesgos residuales (Phase 2)
 
-- **Medio (drift en la consigna)**: si el orquestador espera que PR 2 se abra contra `develop`, el diff en GitHub incluirá todo PR 1 + PR 2 (~1500 líneas netas). Mitigación: la base real del PR es `feat/cargos-web-foundation`, y el ejecutor documenta esta divergencia explícitamente en el resumen.
+- **Resuelto (drift de base)**: el PR 2 se inició sobre `feat/cargos-web-foundation`. Tras merge de PR 1, se rebaseó sobre `develop` y PR #57 ahora apunta correctamente a `develop`. No queda drift pendiente.
 - **Bajo (JS harness en CI)**: el harness usa `node`; si la imagen de CI no incluye Node, los 2 tests 2.4 fallarían. Mitigación: el proyecto ya usa el mismo harness en `UnidadOrganizativaWebTests`, lo que confirma que Node está disponible en CI.
 - **Bajo (límite de PR)**: el tamaño del diff de PR 2 (~960 líneas netas) sigue siendo alto, pero el orquestador ya aceptó el excedente al elegir `stacked-to-develop`. La concentración de líneas se da en tests (`CargoIndexPageTests.cs` 432 + `FakeCargoApiClient.cs` 99 = ~530 líneas de tests contra ~430 líneas de código de producción).
 
 ## PR Boundary (Phase 2)
 
-- **Starts from**: `origin/feat/cargos-web-foundation` @ `8797ad30`.
+- **Starts from**: `develop` (PR 1 mergeado en `01856599`, rebase aplicado).
 - **Ends with**: listado activo (Inspinia, búsqueda, sort, paginación local en memoria) + `OnPostDeleteAsync` con TempData + `cargos-index.js` con `wireCargoDeleteConfirmation` + feedback para 204/409/404. **NO incluye**: detalle readonly (PR 3), create/edit, skills, eliminados, reactivación.
 - **Review budget**: 960 líneas netas (~1003 ins / -43 del). Aceptado por excedencia según `stacked-to-develop`.
 
 ## Next steps recomendados (Phase 2)
 
-1. Revisión humana de PR 2 (PR #57).
-2. Una vez aprobado, merge de PR 2 en `feat/cargos-web-foundation` (o rebase + merge directo en develop, según la decisión final sobre PR 1).
-3. Abrir PR 3 (`feat/cargos-web-detalle-readonly`) con la implementación completa de `Details.cshtml` + `Details.cshtml.cs`.
-4. Phase 4: `bun run build` (o `gulp build`) en `src/SGV.Web` + `dotnet test SGV.slnx` sin filtro verde.
+1. Revisión humana de PR 2 (PR #57). Ya apunta a `develop` con PR 1 mergeado.
+2. Una vez aprobado y mergeado, abrir PR 3 (`feat/cargos-web-detalle-readonly`) con `Details.cshtml` + `Details.cshtml.cs`.
+3. Phase 4: `bun run build` en `src/SGV.Web` + `dotnet test SGV.slnx` sin filtro verde.
 
 ## Cómo reproducir la verificación (Phase 2)
 
