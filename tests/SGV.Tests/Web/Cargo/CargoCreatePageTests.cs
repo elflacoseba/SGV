@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -249,6 +250,139 @@ public sealed class CargoCreatePageTests
         // No debe redirigir (se renderiza la misma página con el error)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Null(response.Headers.Location);
+    }
+
+    // ──────────────────────────────────────────────
+    // Review fix #1: try/catch alrededor de CreateAsync para transport failures
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Create_WhenHttpRequestException_ReloadsCatalogAndShowsGeneralError()
+    {
+        var apiClient = new FakeCargoApiClient
+        {
+            CreateException = new HttpRequestException("boom"),
+            NivelesResult = new List<NivelCargoDto>
+            {
+                new(JuniorNivelId, "JR", "Junior", 1, 1)
+            }
+        };
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos/crear");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "C-TRANSPORT",
+            ["Input.Nombre"] = "Cargo Transport Fail",
+            ["Input.NivelId"] = JuniorNivelId.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El form sigue visible con los valores enviados (preserva input).
+        Assert.Contains("Nuevo cargo", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("C-TRANSPORT", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cargo Transport Fail", content, StringComparison.OrdinalIgnoreCase);
+
+        // El dropdown de niveles debe estar repoblado tras el fallo.
+        Assert.Contains("Junior", content, StringComparison.OrdinalIgnoreCase);
+
+        // No debe haber un mensaje de validación a nivel de campo sobre Codigo
+        // (el <span> del asp-validation-for se renderiza siempre; verificamos
+        // que su contenido no contenga un texto de error tras un fallo de
+        // transporte).
+        var codigoFieldSpan = Regex.Match(
+            content,
+            @"<span[^>]*data-valmsg-for=""Input\.Codigo""[^>]*>([\s\S]*?)</span>",
+            RegexOptions.IgnoreCase);
+        Assert.True(codigoFieldSpan.Success, "El field-validation span de Input.Codigo debe existir.");
+        Assert.True(string.IsNullOrWhiteSpace(codigoFieldSpan.Groups[1].Value),
+            $"El field-validation span de Input.Codigo debe estar vacío tras un error de transporte, pero contiene: '{codigoFieldSpan.Groups[1].Value}'.");
+
+        // El catálogo se consultó una vez en GET + una vez tras el POST fallido = 2.
+        Assert.Equal(2, apiClient.NivelesCalls);
+    }
+
+    [Fact]
+    public async Task Post_Create_WhenTaskCanceledException_ReloadsCatalogAndShowsGeneralError()
+    {
+        var apiClient = new FakeCargoApiClient
+        {
+            CreateException = new TaskCanceledException("request canceled"),
+            NivelesResult = new List<NivelCargoDto>
+            {
+                new(SeniorNivelId, "SR", "Senior", 2, 2)
+            }
+        };
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos/crear");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "C-TIMEOUT",
+            ["Input.Nombre"] = "Cargo Timeout",
+            ["Input.NivelId"] = SeniorNivelId.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Contains("C-TIMEOUT", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cargo Timeout", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Senior", content, StringComparison.OrdinalIgnoreCase);
+
+        // El catálogo se recargó tras el fallo.
+        Assert.Equal(2, apiClient.NivelesCalls);
+    }
+
+    [Fact]
+    public async Task Post_Create_WhenJsonException_ReloadsCatalogAndShowsGeneralError()
+    {
+        var apiClient = new FakeCargoApiClient
+        {
+            CreateException = new JsonException("malformed body"),
+            NivelesResult = new List<NivelCargoDto>
+            {
+                new(JuniorNivelId, "JR", "Junior", 1, 1)
+            }
+        };
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos/crear");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "C-BADJSON",
+            ["Input.Nombre"] = "Cargo Bad Json",
+            ["Input.NivelId"] = JuniorNivelId.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Contains("C-BADJSON", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cargo Bad Json", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Junior", content, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(2, apiClient.NivelesCalls);
     }
 
     // ──────────────────────────────────────────────

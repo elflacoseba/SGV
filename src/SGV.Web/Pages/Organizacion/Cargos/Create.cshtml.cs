@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Text.Json;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
@@ -77,7 +78,27 @@ public sealed class CreateModel(
             Input.NivelId,
             string.IsNullOrWhiteSpace(Input.Descripcion) ? null : Input.Descripcion.Trim());
 
-        var result = await cargoApiClient.CreateAsync(request, cancellationToken);
+        CargoCommandResult result;
+        try
+        {
+            result = await cargoApiClient.CreateAsync(request, cancellationToken);
+        }
+        catch (Exception ex) when (
+            ex is HttpRequestException ||
+            ex is TaskCanceledException ||
+            ex is JsonException ||
+            ex is OperationCanceledException)
+        {
+            // Transport-level failure (network down, timeout, malformed body).
+            // Map to a recoverable error: keep user input, reload the catalog,
+            // re-render the page so the user can retry. We do not propagate
+            // as 500 because the user action is recoverable.
+            logger.LogError(ex, "Cargo create transport failure.");
+            ErrorMessage = "No se pudo contactar al servicio de cargos. Intentá nuevamente.";
+            ModelState.AddModelError(string.Empty, ErrorMessage);
+            await LoadCatalogsAsync(cancellationToken);
+            return Page();
+        }
 
         if (result.IsSuccess && result.Value is not null)
         {
