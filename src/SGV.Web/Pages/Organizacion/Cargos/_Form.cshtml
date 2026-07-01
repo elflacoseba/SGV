@@ -1,0 +1,40 @@
+@* This is a field partial, not a complete form. The consumer must provide: <form>, antiforgery token, hidden return, submit/cancel actions, and loaded NivelOptions. *@
+@* Shared form partial for create/edit of Cargos. *@
+@* Expects a model that implements ICargoForm. *@
+@using SGV.Web.Integration.Organizacion
+@model SGV.Web.Pages.Organizacion.Cargos.ICargoForm
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Codigo" class="form-control" placeholder="Código" />
+            <label asp-for="Input.Codigo">Código</label>
+            <span asp-validation-for="Input.Codigo" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Nombre" class="form-control" placeholder="Nombre" />
+            <label asp-for="Input.Nombre">Nombre</label>
+            <span asp-validation-for="Input.Nombre" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-floating">
+            <textarea asp-for="Input.Descripcion" class="form-control" placeholder="Descripción" style="min-height: 80px"></textarea>
+            <label asp-for="Input.Descripcion">Descripción</label>
+            <span asp-validation-for="Input.Descripcion" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <select asp-for="Input.NivelId" class="form-select" asp-items="@(new SelectList(Model.NivelOptions, "Id", "Nombre"))">
+                <option value="">Seleccionar nivel...</option>
+            </select>
+            <label asp-for="Input.NivelId">Nivel</label>
+            <span asp-validation-for="Input.NivelId" class="text-danger"></span>
+        </div>
+    </div>
+</div>

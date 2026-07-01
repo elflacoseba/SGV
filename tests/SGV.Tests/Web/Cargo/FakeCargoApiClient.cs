@@ -1,4 +1,5 @@
 using System.Net;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 
@@ -46,6 +47,43 @@ public sealed class FakeCargoApiClient : ICargoApiClient
     /// éxito con 204 NoContent.
     /// </summary>
     public CargoDeleteResult DeleteResult { get; set; } = new(true, HttpStatusCode.NoContent, null, null);
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="CreateAsync"/>. Por defecto,
+    /// fallo de NotImplemented para forzar a los tests a configurarlo
+    /// explícitamente cuando lo necesiten.
+    /// </summary>
+    public CargoCommandResult CreateResult { get; set; } = CargoCommandResult.Failure(
+        new CargoError(CargoErrorType.NotFound, "NotImplemented", "Not yet implemented"));
+
+    /// <summary>
+    /// Solicitudes recibidas por <see cref="CreateAsync"/>. Permite inspeccionar
+    /// el payload enviado por la página al API en cada test.
+    /// </summary>
+    public List<CrearCargoRequest> CreateCalls { get; } = new();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="CreateAsync"/> debe lanzar antes de
+    /// devolver el resultado. Útil para simular errores de transporte.
+    /// </summary>
+    public Exception? CreateException { get; set; }
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="GetNivelesAsync"/>. Por defecto,
+    /// lista vacía (el test debe configurarla cuando cargue la página Create).
+    /// </summary>
+    public IReadOnlyList<NivelCargoDto> NivelesResult { get; set; } = [];
+
+    /// <summary>
+    /// Excepción opcional que <see cref="GetNivelesAsync"/> debe lanzar. Útil
+    /// para verificar el manejo de errores recuperables en OnGetAsync.
+    /// </summary>
+    public Exception? NivelesException { get; set; }
+
+    /// <summary>
+    /// Cantidad de veces que se invocó <see cref="GetNivelesAsync"/>.
+    /// </summary>
+    public int NivelesCalls { get; private set; }
 
     /// <summary>
     /// Construye un fake que devuelve la lista especificada en
@@ -104,5 +142,29 @@ public sealed class FakeCargoApiClient : ICargoApiClient
         }
 
         return Task.FromResult(DeleteResult);
+    }
+
+    public Task<CargoCommandResult> CreateAsync(CrearCargoRequest request, CancellationToken cancellationToken = default)
+    {
+        CreateCalls.Add(request);
+
+        if (CreateException is not null)
+        {
+            throw CreateException;
+        }
+
+        return Task.FromResult(CreateResult);
+    }
+
+    public Task<IReadOnlyList<NivelCargoDto>> GetNivelesAsync(CancellationToken cancellationToken = default)
+    {
+        NivelesCalls++;
+
+        if (NivelesException is not null)
+        {
+            throw NivelesException;
+        }
+
+        return Task.FromResult(NivelesResult);
     }
 }
