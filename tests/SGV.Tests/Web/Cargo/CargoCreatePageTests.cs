@@ -1,15 +1,9 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad.Usuarios;
-using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -21,10 +15,11 @@ namespace SGV.Tests.Web.Cargo;
 /// <see cref="SgvWebApplicationFactory"/> + <see cref="FakeCargoApiClient"/>
 /// so MySQL is not required.
 /// </summary>
-public sealed class CargoCreatePageTests
+public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
 {
-    private static readonly Guid JuniorNivelId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid SeniorNivelId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private readonly CargoWebTestFixture _fixture;
+
+    public CargoCreatePageTests(CargoWebTestFixture fixture) => _fixture = fixture;
 
     // ──────────────────────────────────────────────
     // Task 19: GET carga el dropdown de niveles
@@ -37,12 +32,12 @@ public sealed class CargoCreatePageTests
         {
             NivelesResult = new List<NivelCargoDto>
             {
-                new(JuniorNivelId, "JR", "Junior", 1, 1),
-                new(SeniorNivelId, "SR", "Senior", 2, 2)
+                new(CargoWebTestFixture.JuniorNivelId, "JR", "Junior", 1, 1),
+                new(CargoWebTestFixture.SeniorNivelId, "SR", "Senior", 2, 2)
             }
         };
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -74,7 +69,7 @@ public sealed class CargoCreatePageTests
             NivelesException = new HttpRequestException("catalog down")
         };
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -92,7 +87,7 @@ public sealed class CargoCreatePageTests
     [Fact]
     public async Task Post_Create_WhenSuccessful_RedirectsToDetailsWithConfirmation()
     {
-        var nivelId = JuniorNivelId;
+        var nivelId = CargoWebTestFixture.JuniorNivelId;
         var newCargoId = Guid.NewGuid();
         var apiClient = new FakeCargoApiClient
         {
@@ -100,10 +95,10 @@ public sealed class CargoCreatePageTests
                 new CargoDto(newCargoId, "C-NEW", "Nuevo Cargo", "Desc", nivelId, "Junior"))
         };
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -131,7 +126,7 @@ public sealed class CargoCreatePageTests
     [Fact]
     public async Task Post_Create_WhenCodigoDuplicado_ReturnsFieldErrorAndKeepsForm()
     {
-        var nivelId = JuniorNivelId;
+        var nivelId = CargoWebTestFixture.JuniorNivelId;
         var apiClient = new FakeCargoApiClient
         {
             CreateResult = CargoCommandResult.Failure(
@@ -141,10 +136,10 @@ public sealed class CargoCreatePageTests
                     "Ya existe un cargo activo con el código C-DUP."))
         };
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -190,7 +185,7 @@ public sealed class CargoCreatePageTests
     {
         var apiClient = new FakeCargoApiClient();
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -218,17 +213,17 @@ public sealed class CargoCreatePageTests
     {
         var apiClient = new FakeCargoApiClient();
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "",
             ["Input.Nombre"] = "Sin Código",
-            ["Input.NivelId"] = JuniorNivelId.ToString()
+            ["Input.NivelId"] = CargoWebTestFixture.JuniorNivelId.ToString()
         }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -264,21 +259,21 @@ public sealed class CargoCreatePageTests
             CreateException = new HttpRequestException("boom"),
             NivelesResult = new List<NivelCargoDto>
             {
-                new(JuniorNivelId, "JR", "Junior", 1, 1)
+                new(CargoWebTestFixture.JuniorNivelId, "JR", "Junior", 1, 1)
             }
         };
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "C-TRANSPORT",
             ["Input.Nombre"] = "Cargo Transport Fail",
-            ["Input.NivelId"] = JuniorNivelId.ToString()
+            ["Input.NivelId"] = CargoWebTestFixture.JuniorNivelId.ToString()
         }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -318,21 +313,21 @@ public sealed class CargoCreatePageTests
             CreateException = new TaskCanceledException("request canceled"),
             NivelesResult = new List<NivelCargoDto>
             {
-                new(SeniorNivelId, "SR", "Senior", 2, 2)
+                new(CargoWebTestFixture.SeniorNivelId, "SR", "Senior", 2, 2)
             }
         };
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "C-TIMEOUT",
             ["Input.Nombre"] = "Cargo Timeout",
-            ["Input.NivelId"] = SeniorNivelId.ToString()
+            ["Input.NivelId"] = CargoWebTestFixture.SeniorNivelId.ToString()
         }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -356,21 +351,21 @@ public sealed class CargoCreatePageTests
             CreateException = new JsonException("malformed body"),
             NivelesResult = new List<NivelCargoDto>
             {
-                new(JuniorNivelId, "JR", "Junior", 1, 1)
+                new(CargoWebTestFixture.JuniorNivelId, "JR", "Junior", 1, 1)
             }
         };
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "C-BADJSON",
             ["Input.Nombre"] = "Cargo Bad Json",
-            ["Input.NivelId"] = JuniorNivelId.ToString()
+            ["Input.NivelId"] = CargoWebTestFixture.JuniorNivelId.ToString()
         }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -402,17 +397,17 @@ public sealed class CargoCreatePageTests
                 })
         };
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "C-RT",
             ["Input.Nombre"] = "Cargo Roundtrip",
-            ["Input.NivelId"] = JuniorNivelId.ToString()
+            ["Input.NivelId"] = CargoWebTestFixture.JuniorNivelId.ToString()
         }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -429,56 +424,5 @@ public sealed class CargoCreatePageTests
         Assert.True(
             Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(CargoFormKeys.CodigoKey)}""[^>]*>[\s\S]*?ya existe[\s\S]*?</span>", RegexOptions.IgnoreCase),
             $"Expected the backend field-error message 'ya existe' to be rendered inside the {CargoFormKeys.CodigoKey} field-validation span.");
-    }
-
-    // ──────────────────────────────────────────────
-    // Helpers de soporte
-    // ──────────────────────────────────────────────
-
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(FakeCargoApiClient apiClient)
-    {
-        var authHandler = new RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
-            });
-
-        var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            cargoApiClient: apiClient);
-
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
-    }
-
-    private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        var match = Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
-        Assert.True(match.Success, "Antiforgery token was not rendered.");
-        return match.Groups[1].Value;
-    }
-
-    private sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(response);
     }
 }

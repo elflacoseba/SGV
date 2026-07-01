@@ -1,13 +1,6 @@
 using System.Net;
-using System.Net.Http.Json;
-using System.Text.RegularExpressions;
 using System.Web;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad.Usuarios;
-using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -18,8 +11,12 @@ namespace SGV.Tests.Web.Cargo;
 /// "Apertura de detalle existente" y "Cargo no disponible en detalle"
 /// de la especificación.
 /// </summary>
-public sealed class CargoDetailsPageTests
+public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
 {
+    private readonly CargoWebTestFixture _fixture;
+
+    public CargoDetailsPageTests(CargoWebTestFixture fixture) => _fixture = fixture;
+
     // ──────────────────────────────────────────────
     // Task 3.1: detalle de cargo existente (readonly)
     // ──────────────────────────────────────────────
@@ -27,10 +24,10 @@ public sealed class CargoDetailsPageTests
     [Fact]
     public async Task Get_Details_WhenAuthenticated_ShowsCargoReadOnly()
     {
-        var cargo = CreateCargo("C-001", "Analista Funcional", "Descripción del cargo", "Senior");
+        var cargo = CargoWebTestFixture.BuildCargoDto("C-001", "Analista Funcional", "Descripción del cargo", "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var response = await client.GetAsync($"/organizacion/cargos/detalles/{cargo.Id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -64,7 +61,7 @@ public sealed class CargoDetailsPageTests
         var apiClient = FakeCargoApiClient.WithCargoList();
         var missingId = Guid.NewGuid();
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var response = await client.GetAsync($"/organizacion/cargos/detalles/{missingId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -82,59 +79,5 @@ public sealed class CargoDetailsPageTests
         Assert.DoesNotContain(">Crear<", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(">Editar<", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Reactivar", content, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // ──────────────────────────────────────────────
-    // Helpers de soporte
-    // ──────────────────────────────────────────────
-
-    private static CargoDto CreateCargo(string codigo, string nombre, string? descripcion, string? nivelNombre)
-        => new(Guid.NewGuid(), codigo, nombre, descripcion, Guid.NewGuid(), nivelNombre);
-
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(FakeCargoApiClient apiClient)
-    {
-        var authHandler = new RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
-            });
-
-        var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            cargoApiClient: apiClient);
-
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
-    }
-
-    private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        var match = Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
-        Assert.True(match.Success, "Antiforgery token was not rendered.");
-        return match.Groups[1].Value;
-    }
-
-    private sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(response);
     }
 }

@@ -1,7 +1,6 @@
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
-using SGV.Web.Integration.Organizacion;
 
-namespace SGV.Web.Pages.Organizacion.Cargos;
+namespace SGV.Web.Integration.Organizacion;
 
 /// <summary>
 /// Contrato compartido por los PageModels que renderizan el partial
