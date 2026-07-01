@@ -1,14 +1,8 @@
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Web;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad.Usuarios;
-using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -20,8 +14,12 @@ namespace SGV.Tests.Web.Cargo;
 /// "Cuando carga inicial", "Sin resultados", "Falla la consulta", "Confirmación
 /// cancelada/confirmada" y "Baja exitosa/con conflicto".
 /// </summary>
-public sealed class CargoIndexPageTests
+public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
 {
+    private readonly CargoWebTestFixture _fixture;
+
+    public CargoIndexPageTests(CargoWebTestFixture fixture) => _fixture = fixture;
+
     // ──────────────────────────────────────────────
     // Task 2.1: carga inicial con tabla de cargos activos
     // ──────────────────────────────────────────────
@@ -29,11 +27,11 @@ public sealed class CargoIndexPageTests
     [Fact]
     public async Task Get_Index_WhenAuthenticated_RendersActiveCargosTable()
     {
-        var first = CreateCargo("C-001", "Analista", "Descripción A", "Junior");
-        var second = CreateCargo("C-002", "Líder de Proyecto", null, "Senior");
+        var first = CargoWebTestFixture.BuildCargoDto("C-001", "Analista", "Descripción A", "Junior");
+        var second = CargoWebTestFixture.BuildCargoDto("C-002", "Líder de Proyecto", null, "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(first, second);
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -70,7 +68,7 @@ public sealed class CargoIndexPageTests
     {
         var apiClient = FakeCargoApiClient.WithCargoList();
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos?search=zzz");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -93,7 +91,7 @@ public sealed class CargoIndexPageTests
     {
         var apiClient = FakeCargoApiClient.WithFailure(new HttpRequestException("boom"));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -137,15 +135,15 @@ public sealed class CargoIndexPageTests
     [Fact]
     public async Task Post_Delete_WhenSuccessful_RedirectsPreservingFiltersAndRefreshRemovesRow()
     {
-        var toDelete = CreateCargo("DEL-01", "Analista Senior", "Desc", "Junior");
-        var remaining = CreateCargo("DEL-02", "Analista Junior", null, "Senior");
+        var toDelete = CargoWebTestFixture.BuildCargoDto("DEL-01", "Analista Senior", "Desc", "Junior");
+        var remaining = CargoWebTestFixture.BuildCargoDto("DEL-02", "Analista Junior", null, "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(toDelete, remaining);
         apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos?p=1&search=ana&sort=nombre_desc");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -177,7 +175,7 @@ public sealed class CargoIndexPageTests
     [Fact]
     public async Task Post_Delete_WhenConflict_ShowsFeedbackAndKeepsRowVisible()
     {
-        var cargo = CreateCargo("CONF-01", "Cargo con Puestos", "Desc", "Junior");
+        var cargo = CargoWebTestFixture.BuildCargoDto("CONF-01", "Cargo con Puestos", "Desc", "Junior");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.DeleteResult = new CargoDeleteResult(
             Succeeded: false,
@@ -185,10 +183,10 @@ public sealed class CargoIndexPageTests
             Code: "CargoConPuestosActivos",
             Message: "El cargo tiene puestos activos asociados.");
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos?search=c&sort=codigo_asc");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -217,7 +215,7 @@ public sealed class CargoIndexPageTests
     [Fact]
     public async Task Post_Delete_WhenNotFound_ShowsFeedbackAndKeepsRowVisible()
     {
-        var cargo = CreateCargo("NF-01", "Cargo a Borrar", null, "Junior");
+        var cargo = CargoWebTestFixture.BuildCargoDto("NF-01", "Cargo a Borrar", null, "Junior");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.DeleteResult = new CargoDeleteResult(
             Succeeded: false,
@@ -225,10 +223,10 @@ public sealed class CargoIndexPageTests
             Code: "CargoNoEncontrado",
             Message: "El cargo no existe.");
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -248,53 +246,8 @@ public sealed class CargoIndexPageTests
     }
 
     // ──────────────────────────────────────────────
-    // Helpers de soporte
+    // Helpers de soporte (JS harness vive aquí porque solo lo usa este test)
     // ──────────────────────────────────────────────
-
-    private static CargoDto CreateCargo(string codigo, string nombre, string? descripcion, string? nivelNombre)
-        => new(Guid.NewGuid(), codigo, nombre, descripcion, Guid.NewGuid(), nivelNombre);
-
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(FakeCargoApiClient apiClient)
-    {
-        var authHandler = new RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
-            });
-
-        var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            cargoApiClient: apiClient);
-
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
-    }
-
-    private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        var match = Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
-
-        Assert.True(match.Success, "Antiforgery token was not rendered.");
-        return match.Groups[1].Value;
-    }
 
     private static async Task<DeleteScriptExecutionResult> ExecuteDeleteConfirmationScriptAsync(bool isConfirmed)
     {
@@ -414,12 +367,6 @@ main().catch(error => {
                 File.Delete(harnessPath);
             }
         }
-    }
-
-    private sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(response);
     }
 
     private sealed record DeleteScriptExecutionResult(
