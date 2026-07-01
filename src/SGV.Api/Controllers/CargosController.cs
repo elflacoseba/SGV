@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Seguridad;
 
 namespace SGV.Api.Controllers;
 
@@ -11,6 +13,7 @@ namespace SGV.Api.Controllers;
 [ApiController]
 [Route("api/v1/cargos")]
 [Produces("application/json")]
+[Authorize]
 public class CargosController : ControllerBase
 {
     private readonly ICargoServicioConsulta _servicio;
@@ -35,6 +38,7 @@ public class CargosController : ControllerBase
     /// <response code="200">Lista de cargos devuelta correctamente.</response>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<CargoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<CargoDto>>> GetAll(
         CancellationToken cancellationToken)
     {
@@ -52,6 +56,7 @@ public class CargosController : ControllerBase
     /// <response code="404">No se encontró un cargo con el ID especificado.</response>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(CargoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CargoDto>> GetById(
         Guid id, CancellationToken cancellationToken)
@@ -72,8 +77,11 @@ public class CargosController : ControllerBase
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="409">Conflicto — ya existe un cargo activo con el mismo código.</response>
     [HttpPost]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(CargoDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<CargoDto>> Create(
         CrearCargoRequest request,
@@ -102,8 +110,11 @@ public class CargosController : ControllerBase
     /// <response code="404">No se encontró un cargo con el ID especificado.</response>
     /// <response code="409">Conflicto — el código ya está en uso por otro cargo activo.</response>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(CargoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<CargoDto>> Update(
@@ -130,7 +141,10 @@ public class CargosController : ControllerBase
     /// <response code="404">No se encontró un cargo con el ID especificado.</response>
     /// <response code="409">Conflicto — el cargo tiene puestos activos asociados que impiden la eliminación.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult> Delete(
@@ -153,7 +167,10 @@ public class CargosController : ControllerBase
     /// <response code="404">No se encontró un cargo con el ID especificado.</response>
     /// <response code="409">Conflicto — ya existe un cargo activo con el mismo código.</response>
     [HttpPatch("{id:guid}/reactivar")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(CargoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<CargoDto>> Reactivate(
@@ -177,6 +194,7 @@ public class CargosController : ControllerBase
     /// <response code="200">Lista de habilidades devuelta correctamente.</response>
     [HttpGet("{cargoId:guid}/skills")]
     [ProducesResponseType(typeof(IReadOnlyList<CargoSkillDetailDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<CargoSkillDetailDto>>> GetSkills(
         Guid cargoId,
         CancellationToken cancellationToken)
@@ -197,8 +215,11 @@ public class CargosController : ControllerBase
     /// <response code="400">Nivel de habilidad inválido.</response>
     /// <response code="404">Cargo o habilidad no encontrados.</response>
     [HttpPut("{cargoId:guid}/skills/{skillId:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(CargoSkillDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CargoSkillDto>> UpsertSkill(
         Guid cargoId,
@@ -222,7 +243,10 @@ public class CargosController : ControllerBase
     /// <response code="204">Habilidad eliminada correctamente.</response>
     /// <response code="404">Cargo o asignación no encontrados.</response>
     [HttpDelete("{cargoId:guid}/skills/{skillId:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> DeleteSkill(
         Guid cargoId,
