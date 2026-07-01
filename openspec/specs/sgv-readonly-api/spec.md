@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Expose SGV catalog and structure data through an external read-only HTTP API. The API MUST return persisted data for organizational units, organizational unit types, roles, positions, and skills, and MUST NOT require authentication in this version.
+Expose SGV catalog and structure data through an external read-only HTTP API. The API MUST return persisted data for organizational units, organizational unit types, roles, positions, and skills, and MUST NOT require authentication in this version, except for Cargos (`/api/v1/cargos`) and its `/skills` subresource, which require authentication for reads and the `Administrador` role for mutations (see `cargo-management` and `cargo-skill-query-contract` specs).
 
 ## Requirements
 
@@ -158,27 +158,33 @@ The system MUST manage positions as an administrable catalog. `codigo` and `nomb
 
 ### Requirement: No Authentication Requirement
 
-The system MUST allow access to existing read-only endpoints without requiring authentication or authorization in this version. Identity management endpoints and role-assignment operations MAY require authentication/authorization. Enabling authentication MUST NOT apply a global authorization requirement that breaks existing anonymous read access.
-(Previously: the requirement allowed all read-only endpoints anonymously but did not distinguish new protected Identity operations.)
+El sistema MUST preservar acceso anónimo para los endpoints públicos de lectura existentes, excepto las lecturas de Cargos. `GET /api/v1/cargos`, `GET /api/v1/cargos/{id}` y `GET /api/v1/cargos/{cargoId}/skills` MUST requerir autenticación. Las mutaciones de Cargos y del subrecurso de skills MUST requerir rol `Administrador`. Habilitar autenticación MUST NOT romper el acceso anónimo del resto de contratos públicos de lectura.
+(Previously: todos los endpoints read-only existentes podían consumirse anónimamente.)
 
-#### Escenario: Anonymous client reads supported data
+#### Scenario: Lectura pública anónima permitida
 
-- **GIVEN** the API is running and persisted data exists
-- **WHEN** an unauthenticated client requests a supported resource collection
-- **THEN** the API MUST process the request without requiring credentials
-- **AND** the response MUST follow the same contract as an authenticated request would.
+- GIVEN la API está disponible y existe un recurso público que no es Cargo
+- WHEN un cliente sin credenciales solicita ese endpoint de lectura
+- THEN la API MUST responder exitosamente sin autenticación.
 
-#### Escenario: Identity operation can require credentials
+#### Scenario: Lectura anónima de Cargos rechazada
 
-- **DADO** que un cliente no autenticado solicita administrar usuarios o asignar roles
-- **CUANDO** la operación está definida como protegida
-- **ENTONCES** el sistema MAY rechazarla por falta de credenciales o permisos.
+- GIVEN la API está disponible y existen datos de Cargos
+- WHEN un cliente sin credenciales solicita una lectura de Cargos o `GET /api/v1/cargos/{cargoId}/skills`
+- THEN la API MUST responder `401 Unauthorized`.
 
-#### Escenario: Authentication does not change public read contracts
+#### Scenario: Lectura autenticada de Cargos exitosa
 
-- **DADO** que la autenticación está habilitada en SGV
-- **CUANDO** un cliente anónimo consume endpoints públicos existentes de lectura
-- **ENTONCES** el sistema MUST preservar acceso anónimo y contratos de respuesta existentes.
+- GIVEN un cliente autenticado
+- WHEN solicita un endpoint de lectura de Cargos
+- THEN la API MUST responder `2xx` con el contrato documentado de Cargos.
+
+#### Scenario: Mutación de Cargos protegida por rol administrador
+
+- GIVEN una solicitud válida de mutación sobre Cargos o su subrecurso de skills
+- WHEN la ejecuta un cliente autenticado sin rol `Administrador`
+- THEN la API MUST responder `403 Forbidden`
+- AND, si la ejecuta un `Administrador`, MUST responder `2xx`.
 
 ### Requirement: Enriched Cargo and Persona skill query documentation
 
