@@ -386,6 +386,52 @@ public sealed class CargoCreatePageTests
     }
 
     // ──────────────────────────────────────────────
+    // Review fix #2: FieldErrors roundtrip API 400 → form (ValidationProblemDetails)
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Create_WhenBackendReturnsFieldErrors_RendersFieldValidationOnCodigo()
+    {
+        var apiClient = new FakeCargoApiClient
+        {
+            CreateResult = CargoCommandResult.Failure(
+                new CargoError(CargoErrorType.Validation, "Validation", "validation failed"),
+                new Dictionary<string, string[]>
+                {
+                    ["codigo"] = new[] { "ya existe" }
+                })
+        };
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos/crear");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "C-RT",
+            ["Input.Nombre"] = "Cargo Roundtrip",
+            ["Input.NivelId"] = JuniorNivelId.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El form sigue visible (sin PRG).
+        Assert.Contains("Nuevo cargo", content, StringComparison.OrdinalIgnoreCase);
+
+        // El mensaje de field-error "ya existe" debe quedar dentro del
+        // field-validation span de Input.Codigo (mapping via
+        // CargoFormHelpers.ApplyFieldErrorsToModelState → prefijo "Input.").
+        Assert.True(
+            Regex.IsMatch(content, @"<span[^>]*data-valmsg-for=""Input\.Codigo""[^>]*>[\s\S]*?ya existe[\s\S]*?</span>", RegexOptions.IgnoreCase),
+            "Expected the backend field-error message 'ya existe' to be rendered inside the Input.Codigo field-validation span.");
+    }
+
+    // ──────────────────────────────────────────────
     // Helpers de soporte
     // ──────────────────────────────────────────────
 
