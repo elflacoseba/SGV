@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using System.Web;
@@ -248,5 +249,54 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
 
         // El catálogo se recargó tras el fallo (GET inicial + POST fallido)
         Assert.Equal(2, apiClient.NivelesCalls);
+    }
+
+    // ──────────────────────────────────────────────
+    // Task 2.7: POST con HttpRequestException → error recuperable sin 500
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Edit_WhenTransportFails_ShowsRecoverableError()
+    {
+        var cargoId = Guid.NewGuid();
+        var nivelId = CargoWebTestFixture.SeniorNivelId;
+        var cargo = new CargoDto(cargoId, "C-EDIT", "Cargo a Editar", null, nivelId, "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.UpdateException = new HttpRequestException("network down");
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "C-EDIT",
+            ["Input.Nombre"] = "Cargo Editado",
+            ["Input.NivelId"] = nivelId.ToString()
+        }));
+
+        // El handler debe haber atrapado la excepción de transporte y
+        // respondido 200 con el formulario re-renderizado, no propagado
+        // como 500.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El form sigue visible para que el usuario pueda reintentar.
+        Assert.Contains("Editar", content, StringComparison.OrdinalIgnoreCase);
+
+        // El banner rojo de error recuperable debe estar visible.
+        Assert.Contains("No se pudo contactar al servicio de cargos", content, StringComparison.OrdinalIgnoreCase);
+
+        // El catálogo se recarga también en el camino de transporte-failure.
+        Assert.Equal(2, apiClient.NivelesCalls);
+
+        // El payload se envió antes de que la fake lanzara la excepción.
+        var update = Assert.Single(apiClient.UpdateCalls);
+        Assert.Equal(cargoId, update.Id);
+        Assert.Equal("C-EDIT", update.Request.Codigo);
     }
 }
