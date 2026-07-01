@@ -367,11 +367,14 @@ public sealed class CargoServicioComandosTests
         var existente = CrearCargoActivo("DIR-01");
         var repo = new FakeCargoWriteRepository { Datos = [existente] };
         // Pre-check passes (no duplicate yet), but SaveChanges simulates DB index violation.
-        var uow = new FakeThrowingUnitOfWork(
-            new DbUpdateException("Duplicate entry for key 'IX_Cargos_ActiveCodigoUnique'"));
+        // El mensaje del inner exception debe contener "IX_Cargos_ActiveCodigoUnique" y
+        // "Duplicate entry" para que el helper específico lo detecte.
+        var innerDup = new Exception(
+            "Duplicate entry 'OTRO' for key 'cargos.IX_Cargos_ActiveCodigoUnique'");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("Duplicate entry", innerDup));
         var servicio = new CargoServicioComandos(
             repo, FakeNivelRepo, uow,
-            new FakeConstraintViolationDetector(),
             new CrearCargoRequestValidator(),
             new ActualizarCargoRequestValidator());
         var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
@@ -401,6 +404,99 @@ public sealed class CargoServicioComandosTests
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
+    // ── ActualizarAsync — mapeo específico de DbUpdateException (Review PR1) ──
+    //
+    // Antes del fix, CUALQUIER `DbUpdateException` se mapeaba a `CodigoDuplicado`
+    // cuando el `IConstraintViolationDetector` interno la clasificaba como
+    // constraint violation. Esto generaba falsos positivos ante violaciones FK (1452)
+    // o ante duplicados en otros índices (por ejemplo, `IX_Personas_ActiveEmailUnique`).
+    // El fix restringe el mapeo a la violación específica del índice
+    // `IX_Cargos_ActiveCodigoUnique`, identificado por su nombre en el mensaje
+    // de error de MySQL.
+
+    [Fact]
+    public async Task ActualizarAsync_DbUpdateException_FkViolation_NoMapeaCodigoDuplicado()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        // FK violation (Number 1452): el nivel fue eliminado entre la validación
+        // y el SaveChanges. NO es duplicado de código → debe propagar.
+        var fkEx = new Exception(
+            "Cannot add or update a child row: a foreign key constraint fails " +
+            "(`cargos`.`IX_Cargos_NivelId`, CONSTRAINT `FK_Cargos_NivelesCargo`...)");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("FK violation", fkEx));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+        var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            async () => await servicio.ActualizarAsync(existente.Id, request, default));
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_DbUpdateException_DuplicateKey_DeOtroIndice_NoMapeaCodigoDuplicado()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        // Duplicate key (1062) pero en OTRO índice: NO debe mapearse a CodigoDuplicado.
+        var dupEx = new Exception(
+            "Duplicate entry 'x@x.com' for key 'personas.IX_Personas_ActiveEmailUnique'");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("Duplicate entry", dupEx));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+        var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            async () => await servicio.ActualizarAsync(existente.Id, request, default));
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_DbUpdateException_DuplicateKey_IxCargosActiveCodigoUnique_MapeaCodigoDuplicado()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        // Duplicate key (1062) en NUESTRO índice activo: debe mapear a CodigoDuplicado.
+        var dupEx = new Exception(
+            "Duplicate entry 'OTRO' for key 'cargos.IX_Cargos_ActiveCodigoUnique'");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("Duplicate entry", dupEx));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+        var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+    }
+
+    [Fact]
+    public async Task CrearAsync_DbUpdateException_FkViolation_NoMapeaCodigoDuplicado()
+    {
+        var repo = new FakeCargoWriteRepository();
+        var fkEx = new Exception(
+            "Cannot add or update a child row: a foreign key constraint fails " +
+            "(`cargos`.`IX_Cargos_NivelId`, CONSTRAINT `FK_Cargos_NivelesCargo`...)");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("FK violation", fkEx));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            async () => await servicio.CrearAsync(CrearRequest(), default));
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private static Cargo CrearCargoActivo(string codigo, Guid? id = null)
@@ -421,16 +517,29 @@ public sealed class CargoServicioComandosTests
     }
 }
 
-internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
-{
-    public bool IsConstraintViolation(DbUpdateException exception) => true;
-}
-
 internal sealed class FakeThrowingUnitOfWork : IUnitOfWork
 {
     private readonly DbUpdateException _exceptionToThrow;
 
     public FakeThrowingUnitOfWork(DbUpdateException exceptionToThrow)
+    {
+        _exceptionToThrow = exceptionToThrow;
+    }
+
+    public int SaveChangesCount { get; private set; }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        SaveChangesCount++;
+        throw _exceptionToThrow;
+    }
+}
+
+internal sealed class FakeThrowingDbUpdateUnitOfWork : IUnitOfWork
+{
+    private readonly DbUpdateException _exceptionToThrow;
+
+    public FakeThrowingDbUpdateUnitOfWork(DbUpdateException exceptionToThrow)
     {
         _exceptionToThrow = exceptionToThrow;
     }

@@ -15,7 +15,6 @@ public sealed class CargoServicioComandos(
     ICargoRepository repository,
     INivelCargoRepository nivelCargoRepository,
     IUnitOfWork unitOfWork,
-    IConstraintViolationDetector constraintDetector,
     IValidator<CrearCargoRequest> crearValidator,
     IValidator<ActualizarCargoRequest> actualizarValidator) : ICargoServicioComandos
 {
@@ -30,14 +29,13 @@ public sealed class CargoServicioComandos(
 
     /// <summary>
     /// Convenience constructor for backward compatibility (e.g., tests).
-    /// Uses the real validators directly and a no-op constraint detector.
+    /// Uses the real validators directly.
     /// </summary>
     public CargoServicioComandos(
         ICargoRepository repository,
         INivelCargoRepository nivelCargoRepository,
         IUnitOfWork unitOfWork)
         : this(repository, nivelCargoRepository, unitOfWork,
-               NullConstraintViolationDetector.Instance,
                new CrearCargoRequestValidator(),
                new ActualizarCargoRequestValidator())
     {
@@ -78,7 +76,7 @@ public sealed class CargoServicioComandos(
 
             return CargoCommandResult.Success(MapToDto(cargo));
         }
-        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        catch (DbUpdateException ex) when (IsActiveCodigoUniqueViolation(ex))
         {
             return CargoCommandResult.Failure(
                 new(CargoErrorType.Conflict, "CodigoDuplicado",
@@ -131,7 +129,7 @@ public sealed class CargoServicioComandos(
 
             return CargoCommandResult.Success(MapToDto(cargo));
         }
-        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        catch (DbUpdateException ex) when (IsActiveCodigoUniqueViolation(ex))
         {
             return CargoCommandResult.Failure(
                 new(CargoErrorType.Conflict, "CodigoDuplicado",
@@ -250,17 +248,39 @@ public sealed class CargoServicioComandos(
         }
         return null;
     }
-}
 
-/// <summary>
-/// No-op constraint violation detector used by the convenience constructor when no
-/// detector is supplied (e.g., legacy test call sites). Always reports that the
-/// exception is NOT a constraint violation, so the safety-net catch block is
-/// effectively disabled in those test paths.
-/// </summary>
-internal sealed class NullConstraintViolationDetector : IConstraintViolationDetector
-{
-    public static readonly NullConstraintViolationDetector Instance = new();
+    /// <summary>
+    /// Detects whether a <see cref="DbUpdateException"/> corresponds to a violation of
+    /// the <c>IX_Cargos_ActiveCodigoUnique</c> index specifically. The check inspects
+    /// the inner exception message for the MySQL "Duplicate entry ... for key" pattern
+    /// referencing our active-codigo index. Any other constraint violation
+    /// (FK, other unique indexes, check constraints) propagates as a generic
+    /// 500 error instead of being misreported as <c>CodigoDuplicado</c>.
+    /// </summary>
+    /// <remarks>
+    /// The match is done by inner message content (no MySqlException type reference)
+    /// to keep <c>SGV.Aplicacion</c> free of any MySQL provider dependency
+    /// (Clean Architecture). The combination "Duplicate entry" + "IX_Cargos_ActiveCodigoUnique"
+    /// is MySQL-specific and is the exact message MySQL emits for violations of
+    /// the active-codigo unique index.
+    /// </remarks>
+    private static bool IsActiveCodigoUniqueViolation(DbUpdateException exception)
+    {
+        var inner = exception.InnerException;
+        if (inner is null)
+        {
+            return false;
+        }
 
-    public bool IsConstraintViolation(DbUpdateException exception) => false;
+        var message = inner.Message;
+        if (string.IsNullOrEmpty(message))
+        {
+            return false;
+        }
+
+        const StringComparison Comparison = StringComparison.Ordinal;
+        return message.Contains("IX_Cargos_ActiveCodigoUnique", Comparison)
+            && (message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("1062", Comparison));
+    }
 }
