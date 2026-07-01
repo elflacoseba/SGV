@@ -207,3 +207,47 @@
 | 5 | OpenSpec artifacts | docs | N/A | tasks.md + apply-progress.md + SDD untracked files |
 
 **Total estimado**: ~150 líneas net (incluyendo 95 líneas del test nuevo del mapper). Bien dentro del budget de 400.
+
+---
+
+## 8. PR 2B — Frontend Edit + Details CTA (chained)
+
+> **Rama destino:** develop. **Depende de PR2A mergeado** (develop en `6c1553e0` después de PR #63). **Estado post-PR:** página Edit funcional con PRG + TempData, botón "Editar" en Details preservando contexto (p/search/sort). Suite `~Cargo|Cargos` y `~Web` verde.
+
+### Review Workload Forecast PR 2B
+
+- **Líneas estimadas**: ~500 (Cliente HTTP ~80 + Web ~210 + Tests ~150 + Artefactos ~60).
+- **Distribución por capa**:
+  - Web (`ICargoApiClient.UpdateAsync` + impl + Edit + Details CTA): ~360
+  - Tests (CargoApiClient Update + CargoEditPage + ajuste Details): ~150
+  - Artefactos (`tasks.md` + `apply-progress.md`): ~60
+- **Chained PRs recommended**: N/A (PR 2B es el último eslabón del split; mergea solo contra develop).
+- **400-line budget risk**: High — `size:exception` probable (PR1 y PR2A ya usaron `size:exception`; PR 2B hereda el patrón).
+- **Justificación**: incluye nuevo método en cliente HTTP + página Razor completa + 6 tests Edit + inversión de la aserción `DoesNotContain "Editar"` → `Contains "Editar"` en `CargoDetailsPageTests`.
+
+### Fase 8.1 — Cliente HTTP: agregar `UpdateAsync`
+
+- [ ] **PR-2B.1 RED+GREEN: cliente `UpdateAsync` (interface + impl + fake + tests)** — capa Web; `src/SGV.Web/Integration/Organizacion/ICargoApiClient.cs`, `src/SGV.Web/Integration/Organizacion/CargoApiClient.cs`, `tests/SGV.Tests/Web/Cargo/FakeCargoApiClient.cs`, `tests/SGV.Tests/Web/Cargo/CargoApiClientTests.cs`; tests `UpdateAsync_Http200WithPayload_ReturnsDtoAndHitsPutRoute`, `UpdateAsync_Http400WithValidationProblemDetails_ReturnsFailureWithFieldErrors`, `UpdateAsync_Http409WithProblemDetails_ReturnsFailureWithConflict`; agregar `Task<CargoCommandResult> UpdateAsync(Guid id, ActualizarCargoRequest request, CancellationToken cancellationToken = default)`; implementar con `PutAsJsonAsync` reusando `ToCommandResultAsync`; URL `/api/v1/cargos/{id}`; extender `FakeCargoApiClient` con `UpdateResult`, `UpdateCalls` (captura `(Guid Id, ActualizarCargoRequest Request, CancellationToken)`), `UpdateException`. **1.5 h**. Dep: PR2A mergeado (develop @ 6c1553e0).
+
+### Fase 8.2 — Página Edit
+
+- [ ] **PR-2B.2 RED: tests web de Edit (GET/POST)** — capa Web (tests); `tests/SGV.Tests/Web/Cargo/CargoEditPageTests.cs` (nuevo, separado de `CargoCreatePageTests` para evitar acoplamiento); tests `Get_Edit_WhenAnonymous_RedirectsToSignIn`, `Get_Edit_WhenAuthenticated_PrepopulatesFormAndNiveles`, `Get_Edit_WhenCargoNotFound_ShowsRecoverableState`, `Post_Edit_WhenSuccessful_RedirectsToEditWithConfirmation`, `Post_Edit_WhenCodigoConflict_ShowsFieldErrorAndKeepsForm`, `Post_Edit_WhenValidationFails_ShowsFieldErrors`. Reusar `CargoWebTestFixture`. **1.5 h**. Dep: PR-2B.1.
+
+- [ ] **PR-2B.3 GREEN: crear `Edit.cshtml` + `Edit.cshtml.cs`** — capa Web; `src/SGV.Web/Pages/Organizacion/Cargos/Edit.cshtml`, `src/SGV.Web/Pages/Organizacion/Cargos/Edit.cshtml.cs`; `[Authorize]` `PageModel` que implementa `ICargoForm` con `IsEdit = true`; `OnGetAsync(Guid id, [FromQuery] int? p, [FromQuery] string? search, [FromQuery] string? sort)` carga `GetByIdAsync` + `GetNivelesAsync`, prellena `Input`; `IsRecoverable` cuando el cargo no existe; `OnPostAsync(Guid id, [FromQuery] int? p, [FromQuery] string? search, [FromQuery] string? sort)` valida ModelState, llama `UpdateAsync`, traduce `FieldErrors` (vía `CargoFormHelpers.ApplyFieldErrorsToModelState`) y `Conflict → Input.Codigo` (vía `ModelState.AddModelError` directo, mismo patrón que Create), PRG a sí mismo con `TempData["StatusMessage"]`; recarga catálogo tras error. Reusar `_Form.cshtml`. PR-2B.2 verde. **2.0 h**. Dep: PR-2B.2.
+
+### Fase 8.3 — CTA de Details
+
+- [ ] **PR-2B.4 Modificar `Details.cshtml` y ajustar `CargoDetailsPageTests`** — capa Web + Web (tests); `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml`, `tests/SGV.Tests/Web/Cargo/CargoDetailsPageTests.cs`; en `Details.cshtml` agregar `<a class="btn btn-primary" href="@Url.Page("/Organizacion/Cargos/Edit", new { id = Model.Cargo!.Id, p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })"><i class="ti ti-pencil me-1"></i>Editar</a>` solo si el cargo está disponible (no en `IsNotFound`); preservar query string para volver al listado filtrado tras guardar. En `CargoDetailsPageTests.Get_Details_WhenAuthenticated_ShowsCargoReadOnly`: sustituir `Assert.DoesNotContain(">Editar<", ...)` por `Assert.Contains("Editar", content)` + aserción de que el link apunta a `/organizacion/cargos/editar/{id}` con preservación de query string. En `Get_Details_WhenCargoNotFound_ShowsNotAvailableState`: mantener `Assert.DoesNotContain(">Editar<", ...)` (correcto: no debe haber Edit en estado no disponible). **0.75 h**. Dep: PR-2B.3.
+
+### Fase 8.4 — Verificación final
+
+- [ ] **PR-2B.5 VERIFY: build + suite cargo + web** — capa Soporte; `dotnet build SGV.slnx` + `dotnet test SGV.slnx --filter "FullyQualifiedName~Cargo|FullyQualifiedName~Cargos"` + `dotnet test SGV.slnx --filter "FullyQualifiedName~Web"` en verde; `bun install && bun run build` en `src/SGV.Web` verde. **0.5 h**. Dep: PR-2B.4.
+
+### Notas de revisión para el orchestrator
+
+- **PR 2B no depende de backend nuevo**: el endpoint `PUT /api/v1/cargos/{id}` con `Codigo` ya está mergeado desde PR1.
+- **PR 2B hereda infraestructura web del PR2A cleanup**: reusa `CargoPostResultMapper`, `CargoWebTestFixture`, e `ICargoForm` (en `Integration/Organizacion/`).
+- **Edición vs. creación**: la página Edit usa el mismo `_Form.cshtml` que Create. La única diferencia visible al usuario es la ruta (`/organizacion/cargos/editar/{id}` vs `/organizacion/cargos/crear`) y el comportamiento PRG (Edit redirige a sí mismo, Create a Details).
+- **Preservar contexto de paginación**: el botón "Editar" en Details debe propagar `p`, `search`, `sort` como query string para que la página Edit pueda redirigir de vuelta al listado filtrado tras guardar (vía `CargoFormHelpers.BuildReturnToListUrl`).
+- **Tests de Details a ajustar**: el caso "cargo encontrado" invierte su aserción; el caso "no disponible" mantiene la negación.
+- **Issue #62 (backend `[Authorize]` POST/PUT/DELETE)** sigue fuera de scope. La página Edit tiene `[Authorize]` pero el endpoint `PUT /api/v1/cargos/{id}` queda abierto. Resolver en change SDD aparte si el usuario decide cerrar #62.
