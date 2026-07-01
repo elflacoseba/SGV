@@ -43,8 +43,8 @@ public sealed class CreateModel(
     public string ReturnToListUrl => CargoFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort);
 
     /// <summary>
-    /// Handler GET del formulario. Carga el catálogo de niveles para el dropdown.
-    /// Si la carga del catálogo falla, se muestra un error recuperable.
+    /// GET handler for the form. Loads the nivel catalog for the dropdown.
+    /// If the catalog load fails, a recoverable error is shown.
     /// </summary>
     public async Task OnGetAsync(string? p = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
     {
@@ -56,13 +56,13 @@ public sealed class CreateModel(
     }
 
     /// <summary>
-    /// Handler POST del formulario. Valida ModelState, llama al API
-    /// <c>POST /api/v1/cargos</c> y redirige al detalle del nuevo cargo
-    /// (PRG). Si el API devuelve 400 con field errors, los mapea a
-    /// ModelState (prefijo <c>Input.</c>) para mostrarlos en el form.
-    /// Si devuelve 409, se traduce a un error a nivel del campo
-    /// <c>Codigo</c>. Si la respuesta falla por otro motivo, se muestra un
-    /// error general y se vuelve a cargar el catálogo.
+    /// POST handler for the form. Validates ModelState, calls the API at
+    /// <c>POST /api/v1/cargos</c>, and redirects to the new cargo's
+    /// Details page (PRG). If the API returns 400 with field errors, they
+    /// are mapped into ModelState (prefixed with <c>Input.</c>) so the
+    /// form renders them next to the right field. A 409 is translated
+    /// into a field-level error on <c>Codigo</c>. Any other failure shows
+    /// a general error and reloads the catalog.
     /// </summary>
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken = default)
     {
@@ -109,7 +109,7 @@ public sealed class CreateModel(
 
         if (result.Error is not null)
         {
-            // Conflict 409 (código duplicado) → error a nivel de campo Codigo.
+            // Conflict 409 (duplicate Codigo) → field-level error on Codigo.
             if (result.Error.Type == CargoErrorType.Conflict)
             {
                 ModelState.AddModelError(CargoFormKeys.CodigoKey, result.Error.Message);
