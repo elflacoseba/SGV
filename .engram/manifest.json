@@ -40,6 +40,14 @@
       "sessions": 12,
       "memories": 45,
       "prompts": 40
+    },
+    {
+      "id": "136ba99c",
+      "created_by": "elflacoseba",
+      "created_at": "2026-07-01T16:28:04Z",
+      "sessions": 95,
+      "memories": 256,
+      "prompts": 202
     }
   ]
 }
