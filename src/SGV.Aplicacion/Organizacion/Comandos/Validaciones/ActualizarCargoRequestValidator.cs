@@ -4,12 +4,17 @@ namespace SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 
 /// <summary>
 /// Validates shape and input rules for <see cref="ActualizarCargoRequest"/>.
-/// Note: Codigo is not present in the update request — it is immutable after creation.
+/// Uniqueness of <c>Codigo</c> against other active Cargos is enforced by
+/// the application service and the database index, not here.
 /// </summary>
 public class ActualizarCargoRequestValidator : AbstractValidator<ActualizarCargoRequest>
 {
     public ActualizarCargoRequestValidator()
     {
+        RuleFor(x => x.Codigo)
+            .NotEmpty()
+            .MaximumLength(50);
+
         RuleFor(x => x.Nombre)
             .NotEmpty()
             .MaximumLength(200);

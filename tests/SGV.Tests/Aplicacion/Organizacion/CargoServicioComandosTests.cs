@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Organizacion.Comandos;
+using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
@@ -92,6 +94,7 @@ public sealed class CargoServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
         var request = new ActualizarCargoRequest(
+            "DIR-01",
             "Director General Actualizado",
             NivelCargoConstantes.OperativoId,
             "Descripción actualizada");
@@ -110,7 +113,7 @@ public sealed class CargoServicioComandosTests
         var repo = new FakeCargoWriteRepository();
         var uow = new FakeUnitOfWork();
         var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
-        var request = new ActualizarCargoRequest("Nombre", NivelIdValido);
+        var request = new ActualizarCargoRequest("DIR-01", "Nombre", NivelIdValido);
 
         var resultado = await servicio.ActualizarAsync(Guid.NewGuid(), request, default);
 
@@ -126,7 +129,7 @@ public sealed class CargoServicioComandosTests
         var repo = new FakeCargoWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
-        var request = new ActualizarCargoRequest("Nombre", NivelIdInexistente);
+        var request = new ActualizarCargoRequest("DIR-01", "Nombre", NivelIdInexistente);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
@@ -302,6 +305,241 @@ public sealed class CargoServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ── ActualizarAsync — unicidad activa de Codigo ────────────
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoDuplicadoActivo_RetornaConflictoYSinGuardar()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var otroActivo = CrearCargoActivo("DIR-02", Guid.Parse("80000000-0000-0000-0000-0000000000A1"));
+        var repo = new FakeCargoWriteRepository { Datos = [existente, otroActivo] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        var request = new ActualizarCargoRequest("DIR-02", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_MismoCodigoEnOtroCargoEliminado_PermiteOperacion()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var otroEliminado = CrearCargoDesactivado("DIR-02", Guid.Parse("80000000-0000-0000-0000-0000000000A1"));
+        var repo = new FakeCargoWriteRepository { Datos = [existente, otroEliminado] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        var request = new ActualizarCargoRequest("DIR-02", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("DIR-02", resultado.Value!.Codigo);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoInvalido_CortaAntesDeConsultarRepos()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        var request = new ActualizarCargoRequest("", "Nombre", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdForUpdateCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoDuplicado_RaceCondition_DevuelveConflicto()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        // Pre-check passes (no duplicate yet), but SaveChanges simulates DB index violation.
+        // El mensaje del inner exception debe contener "IX_Cargos_ActiveCodigoUnique" y
+        // "Duplicate entry" para que el helper específico lo detecte.
+        var innerDup = new Exception(
+            "Duplicate entry 'OTRO' for key 'cargos.IX_Cargos_ActiveCodigoUnique'");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("Duplicate entry", innerDup));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+        var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoSinCambio_NoFallaValidacionUnicidad()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        // Mismo Codigo que el cargo existente: la unicidad no debe dispararse porque
+        // el repo la evalúa con excludingId y el fake lo respeta.
+        var request = new ActualizarCargoRequest("DIR-01", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("DIR-01", resultado.Value!.Codigo);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    // ── ActualizarAsync — mapeo específico de DbUpdateException (Review PR1) ──
+    //
+    // Antes del fix, CUALQUIER `DbUpdateException` se mapeaba a `CodigoDuplicado`
+    // cuando el `IConstraintViolationDetector` interno la clasificaba como
+    // constraint violation. Esto generaba falsos positivos ante violaciones FK (1452)
+    // o ante duplicados en otros índices (por ejemplo, `IX_Personas_ActiveEmailUnique`).
+    // El fix restringe el mapeo a la violación específica del índice
+    // `IX_Cargos_ActiveCodigoUnique`, identificado por su nombre en el mensaje
+    // de error de MySQL.
+
+    [Fact]
+    public async Task ActualizarAsync_DbUpdateException_FkViolation_NoMapeaCodigoDuplicado()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        // FK violation (Number 1452): el nivel fue eliminado entre la validación
+        // y el SaveChanges. NO es duplicado de código → debe propagar.
+        var fkEx = new Exception(
+            "Cannot add or update a child row: a foreign key constraint fails " +
+            "(`cargos`.`IX_Cargos_NivelId`, CONSTRAINT `FK_Cargos_NivelesCargo`...)");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("FK violation", fkEx));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+        var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            async () => await servicio.ActualizarAsync(existente.Id, request, default));
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_DbUpdateException_DuplicateKey_DeOtroIndice_NoMapeaCodigoDuplicado()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        // Duplicate key (1062) pero en OTRO índice: NO debe mapearse a CodigoDuplicado.
+        var dupEx = new Exception(
+            "Duplicate entry 'x@x.com' for key 'personas.IX_Personas_ActiveEmailUnique'");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("Duplicate entry", dupEx));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+        var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            async () => await servicio.ActualizarAsync(existente.Id, request, default));
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_DbUpdateException_DuplicateKey_IxCargosActiveCodigoUnique_MapeaCodigoDuplicado()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        // Duplicate key (1062) en NUESTRO índice activo: debe mapear a CodigoDuplicado.
+        var dupEx = new Exception(
+            "Duplicate entry 'OTRO' for key 'cargos.IX_Cargos_ActiveCodigoUnique'");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("Duplicate entry", dupEx));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+        var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+    }
+
+    [Fact]
+    public async Task CrearAsync_DbUpdateException_FkViolation_NoMapeaCodigoDuplicado()
+    {
+        var repo = new FakeCargoWriteRepository();
+        var fkEx = new Exception(
+            "Cannot add or update a child row: a foreign key constraint fails " +
+            "(`cargos`.`IX_Cargos_NivelId`, CONSTRAINT `FK_Cargos_NivelesCargo`...)");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("FK violation", fkEx));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            async () => await servicio.CrearAsync(CrearRequest(), default));
+    }
+
+    // ── DTO refresh: nivelNombre en respuesta (Review PR1) ──────
+    //
+    // Antes del fix, `MapToDto` leía `cargo.NivelCargo?.Nombre` directamente,
+    // lo que en ActualizarAsync devolvía el nombre del nivel ANTERIOR (la
+    // navegación cargada antes del cambio) y en CrearAsync devolvía `null`
+    // (el cargo recién creado no incluía la navegación). El fix pasa el
+    // `NivelCargo` ya validado a `MapToDto`.
+
+    [Fact]
+    public async Task ActualizarAsync_CambiaNivelId_RetornaDtoConNivelNombreNuevo()
+    {
+        // El cargo existente se carga con NivelId=Directivo; el FakeCargoWriteRepository
+        // no hidrata la navegación `NivelCargo` (queda null). El test verifica que,
+        // tras cambiar el NivelId a Operativo, el DTO devuelto usa el nombre del
+        // nivel NUEVO (Operativo), no un valor stale de la navegación.
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        var request = new ActualizarCargoRequest(
+            "DIR-01", "Director General", NivelCargoConstantes.OperativoId);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(NivelCargoConstantes.OperativoId, resultado.Value!.NivelId);
+        Assert.Equal("Operativo", resultado.Value.NivelNombre);
+    }
+
+    [Fact]
+    public async Task CrearAsync_Nuevo_RetornaDtoConNivelNombreDelCatalogo()
+    {
+        var repo = new FakeCargoWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(NivelCargoConstantes.DirectivoId, resultado.Value!.NivelId);
+        Assert.Equal("Directivo", resultado.Value.NivelNombre);
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private static Cargo CrearCargoActivo(string codigo, Guid? id = null)
@@ -319,6 +557,42 @@ public sealed class CargoServicioComandosTests
         // Puestos collection is empty, so Desactivar() won't throw
         cargo.Desactivar();
         return cargo;
+    }
+}
+
+internal sealed class FakeThrowingUnitOfWork : IUnitOfWork
+{
+    private readonly DbUpdateException _exceptionToThrow;
+
+    public FakeThrowingUnitOfWork(DbUpdateException exceptionToThrow)
+    {
+        _exceptionToThrow = exceptionToThrow;
+    }
+
+    public int SaveChangesCount { get; private set; }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        SaveChangesCount++;
+        throw _exceptionToThrow;
+    }
+}
+
+internal sealed class FakeThrowingDbUpdateUnitOfWork : IUnitOfWork
+{
+    private readonly DbUpdateException _exceptionToThrow;
+
+    public FakeThrowingDbUpdateUnitOfWork(DbUpdateException exceptionToThrow)
+    {
+        _exceptionToThrow = exceptionToThrow;
+    }
+
+    public int SaveChangesCount { get; private set; }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        SaveChangesCount++;
+        throw _exceptionToThrow;
     }
 }
 

@@ -240,11 +240,11 @@ public sealed class CargosControllerTests
     // ---- PUT (update) ----
 
     [Fact]
-    public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
+    public async Task Put_ValidRequest_WithCodigo_Returns200OkWithUpdatedDto()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { nombre = "Cargo Actualizado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
+        var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "Cargo Actualizado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{FakeCargoServicio.CargoId1}", body);
@@ -269,7 +269,7 @@ public sealed class CargosControllerTests
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { nombre = "No existe", nivelId = FakeCargoServicioComandos.DefaultNivelId });
+        var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "No existe", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PutAsync($"/api/v1/cargos/{Guid.NewGuid()}", body);
 
@@ -298,7 +298,7 @@ public sealed class CargosControllerTests
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { nombre = "", nivelId = FakeCargoServicioComandos.DefaultNivelId });
+        var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PutAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}", body);
 
@@ -306,6 +306,60 @@ public sealed class CargosControllerTests
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(400, problem.Status);
         await AssertErrorFieldExists(response, "nombre");
+    }
+
+    [Fact]
+    public async Task Put_EmptyCodigo_Returns400WithFieldErrors()
+    {
+        var fieldErrors = new Dictionary<string, string[]>
+        {
+            ["codigo"] = ["'Codigo' no debe estar vacío."]
+        };
+        var fakeComandos = new FakeCargoServicioComandos
+        {
+            ActualizarHandler = (id, _, _) => Task.FromResult(
+                CargoCommandResult.Failure(
+                    new CargoError(CargoErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                    fieldErrors))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoServicioComandos>();
+            services.AddSingleton<ICargoServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "", nombre = "Cargo Actualizado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
+
+        var response = await client.PutAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorFieldExists(response, "codigo");
+    }
+
+    [Fact]
+    public async Task Put_DuplicateActiveCodigo_Returns409WithProblemDetails()
+    {
+        var fakeComandos = new FakeCargoServicioComandos
+        {
+            ActualizarHandler = (id, _, _) => Task.FromResult(
+                CargoCommandResult.Failure(
+                    new CargoError(CargoErrorType.Conflict, "CodigoDuplicado",
+                        "Ya existe un cargo activo con el mismo código.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoServicioComandos>();
+            services.AddSingleton<ICargoServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "OTRO", nombre = "Cargo Duplicado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
+
+        var response = await client.PutAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}", body);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(409, problem.Status);
+        Assert.Equal("CodigoDuplicado", problem.Title);
     }
 
     // ---- DELETE (soft-delete) ----

@@ -90,16 +90,17 @@ public class CargosController : ControllerBase
     }
 
     /// <summary>
-    /// Actualiza los campos editables de un cargo existente.
+    /// Actualiza los campos editables de un cargo existente, incluido <c>Codigo</c>.
+    /// La unicidad activa de <c>Codigo</c> se aplica contra otros cargos activos.
     /// </summary>
     /// <param name="id">Identificador único del cargo a actualizar.</param>
-    /// <param name="request">Datos actualizados del cargo.</param>
+    /// <param name="request">Datos actualizados del cargo. <c>Codigo</c> es obligatorio.</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Cargo actualizado.</returns>
     /// <response code="200">Cargo actualizado correctamente.</response>
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="404">No se encontró un cargo con el ID especificado.</response>
-    /// <response code="409">Conflicto — el código ya está en uso por otro cargo.</response>
+    /// <response code="409">Conflicto — el código ya está en uso por otro cargo activo.</response>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(CargoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

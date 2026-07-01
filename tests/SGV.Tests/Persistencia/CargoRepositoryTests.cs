@@ -187,7 +187,7 @@ public sealed class CargoRepositoryTests
             var cargo = await repo.GetByIdForUpdateAsync(entity.Id, default);
             Assert.NotNull(cargo);
 
-            cargo!.Actualizar("Modificado", NivelCargoConstantes.ConduccionMediaId, "Desc modificada");
+            cargo!.Actualizar(entity.Codigo, "Modificado", NivelCargoConstantes.ConduccionMediaId, "Desc modificada");
             await repo.UpdateAsync(cargo, default);
             await context.SaveChangesAsync();
 
@@ -196,7 +196,7 @@ public sealed class CargoRepositoryTests
             Assert.Equal("Modificado", modificado!.Nombre);
             Assert.Equal(NivelCargoConstantes.ConduccionMediaId, modificado.NivelId);
             Assert.Equal("Desc modificada", modificado.Descripcion);
-            Assert.Equal(entity.Codigo, modificado.Codigo); // Codigo unchanged
+            Assert.Equal(entity.Codigo, modificado.Codigo); // Codigo unchanged in this scenario
         }
         finally
         {
@@ -308,6 +308,151 @@ public sealed class CargoRepositoryTests
         finally
         {
             context.Set<CargoEntity>().Remove(entity);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    // ===================== Update de Codigo (Review PR1) =====================
+    //
+    // Cobertura MySQL real para el cambio de `Codigo` en update. Confirma que
+    // el índice `IX_Cargos_ActiveCodigoUnique` actúa como árbitro final
+    // (cubre caso exitoso, duplicado activo y reutilización tras soft-delete).
+
+    [MySqlFact]
+    public async Task UpdateAsync_CambiaCodigo_ActualizaColumnaActivaYComputedColumn()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var codigoInicial = $"CRG-OLD-{sufijo}";
+        var codigoNuevo = $"CRG-NEW-{sufijo}";
+        var entity = RepositoryTestData.CreateCargo("CRG", NivelIdValido);
+        entity.Codigo = codigoInicial;
+        await context.Set<CargoEntity>().AddAsync(entity);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+            var cargo = await repo.GetByIdForUpdateAsync(entity.Id, default);
+            Assert.NotNull(cargo);
+
+            cargo!.Actualizar(codigoNuevo, "Renombrado", NivelIdValido, "Desc nueva");
+            await repo.UpdateAsync(cargo, default);
+            await context.SaveChangesAsync();
+
+            // La columna Codigo quedó persistida con el nuevo valor.
+            var modificado = await repo.GetByIdAsync(entity.Id, default);
+            Assert.NotNull(modificado);
+            Assert.Equal(codigoNuevo, modificado!.Codigo);
+
+            // El índice (columna computada ActiveCodigoUnique) refleja el nuevo
+            // código y por lo tanto ExistsActiveCodeAsync lo encuentra.
+            var existeNuevo = await repo.ExistsActiveCodeAsync(codigoNuevo, default);
+            Assert.True(existeNuevo);
+
+            // El código viejo ya no existe entre los activos.
+            var existeViejo = await repo.ExistsActiveCodeAsync(codigoInicial, default);
+            Assert.False(existeViejo);
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(
+                await context.Set<CargoEntity>().Where(c => c.Id == entity.Id).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task UpdateAsync_CodigoDuplicadoActivo_LanzaDbUpdateException()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var codigoA = $"CRG-DUP-A-{sufijo}";
+        var codigoB = $"CRG-DUP-B-{sufijo}";
+
+        // Crea dos cargos activos con códigos distintos.
+        var entityA = RepositoryTestData.CreateCargo("CRG", NivelIdValido);
+        entityA.Codigo = codigoA;
+        var entityB = RepositoryTestData.CreateCargo("CRG", NivelIdValido);
+        entityB.Codigo = codigoB;
+        await context.Set<CargoEntity>().AddRangeAsync(entityA, entityB);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+
+            // Intenta cambiar el código de B al código de A → el índice único
+            // activo debe rechazar la operación. Se bypasea el servicio para
+            // probar el índice como árbitro final.
+            var cargoB = await repo.GetByIdForUpdateAsync(entityB.Id, default);
+            Assert.NotNull(cargoB);
+
+            cargoB!.Actualizar(codigoA, "B renombrado", NivelIdValido);
+
+            await repo.UpdateAsync(cargoB, default);
+            var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            // El mensaje debe mencionar el índice activo de cargo.
+            var message = ex.InnerException?.Message ?? ex.Message;
+            Assert.True(
+                message.Contains("IX_Cargos_ActiveCodigoUnique", StringComparison.Ordinal)
+                || message.Contains("ActiveCodigoUnique", StringComparison.Ordinal),
+                $"Mensaje inesperado: {message}");
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(
+                await context.Set<CargoEntity>()
+                    .Where(c => c.Id == entityA.Id || c.Id == entityB.Id)
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task UpdateAsync_CodigoSoftDeleted_PermiteReutilizarCodigo()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var codigoReuso = $"CRG-REUSE-{sufijo}";
+        var codigoBInicial = $"CRG-REUSE-B-{sufijo}";
+
+        // Cargo A: activo, con el código que será reutilizado
+        var entityA = RepositoryTestData.CreateCargo("CRG", NivelIdValido);
+        entityA.Codigo = codigoReuso;
+        // Cargo B: activo, con código distinto
+        var entityB = RepositoryTestData.CreateCargo("CRG", NivelIdValido);
+        entityB.Codigo = codigoBInicial;
+        await context.Set<CargoEntity>().AddRangeAsync(entityA, entityB);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+
+            // Soft-delete de A (deja IsDeleted=true y columna computada = NULL)
+            await repo.DeleteAsync(entityA.Id, default);
+            await context.SaveChangesAsync();
+
+            // Update de B al código de A (que ahora está soft-deleted) → debe pasar.
+            var cargoB = await repo.GetByIdForUpdateAsync(entityB.Id, default);
+            Assert.NotNull(cargoB);
+
+            cargoB!.Actualizar(codigoReuso, "B reusa código de A", NivelIdValido);
+            await repo.UpdateAsync(cargoB, default);
+            await context.SaveChangesAsync(); // No debe lanzar
+
+            // B ahora tiene el código reusado y sigue activo.
+            var modificado = await repo.GetByIdAsync(entityB.Id, default);
+            Assert.NotNull(modificado);
+            Assert.Equal(codigoReuso, modificado!.Codigo);
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(
+                await context.Set<CargoEntity>()
+                    .Where(c => c.Id == entityA.Id || c.Id == entityB.Id)
+                    .ToListAsync());
             await context.SaveChangesAsync();
         }
     }

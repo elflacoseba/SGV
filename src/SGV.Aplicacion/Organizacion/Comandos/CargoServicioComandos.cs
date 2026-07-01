@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -52,11 +53,8 @@ public sealed class CargoServicioComandos(
                 BuildFieldErrors(validationResult.Errors));
         }
 
-        if (await repository.ExistsActiveCodeAsync(request.Codigo, cancellationToken: cancellationToken).ConfigureAwait(false))
-        {
-            return CargoCommandResult.Failure(
-                new(CargoErrorType.Conflict, "CodigoDuplicado", "Ya existe un cargo activo con el mismo código."));
-        }
+        var duplicate = await EnsureCodigoNoDuplicadoAsync(request.Codigo, excludingId: null, cancellationToken).ConfigureAwait(false);
+        if (duplicate is not null) return duplicate;
 
         var nivel = await nivelCargoRepository.GetByIdAsync(request.NivelId, cancellationToken).ConfigureAwait(false);
         if (nivel is null)
@@ -76,7 +74,13 @@ public sealed class CargoServicioComandos(
             await repository.AddAsync(cargo, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return CargoCommandResult.Success(MapToDto(cargo));
+            return CargoCommandResult.Success(MapToDto(cargo, nivel));
+        }
+        catch (DbUpdateException ex) when (IsActiveCodigoUniqueViolation(ex))
+        {
+            return CargoCommandResult.Failure(
+                new(CargoErrorType.Conflict, "CodigoDuplicado",
+                    "Ya existe un cargo activo con el mismo código."));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -105,6 +109,9 @@ public sealed class CargoServicioComandos(
                 new(CargoErrorType.NotFound, "CargoNoEncontrado", "El cargo no existe."));
         }
 
+        var duplicate = await EnsureCodigoNoDuplicadoAsync(request.Codigo, excludingId: id, cancellationToken).ConfigureAwait(false);
+        if (duplicate is not null) return duplicate;
+
         var nivel = await nivelCargoRepository.GetByIdAsync(request.NivelId, cancellationToken).ConfigureAwait(false);
         if (nivel is null)
         {
@@ -115,12 +122,18 @@ public sealed class CargoServicioComandos(
 
         try
         {
-            cargo.Actualizar(request.Nombre, request.NivelId, request.Descripcion);
+            cargo.Actualizar(request.Codigo, request.Nombre, request.NivelId, request.Descripcion);
 
             await repository.UpdateAsync(cargo, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return CargoCommandResult.Success(MapToDto(cargo));
+            return CargoCommandResult.Success(MapToDto(cargo, nivel));
+        }
+        catch (DbUpdateException ex) when (IsActiveCodigoUniqueViolation(ex))
+        {
+            return CargoCommandResult.Failure(
+                new(CargoErrorType.Conflict, "CodigoDuplicado",
+                    "Ya existe un cargo activo con el mismo código."));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -195,7 +208,7 @@ public sealed class CargoServicioComandos(
         }
     }
 
-    private static CargoDto MapToDto(Cargo cargo)
+    private static CargoDto MapToDto(Cargo cargo, NivelCargo? nivelCargo = null)
     {
         return new CargoDto(
             cargo.Id,
@@ -203,7 +216,7 @@ public sealed class CargoServicioComandos(
             cargo.Nombre,
             cargo.Descripcion,
             cargo.NivelId,
-            cargo.NivelCargo?.Nombre);
+            nivelCargo?.Nombre ?? cargo.NivelCargo?.Nombre);
     }
 
     /// <summary>
@@ -216,5 +229,58 @@ public sealed class CargoServicioComandos(
         return failures
             .GroupBy(e => ToCamelCase(e.PropertyName))
             .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+    }
+
+    /// <summary>
+    /// Shared uniqueness check for <c>Codigo</c>. Returns a failure result when another
+    /// active Cargo already uses the code (excluding the id when provided).
+    /// </summary>
+    private async Task<CargoCommandResult?> EnsureCodigoNoDuplicadoAsync(
+        string codigo,
+        Guid? excludingId,
+        CancellationToken cancellationToken)
+    {
+        if (await repository.ExistsActiveCodeAsync(codigo, excludingId, cancellationToken).ConfigureAwait(false))
+        {
+            return CargoCommandResult.Failure(
+                new(CargoErrorType.Conflict, "CodigoDuplicado",
+                    "Ya existe un cargo activo con el mismo código."));
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Detects whether a <see cref="DbUpdateException"/> corresponds to a violation of
+    /// the <c>IX_Cargos_ActiveCodigoUnique</c> index specifically. The check inspects
+    /// the inner exception message for the MySQL "Duplicate entry ... for key" pattern
+    /// referencing our active-codigo index. Any other constraint violation
+    /// (FK, other unique indexes, check constraints) propagates as a generic
+    /// 500 error instead of being misreported as <c>CodigoDuplicado</c>.
+    /// </summary>
+    /// <remarks>
+    /// The match is done by inner message content (no MySqlException type reference)
+    /// to keep <c>SGV.Aplicacion</c> free of any MySQL provider dependency
+    /// (Clean Architecture). The combination "Duplicate entry" + "IX_Cargos_ActiveCodigoUnique"
+    /// is MySQL-specific and is the exact message MySQL emits for violations of
+    /// the active-codigo unique index.
+    /// </remarks>
+    private static bool IsActiveCodigoUniqueViolation(DbUpdateException exception)
+    {
+        var inner = exception.InnerException;
+        if (inner is null)
+        {
+            return false;
+        }
+
+        var message = inner.Message;
+        if (string.IsNullOrEmpty(message))
+        {
+            return false;
+        }
+
+        const StringComparison Comparison = StringComparison.Ordinal;
+        return message.Contains("IX_Cargos_ActiveCodigoUnique", Comparison)
+            && (message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("1062", Comparison));
     }
 }
