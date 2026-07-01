@@ -114,12 +114,10 @@ public sealed class CreateModel(
             {
                 ModelState.AddModelError(CargoFormKeys.CodigoKey, result.Error.Message);
             }
-            else if (result.FieldErrors is { Count: > 0 })
+            else if (!CargoPostResultMapper.TryMap(result, ModelState))
             {
-                CargoFormHelpers.ApplyFieldErrorsToModelState(ModelState, result.FieldErrors);
-            }
-            else
-            {
+                // No FieldErrors and no general error message; defensive fallback
+                // for unexpected shapes (e.g., null Error.Message on a non-Conflict).
                 ErrorMessage = result.Error.Message;
                 ModelState.AddModelError(string.Empty, result.Error.Message);
             }
