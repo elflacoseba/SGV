@@ -10,10 +10,47 @@ public sealed class ActualizarCargoRequestValidatorTests
     private static readonly Guid NivelIdValido = Guid.Parse("70000000-0000-0000-0000-000000000001");
 
     private static ActualizarCargoRequest RequestValido() => new(
+        Codigo: "DIR-01",
         Nombre: "Director General",
         NivelId: NivelIdValido);
 
     private readonly ActualizarCargoRequestValidator _validator = new();
+
+    // ── Codigo ────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("   ")]
+    public void Should_Have_Error_When_Codigo_Is_Empty(string? codigo)
+    {
+        var request = RequestValido() with { Codigo = codigo! };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldHaveValidationErrorFor(r => r.Codigo);
+    }
+
+    [Fact]
+    public void Should_Have_Error_When_Codigo_Exceeds_Max_Length()
+    {
+        var request = RequestValido() with { Codigo = new string('X', 51) };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldHaveValidationErrorFor(r => r.Codigo);
+    }
+
+    [Fact]
+    public void Should_Not_Have_Error_For_Valid_Codigo()
+    {
+        var request = RequestValido() with { Codigo = "DIR-02" };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldNotHaveValidationErrorFor(r => r.Codigo);
+    }
 
     // ── Nombre ────────────────────────────────────────────────
 

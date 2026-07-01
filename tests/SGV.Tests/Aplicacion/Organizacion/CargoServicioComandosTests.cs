@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Organizacion.Comandos;
+using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
@@ -92,6 +94,7 @@ public sealed class CargoServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
         var request = new ActualizarCargoRequest(
+            "DIR-01",
             "Director General Actualizado",
             NivelCargoConstantes.OperativoId,
             "Descripción actualizada");
@@ -110,7 +113,7 @@ public sealed class CargoServicioComandosTests
         var repo = new FakeCargoWriteRepository();
         var uow = new FakeUnitOfWork();
         var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
-        var request = new ActualizarCargoRequest("Nombre", NivelIdValido);
+        var request = new ActualizarCargoRequest("DIR-01", "Nombre", NivelIdValido);
 
         var resultado = await servicio.ActualizarAsync(Guid.NewGuid(), request, default);
 
@@ -126,7 +129,7 @@ public sealed class CargoServicioComandosTests
         var repo = new FakeCargoWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
-        var request = new ActualizarCargoRequest("Nombre", NivelIdInexistente);
+        var request = new ActualizarCargoRequest("DIR-01", "Nombre", NivelIdInexistente);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
