@@ -163,3 +163,26 @@ Las respuestas de la API DEBEN exponer campos consumer-safe y NO DEBEN incluir c
 - **CUANDO** se consulta el Cargo por la API
 - **ENTONCES** la respuesta DEBE contener `id`, `codigo`, `nombre`, `nivelId`, `nivelNombre` (denormalizado), `descripcion`
 - **Y** NO DEBE incluir campos de auditoría como `createdAt`, `isDeleted` o `isActive`.
+
+### Requisito: Autorización de endpoints de cargos
+
+`CargosController` DEBE requerir autenticación. `GET /api/v1/cargos` y `GET /api/v1/cargos/{id}` DEBEN permitir cualquier usuario autenticado. `POST`, `PUT`, `PATCH` y `DELETE` DEBEN requerir rol `Administrador` y, con payload válido y rol correcto, DEBEN conservar sus contratos `2xx` vigentes.
+
+#### Escenario: Lectura autenticada exitosa
+
+- **DADO** un usuario autenticado
+- **CUANDO** solicita `GET /api/v1/cargos` o `GET /api/v1/cargos/{id}`
+- **ENTONCES** la API DEBE responder `2xx` con el contrato de lectura vigente.
+
+#### Escenario: Acceso anónimo rechazado
+
+- **DADO** un cliente sin credenciales
+- **CUANDO** solicita un GET o una mutación de `CargosController`
+- **ENTONCES** la API DEBE responder `401 Unauthorized`.
+
+#### Escenario: Mutación protegida por rol administrador
+
+- **DADO** una solicitud válida de mutación sobre cargos
+- **CUANDO** la ejecuta un usuario autenticado sin rol `Administrador`
+- **ENTONCES** la API DEBE responder `403 Forbidden`
+- **Y** si la ejecuta un `Administrador`, DEBE responder `2xx`.

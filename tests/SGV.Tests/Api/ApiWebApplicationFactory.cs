@@ -29,8 +29,11 @@ namespace SGV.Tests.Api;
 internal static class FakeAuthenticationDefaults
 {
     public const string Scheme = "Test";
+    public const string AdminToken = "admin";
+    public const string UserToken = "user";
 
-    public static AuthenticationHeaderValue AdminHeader => new(Scheme, "admin");
+    public static AuthenticationHeaderValue AdminHeader => new(Scheme, AdminToken);
+    public static AuthenticationHeaderValue UserHeader => new(Scheme, UserToken);
 }
 
 internal static class ServiceCollectionExtensions
@@ -674,17 +677,34 @@ internal sealed class FakeAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, "user-1"),
-            new Claim(ClaimTypes.Name, "admin"),
-            new Claim(ClaimTypes.Role, RolesSgv.Administrador)
-        };
-        var identity = new ClaimsIdentity(claims, FakeAuthenticationDefaults.Scheme);
-        var principal = new ClaimsPrincipal(identity);
+        var token = value.Parameter ?? string.Empty;
+        var principal = new ClaimsPrincipal(BuildIdentity(token));
         var ticket = new AuthenticationTicket(principal, FakeAuthenticationDefaults.Scheme);
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+
+    private static ClaimsIdentity BuildIdentity(string token)
+    {
+        if (token == FakeAuthenticationDefaults.AdminToken)
+        {
+            return new ClaimsIdentity(
+                new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "user-1"),
+                    new Claim(ClaimTypes.Name, "admin"),
+                    new Claim(ClaimTypes.Role, RolesSgv.Administrador)
+                },
+                FakeAuthenticationDefaults.Scheme);
+        }
+
+        return new ClaimsIdentity(
+            new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, "user-1"),
+                new Claim(ClaimTypes.Name, "user")
+            },
+            FakeAuthenticationDefaults.Scheme);
     }
 }
 
@@ -695,6 +715,27 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
     public ApiWebApplicationFactory(Action<IServiceCollection>? configureServices = null)
     {
         _configureServices = configureServices;
+    }
+
+    /// <summary>
+    /// Crea un cliente HTTP autenticado con el rol <c>Administrador</c>.
+    /// </summary>
+    public HttpClient CreateAdminClient()
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.AdminHeader;
+        return client;
+    }
+
+    /// <summary>
+    /// Crea un cliente HTTP autenticado sin rol <c>Administrador</c>
+    /// (usuario no-administrador válido para tests de <c>403</c>).
+    /// </summary>
+    public HttpClient CreateNonAdminClient()
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+        return client;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
