@@ -94,7 +94,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/cargos/{ExistingCargoId}/skills");
 
@@ -126,6 +126,24 @@ public sealed class CargoSkillControllerTests
     }
 
     [Fact]
+    public async Task GetSkills_WithAuthenticatedNonAdmin_ReturnsOk()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoSkillServicio>();
+            services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
+        });
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.GetAsync($"/api/v1/cargos/{ExistingCargoId}/skills");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dtos = await ReadAsAsync<List<CargoSkillDetailDto>>(response);
+        Assert.NotNull(dtos);
+        Assert.NotEmpty(dtos);
+    }
+
+    [Fact]
     public async Task GetSkills_WhenEmpty_ReturnsOkWithEmptyArray()
     {
         var fake = new FakeCargoSkillServicio { Skills = [] };
@@ -134,7 +152,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/cargos/{ExistingCargoId}/skills");
 
@@ -157,7 +175,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/cargos/{NonExistentCargoId}/skills");
 
@@ -173,7 +191,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/cargos/{ExistingCargoId}/skills");
         var json = await response.Content.ReadAsStringAsync();
@@ -198,7 +216,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = ExistingNivelId });
 
         var response = await client.PutAsync(
@@ -243,7 +261,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = Guid.NewGuid() });
 
         var response = await client.PutAsync(
@@ -269,7 +287,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = ExistingNivelId });
 
         var response = await client.PutAsync(
@@ -295,7 +313,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = ExistingNivelId });
 
         var response = await client.PutAsync(
@@ -314,7 +332,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}");
@@ -339,6 +357,28 @@ public sealed class CargoSkillControllerTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("PUT",    "/api/v1/cargos/00000000-0000-0000-0000-000000000001/skills/00000000-0000-0000-0000-000000000002")]
+    [InlineData("DELETE", "/api/v1/cargos/00000000-0000-0000-0000-000000000001/skills/00000000-0000-0000-0000-000000000002")]
+    public async Task SkillMutation_WithoutCredentials_ReturnsUnauthorized(string method, string path)
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoSkillServicio>();
+            services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
+        });
+        var client = factory.CreateClient();
+
+        HttpResponseMessage response = method switch
+        {
+            "PUT"    => await client.PutAsync(path, ToJsonBody(new { nivelId = ExistingNivelId })),
+            "DELETE" => await client.DeleteAsync(path),
+            _        => throw new ArgumentOutOfRangeException(nameof(method), method, "Unsupported HTTP method")
+        };
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     [Fact]
     public async Task DeleteSkill_NonExistentAssignment_ReturnsNotFound()
     {
@@ -354,7 +394,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{NonExistentSkillId}");
@@ -379,7 +419,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/cargos/{NonExistentCargoId}/skills/{ExistingSkillId}");
@@ -397,7 +437,7 @@ public sealed class CargoSkillControllerTests
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
-        var client = factory.CreateAuthenticatedClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = ExistingNivelId });
 
         // This should hit the cargo skill subresource, NOT the skills catalog

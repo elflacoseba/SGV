@@ -678,13 +678,13 @@ internal sealed class FakeAuthenticationHandler(
         }
 
         var token = value.Parameter ?? string.Empty;
-        var principal = new ClaimsPrincipal(BuildPrincipal(token));
+        var principal = new ClaimsPrincipal(BuildIdentity(token));
         var ticket = new AuthenticationTicket(principal, FakeAuthenticationDefaults.Scheme);
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 
-    private static ClaimsIdentity BuildPrincipal(string token)
+    private static ClaimsIdentity BuildIdentity(string token)
     {
         if (token == FakeAuthenticationDefaults.AdminToken)
         {
@@ -718,12 +718,23 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
     }
 
     /// <summary>
-    /// Crea un cliente HTTP con el header de autenticación del rol <c>Administrador</c>.
+    /// Crea un cliente HTTP autenticado con el rol <c>Administrador</c>.
     /// </summary>
-    public HttpClient CreateAuthenticatedClient()
+    public HttpClient CreateAdminClient()
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.AdminHeader;
+        return client;
+    }
+
+    /// <summary>
+    /// Crea un cliente HTTP autenticado sin rol <c>Administrador</c>
+    /// (usuario no-administrador válido para tests de <c>403</c>).
+    /// </summary>
+    public HttpClient CreateNonAdminClient()
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
         return client;
     }
 
