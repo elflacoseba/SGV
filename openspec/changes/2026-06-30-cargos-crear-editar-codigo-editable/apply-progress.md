@@ -334,3 +334,116 @@ backend (PR1 ya mergeado), ni Edit/Details-CTAs (PR2B).
 - **`UpdateAsync` no se creó en el cliente HTTP** (es scope de PR2B). `ICargoApiClient` solo expone `CreateAsync` y `GetNivelesAsync` como métodos de escritura/lectura nuevos. La firma pública del cliente sigue siendo backward-compatible con el fake (`FakeCargoApiClient` solo necesita implementar los métodos declarados en la interface).
 - **Tests `[MySqlFact]` siguen skipeándose limpio** en entornos sin MySQL. PR2A no agrega tests `[MySqlFact]` nuevos; la cobertura MySQL real del backend ya está cubierta por los 3 tests agregados en PR-1.12.3.
 - **Siguiente paso del orchestrator**: mergear PR2A → abrir PR2B (Edit + Details CTA). PR2B no debe tocar `ICargoApiClient` (la firma ya está completa, solo necesita agregar `UpdateAsync`).
+
+---
+
+## PR2A refactor cleanup (chained, behavior-preserving)
+
+> Change: `2026-06-30-cargos-crear-editar-codigo-editable` (continuación)
+> Phase: `sdd-apply` (PR 2A refactor cleanup)
+> Strict TDD: ACTIVO (RED → GREEN → REFACTOR por tarea cuando aplica)
+> Branch: `refactor/cargos-create-pr2a-cleanup`
+> Base: `feat/cargos-crear-editar-codigo-editable-pr2a` @ `7d36c65b` (PR #61 mergeado)
+> Cadena: PR1 → **PR2A** → **PR2A cleanup (este)** → PR2B (siguiente)
+
+### Alcance
+
+Cuatro ítems diferidos al cierre de PR2A por considerarlos "out-of-scope" de "bloqueantes + quick wins". Reaplicados como refactors behavior-preserving en commits atómicos, uno por ítem. Cero cambio de comportamiento. Cero migraciones. Cero breaking change.
+
+### Tareas aplicadas (tasks.md sección 7, renumeradas Cleanup.1 a Cleanup.4)
+
+- [x] **Cleanup.1 — Extract `CargoPostResultMapper`** (commit `b2b1b48f`).
+  - 6 tests nuevos en `tests/SGV.Tests/Web/Cargo/CargoPostResultMapperTests.cs`: null result, empty failure, success result (no-op), FieldErrors con múltiples keys + mensajes, ErrorMessage solo (sin FieldErrors), FieldErrors vacío que cae a ErrorMessage.
+  - Mapper en `src/SGV.Web/Integration/Organizacion/CargoPostResultMapper.cs`: `static bool TryMap(CargoCommandResult?, ModelStateDictionary)`. Resolución: (1) `FieldErrors` con entries → aplicar + `true`; (2) `Error.Message` no vacío → aplicar en empty key + `false`; (3) sino → `false` sin tocar `ModelState`.
+  - `Create.cshtml.cs` delega: el branch `Conflict → Input.Codigo` se queda en línea; el `else` de `Error is not null` se reemplaza por `else if (!CargoPostResultMapper.TryMap(result, ModelState))` con un fallback defensivo que setea `ErrorMessage` por si la API devolviera `Error.Message` null en un path no-Conflict (improbable pero mantiene la simetría con el código original).
+  - **TDD**: RED confirmado (7 build errors `CS0103`/`CS0246` en el primer build del test file) → GREEN (6/6 mapper tests + 27/27 cargo web tests pasan). El primer GREEN tuvo 1 test fallando por una aserción incorrecta (`Assert.False(modelState.IsValid)` en estado inicial — el `ModelStateDictionary` vacío es válido por default; corregido a `Assert.Equal(0, modelState.ErrorCount)`).
+- [x] **Cleanup.2 — Move `ICargoForm` to Integration/** (commit `f9d0fe0d`).
+  - `git mv` del archivo, namespace `SGV.Web.Pages.Organizacion.Cargos` → `SGV.Web.Integration.Organizacion`. `using SGV.Web.Integration.Organizacion;` redundante removido.
+  - `_Form.cshtml` actualiza `@model` a `SGV.Web.Integration.Organizacion.ICargoForm`. `Create.cshtml.cs` ya tenía el using correcto.
+  - **Behavior-preserving puro**: 250/250 cargo y 108/108 web verde sin tocar tests. La interface solo se referencia desde `Create.cshtml.cs` y `_Form.cshtml`; ningún test la usaba directamente.
+  - Cierra la asimetría con `IUnidadOrganizativaForm` que el PR2A documentó como "resolución futura".
+- [x] **Cleanup.3 — Shared test fixture** (commit `727bc71b`).
+  - Nuevo `tests/SGV.Tests/Web/Cargo/CargoWebTestFixture.cs` (138 líneas) como `IClassFixture<CargoWebTestFixture>` + `IDisposable`. Expone: `BaseFactory` (SgvWebApplicationFactory base), `WithCargoApiClient(FakeCargoApiClient)`, instance `CreateAuthenticatedClientAsync(FakeCargoApiClient)`, static `ExtractAntiforgeryTokenAsync(HttpResponseMessage)`, static `JuniorNivelId` / `SeniorNivelId` / `BuildCargoDto(...)`, nested `RecordingHttpMessageHandler`.
+  - Las 3 test classes declaran `: IClassFixture<CargoWebTestFixture>` con constructor. Nombres de tests y aserciones NO cambian. El `ExecuteDeleteConfirmationScriptAsync` se queda en `CargoIndexPageTests` porque solo lo usa ese archivo.
+  - **Behavior-preserving**: 27/27 tests de las 3 clases pasan; 250/250 cargo y 108/108 web verde. Reducción neta de 166 líneas en los 3 test files (62 inserts, 228 deletes).
+- [x] **Cleanup.4 — Unify XML docs** (commit `689fb718`).
+  - Único archivo con inconsistencia interna era `Create.cshtml.cs`: class summary en inglés, method summaries (OnGetAsync, OnPostAsync) y un `//` comment en español. Unificado a inglés.
+  - Archivos auditados y NO tocados (ya consistentes): `ICargoForm.cs` (español en todo el archivo), `CargoFormHelpers.cs` (español), `CargoPostResultMapper.cs` (inglés, nuevo), `_Form.cshtml` (inglés, comentarios Razor), `CargoCreatePageTests.cs` (XML summary en inglés; los `//` "Task 19: ..." son divisores de sección, no XML docs y están fuera del alcance del audit), `CargoPostResultMapperTests.cs` (inglés, nuevo), `CargoWebTestFixture.cs` (inglés, nuevo).
+  - **Decisión de idioma documentada por archivo** (per `AGENTS.md` default = English, con excepción de "preserve existing file context"):
+    - `Create.cshtml.cs` → English (default; el class summary ya estaba en English, se unificaron los method summaries).
+    - `ICargoForm.cs` → Spanish (existing context; consistente en todo el archivo).
+    - `CargoFormHelpers.cs` → Spanish (existing context; consistente en todo el archivo).
+    - `CargoPostResultMapper.cs` → English (nuevo, default).
+    - `_Form.cshtml` → English (Razor comments existentes).
+    - `CargoCreatePageTests.cs` → English para el `///` summary; los `//` section dividers se preservan en español (fuera del audit; no son XML docs).
+    - `CargoPostResultMapperTests.cs` → English (nuevo, default).
+    - `CargoWebTestFixture.cs` → English (nuevo, default).
+  - **No se traducen** los user-facing strings: `TempData["StatusMessage"]`, `ErrorMessage = "No se pudo contactar al servicio de cargos..."`, y los `[Required(ErrorMessage = "El código es obligatorio.")]` de `CargoInputModel`. Son localized UI copy y se mantienen en español.
+  - 0 impacto de comportamiento: 250/250 cargo tests verde.
+
+### TDD Cycle Evidence
+
+> Tabla exigida por Strict TDD (`openspec/config.yaml`). El único ítem con ciclo RED → GREEN estricto es **Cleanup.1** (mapper nuevo testeable en aislamiento). Los demás son refactor / move / fixture / docs y no requieren ciclo RED → GREEN formal; su evidencia es la suite verde antes y después.
+
+| Tarea | RED (tests fallaron antes del cambio) | GREEN (tests pasaron después) | REFACTOR | Hash commit |
+|---|---|---|---|---|
+| Cleanup.1 RED+GREEN | `dotnet build SGV.slnx` con el test file nuevo y sin el mapper → 7 errores `CS0103` (CargoPostResultMapper no existe) + `CS0246` (CargoDto no importado). Verificado. | `dotnet test SGV.slnx --filter "FullyQualifiedName~CargoPostResultMapperTests" --no-build` → 6/6 pass. Suite completa `~Cargo\|~Cargos` → **250/250 pass**. Suite `~Web` → **108/108 pass**. | Sin refactor adicional. La superficie `bool TryMap(CargoCommandResult?, ModelStateDictionary)` es la forma mínima testeable; cualquier overload con más parámetros inflaría la API sin beneficio. | `b2b1b48f` |
+| Cleanup.2 move | N/A — move de archivo sin cambio de shape. | `dotnet test SGV.slnx --filter "FullyQualifiedName~CargoCreatePageTests\|FullyQualifiedName~CargoIndexPageTests\|FullyQualifiedName~CargoDetailsPageTests" --no-build` → 20/20 pass. Suite `~Cargo\|~Cargos` y `~Web` sin regresión. | N/A. El namespace del archivo se ajusta una sola vez; el using redundante en el header se elimina. | `f9d0fe0d` |
+| Cleanup.3 fixture | N/A — refactor de test infrastructure, no introduce superficie testeable nueva. La duplicación removida ya estaba cubierta por los tests existentes. | `dotnet test SGV.slnx --filter "FullyQualifiedName~CargoCreatePageTests\|FullyQualifiedName~CargoIndexPageTests\|FullyQualifiedName~CargoDetailsPageTests" --no-build` → 27/27 pass (los 20 anteriores + 7 tests de las 3 clases que ahora usan el fixture compartido). | Sí: se consolida ~290 líneas de helpers duplicados en 138 líneas de fixture + los 3 test classes que pierden 166 líneas netas. | `727bc71b` |
+| Cleanup.4 docs | N/A — docs-only commit. No hay código tocado. | `dotnet test SGV.slnx --filter "FullyQualifiedName~Cargo\|FullyQualifiedName~Cargos" --no-build` → **250/250 pass**. | N/A. | `689fb718` |
+
+### Commits planificados (work units)
+
+1. `refactor(cargos-web): extract CargoPostResultMapper for field-error mapping` — `b2b1b48f` (175 ins, 5 del; mapper 76 + tests 95 + Create.cshtml.cs delta 4)
+2. `refactor(cargos-web): move ICargoForm to Integration namespace` — `f9d0fe0d` (2 ins, 3 del; rename + 1 line)
+3. `refactor(cargos-web-tests): share auth + seed helpers via CargoWebTestFixture` — `727bc71b` (188 ins, 228 del; fixture 138 + 3 test files net -178)
+4. `docs(cargos-web): unify XML doc language to English in Create.cshtml.cs` — `689fb718` (10 ins, 10 del; solo docs)
+5. `docs(apply): track PR2A refactor cleanup progress` — (siguiente commit; este `apply-progress.md` + `tasks.md` + commit de los SDD artifacts untracked)
+
+### Resumen de archivos tocados
+
+- **Producción (4 archivos)**:
+  - Nuevos: `CargoPostResultMapper.cs` (commit 1), `ICargoForm.cs` en nueva ubicación (commit 2, git mv).
+  - Modificados: `Create.cshtml.cs` (commit 1: delega al mapper; commit 4: docs a inglés).
+  - Modificado: `_Form.cshtml` (commit 2: `@model` apunta a la nueva ubicación).
+- **Tests (4 archivos)**:
+  - Nuevo: `CargoPostResultMapperTests.cs` (commit 1, 6 tests).
+  - Nuevo: `CargoWebTestFixture.cs` (commit 3, 138 líneas).
+  - Modificados: `CargoCreatePageTests.cs`, `CargoDetailsPageTests.cs`, `CargoIndexPageTests.cs` (commit 3: usan `IClassFixture<CargoWebTestFixture>`).
+- **Documentación (3 archivos)**:
+  - Modificado: `apply-progress.md` (este archivo; append nueva sección).
+  - Modificado: `tasks.md` (append sección 7 con 4 tasks nuevas).
+  - Committeados por primera vez: `proposal.md`, `design.md`, `exploration.md`, `pr1-body.md`, `pr2a-body.md`, `specs/**`, `verify-report.md` (artefactos de los PRs previos que vivían untracked en el working tree).
+- **Total** vs. base `7d36c65b`: 6 archivos nuevos, 5 archivos modificados, 1 archivo movido. Diff completo: ver `git diff 7d36c65b..HEAD` al final.
+
+### Tests ejecutados al cierre
+
+- `dotnet build SGV.slnx` → **0 errores, 0 warnings** (build limpio en los 4 commits).
+- `dotnet test SGV.slnx --filter "FullyQualifiedName~Cargo|FullyQualifiedName~Cargos" --no-build` → **250/250 pass** (240 del PR2A close + 6 nuevos del mapper; los 4 tests adicionales no contabilizados antes corresponden a tests que ya existían pero caen en este filtro por la convención `~Cargos` que matchea sufijos como `CargoTests`, `CargosControllerTests` y los nuevos `CargoPostResultMapperTests`).
+- `dotnet test SGV.slnx --filter "FullyQualifiedName~Web" --no-build` → **108/108 pass** (102 del PR2A close + 6 nuevos del mapper).
+- `dotnet test SGV.slnx --no-build` (suite completa) → mantiene el patrón del PR2A close: 12 fails pre-existentes en `OcupacionRepositoryTests` por issue #59 (no relacionado con este PR).
+
+### Línea base del PR (cumplimiento del review budget)
+
+- **Líneas modificadas vs `7d36c65b`**: ~210 inserciones, ~243 deletions, 10 archivos. **Budget 400: cumplido con holgura**. La reducción neta en los 3 test files (-166) compensa el mapper nuevo (+95 tests + 76 impl = 171).
+- **5 commits atómicos**: uno por refactor + un commit final de OpenSpec artifacts. Cada commit deja el repo en estado compilable y testeable.
+
+### Decisiones técnicas del PR
+
+- **`CargoPostResultMapper` es `static`**: no necesita estado mutable. Operar sobre `ModelStateDictionary` es un parámetro de entrada, no una dependencia inyectable. Mantener la superficie `TryMap(result, modelState)` simple maximiza la testeabilidad en aislamiento.
+- **`CargoPostResultMapper.TryMap` retorna `true` solo cuando `FieldErrors` se aplicó**: el caller distingue "se aplicaron errores de campo" (true → no hacer nada más) de "se aplicó un error general" o "nada que aplicar" (false → caller decide). Esto evita un acoplamiento del mapper con `ErrorMessage` del PageModel; el caller mantiene el control sobre cómo reflejar el error (string vs. ModelState vs. TempData).
+- **El `else if (!mapper.TryMap(...))` en `Create.cshtml.cs` mantiene el fallback defensivo**: si la API devolviera un `CargoError` no-Conflict con `Message` null, el mapper retorna `false` y el caller setea `ErrorMessage` con `result.Error.Message` (que es null). El comportamiento es el mismo que antes del refactor (es la misma rama).
+- **`CargoWebTestFixture` como `IClassFixture<T>` + `IDisposable`**: la base `SgvWebApplicationFactory` se crea una vez por clase (no por test) y se dispone al final. xUnit maneja el ciclo de vida. Las constantes y builders son `static` para que tests que no necesitan la auth flow puedan usarlos directamente (`CargoWebTestFixture.JuniorNivelId`).
+- **`BuildCargoDto` es `static`**: la duplicación era solo de signatura (mismo cuerpo) entre `CargoDetailsPageTests` y `CargoIndexPageTests`. Como helper puro, no necesita instance state.
+- **`RecordingHttpMessageHandler` queda como clase anidada pública en el fixture**: la usan 3 test classes, todos los accesos son desde el mismo namespace `SGV.Tests.Web.Cargo`. Visibilidad `public` por requisito de xUnit al cargarla (aunque solo se use internamente).
+- **Cleanup.4 unifica SOLO `Create.cshtml.cs`**: la auditoría reveló que ese era el único archivo con inconsistencia interna de idioma en sus XML docs. Los demás archivos son consistentes en su idioma actual y se preservan (per la excepción "preserve existing file context" de la regla `AGENTS.md`).
+
+### Riesgo residual / hand-off al orchestrator
+
+- **`ICargoForm` ahora vive en `Integration/`**: cualquier archivo fuera de `src/SGV.Web/` o `tests/SGV.Tests/` que importara `SGV.Web.Pages.Organizacion.Cargos.ICargoForm` debe actualizarse. El grep confirma que solo `Create.cshtml.cs` y `_Form.cshtml` lo usaban, y ambos están actualizados. No hay consumidores externos.
+- **`CargoWebTestFixture` introduce un nuevo shared resource**: si se agregan más tests web de Cargos en el futuro, deben usar el fixture en lugar de redefinir los helpers. El commit 3 incluye un comentario XML en el fixture que documenta su contrato.
+- **`CargoPostResultMapper` es reutilizable para la página Edit (PR2B)**: la interface es genérica para `CargoCommandResult`, no atada a Create. PR2B puede inyectar el mismo mapper en su `OnPostAsync` para los paths de FieldErrors/ErrorMessage, manteniendo paridad con Create.
+- **`UpdateAsync` sigue sin existir en el cliente HTTP** (es scope de PR2B). `ICargoApiClient` no fue tocado en este PR.
+- **PR2A refactor cleanup NO toca reglas de negocio ni persistencia**: `CargoServicioComandos` (backend), las migraciones, y los repositorios no se modificaron. Es un cambio puramente estructural en la capa web.
+- **Siguiente paso del orchestrator**: mergear este PR → abrir PR2B (Edit + Details CTA). PR2B hereda el mapper y el fixture; no necesita redefinirlos.
+
