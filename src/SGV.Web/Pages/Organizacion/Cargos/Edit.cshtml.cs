@@ -95,7 +95,7 @@ public sealed class EditModel(
             Input.Descripcion = cargo.Descripcion;
             Input.NivelId = cargo.NivelId;
 
-            await LoadCatalogsAsync(cancellationToken);
+            await LoadCatalogsAsync(id, cancellationToken);
             return Page();
         }
         catch (Exception ex)
@@ -126,7 +126,7 @@ public sealed class EditModel(
 
         if (!ModelState.IsValid)
         {
-            await LoadCatalogsAsync(cancellationToken);
+            await LoadCatalogsAsync(id, cancellationToken);
             return Page();
         }
 
@@ -153,7 +153,7 @@ public sealed class EditModel(
             logger.LogError(ex, "Cargo update transport failure.");
             ErrorMessage = "No se pudo contactar al servicio de cargos. Intentá nuevamente.";
             ModelState.AddModelError(string.Empty, ErrorMessage);
-            await LoadCatalogsAsync(cancellationToken);
+            await LoadCatalogsAsync(id, cancellationToken);
             return Page();
         }
 
@@ -180,11 +180,11 @@ public sealed class EditModel(
             }
         }
 
-        await LoadCatalogsAsync(cancellationToken);
+        await LoadCatalogsAsync(id, cancellationToken);
         return Page();
     }
 
-    private async Task LoadCatalogsAsync(CancellationToken cancellationToken)
+    private async Task LoadCatalogsAsync(Guid cargoId, CancellationToken cancellationToken)
     {
         try
         {
@@ -192,7 +192,7 @@ public sealed class EditModel(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to load niveles-cargo catalog for edit page.");
+            logger.LogError(ex, "Failed to load niveles-cargo catalog for edit page (cargoId={CargoId}).", cargoId);
             ErrorMessage = "No se pudo cargar el catálogo de niveles. Intentá nuevamente.";
         }
     }
