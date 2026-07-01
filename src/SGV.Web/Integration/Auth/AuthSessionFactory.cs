@@ -33,8 +33,8 @@ internal static class AuthSessionFactory
 
         properties.StoreTokens(new[]
         {
-            new AuthenticationToken { Name = "access_token", Value = response.AccessToken },
-            new AuthenticationToken { Name = "expires_at", Value = response.ExpiresAt.ToString("O") }
+            new AuthenticationToken { Name = AuthTokenNames.AccessToken, Value = response.AccessToken },
+            new AuthenticationToken { Name = AuthTokenNames.ExpiresAt, Value = response.ExpiresAt.ToString("O") }
         });
 
         return properties;

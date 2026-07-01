@@ -18,6 +18,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
 {
     private readonly Action<IServiceCollection>? _configureServices;
     private readonly HttpMessageHandler? _authApiHandler;
+    private readonly HttpMessageHandler? _cargoApiHandler;
     private readonly IUnidadOrganizativaApiClient? _unidadOrganizativaApiClient;
     private readonly ICargoApiClient? _cargoApiClient;
 
@@ -28,11 +29,13 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private SgvWebApplicationFactory(
         Action<IServiceCollection>? configureServices,
         HttpMessageHandler? authApiHandler,
+        HttpMessageHandler? cargoApiHandler,
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient,
         ICargoApiClient? cargoApiClient)
     {
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
+        _cargoApiHandler = cargoApiHandler;
         _unidadOrganizativaApiClient = unidadOrganizativaApiClient;
         _cargoApiClient = cargoApiClient;
     }
@@ -40,10 +43,16 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     public SgvWebApplicationFactory WithOverrides(
         Action<IServiceCollection>? configureServices = null,
         HttpMessageHandler? authApiHandler = null,
+        HttpMessageHandler? cargoApiHandler = null,
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient = null,
         ICargoApiClient? cargoApiClient = null)
     {
-        return new SgvWebApplicationFactory(configureServices, authApiHandler, unidadOrganizativaApiClient, cargoApiClient);
+        return new SgvWebApplicationFactory(
+            configureServices,
+            authApiHandler,
+            cargoApiHandler,
+            unidadOrganizativaApiClient,
+            cargoApiClient);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -65,6 +74,23 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
 
                     return new AuthApiClient(client);
                 });
+            }
+
+            if (_cargoApiHandler is not null)
+            {
+                // Rebuild the cargo typed-client registration with the recording
+                // handler as the primary. The ApiBearerTokenHandler stays in the
+                // pipeline because it was registered by Program.cs; we only swap
+                // the bottom-of-stack transport here so the test can observe what
+                // reaches the network layer.
+                services.RemoveAll<ICargoApiClient>();
+                services.AddHttpClient<ICargoApiClient, CargoApiClient>((serviceProvider, client) =>
+                {
+                    var options = serviceProvider.GetRequiredService<IOptions<SgvApiOptions>>().Value;
+                    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+                    client.Timeout = TimeSpan.FromSeconds(10);
+                })
+                .ConfigurePrimaryHttpMessageHandler(() => _cargoApiHandler);
             }
 
             if (_unidadOrganizativaApiClient is not null)

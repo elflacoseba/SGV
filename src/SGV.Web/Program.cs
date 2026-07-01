@@ -1,6 +1,9 @@
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
+
+[assembly: InternalsVisibleTo("SGV.Tests")]
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,17 +30,28 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// HttpContextAccessor is required by ApiBearerTokenHandler so the JWT stored
+// on the inbound cookie-auth ticket can be bridged into an
+// `Authorization: Bearer ...` header on downstream SGV.Api calls. SGV.Api
+// validates only bearer tokens (see src/SGV.Api/Program.cs), so without this
+// forwarding every typed client request would land as anonymous and the API's
+// [Authorize] guard would reject it.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<ApiBearerTokenHandler>();
+
 builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
-});
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
 builder.Services.AddHttpClient<IUnidadOrganizativaApiClient, UnidadOrganizativaApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
-});
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
 builder.Services.AddHttpClient<ICargoApiClient, CargoApiClient>((serviceProvider, client) =>
 {
@@ -49,7 +63,8 @@ builder.Services.AddHttpClient<ICargoApiClient, CargoApiClient>((serviceProvider
     // transport stalls into TaskCanceledException, which CreateModel.OnPostAsync
     // already handles as a recoverable error.
     client.Timeout = TimeSpan.FromSeconds(10);
-});
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
 var app = builder.Build();
 
