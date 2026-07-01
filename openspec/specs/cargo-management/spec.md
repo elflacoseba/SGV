@@ -49,26 +49,66 @@ El sistema DEBE mantener los endpoints de lectura existentes y DEBE excluir los 
 
 ### Requisito: Actualizar Cargo
 
-El sistema DEBE permitir actualizar los campos editables `Nombre`, `NivelId` y `Descripcion` de un Cargo existente. El campo `Codigo` NO DEBE ser libremente mutable.
+El sistema DEBE permitir actualizar los campos editables `Codigo`, `Nombre`, `NivelId` y `Descripcion` de un Cargo existente. Cuando el `Codigo` cambie, el sistema DEBE aplicar la misma regla de unicidad de activos usada en create y devolver el `CargoDto` actualizado cuando la operación sea válida.
 
-#### Escenario: Actualización exitosa
+#### Escenario: Actualización exitosa con Codigo único
 
-- **DADO** un Cargo activo con identificador válido
-- **CUANDO** se solicita actualizar `Nombre`, `NivelId` o `Descripcion`
-- **ENTONCES** el sistema DEBE persistir los cambios y devolver el Cargo actualizado.
+- **DADO** un Cargo activo existente y otro conjunto de Cargos activos con códigos distintos
+- **CUANDO** un usuario autenticado solicita `PUT /api/v1/cargos/{id}` con un nuevo `Codigo` único y datos válidos
+- **ENTONCES** el sistema DEBE persistir el cambio
+- **Y** DEBE responder `200 OK` con el `CargoDto` actualizado.
+
+#### Escenario: Actualización exitosa sin cambiar Codigo
+
+- **DADO** un Cargo activo existente con `Codigo` vigente
+- **CUANDO** un usuario autenticado solicita actualizar solo `Nombre`, `Descripcion` o `NivelId`
+- **ENTONCES** el sistema DEBE mantener el `Codigo` existente
+- **Y** DEBE responder `200 OK` con el `CargoDto` actualizado.
+
+#### Escenario: Codigo requerido en update
+
+- **DADO** un Cargo activo existente
+- **CUANDO** un usuario autenticado solicita actualizarlo con `Codigo` nulo, vacío o en blanco
+- **ENTONCES** el sistema DEBE rechazar la operación con `400 Bad Request`
+- **Y** DEBE devolver un error de validación indicando que `Codigo` es requerido.
+
+#### Escenario: Codigo duplicado contra otro Cargo activo
+
+- **DADO** un Cargo activo existente con `Codigo` "DIR01" distinto del Cargo editado
+- **CUANDO** un usuario autenticado solicita actualizar otro Cargo activo usando `Codigo` "DIR01"
+- **ENTONCES** el sistema DEBE rechazar la operación con `409 Conflict`
+- **Y** DEBE devolver un mensaje claro indicando que el `Codigo` ya está en uso por un Cargo activo.
+
+#### Escenario: Codigo repetido de un Cargo eliminado
+
+- **DADO** un Cargo eliminado lógicamente con `Codigo` "DIR01" y ningún Cargo activo con ese código
+- **CUANDO** un usuario autenticado solicita actualizar un Cargo activo usando `Codigo` "DIR01"
+- **ENTONCES** el sistema DEBE permitir la operación
+- **Y** DEBE responder `200 OK` con el `CargoDto` actualizado.
 
 #### Escenario: Actualizar Cargo inexistente
 
-- **DADO** que no existe un Cargo con el identificador proporcionado
-- **CUANDO** se solicita actualizar el Cargo
+- **DADO** que no existe un Cargo activo con el identificador proporcionado
+- **CUANDO** un usuario autenticado solicita actualizar el Cargo
 - **ENTONCES** el sistema DEBE devolver error de no encontrado.
 
-#### Escenario: Codigo no modificable
+### Requisito: Unicidad activa de Codigo en update
 
-- **DADO** un Cargo existente con `Codigo` "DIR01"
-- **CUANDO** se intenta cambiar el `Codigo`
-- **ENTONCES** el sistema NO DEBE permitir la modificación del `Codigo`
-- **Y** el endpoint de actualización NO DEBE incluir `Codigo` como campo editable.
+El sistema DEBE aplicar en update la misma regla de unicidad de `Codigo` activo usada en create, respetando la unicidad solo entre registros activos y apoyándose en la restricción persistente vigente.
+
+#### Escenario: Update comparte la misma regla que create
+
+- **DADO** que create rechaza códigos duplicados entre Cargos activos
+- **CUANDO** un usuario autenticado intenta actualizar un Cargo activo con un `Codigo` que ya usa otro Cargo activo
+- **ENTONCES** el sistema DEBE rechazar el update bajo la misma regla de unicidad activa
+- **Y** DEBE devolver un conflicto consistente con create.
+
+#### Escenario: Update ignora registros inactivos para unicidad activa
+
+- **DADO** que existe un Cargo inactivo con un `Codigo` determinado y no hay un activo con ese mismo valor
+- **CUANDO** un usuario autenticado actualiza un Cargo activo usando ese `Codigo`
+- **ENTONCES** el sistema DEBE aceptar la operación
+- **Y** DEBE mantener la unicidad solo entre registros activos.
 
 ### Requisito: Desactivar Cargo
 
