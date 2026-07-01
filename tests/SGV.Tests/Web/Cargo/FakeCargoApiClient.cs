@@ -69,6 +69,26 @@ public sealed class FakeCargoApiClient : ICargoApiClient
     public Exception? CreateException { get; set; }
 
     /// <summary>
+    /// Resultado fijo que devolverá <see cref="UpdateAsync"/>. Por defecto,
+    /// fallo de NotImplemented para forzar a los tests a configurarlo
+    /// explícitamente cuando lo necesiten.
+    /// </summary>
+    public CargoCommandResult UpdateResult { get; set; } = CargoCommandResult.Failure(
+        new CargoError(CargoErrorType.NotFound, "NotImplemented", "Not yet implemented"));
+
+    /// <summary>
+    /// Solicitudes recibidas por <see cref="UpdateAsync"/>. Permite inspeccionar
+    /// el payload enviado por la página al API en cada test.
+    /// </summary>
+    public List<(Guid Id, ActualizarCargoRequest Request)> UpdateCalls { get; } = new();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="UpdateAsync"/> debe lanzar antes de
+    /// devolver el resultado. Útil para simular errores de transporte.
+    /// </summary>
+    public Exception? UpdateException { get; set; }
+
+    /// <summary>
     /// Resultado fijo que devolverá <see cref="GetNivelesAsync"/>. Por defecto,
     /// lista vacía (el test debe configurarla cuando cargue la página Create).
     /// </summary>
@@ -154,6 +174,18 @@ public sealed class FakeCargoApiClient : ICargoApiClient
         }
 
         return Task.FromResult(CreateResult);
+    }
+
+    public Task<CargoCommandResult> UpdateAsync(Guid id, ActualizarCargoRequest request, CancellationToken cancellationToken = default)
+    {
+        UpdateCalls.Add((id, request));
+
+        if (UpdateException is not null)
+        {
+            throw UpdateException;
+        }
+
+        return Task.FromResult(UpdateResult);
     }
 
     public Task<IReadOnlyList<NivelCargoDto>> GetNivelesAsync(CancellationToken cancellationToken = default)

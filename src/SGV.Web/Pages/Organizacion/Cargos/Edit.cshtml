@@ -1,0 +1,64 @@
+@page "/organizacion/cargos/editar/{id:guid}"
+@model SGV.Web.Pages.Organizacion.Cargos.EditModel
+
+@{
+    ViewBag.title = "Editar cargo";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+@if (Model.IsRecoverable)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">El cargo solicitado no está disponible.</h5>
+                    <p class="text-muted mb-3">Es posible que el cargo haya sido eliminado o que haya ocurrido un error al consultarlo.</p>
+                    <a class="btn btn-primary" href="@Model.ReturnToListUrl">
+                        <i class="ti ti-arrow-left me-1"></i>Volver al listado
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Editar cargo</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="ReturnPage" />
+                        <input type="hidden" asp-for="ReturnSearch" />
+                        <input type="hidden" asp-for="ReturnSort" />
+
+                        @await Html.PartialAsync("_Form", Model)
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                            <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
