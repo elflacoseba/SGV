@@ -47,7 +47,7 @@ public sealed class EditModel(
     public string StatusKind => TempData["StatusKind"] as string ?? "success";
 
     [BindProperty]
-    public string? ReturnPage { get; set; }
+    public int ReturnPage { get; set; } = 1;
 
     [BindProperty]
     public string? ReturnSearch { get; set; }
@@ -55,7 +55,11 @@ public sealed class EditModel(
     [BindProperty]
     public string? ReturnSort { get; set; }
 
-    public string ReturnToListUrl => CargoFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort);
+    public string ReturnToListUrl => CargoFormHelpers.BuildReturnToListUrl(
+        Url,
+        ReturnPage.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ReturnSearch,
+        ReturnSort);
 
     /// <summary>
     /// GET handler. Carga el cargo por id y el catálogo de niveles. Si el
@@ -66,14 +70,14 @@ public sealed class EditModel(
     /// </summary>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
-        [FromQuery(Name = "p")] string? page = null,
-        string? search = null,
-        string? sort = null,
+        [FromQuery(Name = "p")] int page = 1,
+        [FromQuery(Name = "search")] string? search = null,
+        [FromQuery(Name = "sort")] string? sort = null,
         CancellationToken cancellationToken = default)
     {
-        ReturnPage = page ?? string.Empty;
-        ReturnSearch = search ?? string.Empty;
-        ReturnSort = sort ?? string.Empty;
+        ReturnPage = Math.Max(1, page);
+        ReturnSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        ReturnSort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
 
         try
         {
@@ -111,14 +115,14 @@ public sealed class EditModel(
     /// </summary>
     public async Task<IActionResult> OnPostAsync(
         Guid id,
-        [FromQuery(Name = "p")] string? page = null,
-        string? search = null,
-        string? sort = null,
+        [FromQuery(Name = "p")] int page = 1,
+        [FromQuery(Name = "search")] string? search = null,
+        [FromQuery(Name = "sort")] string? sort = null,
         CancellationToken cancellationToken = default)
     {
-        ReturnPage = page ?? string.Empty;
-        ReturnSearch = search ?? string.Empty;
-        ReturnSort = sort ?? string.Empty;
+        ReturnPage = Math.Max(1, page);
+        ReturnSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        ReturnSort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
 
         if (!ModelState.IsValid)
         {
