@@ -74,7 +74,7 @@ public sealed class CargoServicioComandos(
             await repository.AddAsync(cargo, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return CargoCommandResult.Success(MapToDto(cargo));
+            return CargoCommandResult.Success(MapToDto(cargo, nivel));
         }
         catch (DbUpdateException ex) when (IsActiveCodigoUniqueViolation(ex))
         {
@@ -127,7 +127,7 @@ public sealed class CargoServicioComandos(
             await repository.UpdateAsync(cargo, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return CargoCommandResult.Success(MapToDto(cargo));
+            return CargoCommandResult.Success(MapToDto(cargo, nivel));
         }
         catch (DbUpdateException ex) when (IsActiveCodigoUniqueViolation(ex))
         {
@@ -208,7 +208,7 @@ public sealed class CargoServicioComandos(
         }
     }
 
-    private static CargoDto MapToDto(Cargo cargo)
+    private static CargoDto MapToDto(Cargo cargo, NivelCargo? nivelCargo = null)
     {
         return new CargoDto(
             cargo.Id,
@@ -216,7 +216,7 @@ public sealed class CargoServicioComandos(
             cargo.Nombre,
             cargo.Descripcion,
             cargo.NivelId,
-            cargo.NivelCargo?.Nombre);
+            nivelCargo?.Nombre ?? cargo.NivelCargo?.Nombre);
     }
 
     /// <summary>

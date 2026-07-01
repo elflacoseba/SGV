@@ -497,6 +497,49 @@ public sealed class CargoServicioComandosTests
             async () => await servicio.CrearAsync(CrearRequest(), default));
     }
 
+    // ── DTO refresh: nivelNombre en respuesta (Review PR1) ──────
+    //
+    // Antes del fix, `MapToDto` leía `cargo.NivelCargo?.Nombre` directamente,
+    // lo que en ActualizarAsync devolvía el nombre del nivel ANTERIOR (la
+    // navegación cargada antes del cambio) y en CrearAsync devolvía `null`
+    // (el cargo recién creado no incluía la navegación). El fix pasa el
+    // `NivelCargo` ya validado a `MapToDto`.
+
+    [Fact]
+    public async Task ActualizarAsync_CambiaNivelId_RetornaDtoConNivelNombreNuevo()
+    {
+        // El cargo existente se carga con NivelId=Directivo; el FakeCargoWriteRepository
+        // no hidrata la navegación `NivelCargo` (queda null). El test verifica que,
+        // tras cambiar el NivelId a Operativo, el DTO devuelto usa el nombre del
+        // nivel NUEVO (Operativo), no un valor stale de la navegación.
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        var request = new ActualizarCargoRequest(
+            "DIR-01", "Director General", NivelCargoConstantes.OperativoId);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(NivelCargoConstantes.OperativoId, resultado.Value!.NivelId);
+        Assert.Equal("Operativo", resultado.Value.NivelNombre);
+    }
+
+    [Fact]
+    public async Task CrearAsync_Nuevo_RetornaDtoConNivelNombreDelCatalogo()
+    {
+        var repo = new FakeCargoWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(NivelCargoConstantes.DirectivoId, resultado.Value!.NivelId);
+        Assert.Equal("Directivo", resultado.Value.NivelNombre);
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private static Cargo CrearCargoActivo(string codigo, Guid? id = null)
