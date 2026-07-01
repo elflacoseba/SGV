@@ -44,11 +44,38 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains("Volver al listado", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("/organizacion/cargos", content, StringComparison.OrdinalIgnoreCase);
 
+        // Debe ofrecer "Editar" con link a la página de edición preservando el contexto
+        // (p/search/sort) del listado de origen.
+        Assert.Contains("Editar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"href=\"/organizacion/cargos/editar/{cargo.Id}", content, StringComparison.OrdinalIgnoreCase);
+
         // No debe exponer acciones fuera del alcance
         Assert.DoesNotContain(">Crear<", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">Editar<", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Habilidades", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Reactivar", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenAuthenticated_PreservesQueryStringInEditLink()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("C-001", "Analista Funcional", "Descripción del cargo", "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync(
+            $"/organizacion/cargos/detalles/{cargo.Id}?p=2&search=func&sort=nombre_desc");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El href de Editar debe preservar p/search/sort para que el back-to-list
+        // del Edit page mantenga el contexto del listado filtrado.
+        var editHref = $"/organizacion/cargos/editar/{cargo.Id}";
+        Assert.Contains(editHref, content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("p=2", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=func", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_desc", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────

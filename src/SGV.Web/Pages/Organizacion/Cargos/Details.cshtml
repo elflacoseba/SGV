@@ -60,7 +60,13 @@ else
 }
 
 <div class="row mt-3">
-    <div class="col-12">
+    <div class="col-12 d-flex gap-2">
+        @if (!Model.IsNotFound)
+        {
+            <a class="btn btn-primary" href="@Url.Page("/Organizacion/Cargos/Edit", new { id = Model.Cargo!.Id, p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })">
+                <i class="ti ti-pencil me-1"></i>Editar
+            </a>
+        }
         <a class="btn btn-outline-secondary" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })">
             <i class="ti ti-arrow-left me-1"></i>Volver al listado
         </a>
