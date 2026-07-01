@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -14,6 +15,7 @@ public sealed class CargoServicioComandos(
     ICargoRepository repository,
     INivelCargoRepository nivelCargoRepository,
     IUnitOfWork unitOfWork,
+    IConstraintViolationDetector constraintDetector,
     IValidator<CrearCargoRequest> crearValidator,
     IValidator<ActualizarCargoRequest> actualizarValidator) : ICargoServicioComandos
 {
@@ -28,13 +30,14 @@ public sealed class CargoServicioComandos(
 
     /// <summary>
     /// Convenience constructor for backward compatibility (e.g., tests).
-    /// Uses the real validators directly.
+    /// Uses the real validators directly and a no-op constraint detector.
     /// </summary>
     public CargoServicioComandos(
         ICargoRepository repository,
         INivelCargoRepository nivelCargoRepository,
         IUnitOfWork unitOfWork)
         : this(repository, nivelCargoRepository, unitOfWork,
+               NullConstraintViolationDetector.Instance,
                new CrearCargoRequestValidator(),
                new ActualizarCargoRequestValidator())
     {
@@ -52,11 +55,8 @@ public sealed class CargoServicioComandos(
                 BuildFieldErrors(validationResult.Errors));
         }
 
-        if (await repository.ExistsActiveCodeAsync(request.Codigo, cancellationToken: cancellationToken).ConfigureAwait(false))
-        {
-            return CargoCommandResult.Failure(
-                new(CargoErrorType.Conflict, "CodigoDuplicado", "Ya existe un cargo activo con el mismo código."));
-        }
+        var duplicate = await EnsureCodigoNoDuplicadoAsync(request.Codigo, excludingId: null, cancellationToken).ConfigureAwait(false);
+        if (duplicate is not null) return duplicate;
 
         var nivel = await nivelCargoRepository.GetByIdAsync(request.NivelId, cancellationToken).ConfigureAwait(false);
         if (nivel is null)
@@ -77,6 +77,12 @@ public sealed class CargoServicioComandos(
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             return CargoCommandResult.Success(MapToDto(cargo));
+        }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return CargoCommandResult.Failure(
+                new(CargoErrorType.Conflict, "CodigoDuplicado",
+                    "Ya existe un cargo activo con el mismo código."));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -105,6 +111,9 @@ public sealed class CargoServicioComandos(
                 new(CargoErrorType.NotFound, "CargoNoEncontrado", "El cargo no existe."));
         }
 
+        var duplicate = await EnsureCodigoNoDuplicadoAsync(request.Codigo, excludingId: id, cancellationToken).ConfigureAwait(false);
+        if (duplicate is not null) return duplicate;
+
         var nivel = await nivelCargoRepository.GetByIdAsync(request.NivelId, cancellationToken).ConfigureAwait(false);
         if (nivel is null)
         {
@@ -115,12 +124,18 @@ public sealed class CargoServicioComandos(
 
         try
         {
-            cargo.Actualizar(request.Nombre, request.NivelId, request.Descripcion);
+            cargo.Actualizar(request.Codigo, request.Nombre, request.NivelId, request.Descripcion);
 
             await repository.UpdateAsync(cargo, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             return CargoCommandResult.Success(MapToDto(cargo));
+        }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return CargoCommandResult.Failure(
+                new(CargoErrorType.Conflict, "CodigoDuplicado",
+                    "Ya existe un cargo activo con el mismo código."));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -217,4 +232,35 @@ public sealed class CargoServicioComandos(
             .GroupBy(e => ToCamelCase(e.PropertyName))
             .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
     }
+
+    /// <summary>
+    /// Shared uniqueness check for <c>Codigo</c>. Returns a failure result when another
+    /// active Cargo already uses the code (excluding the id when provided).
+    /// </summary>
+    private async Task<CargoCommandResult?> EnsureCodigoNoDuplicadoAsync(
+        string codigo,
+        Guid? excludingId,
+        CancellationToken cancellationToken)
+    {
+        if (await repository.ExistsActiveCodeAsync(codigo, excludingId, cancellationToken).ConfigureAwait(false))
+        {
+            return CargoCommandResult.Failure(
+                new(CargoErrorType.Conflict, "CodigoDuplicado",
+                    "Ya existe un cargo activo con el mismo código."));
+        }
+        return null;
+    }
+}
+
+/// <summary>
+/// No-op constraint violation detector used by the convenience constructor when no
+/// detector is supplied (e.g., legacy test call sites). Always reports that the
+/// exception is NOT a constraint violation, so the safety-net catch block is
+/// effectively disabled in those test paths.
+/// </summary>
+internal sealed class NullConstraintViolationDetector : IConstraintViolationDetector
+{
+    public static readonly NullConstraintViolationDetector Instance = new();
+
+    public bool IsConstraintViolation(DbUpdateException exception) => false;
 }

@@ -305,6 +305,102 @@ public sealed class CargoServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ── ActualizarAsync — unicidad activa de Codigo ────────────
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoDuplicadoActivo_RetornaConflictoYSinGuardar()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var otroActivo = CrearCargoActivo("DIR-02", Guid.Parse("80000000-0000-0000-0000-0000000000A1"));
+        var repo = new FakeCargoWriteRepository { Datos = [existente, otroActivo] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        var request = new ActualizarCargoRequest("DIR-02", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_MismoCodigoEnOtroCargoEliminado_PermiteOperacion()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var otroEliminado = CrearCargoDesactivado("DIR-02", Guid.Parse("80000000-0000-0000-0000-0000000000A1"));
+        var repo = new FakeCargoWriteRepository { Datos = [existente, otroEliminado] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        var request = new ActualizarCargoRequest("DIR-02", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("DIR-02", resultado.Value!.Codigo);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoInvalido_CortaAntesDeConsultarRepos()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        var request = new ActualizarCargoRequest("", "Nombre", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, repo.GetByIdForUpdateCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoDuplicado_RaceCondition_DevuelveConflicto()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        // Pre-check passes (no duplicate yet), but SaveChanges simulates DB index violation.
+        var uow = new FakeThrowingUnitOfWork(
+            new DbUpdateException("Duplicate entry for key 'IX_Cargos_ActiveCodigoUnique'"));
+        var servicio = new CargoServicioComandos(
+            repo, FakeNivelRepo, uow,
+            new FakeConstraintViolationDetector(),
+            new CrearCargoRequestValidator(),
+            new ActualizarCargoRequestValidator());
+        var request = new ActualizarCargoRequest("OTRO", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoSinCambio_NoFallaValidacionUnicidad()
+    {
+        var existente = CrearCargoActivo("DIR-01");
+        var repo = new FakeCargoWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new CargoServicioComandos(repo, FakeNivelRepo, uow);
+        // Mismo Codigo que el cargo existente: la unicidad no debe dispararse porque
+        // el repo la evalúa con excludingId y el fake lo respeta.
+        var request = new ActualizarCargoRequest("DIR-01", "Director Renombrado", NivelIdValido);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("DIR-01", resultado.Value!.Codigo);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private static Cargo CrearCargoActivo(string codigo, Guid? id = null)
@@ -322,6 +418,29 @@ public sealed class CargoServicioComandosTests
         // Puestos collection is empty, so Desactivar() won't throw
         cargo.Desactivar();
         return cargo;
+    }
+}
+
+internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
+{
+    public bool IsConstraintViolation(DbUpdateException exception) => true;
+}
+
+internal sealed class FakeThrowingUnitOfWork : IUnitOfWork
+{
+    private readonly DbUpdateException _exceptionToThrow;
+
+    public FakeThrowingUnitOfWork(DbUpdateException exceptionToThrow)
+    {
+        _exceptionToThrow = exceptionToThrow;
+    }
+
+    public int SaveChangesCount { get; private set; }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        SaveChangesCount++;
+        throw _exceptionToThrow;
     }
 }
 
