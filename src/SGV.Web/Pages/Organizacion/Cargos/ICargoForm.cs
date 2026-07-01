@@ -25,8 +25,13 @@ public interface ICargoForm
     string? ErrorMessage { get; }
 
     /// <summary>
-    /// Indica si la página renderiza en modo edición. PR2A siempre
-    /// devuelve <c>false</c> (Create); PR2B lo activará desde Edit.
+    /// Indicates whether the page is rendering in edit mode. Unused until
+    /// PR2B (Edit page) sets it to <c>true</c>; it is introduced now so the
+    /// shared partial contract (<c>_Form.cshtml</c>) does not change between
+    /// PR2A and PR2B. The Create implementation always returns
+    /// <c>false</c>; the Edit implementation will return <c>true</c> and may
+    /// use it to adjust the page title, the submit button label, or to
+    /// suppress read-only fields.
     /// </summary>
     bool IsEdit { get; }
 
