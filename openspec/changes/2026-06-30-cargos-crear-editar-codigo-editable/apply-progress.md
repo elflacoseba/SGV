@@ -115,6 +115,117 @@
 | PR-1.10 VERIFY: build + suite Cargo | N/A — verificación | ✅ `dotnet build SGV.slnx` → 0 errores. `dotnet test SGV.slnx --filter "FullyQualifiedName~Cargo\|FullyQualifiedName~Cargos" --no-build` → **221/221 pass** (verificado en este apply, `c8be5c3c`). `dotnet test SGV.slnx --filter "FullyQualifiedName~UnidadOrganizativa" --no-build` → **219/219 pass** (regresión sin rotura, verificado en este apply). | N/A — verificación | `c8be5c3c` |
 | PR-1.11 Regenerar `docs/migracion-inicial-sgv.sql` (condicional) | N/A — verificación | ✅ Verificado: como PR-1.9 confirma 0 migraciones nuevas, no se regenera el script idempotente. La acción queda registrada como "no aplica" y se confirma en archive que el artefacto vigente (`docs/migracion-inicial-sgv.sql`) sigue siendo la fuente de verdad. | N/A — verificación | `c8be5c3c` |
 
+---
+
+## PR-1.12 — Review fixes (3 hallazgos del PR #60)
+
+> Cambio en respuesta a la review publicada sobre `86ab67a9` (https://github.com/elflacoseba/SGV/pull/60).
+> Tres fixes atómicos, uno por commit, todos verificados con TDD (RED → GREEN → REFACTOR).
+> Sin nuevas migraciones ni cambios de contrato HTTP. El cambio del constructor
+> de `CargoServicioComandos` (5 args en lugar de 6) queda internal al SGV.Infraestructura
+> DI y a los tests de Aplicacion.
+
+### Estado por fix
+
+- [x] **PR-1.12.1 Fix 1 (Critical)**: `catch` restringido a la violación específica de `IX_Cargos_ActiveCodigoUnique`
+- [x] **PR-1.12.2 Fix 2 (Important)**: `MapToDto` recibe el `NivelCargo` ya validado para refrescar `NivelNombre` en respuesta
+- [x] **PR-1.12.3 Fix 3 (Recommendation)**: 3 tests `[MySqlFact]` que cubren update de `Codigo` con MySQL real
+
+### Fix 1 — Acotar mapeo de `DbUpdateException` al índice activo de código
+
+**Problema detectado en review**: `catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))` mapeaba
+cualquier violación de constraint que `MySqlConstraintViolationDetector` reconociera (códigos MySQL 1062, 1169, 1451, 1452, 4025)
+a `CodigoDuplicado`. Esto generaba falsos positivos: por ejemplo, una FK violation
+(1452) tras el borrado de un `NivelCargo` entre la validación y el `SaveChanges`
+terminaba devolviendo `409 CodigoDuplicado` en lugar de propagarse como 500.
+
+**Solución**: Helper privado local a `CargoServicioComandos` que inspecciona el
+mensaje de la inner exception y verifica que contenga `IX_Cargos_ActiveCodigoUnique`
++ `Duplicate entry` (o `1062`). Cualquier otra constraint violation (FK, otro
+unique, check) se propaga como 500. Se eliminó la dependencia
+`IConstraintViolationDetector` de `CargoServicioComandos` (ya no se usa;
+la interfaz y `MySqlConstraintViolationDetector` quedan intactos para que
+`OcupacionServicioComandos` y otros servicios los sigan usando).
+
+**Detalle de Clean Architecture**: la detección se hace por **contenido del
+mensaje** (string match), no por tipo `MySqlException`. Esto evita que
+`SGV.Aplicacion` tome una dependencia directa de `MySqlConnector`, que solo
+vive en `SGV.Infraestructura`. La combinación "Duplicate entry" +
+"IX_Cargos_ActiveCodigoUnique" es específica del mensaje que MySQL emite
+para violaciones del índice activo de cargo.
+
+#### TDD Cycle Evidence — Fix 1
+
+| Tarea | RED (tests fallaron antes del cambio) | GREEN (tests pasaron después) | REFACTOR | Hash commit |
+|---|---|---|---|---|
+| PR-1.12.1 RED | 4 tests nuevos en `tests/SGV.Tests/Aplicacion/Organizacion/CargoServicioComandosTests.cs`: `ActualizarAsync_DbUpdateException_FkViolation_NoMapeaCodigoDuplicado`, `ActualizarAsync_DbUpdateException_DuplicateKey_DeOtroIndice_NoMapeaCodigoDuplicado`, `ActualizarAsync_DbUpdateException_DuplicateKey_IxCargosActiveCodigoUnique_MapeaCodigoDuplicado`, `CrearAsync_DbUpdateException_FkViolation_NoMapeaCodigoDuplicado`. Reconstrucción del RED: el catch broad con `constraintDetector.IsConstraintViolation(ex)` cubría las 3 violaciones que NO son `IX_Cargos_ActiveCodigoUnique`, devolviendo `CodigoDuplicado` en vez de propagar. `dotnet test SGV.slnx --filter "FullyQualifiedName~ActualizarAsync_DbUpdateException\|FullyQualifiedName~CrearAsync_DbUpdateException" --no-build` → **3 fail / 1 pass** (3 con `Assert.Throws()` reciben `CodigoDuplicado` en vez de la excepción esperada). | N/A — GREEN en el siguiente paso. | N/A | (commit Fix 1) |
+| PR-1.12.1 GREEN | N/A | `dotnet test SGV.slnx --filter "FullyQualifiedName~ActualizarAsync_DbUpdateException\|FullyQualifiedName~CrearAsync_DbUpdateException\|FullyQualifiedName~ActualizarAsync_CodigoDuplicado_RaceCondition" --no-build` → **5/5 pass** (incluye el test de race condition pre-existente que también se ajustó para poner el mensaje en la inner exception). Suite completa `CargoServicioComandos`: **24/24 pass** (20 previos + 4 nuevos). | Sí. Removida la dependencia `IConstraintViolationDetector` del constructor (ya no se usa); borradas las clases `NullConstraintViolationDetector` (en src) y `FakeConstraintViolationDetector` (en tests). El `IConstraintViolationDetector`/`MySqlConstraintViolationDetector` no fueron modificados — siguen usándose en `OcupacionServicioComandos` y otros servicios. | (commit Fix 1) |
+
+### Fix 2 — Refrescar `nivelNombre` en el DTO de retorno
+
+**Problema detectado en review**: `MapToDto(Cargo cargo)` leía
+`cargo.NivelCargo?.Nombre`. En `ActualizarAsync` el `cargo` se carga vía
+`repository.GetByIdForUpdateAsync(id, ct)` ANTES de `cargo.Actualizar(...)`,
+así que su navegación `NivelCargo` quedaba con el nivel ANTERIOR — el
+`200 OK` devolvía `nivelId` nuevo con `nivelNombre` viejo. Bug latente en
+`CrearAsync`: el cargo recién creado nunca tuvo `Include(NivelCargo)`, así
+que `cargo.NivelCargo` era `null` y el DTO devolvía `nivelNombre = null`.
+
+**Solución**: `MapToDto` ahora acepta `NivelCargo? nivelCargo = null` y
+devuelve `nivelCargo?.Nombre ?? cargo.NivelCargo?.Nombre`. En `CrearAsync`
+y `ActualizarAsync` se pasa el `nivel` ya cargado por la validación. Sin
+round-trip extra a la DB, sin abrir la encapsulación de `Cargo`.
+
+#### TDD Cycle Evidence — Fix 2
+
+| Tarea | RED (tests fallaron antes del cambio) | GREEN (tests pasaron después) | REFACTOR | Hash commit |
+|---|---|---|---|---|
+| PR-1.12.2 RED | 2 tests nuevos en `CargoServicioComandosTests.cs`: `ActualizarAsync_CambiaNivelId_RetornaDtoConNivelNombreNuevo` (cambia a `OperativoId` y espera `NivelNombre == "Operativo"`) y `CrearAsync_Nuevo_RetornaDtoConNivelNombreDelCatalogo` (espera `NivelNombre == "Directivo"`). NOTA: el GREEN se aplicó en el mismo edit que Fix 1 (al refactorizar `MapToDto`) — el RED como commit separado se infiere por el diseño del test. Reconstrucción del RED contra el `MapToDto` viejo: `cargo.NivelCargo` es null en el fake, por lo que `NivelNombre` siempre sería null. | N/A — GREEN en el mismo edit. | N/A | (commit Fix 2) |
+| PR-1.12.2 GREEN | N/A | `dotnet test SGV.slnx --filter "FullyQualifiedName~ActualizarAsync_CambiaNivelId_RetornaDtoConNivelNombreNuevo\|FullyQualifiedName~CrearAsync_Nuevo_RetornaDtoConNivelNombreDelCatalogo" --no-build` → **2/2 pass**. Suite completa `CargoServicioComandos`: **26/26 pass** (24 previos + 2 nuevos). | N/A — el cambio de `MapToDto` ya queda como parte de Fix 2. | (commit Fix 2) |
+
+### Fix 3 — Cobertura `[MySqlFact]` para update de `Codigo` con MySQL real
+
+**Problema detectado en review**: `tests/SGV.Tests/Persistencia/CargoRepositoryTests.cs`
+probaba update básico pero NO cubría el nuevo comportamiento: cambio
+exitoso de `Codigo`, rechazo por duplicado activo vía índice
+`IX_Cargos_ActiveCodigoUnique`, y reutilización de `Codigo` cuando hay
+otro cargo soft-deleted con ese código.
+
+**Solución**: 3 tests `[MySqlFact]` siguiendo el patrón de
+`PersonaRepositoryUniqueConstraintsTests.cs` y los tests existentes en
+`CargoRepositoryTests.cs` (cada test crea su `TestSgvDbContextFactory`,
+agrega entidades, hace la operación, hace cleanup en `finally` con
+`RemoveRange` + `SaveChangesAsync`). Códigos únicos por test con sufijo
+`Guid.NewGuid().ToString("N")[..8]` para evitar colisiones entre runs.
+
+#### TDD Cycle Evidence — Fix 3
+
+| Tarea | RED (tests fallaron antes del cambio) | GREEN (tests pasaron después) | REFACTOR | Hash commit |
+|---|---|---|---|---|
+| PR-1.12.3 RED+GREEN | 3 tests nuevos `[MySqlFact]` en `CargoRepositoryTests.cs`: `UpdateAsync_CambiaCodigo_ActualizaColumnaActivaYComputedColumn`, `UpdateAsync_CodigoDuplicadoActivo_LanzaDbUpdateException`, `UpdateAsync_CodigoSoftDeleted_PermiteReutilizarCodigo`. El test #2 verifica que el mensaje del `DbUpdateException` contiene `IX_Cargos_ActiveCodigoUnique` o `ActiveCodigoUnique`. | `dotnet test SGV.slnx --filter "FullyQualifiedName~UpdateAsync_CambiaCodigo\|FullyQualifiedName~UpdateAsync_CodigoDuplicadoActivo\|FullyQualifiedName~UpdateAsync_CodigoSoftDeleted" --no-build` → **3/3 pass** (MySQL real local, default `Server=localhost;Port=3306;Database=sgv_test;User=root;Password=`). Suite completa `CargoRepositoryTests`: **15/15 pass** (12 previos + 3 nuevos). | N/A — el patrón de cleanup ya era consistente con los demás tests del archivo. | (commit Fix 3) |
+
+### Resumen de la matriz PR-1.12
+
+- **3 fixes atómicos** (un commit por fix).
+- **9 tests nuevos** (4 unit en `CargoServicioComandosTests` + 2 DTO refresh + 3 `[MySqlFact]`).
+- **0 tests rotos** (221 → 230 en Cargo|Cargos; 219 sin cambios en UnidadOrganizativa; 12 → 15 en CargoRepositoryTests).
+- **0 migraciones nuevas**, **0 cambios de contrato HTTP**, **0 cambios en la interfaz `IConstraintViolationDetector`** (se removió la dependencia de `CargoServicioComandos`, pero la interfaz y la implementación `MySqlConstraintViolationDetector` quedan intactas para `OcupacionServicioComandos`).
+
+### Tests ejecutados al cierre de PR-1.12
+
+- `dotnet build SGV.slnx` → **0 errores, 0 warnings** (build limpio).
+- `dotnet test SGV.slnx --filter "FullyQualifiedName~Cargo|FullyQualifiedName~Cargos" --no-build` → **230/230 pass**.
+- `dotnet test SGV.slnx --filter "FullyQualifiedName~UnidadOrganizativa" --no-build` → **219/219 pass** (regresión OK).
+- `dotnet test SGV.slnx --filter "FullyQualifiedName~CargoRepositoryTests" --no-build` → **15/15 pass** (incluye los 3 nuevos `[MySqlFact]`).
+- `dotnet test SGV.slnx --filter "FullyQualifiedName~CargoServicioComandos" --no-build` → **26/26 pass** (incluye los 6 nuevos del review).
+- `dotnet test SGV.slnx --no-build` (suite completa) → **1032/1044 pass, 12 fail** (los 12 fails son `OcupacionRepositoryTests`, **pre-existentes, no relacionados con este PR** — bug documentado en `AGENTS.md` como issue #59, `ActivePuestoIdUnique INT` incompatible con `PuestoId CHAR(36)`).
+
+### Riesgo residual / hand-off al orchestrator
+
+- **Constructor de `CargoServicioComandos` cambió de 6 a 5 args** (sin `IConstraintViolationDetector`). Llamadores de DI siguen funcionando porque `SGV.Infraestructura/DependencyInjection.cs` usa resolución por tipo, no por nombre; los tests que usaban el 6-arg se actualizaron al 5-arg. Si otro servicio o un consumidor externo construye `CargoServicioComandos` a mano, hay que actualizarlo (no aplica: solo el DI y los tests del repo lo construyen).
+- **Helper `IsActiveCodigoUniqueViolation` acota el catch al mensaje específico de MySQL**. Si MySQL cambia el formato del mensaje de error 1062 (por ejemplo, localización), el catch podría dejar de disparar. Es poco probable (es un mensaje de servidor, no localizado) pero queda documentado.
+- **`MapToDto(cargo, nivelCargo = null)`**: el parámetro `nivelCargo` es opcional y mantiene el comportamiento previo cuando no se pasa (lee de `cargo.NivelCargo`). Los 3 call sites son explícitos: Crear/Actualizar pasan el `nivel` validado; Reactivar no lo pasa porque su navegación ya viene hidratada con `Include(c => c.NivelCargo)`.
+
 ### Resumen de la matriz
 
 - **8/11** tareas son ciclos RED → GREEN con tests primero (PR-1.1 a PR-1.8).
