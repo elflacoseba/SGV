@@ -16,10 +16,32 @@ public sealed class CargosControllerTests
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     [Fact]
-    public async Task GetAll_ReturnsOkWithDtoArray()
+    public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/cargos");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAll_ReturnsOkWithDtoArray()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync("/api/v1/cargos");
 
@@ -41,7 +63,7 @@ public sealed class CargosControllerTests
             services.AddSingleton<ICargoServicioConsulta>(
                 new FakeCargoServicio(isEmpty: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync("/api/v1/cargos");
 
@@ -56,7 +78,7 @@ public sealed class CargosControllerTests
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync(
             $"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
@@ -73,7 +95,7 @@ public sealed class CargosControllerTests
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync($"/api/v1/cargos/{Guid.NewGuid()}");
 
@@ -84,7 +106,7 @@ public sealed class CargosControllerTests
     public async Task GetById_ParentPayloadDoesNotIncludeSkillAssignmentFields()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync(
             $"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
@@ -97,14 +119,14 @@ public sealed class CargosControllerTests
     }
 
     [Fact]
-    public void Controller_DoesNotHaveAuthorizeAttribute()
+    public void Controller_HasAuthorizeAttribute()
     {
         var controllerType = typeof(SGV.Api.Controllers.CargosController);
 
         var hasAuthorize = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Any(a => a is AuthorizeAttribute);
 
-        Assert.False(hasAuthorize, "Controller should not require authorization");
+        Assert.True(hasAuthorize, "Controller MUST require authorization");
     }
 
     // ---- JSON contract (nivelId / nivelNombre) ----
@@ -113,7 +135,7 @@ public sealed class CargosControllerTests
     public async Task GetAll_JsonResponseContieneNivelIdYNivelNombre()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync("/api/v1/cargos");
         var json = await response.Content.ReadAsStringAsync();
@@ -166,10 +188,61 @@ public sealed class CargosControllerTests
     }
 
     [Fact]
-    public async Task Post_ValidRequest_Returns201CreatedWithDto()
+    public async Task Post_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+        var body = ToJsonBody(new { codigo = "NVO", nombre = "Nuevo Cargo", nivelId = FakeCargoServicioComandos.DefaultNivelId });
+
+        var response = await client.PostAsync("/api/v1/cargos", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+        var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "Nuevo", nivelId = FakeCargoServicioComandos.DefaultNivelId });
+
+        var response = await client.PutAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.DeleteAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.PatchAsync(
+            $"/api/v1/cargos/{FakeCargoServicio.CargoId1}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_ValidRequest_Returns201CreatedWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAuthenticatedClient();
         var body = ToJsonBody(new { codigo = "NVO", nombre = "Nuevo Cargo", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PostAsync("/api/v1/cargos", body);
@@ -201,7 +274,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
         var body = ToJsonBody(new { codigo = "", nombre = "", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PostAsync("/api/v1/cargos", body);
@@ -227,7 +300,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
         var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "Duplicado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PostAsync("/api/v1/cargos", body);
@@ -243,7 +316,7 @@ public sealed class CargosControllerTests
     public async Task Put_ValidRequest_WithCodigo_Returns200OkWithUpdatedDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
         var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "Cargo Actualizado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PutAsync(
@@ -268,7 +341,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
         var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "No existe", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PutAsync($"/api/v1/cargos/{Guid.NewGuid()}", body);
@@ -297,7 +370,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
         var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PutAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}", body);
@@ -327,7 +400,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
         var body = ToJsonBody(new { codigo = "", nombre = "Cargo Actualizado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PutAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}", body);
@@ -351,7 +424,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
         var body = ToJsonBody(new { codigo = "OTRO", nombre = "Cargo Duplicado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
         var response = await client.PutAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}", body);
@@ -368,7 +441,7 @@ public sealed class CargosControllerTests
     public async Task Delete_ExistingId_Returns204NoContent()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
@@ -390,7 +463,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.DeleteAsync($"/api/v1/cargos/{Guid.NewGuid()}");
 
@@ -414,7 +487,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
@@ -431,7 +504,7 @@ public sealed class CargosControllerTests
     public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/cargos/{FakeCargoServicio.CargoId1}/reactivar", null);
@@ -455,7 +528,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/cargos/{Guid.NewGuid()}/reactivar", null);
@@ -480,7 +553,7 @@ public sealed class CargosControllerTests
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAuthenticatedClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/cargos/{FakeCargoServicio.CargoId1}/reactivar", null);

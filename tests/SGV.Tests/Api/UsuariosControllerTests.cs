@@ -9,6 +9,27 @@ namespace SGV.Tests.Api;
 public sealed class UsuariosControllerTests
 {
     [Fact]
+    public void FakeAuth_ExposesUserHeaderForAuthenticatedNonAdmin()
+    {
+        var header = FakeAuthenticationDefaults.UserHeader;
+
+        Assert.Equal(FakeAuthenticationDefaults.Scheme, header.Scheme);
+        Assert.Equal("user", header.Parameter);
+    }
+
+    [Fact]
+    public async Task GetUsuarios_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/usuarios");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetUsuarios_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
