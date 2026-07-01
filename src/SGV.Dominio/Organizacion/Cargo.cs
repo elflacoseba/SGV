@@ -23,7 +23,9 @@ public sealed class Cargo : EntidadAuditable
     }
 
     /// <summary>
-    /// Código único del cargo. Se define en la creación y NO puede modificarse.
+    /// Código único del cargo. Mutable solo desde dentro de la entidad vía
+    /// <see cref="Actualizar"/>; la verificación de unicidad activa contra
+    /// otros Cargos es responsabilidad del servicio de aplicación.
     /// </summary>
     public string Codigo { get; private set; } = string.Empty;
 
@@ -48,10 +50,18 @@ public sealed class Cargo : EntidadAuditable
     public IReadOnlyCollection<Puesto> Puestos => _puestos;
 
     /// <summary>
-    /// Actualiza los campos editables del cargo. NO modifica <see cref="Codigo"/>.
+    /// Actualiza los campos editables del cargo, incluido <see cref="Codigo"/>.
+    /// La unicidad activa del código se valida en el servicio de aplicación
+    /// antes de invocar este método; este solo aplica reglas de shape
+    /// (requerido, longitud máxima).
     /// </summary>
-    public void Actualizar(string nombre, Guid nivelId, string? descripcion = null)
+    /// <param name="codigo">Nuevo código del cargo. Requerido, máximo 50 caracteres.</param>
+    /// <param name="nombre">Nuevo nombre del cargo. Requerido, máximo 200 caracteres.</param>
+    /// <param name="nivelId">Identificador del NivelCargo asociado.</param>
+    /// <param name="descripcion">Descripción opcional, máximo 1000 caracteres.</param>
+    public void Actualizar(string codigo, string nombre, Guid nivelId, string? descripcion = null)
     {
+        Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
         Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
         ValidarNivelId(nivelId);
         NivelId = nivelId;

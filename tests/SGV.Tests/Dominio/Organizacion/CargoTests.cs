@@ -80,37 +80,58 @@ public sealed class CargoTests
     }
 
     [Fact]
-    public void Codigo_EsInmutableTrasCreacion()
-    {
-        var cargo = new Cargo("DIR-01", "Director", NivelIdValido);
-
-        var codigoProperty = typeof(Cargo).GetProperty(nameof(Cargo.Codigo));
-        Assert.NotNull(codigoProperty);
-        Assert.Null(codigoProperty!.GetSetMethod());
-    }
-
-    [Fact]
     public void Actualizar_ModificaCamposEditables()
     {
         var cargo = new Cargo("DIR-01", "Director", NivelIdValido);
         var nuevoNivelId = Guid.Parse("70000000-0000-0000-0000-000000000002");
 
-        cargo.Actualizar("Director General", nuevoNivelId, "Nueva descripción");
+        cargo.Actualizar("DIR-01", "Director General", nuevoNivelId, "Nueva descripción");
 
-        Assert.Equal("DIR-01", cargo.Codigo); // Inmutable
+        Assert.Equal("DIR-01", cargo.Codigo);
         Assert.Equal("Director General", cargo.Nombre);
         Assert.Equal(nuevoNivelId, cargo.NivelId);
         Assert.Equal("Nueva descripción", cargo.Descripcion);
     }
 
     [Fact]
-    public void Actualizar_CodigoNoCambia()
+    public void Actualizar_CambiaCodigoSiNoDuplica()
     {
         var cargo = new Cargo("DIR-01", "Director", NivelIdValido);
 
-        cargo.Actualizar("Director Actualizado", NivelIdValido);
+        cargo.Actualizar("DIR-02", "Director", NivelIdValido);
 
-        Assert.Equal("DIR-01", cargo.Codigo);
+        Assert.Equal("DIR-02", cargo.Codigo);
+    }
+
+    [Fact]
+    public void Actualizar_ConCodigoNull_ThrowsArgumentException()
+    {
+        var cargo = new Cargo("DIR-01", "Director", NivelIdValido);
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => cargo.Actualizar(null!, "Director", NivelIdValido));
+        Assert.Contains("Codigo", ex.Message);
+    }
+
+    [Fact]
+    public void Actualizar_ConCodigoVacio_ThrowsArgumentException()
+    {
+        var cargo = new Cargo("DIR-01", "Director", NivelIdValido);
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => cargo.Actualizar("", "Director", NivelIdValido));
+        Assert.Contains("Codigo", ex.Message);
+    }
+
+    [Fact]
+    public void Actualizar_ConCodigoMayorA50_ThrowsArgumentException()
+    {
+        var cargo = new Cargo("DIR-01", "Director", NivelIdValido);
+        var codigoLargo = new string('A', 51);
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => cargo.Actualizar(codigoLargo, "Director", NivelIdValido));
+        Assert.Contains("Codigo", ex.Message);
     }
 
     [Fact]
@@ -119,7 +140,7 @@ public sealed class CargoTests
         var cargo = new Cargo("DIR-01", "Director", NivelIdValido);
 
         var ex = Assert.Throws<ArgumentException>(
-            () => cargo.Actualizar("Director", Guid.Empty));
+            () => cargo.Actualizar("DIR-01", "Director", Guid.Empty));
         Assert.Contains("NivelId", ex.Message);
     }
 

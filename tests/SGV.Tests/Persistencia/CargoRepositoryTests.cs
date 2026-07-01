@@ -187,7 +187,7 @@ public sealed class CargoRepositoryTests
             var cargo = await repo.GetByIdForUpdateAsync(entity.Id, default);
             Assert.NotNull(cargo);
 
-            cargo!.Actualizar("Modificado", NivelCargoConstantes.ConduccionMediaId, "Desc modificada");
+            cargo!.Actualizar(entity.Codigo, "Modificado", NivelCargoConstantes.ConduccionMediaId, "Desc modificada");
             await repo.UpdateAsync(cargo, default);
             await context.SaveChangesAsync();
 
@@ -196,7 +196,7 @@ public sealed class CargoRepositoryTests
             Assert.Equal("Modificado", modificado!.Nombre);
             Assert.Equal(NivelCargoConstantes.ConduccionMediaId, modificado.NivelId);
             Assert.Equal("Desc modificada", modificado.Descripcion);
-            Assert.Equal(entity.Codigo, modificado.Codigo); // Codigo unchanged
+            Assert.Equal(entity.Codigo, modificado.Codigo); // Codigo unchanged in this scenario
         }
         finally
         {
