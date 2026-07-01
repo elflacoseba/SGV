@@ -49,10 +49,10 @@ public sealed class CargoCreatePageTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Nuevo cargo", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("name=\"Input.Codigo\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("name=\"Input.Nombre\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("name=\"Input.Descripcion\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("name=\"Input.NivelId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"name=\"{CargoFormKeys.CodigoKey}\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"name=\"{CargoFormKeys.NombreKey}\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"name=\"{CargoFormKeys.DescripcionKey}\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"name=\"{CargoFormKeys.NivelIdKey}\"", content, StringComparison.OrdinalIgnoreCase);
 
         // El catálogo debe popular el select
         Assert.Contains("Junior", content, StringComparison.OrdinalIgnoreCase);
@@ -82,7 +82,7 @@ public sealed class CargoCreatePageTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("No se pudo cargar el catálogo", content, StringComparison.OrdinalIgnoreCase);
         // El form debe seguir visible para que el usuario pueda reintentar
-        Assert.Contains("name=\"Input.Codigo\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"name=\"{CargoFormKeys.CodigoKey}\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────
@@ -170,7 +170,7 @@ public sealed class CargoCreatePageTests
         // El span del asp-validation-for para Input.Codigo se renderiza como
         // <span class="text-danger field-validation-error" data-valmsg-for="Input.Codigo" ...>...</span>.
         Assert.True(
-            Regex.IsMatch(content, @"<span[^>]*data-valmsg-for=""Input\.Codigo""[^>]*>[\s\S]*?Ya existe un cargo activo", RegexOptions.IgnoreCase),
+            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(CargoFormKeys.CodigoKey)}""[^>]*>[\s\S]*?Ya existe un cargo activo", RegexOptions.IgnoreCase),
             "Expected the duplicate-Codigo conflict message to be rendered in the Input.Codigo field-validation span.");
 
         // No debe redirigir (se renderiza la misma página con el error)
@@ -241,8 +241,8 @@ public sealed class CargoCreatePageTests
         // El mensaje de validación de Codigo debe aparecer en su field-validation span
         // (asp-validation-for="Input.Codigo" → <span data-valmsg-for="Input.Codigo">).
         Assert.True(
-            Regex.IsMatch(content, @"<span[^>]*data-valmsg-for=""Input\.Codigo""[^>]*>[\s\S]*?(?:obligatorio|requerido|required)", RegexOptions.IgnoreCase),
-            "Expected the Input.Codigo required-field validation message to be rendered.");
+            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(CargoFormKeys.CodigoKey)}""[^>]*>[\s\S]*?(?:obligatorio|requerido|required)", RegexOptions.IgnoreCase),
+            $"Expected the {CargoFormKeys.CodigoKey} required-field validation message to be rendered.");
 
         // El API client NO debe haber sido invocado (ModelState cortó antes)
         Assert.Empty(apiClient.CreateCalls);
@@ -300,11 +300,11 @@ public sealed class CargoCreatePageTests
         // transporte).
         var codigoFieldSpan = Regex.Match(
             content,
-            @"<span[^>]*data-valmsg-for=""Input\.Codigo""[^>]*>([\s\S]*?)</span>",
+            $@"<span[^>]*data-valmsg-for=""{Regex.Escape(CargoFormKeys.CodigoKey)}""[^>]*>([\s\S]*?)</span>",
             RegexOptions.IgnoreCase);
-        Assert.True(codigoFieldSpan.Success, "El field-validation span de Input.Codigo debe existir.");
+        Assert.True(codigoFieldSpan.Success, $"El field-validation span de {CargoFormKeys.CodigoKey} debe existir.");
         Assert.True(string.IsNullOrWhiteSpace(codigoFieldSpan.Groups[1].Value),
-            $"El field-validation span de Input.Codigo debe estar vacío tras un error de transporte, pero contiene: '{codigoFieldSpan.Groups[1].Value}'.");
+            $"El field-validation span de {CargoFormKeys.CodigoKey} debe estar vacío tras un error de transporte, pero contiene: '{codigoFieldSpan.Groups[1].Value}'.");
 
         // El catálogo se consultó una vez en GET + una vez tras el POST fallido = 2.
         Assert.Equal(2, apiClient.NivelesCalls);
@@ -427,8 +427,8 @@ public sealed class CargoCreatePageTests
         // field-validation span de Input.Codigo (mapping via
         // CargoFormHelpers.ApplyFieldErrorsToModelState → prefijo "Input.").
         Assert.True(
-            Regex.IsMatch(content, @"<span[^>]*data-valmsg-for=""Input\.Codigo""[^>]*>[\s\S]*?ya existe[\s\S]*?</span>", RegexOptions.IgnoreCase),
-            "Expected the backend field-error message 'ya existe' to be rendered inside the Input.Codigo field-validation span.");
+            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(CargoFormKeys.CodigoKey)}""[^>]*>[\s\S]*?ya existe[\s\S]*?</span>", RegexOptions.IgnoreCase),
+            $"Expected the backend field-error message 'ya existe' to be rendered inside the {CargoFormKeys.CodigoKey} field-validation span.");
     }
 
     // ──────────────────────────────────────────────

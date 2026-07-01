@@ -112,7 +112,7 @@ public sealed class CreateModel(
             // Conflict 409 (código duplicado) → error a nivel de campo Codigo.
             if (result.Error.Type == CargoErrorType.Conflict)
             {
-                ModelState.AddModelError("Input.Codigo", result.Error.Message);
+                ModelState.AddModelError(CargoFormKeys.CodigoKey, result.Error.Message);
             }
             else if (result.FieldErrors is { Count: > 0 })
             {

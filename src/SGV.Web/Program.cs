@@ -43,6 +43,12 @@ builder.Services.AddHttpClient<ICargoApiClient, CargoApiClient>((serviceProvider
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // 10s budget for a Create-form request. The HttpClient default (100s) is
+    // too long: the user is staring at a submit button and a hung page is
+    // indistinguishable from a server-side crash. A bounded budget converts
+    // transport stalls into TaskCanceledException, which CreateModel.OnPostAsync
+    // already handles as a recoverable error.
+    client.Timeout = TimeSpan.FromSeconds(10);
 });
 
 var app = builder.Build();

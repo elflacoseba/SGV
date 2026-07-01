@@ -4,6 +4,33 @@ using Microsoft.AspNetCore.Mvc;
 namespace SGV.Web.Integration.Organizacion;
 
 /// <summary>
+/// Stable binding keys used by the Cargo Create/Edit form contract.
+/// Centralized so the partial (<c>_Form.cshtml</c>), the page models
+/// (<c>Create.cshtml.cs</c>, <c>Edit.cshtml.cs</c> in PR2B) and tests
+/// agree on the exact strings the model binder expects.
+/// </summary>
+public static class CargoFormKeys
+{
+    /// <summary>
+    /// Common prefix used by Razor's <c>asp-for="Input.Xyz"</c> tag helpers
+    /// and by <see cref="CargoFormHelpers.ApplyFieldErrorsToModelState"/>.
+    /// </summary>
+    public const string InputPrefix = "Input.";
+
+    /// <summary>Binding key for the <c>Codigo</c> field.</summary>
+    public const string CodigoKey = InputPrefix + "Codigo";
+
+    /// <summary>Binding key for the <c>Nombre</c> field.</summary>
+    public const string NombreKey = InputPrefix + "Nombre";
+
+    /// <summary>Binding key for the <c>NivelId</c> field.</summary>
+    public const string NivelIdKey = InputPrefix + "NivelId";
+
+    /// <summary>Binding key for the <c>Descripcion</c> field.</summary>
+    public const string DescripcionKey = InputPrefix + "Descripcion";
+}
+
+/// <summary>
 /// Helper methods for the create/edit form of Cargos.
 /// </summary>
 public static class CargoFormHelpers
@@ -39,8 +66,9 @@ public static class CargoFormHelpers
 
     /// <summary>
     /// Maps a <see cref="ValidationProblemDetails"/> field-errors dictionary
-    /// into ModelState entries prefixed with <c>Input.</c> so the
-    /// <c>asp-validation-for</c> tag helpers los rescaten.
+    /// into ModelState entries prefixed with <see cref="CargoFormKeys.InputPrefix"/>
+    /// so the <c>asp-validation-for</c> tag helpers can render them next to
+    /// the right field.
     /// </summary>
     public static void ApplyFieldErrorsToModelState(
         Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary modelState,
@@ -52,7 +80,7 @@ public static class CargoFormHelpers
         {
             foreach (var message in messages)
             {
-                modelState.AddModelError($"Input.{key}", message);
+                modelState.AddModelError(CargoFormKeys.InputPrefix + key, message);
             }
         }
     }
