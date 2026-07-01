@@ -85,6 +85,20 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
     }
 
     /// <inheritdoc />
+    public async Task<CargoCommandResult> UpdateAsync(Guid id, ActualizarCargoRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PutAsJsonAsync($"{BaseRoute}/{id}", request, cancellationToken);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var dto = await response.Content.ReadFromJsonAsync<CargoDto>(cancellationToken: cancellationToken);
+            return CargoCommandResult.Success(dto!);
+        }
+
+        return await ToCommandResultAsync(response, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<NivelCargoDto>> GetNivelesAsync(CancellationToken cancellationToken = default)
     {
         var response = await httpClient.GetAsync(NivelesRoute, cancellationToken);

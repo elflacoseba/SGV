@@ -226,6 +226,91 @@ public class CargoApiClientTests
         Assert.Equal("/api/v1/niveles-cargo", handler.LastRequest?.RequestUri?.AbsolutePath);
     }
 
+    // ──────────────────────────────────────────────
+    // PR2B Task 1: UpdateAsync (PUT /api/v1/cargos/{id})
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task UpdateAsync_Http200WithPayload_ReturnsDtoAndHitsPutRoute()
+    {
+        var id = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var dto = new CargoDto(id, "C-001", "Analista Senior", "Desc actualizada", nivelId, "Senior");
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, dto));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var request = new ActualizarCargoRequest("C-001", "Analista Senior", nivelId, "Desc actualizada");
+        var result = await client.UpdateAsync(id, request);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal(id, result.Value!.Id);
+        Assert.Equal("C-001", result.Value.Codigo);
+        Assert.Equal("Analista Senior", result.Value.Nombre);
+        Assert.Equal("Senior", result.Value.NivelNombre);
+        Assert.Equal(HttpMethod.Put, handler.LastRequest?.Method);
+        Assert.Equal($"/api/v1/cargos/{id}", handler.LastRequest?.RequestUri?.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Http400WithValidationProblemDetails_ReturnsFailureWithFieldErrors()
+    {
+        var id = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var validation = new ValidationProblemDetails(new Dictionary<string, string[]>
+        {
+            ["codigo"] = new[] { "El código no puede superar los 50 caracteres." },
+            ["nombre"] = new[] { "El nombre es obligatorio." }
+        })
+        {
+            Status = 400,
+            Title = "ValidationError",
+            Detail = "Datos inválidos."
+        };
+        var handler = new StubHandler(_ => Json(HttpStatusCode.BadRequest, validation));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var request = new ActualizarCargoRequest(
+            new string('x', 51),
+            string.Empty,
+            nivelId);
+        var result = await client.UpdateAsync(id, request);
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(CargoErrorType.Validation, result.Error!.Type);
+        Assert.NotNull(result.FieldErrors);
+        Assert.Contains("codigo", result.FieldErrors!.Keys);
+        Assert.Contains("nombre", result.FieldErrors!.Keys);
+        Assert.Equal("El código no puede superar los 50 caracteres.", result.FieldErrors!["codigo"][0]);
+        Assert.Equal("El nombre es obligatorio.", result.FieldErrors!["nombre"][0]);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Http409WithProblemDetails_ReturnsFailureWithConflict()
+    {
+        var id = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var problem = new ProblemDetails
+        {
+            Status = 409,
+            Title = "CodigoDuplicado",
+            Detail = "Ya existe un cargo activo con el código C-DUP."
+        };
+        var handler = new StubHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var request = new ActualizarCargoRequest("C-DUP", "Cargo Duplicado", nivelId);
+        var result = await client.UpdateAsync(id, request);
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(CargoErrorType.Conflict, result.Error!.Type);
+        Assert.Equal("CodigoDuplicado", result.Error.Code);
+        Assert.Equal("Ya existe un cargo activo con el código C-DUP.", result.Error.Message);
+        Assert.Null(result.FieldErrors);
+    }
+
     private static HttpClient NewHttpClient(StubHandler handler) =>
         new(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
 

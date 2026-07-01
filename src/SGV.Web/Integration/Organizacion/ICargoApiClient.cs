@@ -34,6 +34,15 @@ public interface ICargoApiClient
     Task<CargoCommandResult> CreateAsync(CrearCargoRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Actualiza los campos editables (incluido <c>Codigo</c>) de un cargo activo.
+    /// Devuelve éxito con el DTO refrescado o un fallo tipado con la misma forma que
+    /// <see cref="CreateAsync"/>: <see cref="CargoErrorType.Validation"/> con
+    /// <c>FieldErrors</c> en el caso de un 400, <see cref="CargoErrorType.Conflict"/>
+    /// si el nuevo <c>Codigo</c> colisiona con otro cargo activo, etc.
+    /// </summary>
+    Task<CargoCommandResult> UpdateAsync(Guid id, ActualizarCargoRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Devuelve el catálogo de niveles de cargo disponible para asociar a un cargo.
     /// </summary>
     Task<IReadOnlyList<NivelCargoDto>> GetNivelesAsync(CancellationToken cancellationToken = default);
