@@ -75,7 +75,9 @@ public sealed class CreateModel(
         var request = new CrearCargoRequest(
             Input.Codigo,
             Input.Nombre,
-            Input.NivelId,
+            // ModelState.IsValid ya garantizó que NivelId no es null (ver
+            // [Required] en CargoInputModel). El operador ! es seguro aquí.
+            Input.NivelId!.Value,
             string.IsNullOrWhiteSpace(Input.Descripcion) ? null : Input.Descripcion.Trim());
 
         CargoCommandResult result;
