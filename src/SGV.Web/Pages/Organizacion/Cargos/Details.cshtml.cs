@@ -78,4 +78,16 @@ public sealed class DetailsModel(ICargoApiClient cargoApiClient, ILogger<Details
             IsNotFound = true;
         }
     }
+
+    /// <summary>
+    /// Mensaje de feedback (success/warning/danger) entregado vía
+    /// TempData tras una redirección PRG desde otra página (e.g. Edit).
+    /// </summary>
+    public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
+
+    /// <summary>
+    /// Tipo de feedback: <c>success</c>, <c>warning</c> o <c>danger</c>.
+    /// Por defecto <c>success</c>.
+    /// </summary>
+    public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
 }

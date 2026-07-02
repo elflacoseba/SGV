@@ -122,6 +122,9 @@
                                             <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Details", new { id = item.Id, p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
                                                 <i class="ti ti-eye fs-lg"></i>
                                             </a>
+                                            <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
+                                                <i class="ti ti-edit fs-lg"></i>
+                                            </a>
                                             <form data-cargo-delete-form method="post">
                                                 @Html.AntiForgeryToken()
                                                 <input name="id" type="hidden" value="@item.Id" />

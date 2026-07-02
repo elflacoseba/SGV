@@ -151,6 +151,19 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
             : "ti ti-arrow-up";
     }
 
+    /// <summary>
+    /// Construye los route values del enlace "Editar" preservando el
+    /// contexto del listado (página, búsqueda y orden) para que la página
+    /// de edición pueda devolver al usuario a la misma vista.
+    /// </summary>
+    public object BuildEditRouteValues(Guid id) => new
+    {
+        id,
+        p = CurrentPage,
+        search = Search,
+        sort = Sort
+    };
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         LoadErrorMessage = null;

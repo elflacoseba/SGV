@@ -7,6 +7,11 @@
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
 
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
 @if (Model.IsNotFound)
 {
     <div class="row">
@@ -63,7 +68,7 @@ else
     <div class="col-12 d-flex gap-2">
         @if (!Model.IsNotFound)
         {
-            <a class="btn btn-primary" href="@Url.Page("/Organizacion/Cargos/Edit", new { id = Model.Cargo!.Id, p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })">
+            <a class="btn btn-warning" href="@Url.Page("/Organizacion/Cargos/Edit", new { id = Model.Cargo!.Id, p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })">
                 <i class="ti ti-pencil me-1"></i>Editar
             </a>
         }
