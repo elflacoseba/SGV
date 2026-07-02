@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using SGV.Aplicacion.Organizacion.Consultas;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
@@ -452,6 +454,203 @@ public sealed class CargoRepositoryTests
             context.Set<CargoEntity>().RemoveRange(
                 await context.Set<CargoEntity>()
                     .Where(c => c.Id == entityA.Id || c.Id == entityB.Id)
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    // ===================== QueryAsync (segmented) tests =====================
+
+    [MySqlFact]
+    public async Task QueryAsync_MySql_SegmentoEliminadas_RetornaSoloEliminados()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var searchToken = $"SD{Guid.NewGuid():N}"[..10];
+        var activa = RepositoryTestData.CreateCargo($"ACT-{searchToken}");
+        var eliminada = RepositoryTestData.CreateCargo($"DEL-{searchToken}");
+        eliminada.IsActive = false;
+        eliminada.IsDeleted = true;
+        eliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<CargoEntity>().AddRangeAsync([activa, eliminada]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+            var (items, totalCount) = await repo.QueryAsync(
+                searchToken, page: 1, pageSize: 20,
+                segmento: CargoSegmentoListado.Eliminadas,
+                default);
+
+            var eliminadaEncontrada = Assert.Single(items, i => i.Id == eliminada.Id);
+            Assert.Equal(1, totalCount);
+            Assert.DoesNotContain(items, i => i.Id == activa.Id);
+            Assert.All(items, i =>
+            {
+                Assert.False(i.IsActive);
+                Assert.True(i.IsDeleted);
+            });
+            Assert.Equal(eliminada.Id, eliminadaEncontrada.Id);
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(activa, eliminada);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_MySql_SegmentoActivas_NoIncluyeEliminadas()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var searchToken = $"SA{Guid.NewGuid():N}"[..10];
+        var activa = RepositoryTestData.CreateCargo($"ACT-{searchToken}");
+        var eliminada = RepositoryTestData.CreateCargo($"DEL-{searchToken}");
+        eliminada.IsActive = false;
+        eliminada.IsDeleted = true;
+        eliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<CargoEntity>().AddRangeAsync([activa, eliminada]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+            var (items, totalCount) = await repo.QueryAsync(
+                searchToken, page: 1, pageSize: 20,
+                segmento: CargoSegmentoListado.Activas,
+                default);
+
+            Assert.Equal(1, totalCount);
+            var activaEncontrada = Assert.Single(items, i => i.Id == activa.Id);
+            Assert.DoesNotContain(items, i => i.Id == eliminada.Id);
+            Assert.All(items, i =>
+            {
+                Assert.True(i.IsActive);
+                Assert.False(i.IsDeleted);
+            });
+            Assert.Equal(activa.Id, activaEncontrada.Id);
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(activa, eliminada);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_MySql_SegmentosNoSeMezclan()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var searchToken = $"SM{Guid.NewGuid():N}"[..10];
+        var activa = RepositoryTestData.CreateCargo($"ACT-{searchToken}");
+        var eliminada = RepositoryTestData.CreateCargo($"DEL-{searchToken}");
+        eliminada.IsActive = false;
+        eliminada.IsDeleted = true;
+        eliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<CargoEntity>().AddRangeAsync([activa, eliminada]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+            var (activas, totalActivas) = await repo.QueryAsync(
+                searchToken, page: 1, pageSize: 20,
+                segmento: CargoSegmentoListado.Activas, default);
+            var (eliminadas, totalEliminadas) = await repo.QueryAsync(
+                searchToken, page: 1, pageSize: 20,
+                segmento: CargoSegmentoListado.Eliminadas, default);
+
+            Assert.Equal(1, totalActivas);
+            Assert.Equal(1, totalEliminadas);
+            var activaEncontrada = Assert.Single(activas, i => i.Id == activa.Id);
+            var eliminadaEncontrada = Assert.Single(eliminadas, i => i.Id == eliminada.Id);
+            Assert.DoesNotContain(activas, i => i.Id == eliminada.Id);
+            Assert.DoesNotContain(eliminadas, i => i.Id == activa.Id);
+            Assert.Equal(activa.Id, activaEncontrada.Id);
+            Assert.Equal(eliminada.Id, eliminadaEncontrada.Id);
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(activa, eliminada);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_MySql_ActivaYEliminada_MismoCodigo_RetornaAmbasEnDistintosSegmentos()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var codigoCompartido = $"CRG-Q-{sufijo}";
+
+        // Entidad activa
+        var activa = RepositoryTestData.CreateCargo(codigoCompartido);
+        // Entidad eliminada con el mismo código (soft-delete libera el índice único)
+        var eliminada = RepositoryTestData.CreateCargo(codigoCompartido);
+        eliminada.IsActive = false;
+        eliminada.IsDeleted = true;
+        eliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<CargoEntity>().AddRangeAsync([activa, eliminada]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+            var (activas, totalActivas) = await repo.QueryAsync(
+                codigoCompartido, page: 1, pageSize: 20,
+                segmento: CargoSegmentoListado.Activas, default);
+            var (eliminadas, totalEliminadas) = await repo.QueryAsync(
+                codigoCompartido, page: 1, pageSize: 20,
+                segmento: CargoSegmentoListado.Eliminadas, default);
+
+            Assert.Equal(1, totalActivas);
+            Assert.Equal(1, totalEliminadas);
+            Assert.Equal(activa.Id, Assert.Single(activas).Id);
+            Assert.Equal(eliminada.Id, Assert.Single(eliminadas).Id);
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(activa, eliminada);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_MySql_Paginacion_TotalCountProvieneDelRepositorio()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var cargos = Enumerable.Range(0, 5)
+            .Select(i =>
+            {
+                var e = RepositoryTestData.CreateCargo($"CRG-PG-{sufijo}-{i}");
+                return e;
+            })
+            .ToArray();
+
+        await context.Set<CargoEntity>().AddRangeAsync(cargos);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+            // Página de tamaño 2 sobre al menos 5 inserts únicos.
+            var (page1, totalCount) = await repo.QueryAsync(
+                $"CRG-PG-{sufijo}", page: 1, pageSize: 2,
+                segmento: CargoSegmentoListado.Activas, default);
+
+            Assert.Equal(5, totalCount);
+            Assert.Equal(2, page1.Count);
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(
+                await context.Set<CargoEntity>()
+                    .Where(c => c.Codigo.StartsWith($"CRG-PG-{sufijo}"))
                     .ToListAsync());
             await context.SaveChangesAsync();
         }
