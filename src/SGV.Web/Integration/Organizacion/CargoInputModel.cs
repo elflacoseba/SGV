@@ -18,7 +18,8 @@ public sealed class CargoInputModel
     [StringLength(1000, ErrorMessage = "La descripción no puede superar los 1000 caracteres.")]
     public string? Descripcion { get; set; }
 
-    [Required(ErrorMessage = "El nivel es obligatorio.")]
+
+    [Required(ErrorMessage = "Debe escoger un nivel.")]
     [Display(Name = "Nivel")]
-    public Guid NivelId { get; set; }
+    public Guid? NivelId { get; set; }
 }

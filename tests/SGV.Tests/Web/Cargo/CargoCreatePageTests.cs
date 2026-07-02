@@ -248,6 +248,60 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
     }
 
     // ──────────────────────────────────────────────
+    // Bug fix: NivelId vacío en el form de Crear mostraba
+    // "The value '' is invalid." (mensaje genérico del model binder de
+    // .NET) en lugar del mensaje de [Required] en español. Causa raíz:
+    // CargoInputModel.NivelId era Guid (no-nullable); el binder fallaba
+    // al convertir "" a Guid antes de evaluar [Required]. Tras hacerlo
+    // Guid?, el binder mapea "" → null y [Required] se dispara con
+    // "Debe escoger un Nivel.".
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Create_WhenNivelIdIsEmpty_ShowsSpanishRequiredMessageAndDoesNotRedirect()
+    {
+        var apiClient = new FakeCargoApiClient();
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos/crear");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "C-SIN-NIVEL",
+            ["Input.Nombre"] = "Cargo Sin Nivel",
+            // Input.NivelId ausente (empty string) — equivalente a no elegir opción en el select.
+            ["Input.NivelId"] = string.Empty
+        }));
+
+        // El form debe re-renderizarse (no PRG) porque ModelState es inválido.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El form debe seguir visible con los valores enviados.
+        Assert.Contains("Nuevo cargo", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("C-SIN-NIVEL", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cargo Sin Nivel", content, StringComparison.OrdinalIgnoreCase);
+
+        // El mensaje de validación debe aparecer en el field-validation span de
+        // Input.NivelId (asp-validation-for="Input.NivelId" → <span data-valmsg-for="Input.NivelId">).
+        Assert.True(
+            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(CargoFormKeys.NivelIdKey)}""[^>]*>[\s\S]*?Debe escoger un Nivel[\s\S]*?</span>", RegexOptions.IgnoreCase),
+            $"Expected the {CargoFormKeys.NivelIdKey} required-field validation message 'Debe escoger un Nivel.' to be rendered.");
+
+        // El mensaje genérico en inglés del model binder de .NET NO debe aparecer.
+        Assert.DoesNotContain("The value &#39;&#39; is invalid", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("The value '' is invalid", content, StringComparison.OrdinalIgnoreCase);
+
+        // El API client NO debe haber sido invocado (ModelState cortó antes).
+        Assert.Empty(apiClient.CreateCalls);
+    }
+
+    // ──────────────────────────────────────────────
     // Review fix #1: try/catch alrededor de CreateAsync para transport failures
     // ──────────────────────────────────────────────
 
