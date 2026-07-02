@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using System.Web;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
+using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
 
 namespace SGV.Tests.Web.Cargo;
 
@@ -56,7 +58,10 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.DoesNotContain("Habilidades", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Eliminadas", content, StringComparison.OrdinalIgnoreCase);
 
-        Assert.NotEmpty(apiClient.GetAllCalls);
+        // Después del refactor a server-side, el page model invoca QueryAsync
+        // en vez de GetAllAsync. Mantener ambos checks permite asegurar el corte.
+        Assert.Empty(apiClient.GetAllCalls);
+        Assert.NotEmpty(apiClient.QueryCalls);
     }
 
     // ──────────────────────────────────────────────
@@ -79,7 +84,8 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains("name=\"search\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"zzz\"", content, StringComparison.OrdinalIgnoreCase);
 
-        Assert.NotEmpty(apiClient.GetAllCalls);
+        Assert.Empty(apiClient.GetAllCalls);
+        Assert.NotEmpty(apiClient.QueryCalls);
     }
 
     // ──────────────────────────────────────────────
@@ -243,6 +249,167 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         Assert.Contains("ya no está disponible", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(cargo.Nombre, refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // T-006: segmento activas/eliminadas + reactivate + TempData
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Index_Default_MuestraVistaActivas()
+    {
+        var apiClient = FakeCargoApiClient.WithCargoList();
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/cargos");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Listado de cargos activos", content, StringComparison.OrdinalIgnoreCase);
+
+        // El query inicial debe usar segmento activas (Status == null)
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Null(query.Status);
+    }
+
+    [Fact]
+    public async Task Get_Index_StatusEliminadas_MuestraToggleActivoEnEliminadas()
+    {
+        var eliminado = CargoWebTestFixture.BuildCargoDto("DEL-001", "Eliminado", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.QueryHandler = q => new PagedResult<CargoDto>(
+            q.Status == "eliminadas" ? [eliminado] : [],
+            q.Status == "eliminadas" ? 1 : 0,
+            q.Page,
+            q.PageSize);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/cargos?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Listado de cargos eliminados", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DEL-001", content, StringComparison.OrdinalIgnoreCase);
+
+        // El query debe llevar status=eliminadas
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal("eliminadas", query.Status);
+    }
+
+    [Fact]
+    public async Task Get_Index_SinStatus_CaeA_Activas()
+    {
+        var apiClient = FakeCargoApiClient.WithCargoList();
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        await client.GetAsync("/organizacion/cargos?status=archivo");
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Null(query.Status);
+    }
+
+    [Fact]
+    public async Task Post_Reactivate_Exito_RedirigeAActivas()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("REACT-01", "A Reactivar", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.ReactivateResult = CargoCommandResult.Success(
+            new CargoDto(cargo.Id, cargo.Codigo, cargo.Nombre, cargo.Descripcion, cargo.NivelId, cargo.NivelNombre));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas&search=react&sort=nombre_asc");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1",
+            ["search"] = "react",
+            ["sort"] = "nombre_asc",
+            ["status"] = "eliminadas"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(cargo.Id, Assert.Single(apiClient.ReactivateCalls));
+
+        // Tras reactivar con éxito, redirect debe ir a activas (sin status=eliminadas)
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.DoesNotContain("status=eliminadas", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=react", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_asc", location, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Reactivate_Falla_ConservaSegmentoEliminadas()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("CONF-REACT-01", "Conflicto React", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.ReactivateResult = CargoCommandResult.Failure(
+            new CargoError(CargoErrorType.Conflict, "CodigoDuplicado",
+                "Ya existe un cargo activo con el mismo código."));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1",
+            ["status"] = "eliminadas"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(cargo.Id, Assert.Single(apiClient.ReactivateCalls));
+
+        // Tras fallo, redirect debe permanecer en eliminadas
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.Contains("status=eliminadas", location, StringComparison.OrdinalIgnoreCase);
+
+        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Contains("No se pudo reactivar el cargo", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CodigoDuplicado", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Delete_AlmacenaLastDeletedId_PermiteReactivarEnBanner()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("DEL-LAST-01", "Eliminado Reactivable", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var deleteResponse = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);
+
+        // Al volver a activas, debe aparecer el botón Reactivar (banner) con el LastDeletedId
+        var refreshed = await client.GetAsync(deleteResponse.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Contains("se eliminó correctamente", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"value=\"{cargo.Id}\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("?handler=Reactivate", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────
