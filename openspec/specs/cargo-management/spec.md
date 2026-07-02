@@ -47,6 +47,76 @@ El sistema DEBE mantener los endpoints de lectura existentes y DEBE excluir los 
 - **CUANDO** se solicita el Cargo por su identificador
 - **ENTONCES** el sistema DEBE devolver los datos del Cargo.
 
+### Requisito: REQ-CM-01 Consulta segmentada de cargos eliminados
+
+El sistema DEBE exponer una consulta segmentada de cargos que permita leer la vista de eliminados sin mezclarla con la vista activa.
+
+#### Escenario: Consulta de eliminadas no mezcla segmentos
+
+- **DADO** cargos activos y eliminados en persistencia
+- **CUANDO** un cliente autenticado consulta `GET /api/v1/cargos/consulta?status=eliminadas&p=2&pageSize=10&search=ana&sort=nombre_desc`
+- **ENTONCES** la respuesta DEBE contener solo eliminados
+- **Y** DEBE preservar `p`, `pageSize`, `search` y `sort`
+- **Y** NO DEBE mezclar cargos activos.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/specs/cargo-management/spec.md:9-37`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/proposal.md:34-39`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/exploration.md:166-183,244-246`
+
+#### Verification
+
+- Aplicación: `QueryAsync_ConSegmentoEliminadas_RetornaSoloEliminados`
+- Persistencia MySQL: `QueryAsync_MySql_SegmentosNoSeMezclan`
+- API: `GetConsulta_StatusEliminadas_RetornaSoloEliminadas`
+
+### Requisito: REQ-CM-02 Consulta activa por defecto y normalización de estado
+
+El sistema DEBE usar activas como vista por defecto para la consulta segmentada y DEBE normalizar valores de estado desconocidos en el borde HTTP.
+
+#### Escenario: Status inválido cae a activas
+
+- **DADO** cargos activos y eliminados en persistencia
+- **CUANDO** un cliente autenticado consulta `GET /api/v1/cargos/consulta?status=archivo`
+- **ENTONCES** la API DEBE normalizar el valor a activas
+- **Y** DEBE devolver solo cargos activos no eliminados.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/specs/cargo-management/spec.md:12-20,38-50`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/proposal.md:34-39,43-45`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/exploration.md:117-126,166-171`
+
+#### Verification
+
+- Aplicación: `Default_SegmentoEsActivas`
+- API: `GetConsulta_StatusInvalido_CaeA_Activas`
+- API: `GetConsulta_SinStatus_RetornaActivas`
+
+### Requisito: REQ-CM-03 Metadatos paginados provenientes del repositorio
+
+El sistema DEBE construir `PagedResult` a partir del conteo y la paginación calculados por el repositorio segmentado, sin recalcularlos en memoria desde `GetAllAsync`.
+
+#### Escenario: Paginación server-side devuelve metadatos consistentes
+
+- **DADO** más resultados de los que caben en una página para un segmento
+- **CUANDO** la aplicación resuelve `GET /api/v1/cargos/consulta`
+- **ENTONCES** `TotalCount` y `TotalPages` DEBEN provenir del repositorio segmentado
+- **Y** NO DEBEN calcularse a partir de una lista completa cargada en memoria.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/specs/cargo-management/spec.md:15-17,52-65`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/proposal.md:35-39,44-45,54-55`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/exploration.md:58-61,166-171,244-246`
+
+#### Verification
+
+- Aplicación: `QueryAsync_TotalCountProvieneDelRepositorio`
+- Persistencia MySQL: `QueryAsync_MySql_Paginacion_TotalCountProvieneDelRepositorio`
+- Persistencia MySQL: `QueryAsync_MySql_SortNombreDesc_SeAplicaAntesDePaginar`
+
 ### Requisito: Actualizar Cargo
 
 El sistema DEBE permitir actualizar los campos editables `Codigo`, `Nombre`, `NivelId` y `Descripcion` de un Cargo existente. Cuando el `Codigo` cambie, el sistema DEBE aplicar la misma regla de unicidad de activos usada en create y devolver el `CargoDto` actualizado cuando la operación sea válida.
@@ -152,6 +222,28 @@ El sistema DEBE permitir reactivar un Cargo previamente desactivado, conservando
 - **DADO** que no existe un Cargo con el identificador proporcionado
 - **CUANDO** se solicita reactivar
 - **ENTONCES** el sistema DEBE devolver error de no encontrado.
+
+### Requisito: REQ-CM-04 Reactivación de cargo con unicidad activa preservada
+
+La reactivación segmentada DEBE preservar la unicidad activa de `Codigo` y DEBE fallar con conflicto cuando exista un cargo activo con el mismo código.
+
+#### Escenario: Reactivación rechaza código activo duplicado
+
+- **DADO** un cargo eliminado y otro cargo activo con el mismo código
+- **CUANDO** un administrador invoca `PATCH /api/v1/cargos/{id}/reactivar`
+- **ENTONCES** la operación DEBE fallar con conflicto
+- **Y** el cargo eliminado DEBE permanecer fuera del segmento activo.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/specs/cargo-management/spec.md:18-20,67-79`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/proposal.md:36-39,49-50,56-57`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/exploration.md:78-81,88-89,201-203`
+
+#### Verification
+
+- API: `PatchReactivar_Conflict_Returns409WithProblemDetails`
+- Persistencia MySQL: `QueryAsync_MySql_ActivaYEliminada_MismoCodigo_RetornaAmbasEnDistintosSegmentos`
 
 ### Requisito: Contrato de Respuesta Cargo
 

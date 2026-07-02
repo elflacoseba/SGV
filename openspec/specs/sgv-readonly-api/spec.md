@@ -257,3 +257,25 @@ La documentación HTTP MUST describir que `GET /api/v1/unidades-organizativas/co
 - WHEN revisa el cambio del listado
 - THEN la documentación MUST NO presentar una respuesta mixta de activas y eliminadas
 - AND MUST mantener el árbol documentado como una lectura separada sin este filtro.
+
+### Requirement: REQ-SRA-01 Swagger documenta consulta segmentada y reactivación de cargos
+
+La documentación HTTP MUST exponer `GET /api/v1/cargos/consulta` con el filtro `status=activas|eliminadas`, MUST indicar que activas es el valor por defecto y MUST mantener visible `PATCH /api/v1/cargos/{id}/reactivar` con sus respuestas documentadas.
+
+#### Scenario: Swagger permite descubrir consulta y reactivación de cargos
+
+- GIVEN un consumidor abre Swagger para revisar el recurso de cargos
+- WHEN inspecciona las operaciones documentadas del controller
+- THEN encuentra `GET /api/v1/cargos/consulta` con `status` documentado
+- AND encuentra `PATCH /api/v1/cargos/{id}/reactivar`.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/specs/sgv-readonly-api/spec.md:9-27`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/proposal.md:35-39,43-45`
+- `openspec/changes/archive/2026-07-02-cargos-filtro-activos-eliminados/exploration.md:91-111`
+
+#### Verification
+
+- API/Swagger: `Cargos_ConsultaEndpoint_DocumentaParametroStatus`
+- API/Swagger: `Cargos_ReactivarEndpoint_SigueDocumentado`
