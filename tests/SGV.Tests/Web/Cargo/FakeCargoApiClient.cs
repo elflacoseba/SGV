@@ -250,7 +250,10 @@ public sealed class FakeCargoApiClient : ICargoApiClient
             return Task.FromResult(QueryHandler(query));
         }
 
-        var snapshot = (_getAllResult ?? Array.Empty<CargoDto>()).ToList();
+        var snapshot = (_getAllResult ?? Array.Empty<CargoDto>())
+            .Where(c => !_deletedIds.Contains(c.Id))
+            .ToList();
+
         var lowered = query.Search?.ToLowerInvariant();
         if (!string.IsNullOrWhiteSpace(lowered))
         {
