@@ -711,6 +711,7 @@ internal sealed class FakeCargoWriteRepository : ICargoRepository
         string? search,
         int page,
         int pageSize,
+        string? sort = null,
         CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {

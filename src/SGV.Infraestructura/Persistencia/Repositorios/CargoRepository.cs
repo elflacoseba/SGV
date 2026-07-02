@@ -133,6 +133,7 @@ public sealed class CargoRepository(SgvDbContext context)
         string? search,
         int page,
         int pageSize,
+        string? sort = null,
         CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {
@@ -154,13 +155,33 @@ public sealed class CargoRepository(SgvDbContext context)
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
 
-        var entities = await query
-            .OrderBy(c => c.Codigo)
+        // El sort se aplica ANTES del Skip/Take para que la paginación respete
+        // el orden visible (REQ-CM-01). Valores soportados:
+        // codigo_asc / codigo_desc / nombre_asc / nombre_desc /
+        // nivel_asc / nivel_desc. Cualquier otro valor cae al orden por defecto
+        // por Codigo asc para preservar contratos existentes.
+        var ordered = ApplySort(query, sort);
+
+        var entities = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
+    private static IOrderedQueryable<CargoEntity> ApplySort(IQueryable<CargoEntity> query, string? sort)
+    {
+        return sort?.ToLowerInvariant() switch
+        {
+            "codigo_desc" => query.OrderByDescending(c => c.Codigo),
+            "codigo_asc" => query.OrderBy(c => c.Codigo),
+            "nombre_desc" => query.OrderByDescending(c => c.Nombre),
+            "nombre_asc" => query.OrderBy(c => c.Nombre),
+            "nivel_desc" => query.OrderByDescending(c => c.NivelCargo != null ? c.NivelCargo.Nombre : string.Empty),
+            "nivel_asc" => query.OrderBy(c => c.NivelCargo != null ? c.NivelCargo.Nombre : string.Empty),
+            _ => query.OrderBy(c => c.Codigo)
+        };
     }
 }

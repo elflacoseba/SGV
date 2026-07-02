@@ -55,6 +55,7 @@ public class CargosController : ControllerBase
     /// <param name="page">Número de página (default: 1).</param>
     /// <param name="pageSize">Tamaño de página (default: 20).</param>
     /// <param name="search">Búsqueda por código o nombre.</param>
+    /// <param name="sort">Expresión de orden server-side (e.g. <c>nombre_desc</c>, <c>codigo_asc</c>). Valores soportados: <c>codigo_asc</c>, <c>codigo_desc</c>, <c>nombre_asc</c>, <c>nombre_desc</c>, <c>nivel_asc</c>, <c>nivel_desc</c>. Cualquier otro valor cae a <c>codigo_asc</c>.</param>
     /// <param name="status">Filtro de estado: <c>activas</c> (por defecto) o <c>eliminadas</c>.</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Resultado paginado de cargos usando el contrato <c>CargoDto</c>.</returns>
@@ -67,6 +68,7 @@ public class CargosController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
         [FromQuery] string? status = null,
         CancellationToken cancellationToken = default)
     {
@@ -74,7 +76,7 @@ public class CargosController : ControllerBase
             ? CargoSegmentoListado.Eliminadas
             : CargoSegmentoListado.Activas;
 
-        var query = new CargoListQuery(page, pageSize, search, Sort: null, Segmento: segmento);
+        var query = new CargoListQuery(page, pageSize, search, sort, segmento);
         var result = await _servicio.QueryAsync(query, cancellationToken);
         return Ok(result);
     }

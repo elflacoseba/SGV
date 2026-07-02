@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -246,6 +245,10 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
 
         try
         {
+            // El sort viaja al backend (REQ-CM-01): el repositorio aplica el
+            // orden ANTES del Skip/Take, por lo que NO reordenamos en memoria
+            // (eso solo ordena la página recibida y rompe la consistencia
+            // entre páginas). El backend garantiza la página correcta.
             var result = await cargoApiClient.QueryAsync(
                 new CargoListQuery(CurrentPage, DefaultPageSize, Search, Sort, Segmento),
                 cancellationToken);
@@ -254,7 +257,7 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
             TotalCount = Math.Max(0, result.TotalCount);
             TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, result.PageSize)));
 
-            Items = ApplyVisibleSort(result.Items, Sort)
+            Items = result.Items
                 .Select(MapToViewModel)
                 .ToArray();
         }
@@ -302,22 +305,6 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
 
     private static string? NormalizeSegmento(string? status)
         => string.Equals(status, DeletedView, StringComparison.OrdinalIgnoreCase) ? DeletedView : null;
-
-    private static IReadOnlyList<CargoDto> ApplyVisibleSort(IReadOnlyList<CargoDto> items, string? sort)
-    {
-        IEnumerable<CargoDto> ordered = sort?.ToLowerInvariant() switch
-        {
-            "codigo_desc" => items.OrderByDescending(static item => item.Codigo, StringComparer.CurrentCultureIgnoreCase),
-            "codigo_asc" => items.OrderBy(static item => item.Codigo, StringComparer.CurrentCultureIgnoreCase),
-            "nombre_desc" => items.OrderByDescending(static item => item.Nombre, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            "nombre_asc" => items.OrderBy(static item => item.Nombre, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            "nivel_desc" => items.OrderByDescending(static item => item.NivelNombre ?? string.Empty, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            "nivel_asc" => items.OrderBy(static item => item.NivelNombre ?? string.Empty, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            _ => items.AsEnumerable()
-        };
-
-        return ordered.ToArray();
-    }
 
     private static CargoListItemViewModel MapToViewModel(CargoDto item)
         => new(

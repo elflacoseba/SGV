@@ -26,6 +26,7 @@ public sealed class CargoServicioConsulta(ICargoRepository repository)
             query.Search,
             query.Page,
             query.PageSize,
+            query.Sort,
             query.Segmento,
             cancellationToken);
 

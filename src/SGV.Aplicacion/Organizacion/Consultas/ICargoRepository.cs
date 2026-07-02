@@ -52,11 +52,15 @@ public interface ICargoRepository : IReadOnlyRepository<Cargo>
     /// <summary>
     /// Returns a filtered, paginated set of cargos for the requested segment
     /// (active or soft-deleted) and the total count matching the filters.
+    /// The optional <paramref name="sort"/> expression is applied server-side
+    /// BEFORE pagination so page boundaries are consistent with the visible
+    /// ordering (e.g. <c>nombre_desc</c> returns Z→A on every page).
     /// </summary>
     Task<(IReadOnlyList<Cargo> Items, int TotalCount)> QueryAsync(
         string? search,
         int page,
         int pageSize,
+        string? sort = null,
         CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
         CancellationToken cancellationToken = default);
 }

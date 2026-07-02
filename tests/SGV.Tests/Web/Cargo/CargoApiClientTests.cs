@@ -353,6 +353,41 @@ public class CargoApiClientTests
     }
 
     [Fact]
+    public async Task QueryAsync_WithSort_SerializesSortInUri()
+    {
+        // REQ-CM-01: el sort debe viajar en query string para que el
+        // backend lo aplique ANTES del Skip/Take. Si no se serializa,
+        // la paginación con orden se rompe entre páginas.
+        var payload = new PagedResult<CargoDto>(
+            [new CargoDto(Guid.NewGuid(), "C-001", "Zeta", null, Guid.NewGuid())],
+            TotalCount: 1,
+            Page: 1,
+            PageSize: 10);
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        _ = await client.QueryAsync(new CargoListQuery(1, 10, null, "nombre_desc", null));
+
+        Assert.Equal("/api/v1/cargos/consulta", handler.LastRequest?.RequestUri?.AbsolutePath);
+        Assert.Contains("sort=nombre_desc", handler.LastRequest?.RequestUri?.Query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithoutSort_DoesNotIncludeSortParameter()
+    {
+        // Triangulación: cuando no hay sort, NO debe aparecer `sort=` en la URL
+        // para no ensuciar el contrato con strings vacíos.
+        var payload = new PagedResult<CargoDto>([], 0, 1, 10);
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        _ = await client.QueryAsync(new CargoListQuery(1, 10, null, null, null));
+
+        Assert.Equal("/api/v1/cargos/consulta", handler.LastRequest?.RequestUri?.AbsolutePath);
+        Assert.DoesNotContain("sort=", handler.LastRequest?.RequestUri?.Query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ReactivateAsync_Http200_ReturnsDtoAndHitsReactivarRoute()
     {
         var id = Guid.NewGuid();

@@ -582,6 +582,7 @@ internal sealed class FakeCargoReadRepository : ICargoRepository
         string? search,
         int page,
         int pageSize,
+        string? sort = null,
         CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
         CancellationToken ct = default) => throw new NotSupportedException();
 }

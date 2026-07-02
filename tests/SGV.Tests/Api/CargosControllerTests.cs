@@ -679,4 +679,70 @@ public sealed class CargosControllerTests
         Assert.Single(page.Items);
         Assert.Equal(FakeCargoServicio.CargoId1, page.Items[0].Id);
     }
+
+    [Fact]
+    public async Task GetConsulta_PropagaSortAlServicio()
+    {
+        // El controller DEBE pasar el `sort` del query string al servicio
+        // para que el repositorio pueda aplicarlo server-side antes de
+        // paginar (REQ-CM-01). Si el `sort` no se propaga, el fake
+        // capturaría null y este test fallaría.
+        var capture = new SortCapturingFake();
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoServicioConsulta>();
+            services.AddSingleton<ICargoServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/cargos/consulta?sort=nombre_desc&page=2&pageSize=5&status=activas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedSorts);
+        Assert.Equal("nombre_desc", observed);
+    }
+
+    [Fact]
+    public async Task GetConsulta_SortInvalido_NoLanzaYLlegaAlServicio()
+    {
+        // El controller NO debe filtrar el `sort`; cualquier valor
+        // (incluso inválido) llega al servicio para que el repositorio
+        // decida si lo aplica o cae al orden por defecto.
+        var capture = new SortCapturingFake();
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoServicioConsulta>();
+            services.AddSingleton<ICargoServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/cargos/consulta?sort=foo_bar");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("foo_bar", Assert.Single(capture.CapturedSorts));
+    }
+
+    /// <summary>
+    /// Fake en memoria que captura el <c>Sort</c> recibido por el servicio
+    /// para validar el contrato entre controller y aplicación.
+    /// </summary>
+    private sealed class SortCapturingFake : ICargoServicioConsulta
+    {
+        public List<string?> CapturedSorts { get; } = new();
+
+        public Task<IReadOnlyList<CargoDto>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<CargoDto>>(
+                [new(FakeCargoServicio.CargoId1, "DIRECTOR", "Director", null, Guid.Parse("70000000-0000-0000-0000-000000000001"))]);
+
+        public Task<CargoDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<CargoDto?>(null);
+
+        public Task<PagedResult<CargoDto>> QueryAsync(CargoListQuery query, CancellationToken ct = default)
+        {
+            CapturedSorts.Add(query.Sort);
+            return Task.FromResult(new PagedResult<CargoDto>(
+                [new(FakeCargoServicio.CargoId1, "DIRECTOR", "Director", null, Guid.Parse("70000000-0000-0000-0000-000000000001"))],
+                1, query.Page, query.PageSize));
+        }
+    }
 }

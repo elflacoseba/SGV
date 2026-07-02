@@ -250,6 +250,9 @@ public sealed class FakeCargoApiClient : ICargoApiClient
             return Task.FromResult(QueryHandler(query));
         }
 
+        // El fake ahora modela la semántica server-side del repositorio:
+        // sort + filter + paginación coherentes, así los tests web pueden
+        // triangular REQ-CM-01 sin pedir a cada test su propio QueryHandler.
         var snapshot = (_getAllResult ?? Array.Empty<CargoDto>())
             .Where(c => !_deletedIds.Contains(c.Id))
             .ToList();
@@ -263,6 +266,8 @@ public sealed class FakeCargoApiClient : ICargoApiClient
                 .ToList();
         }
 
+        snapshot = ApplySort(snapshot, query.Sort);
+
         var total = snapshot.Count;
         var pageItems = snapshot
             .Skip(Math.Max(0, (query.Page - 1) * query.PageSize))
@@ -271,6 +276,18 @@ public sealed class FakeCargoApiClient : ICargoApiClient
 
         return Task.FromResult(new PagedResult<CargoDto>(pageItems, total, query.Page, query.PageSize));
     }
+
+    private static List<CargoDto> ApplySort(List<CargoDto> source, string? sort) =>
+        sort?.ToLowerInvariant() switch
+        {
+            "codigo_desc" => source.OrderByDescending(static c => c.Codigo, StringComparer.OrdinalIgnoreCase).ToList(),
+            "codigo_asc" => source.OrderBy(static c => c.Codigo, StringComparer.OrdinalIgnoreCase).ToList(),
+            "nombre_desc" => source.OrderByDescending(static c => c.Nombre, StringComparer.OrdinalIgnoreCase).ToList(),
+            "nombre_asc" => source.OrderBy(static c => c.Nombre, StringComparer.OrdinalIgnoreCase).ToList(),
+            "nivel_desc" => source.OrderByDescending(static c => c.NivelNombre ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToList(),
+            "nivel_asc" => source.OrderBy(static c => c.NivelNombre ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToList(),
+            _ => source.OrderBy(static c => c.Codigo, StringComparer.OrdinalIgnoreCase).ToList()
+        };
 
     public Task<CargoCommandResult> ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
     {

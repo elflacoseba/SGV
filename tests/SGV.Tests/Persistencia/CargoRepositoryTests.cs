@@ -480,6 +480,7 @@ public sealed class CargoRepositoryTests
             var repo = new CargoRepository(context);
             var (items, totalCount) = await repo.QueryAsync(
                 searchToken, page: 1, pageSize: 20,
+                sort: null,
                 segmento: CargoSegmentoListado.Eliminadas,
                 default);
 
@@ -519,6 +520,7 @@ public sealed class CargoRepositoryTests
             var repo = new CargoRepository(context);
             var (items, totalCount) = await repo.QueryAsync(
                 searchToken, page: 1, pageSize: 20,
+                sort: null,
                 segmento: CargoSegmentoListado.Activas,
                 default);
 
@@ -558,9 +560,11 @@ public sealed class CargoRepositoryTests
             var repo = new CargoRepository(context);
             var (activas, totalActivas) = await repo.QueryAsync(
                 searchToken, page: 1, pageSize: 20,
+                sort: null,
                 segmento: CargoSegmentoListado.Activas, default);
             var (eliminadas, totalEliminadas) = await repo.QueryAsync(
                 searchToken, page: 1, pageSize: 20,
+                sort: null,
                 segmento: CargoSegmentoListado.Eliminadas, default);
 
             Assert.Equal(1, totalActivas);
@@ -602,9 +606,11 @@ public sealed class CargoRepositoryTests
             var repo = new CargoRepository(context);
             var (activas, totalActivas) = await repo.QueryAsync(
                 codigoCompartido, page: 1, pageSize: 20,
+                sort: null,
                 segmento: CargoSegmentoListado.Activas, default);
             var (eliminadas, totalEliminadas) = await repo.QueryAsync(
                 codigoCompartido, page: 1, pageSize: 20,
+                sort: null,
                 segmento: CargoSegmentoListado.Eliminadas, default);
 
             Assert.Equal(1, totalActivas);
@@ -641,6 +647,7 @@ public sealed class CargoRepositoryTests
             // Página de tamaño 2 sobre al menos 5 inserts únicos.
             var (page1, totalCount) = await repo.QueryAsync(
                 $"CRG-PG-{sufijo}", page: 1, pageSize: 2,
+                sort: null,
                 segmento: CargoSegmentoListado.Activas, default);
 
             Assert.Equal(5, totalCount);
@@ -651,6 +658,143 @@ public sealed class CargoRepositoryTests
             context.Set<CargoEntity>().RemoveRange(
                 await context.Set<CargoEntity>()
                     .Where(c => c.Codigo.StartsWith($"CRG-PG-{sufijo}"))
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// F-001 + F-006 (regression cross-page): con N cargos cuyos nombres rompen
+    /// el orden alfabético y <c>pageSize</c> que fuerce múltiples páginas,
+    /// <c>sort=nombre_desc</c> debe aplicarse ANTES del Skip/Take. Si el sort
+    /// se aplicara solo en la página recibida, página 3 y página 1 podrían
+    /// contener ítems arbitrarios y el orden entre páginas sería incoherente.
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_MySql_SortNombreDesc_SeAplicaAntesDePaginar()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+
+        // 12 cargos con códigos en orden natural A..L y nombres
+        // deliberadamente mezclados (no correlativos con el código). Esto
+        // garantiza que orden por Codigo asc ≠ orden por Nombre desc.
+        var nombres = new[]
+        {
+            "Delta",  "Bravo",  "Charlie", "Echo",
+            "Alpha",  "Zulu",   "Mike",    "Hotel",
+            "Tango",  "Kilo",   "Juliet",  "Foxtrot"
+        };
+        var codigos = nombres.Select((_, i) => $"CRG-SRT-{sufijo}-{i:D2}").ToArray();
+
+        var entities = new List<CargoEntity>();
+        for (var i = 0; i < nombres.Length; i++)
+        {
+            var cargo = RepositoryTestData.CreateCargo(codigos[i], NivelIdValido, nombres[i]);
+            entities.Add(cargo);
+        }
+
+        await context.Set<CargoEntity>().AddRangeAsync(entities);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+
+            // Página 1 de 5 con sort=nombre_desc.
+            var (page1, total1) = await repo.QueryAsync(
+                $"CRG-SRT-{sufijo}", page: 1, pageSize: 5,
+                sort: "nombre_desc",
+                segmento: CargoSegmentoListado.Activas, default);
+            // Página 3 (última) con el mismo sort.
+            var (page3, total3) = await repo.QueryAsync(
+                $"CRG-SRT-{sufijo}", page: 3, pageSize: 5,
+                sort: "nombre_desc",
+                segmento: CargoSegmentoListado.Activas, default);
+
+            // Total = 12 (los 12 inserts de este test). page1 y page3 deberían
+            // concatenarse como una sola secuencia descendente por Nombre.
+            Assert.Equal(12, total1);
+            Assert.Equal(12, total3);
+
+            // Nombres de página 1 en orden descendente: Zulu, Tango, Mike, Kilo, Juliet
+            Assert.Equal(new[] { "Zulu", "Tango", "Mike", "Kilo", "Juliet" },
+                page1.Select(c => c.Nombre).ToArray());
+            // Página 3 (los últimos 2): Bravo, Alpha
+            Assert.Equal(new[] { "Bravo", "Alpha" },
+                page3.Select(c => c.Nombre).ToArray());
+
+            // Cross-page coherence: el último nombre de page1 (Juliet) debe
+            // ser estrictamente mayor alfabéticamente que el primero de page3
+            // (Charlie) para que la concatenación respete el orden.
+            Assert.True(string.Compare(page1[^1].Nombre, page3[0].Nombre, StringComparison.OrdinalIgnoreCase) > 0,
+                $"El último nombre de página 1 ('{page1[^1].Nombre}') debe ser " +
+                $"mayor alfabéticamente que el primero de página 3 ('{page3[0].Nombre}').");
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(
+                await context.Set<CargoEntity>()
+                    .Where(c => c.Codigo.StartsWith($"CRG-SRT-{sufijo}"))
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Triangulación: con <c>sort=null</c>, el repositorio debe aplicar el
+    /// orden por defecto (Codigo asc). Esto protege contra una refactorización
+    /// que cambie el comportamiento por omisión.
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_MySql_SortNull_CaeACodigoAsc()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+
+        var entities = new[]
+        {
+            RepositoryTestData.CreateCargo($"CRG-NA-{sufijo}-C", NivelIdValido, "Nombre C"),
+            RepositoryTestData.CreateCargo($"CRG-NA-{sufijo}-A", NivelIdValido, "Nombre A"),
+            RepositoryTestData.CreateCargo($"CRG-NA-{sufijo}-B", NivelIdValido, "Nombre B"),
+        };
+
+        await context.Set<CargoEntity>().AddRangeAsync(entities);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new CargoRepository(context);
+            var (page, total) = await repo.QueryAsync(
+                $"CRG-NA-{sufijo}", page: 1, pageSize: 10,
+                sort: null,
+                segmento: CargoSegmentoListado.Activas, default);
+
+            // Total = 3 (mis 3 inserts únicos). El orden por Codigo asc
+            // depende del GUID interno, así que verificamos que las páginas
+            // produzcan el mismo orden si se consulta dos veces (estabilidad)
+            // y que la concatenación de páginas 1+2 sea la secuencia completa.
+            Assert.Equal(3, total);
+
+            var (page1, _) = await repo.QueryAsync(
+                $"CRG-NA-{sufijo}", page: 1, pageSize: 2,
+                sort: null,
+                segmento: CargoSegmentoListado.Activas, default);
+            var (page2, _) = await repo.QueryAsync(
+                $"CRG-NA-{sufijo}", page: 2, pageSize: 2,
+                sort: null,
+                segmento: CargoSegmentoListado.Activas, default);
+
+            var concatenated = page1.Concat(page2).Select(c => c.Nombre).ToArray();
+            Assert.Equal(3, concatenated.Length);
+            Assert.Equal(concatenated.OrderBy(n => n, StringComparer.OrdinalIgnoreCase),
+                concatenated);
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(
+                await context.Set<CargoEntity>()
+                    .Where(c => c.Codigo.StartsWith($"CRG-NA-{sufijo}"))
                     .ToListAsync());
             await context.SaveChangesAsync();
         }

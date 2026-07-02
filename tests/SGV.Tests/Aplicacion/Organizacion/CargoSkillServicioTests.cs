@@ -259,6 +259,7 @@ internal sealed class FakeCargoReadRepositoryForSkills : ICargoRepository
         string? search,
         int page,
         int pageSize,
+        string? sort = null,
         CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
         CancellationToken ct = default)
         => Task.FromResult<(IReadOnlyList<Cargo>, int)>(([], 0));

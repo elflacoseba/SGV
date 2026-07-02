@@ -112,7 +112,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
     /// <inheritdoc />
     public async Task<PagedResult<CargoDto>> QueryAsync(CargoListQuery query, CancellationToken cancellationToken = default)
     {
-        var requestUri = BuildQueryUri(query.Page, query.PageSize, query.Search, query.Status);
+        var requestUri = BuildQueryUri(query.Page, query.PageSize, query.Search, query.Sort, query.Status);
         var response = await httpClient.GetAsync(requestUri, cancellationToken);
         response.EnsureSuccessStatusCode();
 
@@ -134,7 +134,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         return await ToCommandResultAsync(response, cancellationToken);
     }
 
-    private static string BuildQueryUri(int page, int pageSize, string? search, string? status = null)
+    private static string BuildQueryUri(int page, int pageSize, string? search, string? sort = null, string? status = null)
     {
         var builder = new StringBuilder($"{BaseRoute}/consulta?page={page}&pageSize={pageSize}");
 
@@ -142,6 +142,12 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         {
             builder.Append("&search=");
             builder.Append(Uri.EscapeDataString(search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort))
+        {
+            builder.Append("&sort=");
+            builder.Append(Uri.EscapeDataString(sort));
         }
 
         if (!string.IsNullOrWhiteSpace(status))

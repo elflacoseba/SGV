@@ -25,14 +25,14 @@ internal static class RepositoryTestData
         return unidad;
     }
 
-    public static CargoEntity CreateCargo(string prefix, Guid? nivelId = null)
+    public static CargoEntity CreateCargo(string prefix, Guid? nivelId = null, string? nombre = null)
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
         return new CargoEntity
         {
             Id = Guid.NewGuid(),
             Codigo = $"{prefix}-{suffix}",
-            Nombre = $"{prefix} {suffix}",
+            Nombre = nombre ?? $"{prefix} {suffix}",
             NivelId = nivelId ?? Guid.Parse("70000000-0000-0000-0000-000000000001"),
             IsActive = true
         };

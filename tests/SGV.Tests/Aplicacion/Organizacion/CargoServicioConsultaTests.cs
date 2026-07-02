@@ -146,6 +146,70 @@ public sealed class CargoServicioConsultaTests
         Assert.Equal(25, resultado.TotalCount);
         Assert.Equal(10, resultado.Items.Count);
     }
+
+    [Fact]
+    public async Task QueryAsync_ConSortNombreDesc_OrdenaServidorAntesDePaginar()
+    {
+        // Cargos con códigos alfabéticamente crecientes pero nombres en
+        // orden inverso. Si el sort server-side funciona, la página 1 debe
+        // traer los nombres Z, Y, X, W; si solo ordena por Codigo en
+        // memoria tras paginar, traería los nombres A, B, C, D (orden por
+        // codigo asc) que NO coincide con sort=nombre_desc.
+        var repo = new FakeCargoRepository();
+        var c1 = new Cargo("A-001", "Zeta",   NivelId) { Id = Guid.NewGuid() };
+        var c2 = new Cargo("A-002", "Yankee", NivelId) { Id = Guid.NewGuid() };
+        var c3 = new Cargo("A-003", "Xray",   NivelId) { Id = Guid.NewGuid() };
+        var c4 = new Cargo("A-004", "Whisky", NivelId) { Id = Guid.NewGuid() };
+        repo.Datos.AddRange(new[] { c1, c2, c3, c4 });
+        var servicio = new CargoServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new CargoListQuery(1, 10, null, "nombre_desc"),
+            default);
+
+        Assert.Equal(new[] { "Zeta", "Yankee", "Xray", "Whisky" },
+            resultado.Items.Select(i => i.Nombre).ToArray());
+    }
+
+    [Fact]
+    public async Task QueryAsync_ConSortCodigoAsc_NoDesordena()
+    {
+        // Triangulación: verificar que el camino sort=codigo_asc produce
+        // el orden esperado y NO degenera en nombre_asc u otro orden.
+        var repo = new FakeCargoRepository();
+        var c1 = new Cargo("C-001", "Zeta",   NivelId) { Id = Guid.NewGuid() };
+        var c2 = new Cargo("A-002", "Yankee", NivelId) { Id = Guid.NewGuid() };
+        var c3 = new Cargo("B-003", "Xray",   NivelId) { Id = Guid.NewGuid() };
+        repo.Datos.AddRange(new[] { c1, c2, c3 });
+        var servicio = new CargoServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new CargoListQuery(1, 10, null, "codigo_asc"),
+            default);
+
+        Assert.Equal(new[] { "A-002", "B-003", "C-001" },
+            resultado.Items.Select(i => i.Codigo).ToArray());
+    }
+
+    [Fact]
+    public async Task QueryAsync_ConSortDesconocido_CaeACodigoAsc()
+    {
+        // Si sort no es uno de los valores reconocidos, el repositorio
+        // debe caer al orden por defecto (Codigo asc) para mantener el
+        // contrato de paginación consistente.
+        var repo = new FakeCargoRepository();
+        var c1 = new Cargo("B-001", "Zeta",   NivelId) { Id = Guid.NewGuid() };
+        var c2 = new Cargo("A-002", "Yankee", NivelId) { Id = Guid.NewGuid() };
+        repo.Datos.AddRange(new[] { c1, c2 });
+        var servicio = new CargoServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new CargoListQuery(1, 10, null, "foo_bar"),
+            default);
+
+        Assert.Equal(new[] { "A-002", "B-001" },
+            resultado.Items.Select(i => i.Codigo).ToArray());
+    }
 }
 
 internal sealed class FakeCargoRepository : ICargoRepository
@@ -221,6 +285,7 @@ internal sealed class FakeCargoRepository : ICargoRepository
         string? search,
         int page,
         int pageSize,
+        string? sort = null,
         CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {
@@ -246,10 +311,24 @@ internal sealed class FakeCargoRepository : ICargoRepository
                 || (c.Descripcion?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
-        var ordered = filtered.OrderBy(c => c.Codigo, StringComparer.OrdinalIgnoreCase).ToList();
+        // Mirror production sort: parsear el `sort` y aplicarlo server-side
+        // ANTES del Skip/Take para que la paginación respete el orden.
+        var ordered = ApplySort(filtered, sort).ToList();
         var totalCount = ordered.Count;
         var items = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         return Task.FromResult<(IReadOnlyList<Cargo>, int)>((items, totalCount));
     }
+
+    private static IOrderedEnumerable<Cargo> ApplySort(IEnumerable<Cargo> source, string? sort) =>
+        sort?.ToLowerInvariant() switch
+        {
+            "codigo_desc" => source.OrderByDescending(static c => c.Codigo, StringComparer.OrdinalIgnoreCase),
+            "codigo_asc" => source.OrderBy(static c => c.Codigo, StringComparer.OrdinalIgnoreCase),
+            "nombre_desc" => source.OrderByDescending(static c => c.Nombre, StringComparer.OrdinalIgnoreCase),
+            "nombre_asc" => source.OrderBy(static c => c.Nombre, StringComparer.OrdinalIgnoreCase),
+            "nivel_desc" => source.OrderByDescending(static c => c.NivelId),
+            "nivel_asc" => source.OrderBy(static c => c.NivelId),
+            _ => source.OrderBy(static c => c.Codigo, StringComparer.OrdinalIgnoreCase)
+        };
 }
