@@ -11,6 +11,7 @@ public sealed class CargoRepository(SgvDbContext context)
 {
     protected override IQueryable<CargoEntity> Query => base
         .Query
+        .Include(c => c.NivelCargo)
         .Where(c => c.IsActive);
 
     protected override Cargo MapToDomain(CargoEntity entity) => PersistenceToDomainMapper.ToDomain(entity);
