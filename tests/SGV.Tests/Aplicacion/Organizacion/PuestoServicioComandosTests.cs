@@ -577,4 +577,12 @@ internal sealed class FakeCargoReadRepository : ICargoRepository
     public Task<bool> HasActivePuestosAsync(Guid cargoId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task ReactivateAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
     public Task UpdateAsync(Cargo cargo, CancellationToken ct = default) => throw new NotSupportedException();
+
+    public Task<(IReadOnlyList<Cargo> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
+        CancellationToken ct = default) => throw new NotSupportedException();
 }

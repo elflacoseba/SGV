@@ -254,6 +254,15 @@ internal sealed class FakeCargoReadRepositoryForSkills : ICargoRepository
         => Task.FromResult(false);
     public Task<bool> HasActivePuestosAsync(Guid cargoId, CancellationToken ct = default)
         => Task.FromResult(false);
+
+    public Task<(IReadOnlyList<Cargo> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
+        CancellationToken ct = default)
+        => Task.FromResult<(IReadOnlyList<Cargo>, int)>(([], 0));
 }
 
 internal sealed class FakeCargoSkillRepository : ICargoSkillRepository

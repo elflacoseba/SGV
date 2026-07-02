@@ -47,6 +47,41 @@ public class CargosController : ControllerBase
     }
 
     /// <summary>
+    /// Consulta paginada y filtrada de cargos activos o eliminados. El parámetro
+    /// <c>status</c> acepta <c>activas</c> (por defecto, también usado cuando el
+    /// valor es desconocido o se omite) o <c>eliminadas</c>. No mezcla ambos
+    /// conjuntos en una misma respuesta.
+    /// </summary>
+    /// <param name="page">Número de página (default: 1).</param>
+    /// <param name="pageSize">Tamaño de página (default: 20).</param>
+    /// <param name="search">Búsqueda por código o nombre.</param>
+    /// <param name="sort">Expresión de orden server-side (e.g. <c>nombre_desc</c>, <c>codigo_asc</c>). Valores soportados: <c>codigo_asc</c>, <c>codigo_desc</c>, <c>nombre_asc</c>, <c>nombre_desc</c>, <c>nivel_asc</c>, <c>nivel_desc</c>. Cualquier otro valor cae a <c>codigo_asc</c>.</param>
+    /// <param name="status">Filtro de estado: <c>activas</c> (por defecto) o <c>eliminadas</c>.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Resultado paginado de cargos usando el contrato <c>CargoDto</c>.</returns>
+    /// <response code="200">Resultado paginado devuelto correctamente con el mismo contrato <c>CargoDto</c> para vistas activas o eliminadas; no mezcla ambos conjuntos en una misma respuesta.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    [HttpGet("consulta")]
+    [ProducesResponseType(typeof(PagedResult<CargoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<PagedResult<CargoDto>>> GetConsulta(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? CargoSegmentoListado.Eliminadas
+            : CargoSegmentoListado.Activas;
+
+        var query = new CargoListQuery(page, pageSize, search, sort, segmento);
+        var result = await _servicio.QueryAsync(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Obtiene un cargo por su identificador único.
     /// </summary>
     /// <param name="id">Identificador único del cargo.</param>

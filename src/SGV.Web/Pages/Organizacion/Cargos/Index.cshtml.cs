@@ -1,22 +1,25 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
+using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
 
 namespace SGV.Web.Pages.Organizacion.Cargos;
 
 /// <summary>
-/// PageModel del listado web de cargos activos. Realiza búsqueda, orden y
-/// paginación en memoria sobre el resultado completo de
-/// <c>GET /api/v1/cargos</c> y expone la baja lógica confirmada vía
-/// <c>?handler=Delete</c>.
+/// PageModel del listado web de cargos. Usa consulta server-side segmentada
+/// (<c>QueryAsync</c>) hacia <c>GET /api/v1/cargos/consulta</c> y soporta
+/// alternar entre <c>activas</c> y <c>eliminadas</c>. Mantiene la baja lógica
+/// (<c>?handler=Delete</c>) y agrega reactivación (<c>?handler=Reactivate</c>)
+/// preservando el segmento cuando la operación falla.
 /// </summary>
 [Authorize]
 public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexModel> logger) : PageModel
 {
     private const int DefaultPageSize = 10;
+    private const string DeletedView = "eliminadas";
 
     /// <summary>
     /// Filas visibles en la página actual.
@@ -29,12 +32,12 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     public int CurrentPage { get; private set; } = 1;
 
     /// <summary>
-    /// Cantidad total de páginas luego del filtro/sort.
+    /// Cantidad total de páginas calculadas a partir del backend segmentado.
     /// </summary>
     public int TotalPages { get; private set; } = 1;
 
     /// <summary>
-    /// Total de cargos activos visibles después del filtro.
+    /// Total de cargos que matchean el segmento y filtros vigentes.
     /// </summary>
     public int TotalCount { get; private set; }
 
@@ -49,12 +52,24 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     public string? Sort { get; private set; }
 
     /// <summary>
+    /// Segmento vigente del listado: <c>null</c> para activas,
+    /// <c>"eliminadas"</c> para eliminadas.
+    /// </summary>
+    public string? Segmento { get; private set; }
+
+    /// <summary>
+    /// <c>true</c> cuando el segmento vigente es <c>eliminadas</c>.
+    /// </summary>
+    public bool IsDeletedView =>
+        string.Equals(Segmento, DeletedView, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Mensaje de error visible cuando la carga inicial del listado falla.
     /// </summary>
     public string? LoadErrorMessage { get; private set; }
 
     /// <summary>
-    /// Mensaje de feedback tras una baja lógica (éxito/conflicto/no disponible).
+    /// Mensaje de feedback tras una operación (baja lógica, reactivación).
     /// </summary>
     public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
 
@@ -64,48 +79,72 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
 
     /// <summary>
-    /// Handler GET del listado. Carga los cargos activos y aplica
-    /// búsqueda, orden y paginación en memoria.
+    /// Identificador del último cargo eliminado, persistido en TempData
+    /// durante el PRG desde <see cref="OnPostDeleteAsync"/>. El valor
+    /// se limpia tras una reactivación exitosa
+    /// (<see cref="OnPostReactivateAsync"/>). Es <c>null</c> cuando no hay
+    /// una última baja pendiente de reactivación rápida.
     /// </summary>
+    public Guid? LastDeletedId { get; private set; }
+
+    /// <summary>
+    /// <c>true</c> cuando hay un <see cref="LastDeletedId"/> pendiente de
+    /// reactivar desde el banner. El CTA solo se muestra cuando el
+    /// segmento vigente es Activas (REQ-CW-06 MUST NOT).
+    /// </summary>
+    public bool HasLastDeleted => LastDeletedId.HasValue;
+
     public async Task OnGetAsync(
         [FromQuery(Name = "p")] int currentPage = 1,
         string? search = null,
         string? sort = null,
+        string? status = null,
+        Guid? deletedId = null,
         CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
         Search = Normalize(search);
         Sort = Normalize(sort);
+        Segmento = NormalizeSegmento(status);
+
+        // REQ-CW-06: si el POST de Delete propagó el id del cargo eliminado
+        // como query string, lo persistimos en TempData para que el banner
+        // pueda renderizar el CTA de reactivación rápida. El Razor accede
+        // por TempData directamente (no por esta propiedad) por compatibilidad
+        // con el patrón de Unidades Organizativas.
+        if (deletedId.HasValue)
+        {
+            TempData[nameof(LastDeletedId)] = deletedId.Value.ToString();
+        }
 
         await LoadAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Handler POST para la baja lógica confirmada. Devuelve al listado
-    /// preservando filtros, sort y página. Si la página actual queda vacía
-    /// tras el borrado, recalcula la página anterior para evitar una página
-    /// huérfana.
-    /// </summary>
     public async Task<IActionResult> OnPostDeleteAsync(
         Guid id,
         [FromForm(Name = "page")] int currentPage = 1,
         string? search = null,
         string? sort = null,
+        string? status = null,
         CancellationToken cancellationToken = default)
     {
         var normalizedSearch = Normalize(search);
         var normalizedSort = Normalize(sort);
+        var normalizedSegmento = NormalizeSegmento(status);
         currentPage = Math.Max(1, currentPage);
 
         var result = await cargoApiClient.DeleteAsync(id, cancellationToken);
 
         if (result.Succeeded)
         {
-            var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, cancellationToken);
+            var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, normalizedSegmento, cancellationToken);
             TempData[nameof(StatusMessage)] = "El cargo se eliminó correctamente.";
             TempData[nameof(StatusKind)] = "success";
 
-            return RedirectToPage("/Organizacion/Cargos/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort });
+            // REQ-CW-06: propagar el id del cargo eliminado en el PRG para
+            // que el siguiente GET pueda persistirlo en TempData y renderizar
+            // el CTA de reactivación rápida en el banner.
+            return RedirectToPage("/Organizacion/Cargos/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento, deletedId = id });
         }
 
         var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
@@ -117,14 +156,57 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         TempData[nameof(StatusMessage)] = message;
         TempData[nameof(StatusKind)] = "danger";
 
-        return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort });
+        return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
     }
 
-    /// <summary>
-    /// Devuelve el valor de orden a aplicar cuando el usuario hace click en
-    /// el encabezado de una columna. Alterna asc/desc cuando ya estaba
-    /// ordenada por esa columna.
-    /// </summary>
+    public async Task<IActionResult> OnPostReactivateAsync(
+        Guid id,
+        [FromForm(Name = "page")] int currentPage = 1,
+        string? search = null,
+        string? sort = null,
+        string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedSearch = Normalize(search);
+        var normalizedSort = Normalize(sort);
+        var normalizedSegmento = NormalizeSegmento(status);
+        currentPage = Math.Max(1, currentPage);
+
+        var result = await cargoApiClient.ReactivateAsync(id, cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            TempData[nameof(StatusMessage)] = "El cargo se reactivó correctamente.";
+            TempData[nameof(StatusKind)] = "success";
+
+            // REQ-CW-06: limpiar el LastDeletedId tras una reactivación
+            // exitosa para que el banner ya no ofrezca el CTA.
+            ClearLastDeleted();
+
+            // Tras éxito, redirigir a la vista Activas sin status=eliminadas.
+            return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort });
+        }
+
+        var errorCode = result.Error?.Code;
+        var errorMessage = result.Error?.Message;
+        var message = result.Error?.Type switch
+        {
+            CargoErrorType.Conflict => $"No se pudo reactivar el cargo. {errorMessage}",
+            CargoErrorType.NotFound => "El cargo ya no está disponible para reactivar.",
+            _ => "No se pudo reactivar el cargo. Intentá nuevamente."
+        };
+
+        TempData[nameof(StatusMessage)] = message;
+        TempData[nameof(StatusKind)] = "danger";
+        if (!string.IsNullOrWhiteSpace(errorCode))
+        {
+            TempData["ErrorCode"] = errorCode;
+        }
+
+        // Tras fallo, permanecer en la vista Eliminadas para permitir reintento.
+        return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
+    }
+
     public string GetSortRoute(string column)
     {
         var isSameColumn = Sort?.StartsWith(column, StringComparison.OrdinalIgnoreCase) == true;
@@ -135,10 +217,6 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
             : $"{column}_asc";
     }
 
-    /// <summary>
-    /// Devuelve el ícono (CSS class) correspondiente al orden actual de una
-    /// columna, o <c>null</c> si la columna no está ordenada.
-    /// </summary>
     public string? GetSortIcon(string column)
     {
         if (Sort is null) return null;
@@ -152,36 +230,78 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     }
 
     /// <summary>
-    /// Construye los route values del enlace "Editar" preservando el
-    /// contexto del listado (página, búsqueda y orden) para que la página
-    /// de edición pueda devolver al usuario a la misma vista.
+    /// Construye los route values del enlace "Editar" preservando el contexto
+    /// del listado (página, búsqueda, orden y segmento) para que la página de
+    /// edición pueda devolver al usuario a la misma vista.
     /// </summary>
     public object BuildEditRouteValues(Guid id) => new
     {
         id,
         p = CurrentPage,
         search = Search,
-        sort = Sort
+        sort = Sort,
+        returnStatus = Segmento
+    };
+
+    /// <summary>
+    /// Construye los route values del enlace "Detalle" preservando el contexto.
+    /// </summary>
+    public object BuildDetailsRouteValues(Guid id) => new
+    {
+        id,
+        p = CurrentPage,
+        search = Search,
+        sort = Sort,
+        returnStatus = Segmento
+    };
+
+    /// <summary>
+    /// Construye los route values del toggle Activas/Eliminadas con reset
+    /// de página y preservación de búsqueda y orden.
+    /// </summary>
+    public object BuildToggleSegmentoRouteValues(string? targetSegmento) => new
+    {
+        p = 1,
+        search = Search,
+        sort = Sort,
+        status = string.Equals(targetSegmento, DeletedView, StringComparison.OrdinalIgnoreCase) ? DeletedView : null
     };
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         LoadErrorMessage = null;
 
+        // REQ-CW-06: leer LastDeletedId desde TempData para que el banner
+        // del Razor pueda renderizar el CTA. El getter inline del Razor
+        // y esta propiedad quedan sincronizados para que ambas vistas
+        // (OnGet/OnPost) accedan al mismo valor persistido.
+        var rawLastDeleted = TempData[nameof(LastDeletedId)] as string;
+        if (Guid.TryParse(rawLastDeleted, out var parsedDeleted))
+        {
+            LastDeletedId = parsedDeleted;
+        }
+        else
+        {
+            LastDeletedId = null;
+        }
+
         try
         {
-            var all = await cargoApiClient.GetAllAsync(cancellationToken);
+            // El sort viaja al backend (REQ-CM-01): el repositorio aplica el
+            // orden ANTES del Skip/Take, por lo que NO reordenamos en memoria
+            // (eso solo ordena la página recibida y rompe la consistencia
+            // entre páginas). El backend garantiza la página correcta.
+            var result = await cargoApiClient.QueryAsync(
+                new CargoListQuery(CurrentPage, DefaultPageSize, Search, Sort, Segmento),
+                cancellationToken);
 
-            TotalCount = ComputeTotalCount(all, Search);
-            TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)DefaultPageSize));
+            CurrentPage = Math.Max(1, result.Page);
+            TotalCount = Math.Max(0, result.TotalCount);
+            TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, result.PageSize)));
 
-            // Si la página pedida excede las disponibles, se acota a la última.
-            if (CurrentPage > TotalPages)
-            {
-                CurrentPage = TotalPages;
-            }
-
-            ApplyVisiblePage(all, Search, Sort, pageItems => Items = pageItems.Select(MapToViewModel).ToArray());
+            Items = result.Items
+                .Select(MapToViewModel)
+                .ToArray();
         }
         catch (Exception ex)
         {
@@ -194,27 +314,18 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         }
     }
 
-    /// <summary>
-    /// Aplica filtro, sort y paginación sobre el resultado del backend y
-    /// entrega la página visible al callback provisto. Encapsula la
-    /// transformación compartida entre carga inicial y recálculo de página.
-    /// </summary>
-    private void ApplyVisiblePage(IReadOnlyList<CargoDto> all, string? search, string? sort, Action<IReadOnlyList<CargoDto>> pageWriter)
+    private void ClearLastDeleted()
     {
-        var filtered = ApplyVisibleFilter(all, search);
-        var ordered = ApplyVisibleSort(filtered, sort);
-        var pageItems = ordered
-            .Skip((CurrentPage - 1) * DefaultPageSize)
-            .Take(DefaultPageSize)
-            .ToArray();
-
-        pageWriter(pageItems);
+        TempData.Remove(nameof(LastDeletedId));
+        LastDeletedId = null;
     }
 
-    private static int ComputeTotalCount(IReadOnlyList<CargoDto> all, string? search)
-        => ApplyVisibleFilter(all, search).Count;
-
-    private async Task<int> ResolveRedirectPageAsync(int currentPage, string? search, string? sort, CancellationToken cancellationToken)
+    private async Task<int> ResolveRedirectPageAsync(
+        int currentPage,
+        string? search,
+        string? sort,
+        string? segmento,
+        CancellationToken cancellationToken)
     {
         if (currentPage <= 1)
         {
@@ -223,18 +334,12 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
 
         try
         {
-            var all = await cargoApiClient.GetAllAsync(cancellationToken);
-            var filtered = ApplyVisibleFilter(all, search);
-            var ordered = ApplyVisibleSort(filtered, sort);
-            var pageCount = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)DefaultPageSize));
-            var safePage = Math.Min(currentPage, pageCount);
-
-            var hasItemsOnPage = ordered
-                .Skip((safePage - 1) * DefaultPageSize)
-                .Take(DefaultPageSize)
-                .Any();
-
-            return hasItemsOnPage ? safePage : Math.Max(1, safePage - 1);
+            // Sin un endpoint de TotalCount sin paginar, consultamos la página
+            // vigente. Si quedó vacía, retrocedemos una página.
+            var refreshed = await cargoApiClient.QueryAsync(
+                new CargoListQuery(currentPage, DefaultPageSize, search, sort, segmento),
+                cancellationToken);
+            return refreshed.Items.Count == 0 ? currentPage - 1 : currentPage;
         }
         catch (Exception ex)
         {
@@ -246,40 +351,8 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static IReadOnlyList<CargoDto> ApplyVisibleFilter(IReadOnlyList<CargoDto> items, string? search)
-    {
-        if (string.IsNullOrWhiteSpace(search))
-        {
-            return items;
-        }
-
-        return items
-            .Where(item => Matches(item.Codigo, search)
-                || Matches(item.Nombre, search)
-                || Matches(item.Descripcion, search)
-                || Matches(item.NivelNombre, search))
-            .ToArray();
-    }
-
-    private static bool Matches(string? value, string search)
-        => !string.IsNullOrEmpty(value)
-            && value!.IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0;
-
-    private static IReadOnlyList<CargoDto> ApplyVisibleSort(IReadOnlyList<CargoDto> items, string? sort)
-    {
-        IEnumerable<CargoDto> ordered = sort?.ToLowerInvariant() switch
-        {
-            "codigo_desc" => items.OrderByDescending(static item => item.Codigo, StringComparer.CurrentCultureIgnoreCase),
-            "codigo_asc" => items.OrderBy(static item => item.Codigo, StringComparer.CurrentCultureIgnoreCase),
-            "nombre_desc" => items.OrderByDescending(static item => item.Nombre, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            "nombre_asc" => items.OrderBy(static item => item.Nombre, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            "nivel_desc" => items.OrderByDescending(static item => item.NivelNombre ?? string.Empty, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            "nivel_asc" => items.OrderBy(static item => item.NivelNombre ?? string.Empty, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            _ => items.AsEnumerable()
-        };
-
-        return ordered.ToArray();
-    }
+    private static string? NormalizeSegmento(string? status)
+        => string.Equals(status, DeletedView, StringComparison.OrdinalIgnoreCase) ? DeletedView : null;
 
     private static CargoListItemViewModel MapToViewModel(CargoDto item)
         => new(

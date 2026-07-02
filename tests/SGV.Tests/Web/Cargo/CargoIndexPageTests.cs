@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using System.Web;
+using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
+using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
 
 namespace SGV.Tests.Web.Cargo;
 
@@ -52,11 +54,16 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains("data-cargo-delete-form", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-cargo-delete-button", content, StringComparison.OrdinalIgnoreCase);
 
-        // El alcance actual prohibe skills y vista de eliminadas en este listado
+        // En vista activas: no se exponen skills ni acciones de eliminadas
         Assert.DoesNotContain("Habilidades", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Eliminadas", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-cargo-reactivate-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Listado de cargos eliminados", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-cargo-reactivate-form", content, StringComparison.OrdinalIgnoreCase);
 
-        Assert.NotEmpty(apiClient.GetAllCalls);
+        // Después del refactor a server-side, el page model invoca QueryAsync
+        // en vez de GetAllAsync. Mantener ambos checks permite asegurar el corte.
+        Assert.Empty(apiClient.GetAllCalls);
+        Assert.NotEmpty(apiClient.QueryCalls);
     }
 
     // ──────────────────────────────────────────────
@@ -79,7 +86,8 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains("name=\"search\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"zzz\"", content, StringComparison.OrdinalIgnoreCase);
 
-        Assert.NotEmpty(apiClient.GetAllCalls);
+        Assert.Empty(apiClient.GetAllCalls);
+        Assert.NotEmpty(apiClient.QueryCalls);
     }
 
     // ──────────────────────────────────────────────
@@ -89,7 +97,8 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
     [Fact]
     public async Task Get_Index_WhenQueryFails_ShowsVisibleError()
     {
-        var apiClient = FakeCargoApiClient.WithFailure(new HttpRequestException("boom"));
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.QueryException = new HttpRequestException("boom");
 
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
@@ -126,6 +135,30 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Equal(1, result.SubmitCount);
         Assert.True(result.PreventDefaultCalled);
         Assert.Equal("Sí, eliminar", result.ConfirmButtonText);
+    }
+
+    [Fact]
+    public async Task ReactivateConfirmationScript_WhenCancelled_DoesNotSubmitForm()
+    {
+        var result = await ExecuteReactivateConfirmationScriptAsync(false);
+
+        Assert.Equal(0, result.SubmitCount);
+        Assert.True(result.PreventDefaultCalled);
+        Assert.True(result.ShowCancelButton);
+        Assert.Equal("Cancelar", result.CancelButtonText);
+        Assert.True(result.ReverseButtons);
+        Assert.Equal("question", result.Icon);
+    }
+
+    [Fact]
+    public async Task ReactivateConfirmationScript_WhenConfirmed_SubmitsFormOnce()
+    {
+        var result = await ExecuteReactivateConfirmationScriptAsync(true);
+
+        Assert.Equal(1, result.SubmitCount);
+        Assert.True(result.PreventDefaultCalled);
+        Assert.Equal("Sí, reactivar", result.ConfirmButtonText);
+        Assert.Equal("¿Reactivar cargo?", result.Title);
     }
 
     // ──────────────────────────────────────────────
@@ -243,6 +276,255 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         Assert.Contains("ya no está disponible", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(cargo.Nombre, refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // T-006: segmento activas/eliminadas + reactivate + TempData
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Index_Default_MuestraVistaActivas()
+    {
+        var apiClient = FakeCargoApiClient.WithCargoList();
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/cargos");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Listado de cargos activos", content, StringComparison.OrdinalIgnoreCase);
+
+        // El query inicial debe usar segmento activas (Status == null)
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Null(query.Status);
+    }
+
+    [Fact]
+    public async Task Get_Index_StatusEliminadas_MuestraToggleActivoEnEliminadas()
+    {
+        var eliminado = CargoWebTestFixture.BuildCargoDto("DEL-001", "Eliminado", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.QueryHandler = q => new PagedResult<CargoDto>(
+            q.Status == "eliminadas" ? [eliminado] : [],
+            q.Status == "eliminadas" ? 1 : 0,
+            q.Page,
+            q.PageSize);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/cargos?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Listado de cargos eliminados", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DEL-001", content, StringComparison.OrdinalIgnoreCase);
+
+        // El query debe llevar status=eliminadas
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal("eliminadas", query.Status);
+    }
+
+    [Fact]
+    public async Task Get_Index_SinStatus_CaeA_Activas()
+    {
+        var apiClient = FakeCargoApiClient.WithCargoList();
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        await client.GetAsync("/organizacion/cargos?status=archivo");
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Null(query.Status);
+    }
+
+    [Fact]
+    public async Task Post_Reactivate_Exito_RedirigeAActivas()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("REACT-01", "A Reactivar", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.ReactivateResult = CargoCommandResult.Success(
+            new CargoDto(cargo.Id, cargo.Codigo, cargo.Nombre, cargo.Descripcion, cargo.NivelId, cargo.NivelNombre));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas&search=react&sort=nombre_asc");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1",
+            ["search"] = "react",
+            ["sort"] = "nombre_asc",
+            ["status"] = "eliminadas"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(cargo.Id, Assert.Single(apiClient.ReactivateCalls));
+
+        // Tras reactivar con éxito, redirect debe ir a activas (sin status=eliminadas)
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.DoesNotContain("status=eliminadas", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=react", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_asc", location, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Reactivate_Falla_ConservaSegmentoEliminadas()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("CONF-REACT-01", "Conflicto React", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.ReactivateResult = CargoCommandResult.Failure(
+            new CargoError(CargoErrorType.Conflict, "CodigoDuplicado",
+                "Ya existe un cargo activo con el mismo código."));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1",
+            ["status"] = "eliminadas"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(cargo.Id, Assert.Single(apiClient.ReactivateCalls));
+
+        // Tras fallo, redirect debe permanecer en eliminadas
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.Contains("status=eliminadas", location, StringComparison.OrdinalIgnoreCase);
+
+        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Contains("No se pudo reactivar el cargo", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CodigoDuplicado", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Delete_AlmacenaLastDeletedId_PermiteReactivarEnBanner()
+    {
+        // REQ-CW-06: tras una baja lógica exitosa desde el listado, el
+        // banner de feedback debe mostrar un botón "Reactivar" que
+        // ejecute ?handler=Reactivate con el id del último cargo eliminado.
+        // El CTA se persiste vía TempData["LastDeletedId"] y solo se
+        // muestra cuando el segmento actual es Activas.
+        var toDelete = CargoWebTestFixture.BuildCargoDto("BANNER-01", "Para Eliminar", null, "Junior");
+        var remaining = CargoWebTestFixture.BuildCargoDto("BANNER-02", "Quedan Cargos", null, "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(toDelete, remaining);
+        apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos?p=1&search=ban&sort=nombre_asc");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var deleteResponse = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = toDelete.Id.ToString(),
+            ["page"] = "1",
+            ["search"] = "ban",
+            ["sort"] = "nombre_asc"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);
+        Assert.Equal(toDelete.Id, Assert.Single(apiClient.DeleteCalls));
+
+        var refreshed = await client.GetAsync(deleteResponse.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Contains("se eliminó correctamente", refreshedContent, StringComparison.OrdinalIgnoreCase);
+
+        // El banner debe contener el botón Reactivar apuntando a
+        // ?handler=Reactivate con el id del cargo eliminado.
+        Assert.Contains("formaction=\"?handler=Reactivate\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"value=\"{toDelete.Id}\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+
+        // El botón debe preservar el contexto: page, search, sort, status.
+        Assert.Contains("value=\"ban\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("value=\"nombre_asc\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Delete_CuandoSegmentoEsEliminadas_NoMuestraCtaReactivar()
+    {
+        // REQ-CW-06 MUST NOT: cuando el usuario está en la vista Eliminadas,
+        // el CTA de reactivación rápida del banner NO debe aparecer (el
+        // banner sigue mostrando el feedback, pero sin el botón Reactivar).
+        var toDelete = CargoWebTestFixture.BuildCargoDto("NOSHOW-01", "Eliminar Sin CTA", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList(toDelete);
+        apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var deleteResponse = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = toDelete.Id.ToString(),
+            ["page"] = "1",
+            ["status"] = "eliminadas"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);
+
+        // Tras la baja, el redirect debe llevar al usuario de vuelta a
+        // Eliminadas (la baja actualizó el segmento activo, pero la vista
+        // Eliminadas es donde seguimos). En esa vista el CTA NO debe mostrarse.
+        var refreshed = await client.GetAsync(deleteResponse.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        // El CTA Reactivar del banner debe estar AUSENTE.
+        Assert.DoesNotContain("formaction=\"?handler=Reactivate\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Reactivate_Exito_LimpiaLastDeletedId_BannerDesaparece()
+    {
+        // Triangulación: una vez que el usuario reactiva el último cargo
+        // eliminado, el CTA del banner debe desaparecer (LastDeletedId
+        // se limpia vía TempData.Remove).
+        var cargo = CargoWebTestFixture.BuildCargoDto("CLEAR-01", "Reactivar y Limpiar", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.ReactivateResult = CargoCommandResult.Success(
+            new CargoDto(cargo.Id, cargo.Codigo, cargo.Nombre, cargo.Descripcion, cargo.NivelId, cargo.NivelNombre));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        // GET inicial sin LastDeletedId: el CTA no debe aparecer.
+        var firstGet = await client.GetAsync("/organizacion/cargos");
+        var firstContent = HttpUtility.HtmlDecode(await firstGet.Content.ReadAsStringAsync());
+        Assert.DoesNotContain("formaction=\"?handler=Reactivate\"", firstContent, StringComparison.OrdinalIgnoreCase);
+
+        // Reactivar exitosamente debe limpiar el LastDeletedId para que
+        // un GET posterior no muestre el CTA.
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(firstGet);
+        var reactivate = await client.PostAsync("/organizacion/cargos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, reactivate.StatusCode);
+
+        var refreshed = await client.GetAsync(reactivate.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.DoesNotContain("formaction=\"?handler=Reactivate\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────
@@ -376,4 +658,136 @@ main().catch(error => {
         bool ReverseButtons,
         string? ConfirmButtonText,
         string? CancelButtonText);
+
+    private static async Task<ReactivateScriptExecutionResult> ExecuteReactivateConfirmationScriptAsync(bool isConfirmed)
+    {
+        var scriptPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SGV.Web/wwwroot/js/pages/cargos-index.js"));
+        var harnessPath = Path.Combine(Path.GetTempPath(), $"cargo-reactivate-confirmation-{Guid.NewGuid():N}.cjs");
+
+        await File.WriteAllTextAsync(harnessPath, $$"""
+const { wireCargoReactivateConfirmation } = require({{JsonSerializer.Serialize(scriptPath)}});
+
+let clickHandler = null;
+let submitCount = 0;
+let preventDefaultCalled = false;
+let swalConfig = null;
+
+const button = {
+  getAttribute(name) {
+    if (name === 'data-cargo-item-name') {
+      return 'Analista Eliminado';
+    }
+
+    if (name === 'data-cargo-item-code') {
+      return 'C-001';
+    }
+
+    return null;
+  },
+  addEventListener(type, handler) {
+    if (type === 'click') {
+      clickHandler = handler;
+    }
+  }
+};
+
+const form = {
+  querySelector(selector) {
+    return selector === '[data-cargo-reactivate-button]' ? button : null;
+  },
+  submit() {
+    submitCount += 1;
+  }
+};
+
+const root = {
+  querySelectorAll(selector) {
+    return selector === '[data-cargo-reactivate-form]' ? [form] : [];
+  }
+};
+
+const Swal = {
+  fire(config) {
+    swalConfig = config;
+    return Promise.resolve({ isConfirmed: {{(isConfirmed ? "true" : "false")}} });
+  }
+};
+
+async function main() {
+  wireCargoReactivateConfirmation(root, Swal);
+
+  if (!clickHandler) {
+    throw new Error('Reactivate confirmation click handler was not wired.');
+  }
+
+  clickHandler({
+    preventDefault() {
+      preventDefaultCalled = true;
+    }
+  });
+
+  await Promise.resolve();
+  await Promise.resolve();
+
+  process.stdout.write(JSON.stringify({
+    submitCount,
+    preventDefaultCalled,
+    showCancelButton: Boolean(swalConfig && swalConfig.showCancelButton),
+    reverseButtons: Boolean(swalConfig && swalConfig.reverseButtons),
+    confirmButtonText: swalConfig ? swalConfig.confirmButtonText : null,
+    cancelButtonText: swalConfig ? swalConfig.cancelButtonText : null,
+    title: swalConfig ? swalConfig.title : null,
+    icon: swalConfig ? swalConfig.icon : null
+  }));
+}
+
+main().catch(error => {
+  process.stderr.write(error.stack || String(error));
+  process.exit(1);
+});
+""");
+
+        try
+        {
+            var startInfo = new ProcessStartInfo("node", $"\"{harnessPath}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+
+            using var process = Process.Start(startInfo);
+            Assert.NotNull(process);
+
+            var standardOutput = await process.StandardOutput.ReadToEndAsync();
+            var standardError = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            Assert.True(process.ExitCode == 0, $"Node harness failed with exit code {process.ExitCode}: {standardError}");
+
+            var result = JsonSerializer.Deserialize<ReactivateScriptExecutionResult>(standardOutput, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            Assert.NotNull(result);
+            return result!;
+        }
+        finally
+        {
+            if (File.Exists(harnessPath))
+            {
+                File.Delete(harnessPath);
+            }
+        }
+    }
+
+    private sealed record ReactivateScriptExecutionResult(
+        int SubmitCount,
+        bool PreventDefaultCalled,
+        bool ShowCancelButton,
+        bool ReverseButtons,
+        string? ConfirmButtonText,
+        string? CancelButtonText,
+        string? Title,
+        string? Icon);
 }

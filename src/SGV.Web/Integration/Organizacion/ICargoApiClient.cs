@@ -46,4 +46,19 @@ public interface ICargoApiClient
     /// Devuelve el catálogo de niveles de cargo disponible para asociar a un cargo.
     /// </summary>
     Task<IReadOnlyList<NivelCargoDto>> GetNivelesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ejecuta la consulta paginada y segmentada de cargos hacia
+    /// <c>GET /api/v1/cargos/consulta</c>. <c>query.Status</c> se serializa
+    /// como query string <c>status=activas|eliminadas</c>; cualquier valor
+    /// distinto de <c>eliminadas</c> se omite para que la API caiga a
+    /// <c>activas</c> por defecto.
+    /// </summary>
+    Task<PagedResult<CargoDto>> QueryAsync(CargoListQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reactiva un cargo eliminado lógicamente vía <c>PATCH /api/v1/cargos/{id}/reactivar</c>
+    /// y traduce la respuesta a un <see cref="CargoCommandResult"/>.
+    /// </summary>
+    Task<CargoCommandResult> ReactivateAsync(Guid id, CancellationToken cancellationToken = default);
 }

@@ -706,6 +706,38 @@ internal sealed class FakeCargoWriteRepository : ICargoRepository
 
         return Task.CompletedTask;
     }
+
+    public Task<(IReadOnlyList<Cargo> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+    {
+        var filtered = Datos.Where(c =>
+        {
+            var isDeleted = (bool)(typeof(Cargo).GetProperty("IsDeleted")!.GetValue(c) ?? false);
+            var isActive = (bool)(typeof(Cargo).GetProperty("IsActive")!.GetValue(c) ?? true);
+            return segmento == CargoSegmentoListado.Activas
+                ? (isActive && !isDeleted)
+                : (!isActive && isDeleted);
+        });
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var lowered = search.ToLowerInvariant();
+            filtered = filtered.Where(c =>
+                c.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || c.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var ordered = filtered.OrderBy(c => c.Codigo).ToList();
+        var total = ordered.Count;
+        var items = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return Task.FromResult<(IReadOnlyList<Cargo>, int)>((items, total));
+    }
 }
 
 internal sealed class FakeNivelCargoRepo : INivelCargoRepository

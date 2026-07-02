@@ -1,5 +1,7 @@
 @page "/organizacion/cargos"
 @model SGV.Web.Pages.Organizacion.Cargos.IndexModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+
 @{
     ViewBag.title = "Cargos";
     ViewBag.subtitle = "Organización";
@@ -13,7 +15,28 @@
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
 {
-    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+    <div class="alert alert-@Model.StatusKind d-flex justify-content-between align-items-center" role="alert">
+        <span>@Model.StatusMessage</span>
+        @* REQ-CW-06: el CTA Reactivar del banner SOLO se muestra en la vista Activas
+           y SOLO si hay un LastDeletedId persistido en TempData. La propiedad
+           Model.LastDeletedId se popula desde TempData en LoadAsync. *@
+        @if (Model.HasLastDeleted && !Model.IsDeletedView)
+        {
+            <form method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input name="id" type="hidden" value="@Model.LastDeletedId" />
+                <input name="page" type="hidden" value="@Model.CurrentPage" />
+                <input name="search" type="hidden" value="@Model.Search" />
+                <input name="sort" type="hidden" value="@Model.Sort" />
+                <input name="status" type="hidden" value="@Model.Segmento" />
+                <button type="submit" class="btn btn-sm btn-outline-primary ms-2" formaction="?handler=Reactivate">Reactivar</button>
+            </form>
+        }
+        @if (TempData["ErrorCode"] is string errorCode && !string.IsNullOrWhiteSpace(errorCode))
+        {
+            <span class="badge bg-secondary ms-2">@errorCode</span>
+        }
+    </div>
 }
 
 @if (!string.IsNullOrWhiteSpace(Model.LoadErrorMessage))
@@ -26,14 +49,27 @@
         <div class="card" data-table>
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
-                    <h4 class="card-title mb-1">Listado de cargos activos</h4>
-                    <p class="text-muted mb-0">Consulta, búsqueda y baja lógica del módulo de Cargos.</p>
+                    <h4 class="card-title mb-1">
+                        @(Model.IsDeletedView ? "Listado de cargos eliminados" : "Listado de cargos activos")
+                    </h4>
+                    <p class="text-muted mb-0">
+                        @(Model.IsDeletedView
+                            ? "Visualiza y reactiva cargos dados de baja lógica."
+                            : "Consulta, búsqueda y baja lógica del módulo de Cargos.")
+                    </p>
                 </div>
                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+                    <div class="btn-group" role="group" aria-label="Filtrar por estado">
+                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")" href="@Url.Page("/Organizacion/Cargos/Index", Model.BuildToggleSegmentoRouteValues(null))">Activas</a>
+                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/Cargos/Index", Model.BuildToggleSegmentoRouteValues("eliminadas"))">Eliminadas</a>
+                    </div>
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
-                    <a class="btn btn-primary btn-sm" href="/organizacion/cargos/crear">
-                        <i class="ti ti-plus me-1"></i>Crear cargo
-                    </a>
+                    @if (!Model.IsDeletedView)
+                    {
+                        <a class="btn btn-primary btn-sm" href="/organizacion/cargos/crear">
+                            <i class="ti ti-plus me-1"></i>Crear cargo
+                        </a>
+                    }
                 </div>
             </div>
             <div class="card-header border-0">
@@ -45,6 +81,7 @@
                         </div>
                     </div>
                     <input name="sort" type="hidden" value="@Model.Sort" />
+                    <input name="status" type="hidden" value="@Model.Segmento" />
                     <div class="col-auto">
                         <button class="btn btn-primary" type="submit">Buscar</button>
                     </div>
@@ -60,7 +97,7 @@
                                 var nivelIcon = Model.GetSortIcon("nivel");
                             }
                             <th>
-                                <a class="link-reset" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo") })">
+                                <a class="link-reset" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo"), status = Model.Segmento })">
                                     Código
                                     @if (!string.IsNullOrEmpty(codigoIcon))
                                     {
@@ -69,7 +106,7 @@
                                 </a>
                             </th>
                             <th>
-                                <a class="link-reset" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre") })">
+                                <a class="link-reset" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre"), status = Model.Segmento })">
                                     Nombre
                                     @if (!string.IsNullOrEmpty(nombreIcon))
                                     {
@@ -78,7 +115,7 @@
                                 </a>
                             </th>
                             <th>
-                                <a class="link-reset" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nivel") })">
+                                <a class="link-reset" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nivel"), status = Model.Segmento })">
                                     Nivel
                                     @if (!string.IsNullOrEmpty(nivelIcon))
                                     {
@@ -93,7 +130,9 @@
                         @if (Model.Items.Count == 0)
                         {
                             <tr>
-                                <td class="text-center text-muted py-4" colspan="4">No se encontraron cargos activos.</td>
+                                <td class="text-center text-muted py-4" colspan="4">
+                                    @(Model.IsDeletedView ? "No se encontraron cargos eliminados." : "No se encontraron cargos activos.")
+                                </td>
                             </tr>
                         }
                         else
@@ -119,22 +158,40 @@
                                     </td>
                                     <td>
                                         <div class="d-flex justify-content-center gap-1">
-                                            <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Details", new { id = item.Id, p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
-                                                <i class="ti ti-eye fs-lg"></i>
-                                            </a>
-                                            <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
-                                                <i class="ti ti-edit fs-lg"></i>
-                                            </a>
-                                            <form data-cargo-delete-form method="post">
-                                                @Html.AntiForgeryToken()
-                                                <input name="id" type="hidden" value="@item.Id" />
-                                                <input name="page" type="hidden" value="@Model.CurrentPage" />
-                                                <input name="search" type="hidden" value="@Model.Search" />
-                                                <input name="sort" type="hidden" value="@Model.Sort" />
-                                                <button aria-label="Eliminar @item.Nombre" class="btn btn-danger btn-icon btn-sm rounded-circle" data-cargo-delete-button data-cargo-item-name="@item.Nombre" data-cargo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
-                                                    <i class="ti ti-trash fs-lg"></i>
-                                                </button>
-                                            </form>
+                                            @if (!Model.IsDeletedView)
+                                            {
+                                                <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Details", Model.BuildDetailsRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
+                                                    <i class="ti ti-eye fs-lg"></i>
+                                                </a>
+                                                <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
+                                                    <i class="ti ti-edit fs-lg"></i>
+                                                </a>
+                                                <form data-cargo-delete-form method="post">
+                                                    @Html.AntiForgeryToken()
+                                                    <input name="id" type="hidden" value="@item.Id" />
+                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                    <input name="search" type="hidden" value="@Model.Search" />
+                                                    <input name="sort" type="hidden" value="@Model.Sort" />
+                                                    <input name="status" type="hidden" value="@Model.Segmento" />
+                                                    <button aria-label="Eliminar @item.Nombre" class="btn btn-danger btn-icon btn-sm rounded-circle" data-cargo-delete-button data-cargo-item-name="@item.Nombre" data-cargo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
+                                                        <i class="ti ti-trash fs-lg"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form data-cargo-reactivate-form method="post">
+                                                    @Html.AntiForgeryToken()
+                                                    <input name="id" type="hidden" value="@item.Id" />
+                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                    <input name="search" type="hidden" value="@Model.Search" />
+                                                    <input name="sort" type="hidden" value="@Model.Sort" />
+                                                    <input name="status" type="hidden" value="@Model.Segmento" />
+                                                    <button aria-label="Reactivar @item.Nombre" class="btn btn-success btn-icon btn-sm rounded-circle" data-cargo-reactivate-button data-cargo-item-name="@item.Nombre" data-cargo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Reactivar" formaction="?handler=Reactivate" type="submit">
+                                                        <i class="ti ti-refresh fs-lg"></i>
+                                                    </button>
+                                                </form>
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -148,16 +205,16 @@
                 <nav aria-label="Paginación de cargos">
                     <ul class="pagination pagination-sm mb-0">
                         <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
-                            <a class="page-link" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage - 1, search = Model.Search, sort = Model.Sort })">Anterior</a>
+                            <a class="page-link" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage - 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">Anterior</a>
                         </li>
                         @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
                         {
                             <li class="page-item @(pageNumber == Model.CurrentPage ? "active" : null)">
-                                <a class="page-link" href="@Url.Page("/Organizacion/Cargos/Index", new { p = pageNumber, search = Model.Search, sort = Model.Sort })">@pageNumber</a>
+                                <a class="page-link" href="@Url.Page("/Organizacion/Cargos/Index", new { p = pageNumber, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">@pageNumber</a>
                             </li>
                         }
                         <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
-                            <a class="page-link" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage + 1, search = Model.Search, sort = Model.Sort })">Siguiente</a>
+                            <a class="page-link" href="@Url.Page("/Organizacion/Cargos/Index", new { p = Model.CurrentPage + 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">Siguiente</a>
                         </li>
                     </ul>
                 </nav>
@@ -165,6 +222,11 @@
         </div>
     </div>
 </div>
+
+<script>
+    // API runs on a different port in development; use appsettings value
+    window.__sgvApiBaseUrl = '@(Configuration["SgvApi:BaseUrl"] ?? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}")';
+</script>
 
 @section scripts {
     <script src="/plugins/sweetalert2/sweetalert2.all.min.js"></script>
