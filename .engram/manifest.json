@@ -48,6 +48,14 @@
       "sessions": 95,
       "memories": 256,
       "prompts": 202
+    },
+    {
+      "id": "86aa3fcc",
+      "created_by": "elflacoseba",
+      "created_at": "2026-07-02T23:35:26Z",
+      "sessions": 8,
+      "memories": 35,
+      "prompts": 21
     }
   ]
 }
