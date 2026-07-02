@@ -2,6 +2,7 @@ using System.Net;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
+using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
 
 namespace SGV.Tests.Web.Cargo;
 
@@ -106,6 +107,41 @@ public sealed class FakeCargoApiClient : ICargoApiClient
     public int NivelesCalls { get; private set; }
 
     /// <summary>
+    /// Resultado paginado que devolverá <see cref="QueryAsync"/>. Por defecto
+    /// se calcula sobre <c>_getAllResult</c> aplicando el segmento
+    /// (<c>activas</c> por defecto, <c>eliminadas</c> cuando
+    /// <c>query.Status == "eliminadas"</c>) y la paginación.
+    /// </summary>
+    public Func<CargoListQuery, PagedResult<CargoDto>>? QueryHandler { get; set; }
+
+    /// <summary>
+    /// Solicitudes recibidas por <see cref="QueryAsync"/>.
+    /// </summary>
+    public List<CargoListQuery> QueryCalls { get; } = new();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="QueryAsync"/> debe lanzar.
+    /// </summary>
+    public Exception? QueryException { get; set; }
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="ReactivateAsync"/>. Por defecto
+    /// éxito con el DTO del primer cargo.
+    /// </summary>
+    public CargoCommandResult ReactivateResult { get; set; } = CargoCommandResult.Success(
+        new CargoDto(Guid.NewGuid(), "DIRECTOR", "Director", null, Guid.Parse("70000000-0000-0000-0000-000000000001")));
+
+    /// <summary>
+    /// Identificadores enviados a <see cref="ReactivateAsync"/>.
+    /// </summary>
+    public List<Guid> ReactivateCalls { get; } = new();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="ReactivateAsync"/> debe lanzar.
+    /// </summary>
+    public Exception? ReactivateException { get; set; }
+
+    /// <summary>
     /// Construye un fake que devuelve la lista especificada en
     /// <see cref="GetAllAsync"/>.
     /// </summary>
@@ -198,5 +234,50 @@ public sealed class FakeCargoApiClient : ICargoApiClient
         }
 
         return Task.FromResult(NivelesResult);
+    }
+
+    public Task<PagedResult<CargoDto>> QueryAsync(CargoListQuery query, CancellationToken cancellationToken = default)
+    {
+        QueryCalls.Add(query);
+
+        if (QueryException is not null)
+        {
+            throw QueryException;
+        }
+
+        if (QueryHandler is not null)
+        {
+            return Task.FromResult(QueryHandler(query));
+        }
+
+        var snapshot = (_getAllResult ?? Array.Empty<CargoDto>()).ToList();
+        var lowered = query.Search?.ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(lowered))
+        {
+            snapshot = snapshot
+                .Where(c => c.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                         || c.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        var total = snapshot.Count;
+        var pageItems = snapshot
+            .Skip(Math.Max(0, (query.Page - 1) * query.PageSize))
+            .Take(query.PageSize)
+            .ToList();
+
+        return Task.FromResult(new PagedResult<CargoDto>(pageItems, total, query.Page, query.PageSize));
+    }
+
+    public Task<CargoCommandResult> ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        ReactivateCalls.Add(id);
+
+        if (ReactivateException is not null)
+        {
+            throw ReactivateException;
+        }
+
+        return Task.FromResult(ReactivateResult);
     }
 }

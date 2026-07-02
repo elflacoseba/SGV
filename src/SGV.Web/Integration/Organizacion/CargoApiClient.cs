@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -106,6 +107,50 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 
         return await response.Content.ReadFromJsonAsync<IReadOnlyList<NivelCargoDto>>(cancellationToken: cancellationToken)
             ?? [];
+    }
+
+    /// <inheritdoc />
+    public async Task<PagedResult<CargoDto>> QueryAsync(CargoListQuery query, CancellationToken cancellationToken = default)
+    {
+        var requestUri = BuildQueryUri(query.Page, query.PageSize, query.Search, query.Status);
+        var response = await httpClient.GetAsync(requestUri, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<PagedResult<CargoDto>>(cancellationToken: cancellationToken)
+            ?? new PagedResult<CargoDto>([], 0, query.Page, query.PageSize);
+    }
+
+    /// <inheritdoc />
+    public async Task<CargoCommandResult> ReactivateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var response = await httpClient.PatchAsync($"{BaseRoute}/{id}/reactivar", null, cancellationToken);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var dto = await response.Content.ReadFromJsonAsync<CargoDto>(cancellationToken: cancellationToken);
+            return CargoCommandResult.Success(dto!);
+        }
+
+        return await ToCommandResultAsync(response, cancellationToken);
+    }
+
+    private static string BuildQueryUri(int page, int pageSize, string? search, string? status = null)
+    {
+        var builder = new StringBuilder($"{BaseRoute}/consulta?page={page}&pageSize={pageSize}");
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            builder.Append("&search=");
+            builder.Append(Uri.EscapeDataString(search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            builder.Append("&status=");
+            builder.Append(Uri.EscapeDataString(status));
+        }
+
+        return builder.ToString();
     }
 
     private static async Task<CargoCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)

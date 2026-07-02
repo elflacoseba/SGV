@@ -6,6 +6,7 @@ using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
+using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
 
 namespace SGV.Tests.Web.Cargo;
 
@@ -309,6 +310,84 @@ public class CargoApiClientTests
         Assert.Equal("CodigoDuplicado", result.Error.Code);
         Assert.Equal("Ya existe un cargo activo con el código C-DUP.", result.Error.Message);
         Assert.Null(result.FieldErrors);
+    }
+
+    // ──────────────────────────────────────────────
+    // PR3 Task 5: QueryAsync (segmented) + ReactivateAsync
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task QueryAsync_WithStatusEliminadas_SerializesStatusInUri()
+    {
+        var id = Guid.NewGuid();
+        var payload = new PagedResult<CargoDto>(
+            [new CargoDto(id, "DEL-001", "Eliminado", null, Guid.NewGuid())],
+            TotalCount: 1,
+            Page: 1,
+            PageSize: 20);
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.QueryAsync(new CargoListQuery(1, 20, null, null, "eliminadas"));
+
+        Assert.Single(result.Items);
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal(HttpMethod.Get, handler.LastRequest?.Method);
+        Assert.Equal("/api/v1/cargos/consulta", handler.LastRequest?.RequestUri?.AbsolutePath);
+        Assert.Contains("status=eliminadas", handler.LastRequest?.RequestUri?.Query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithoutStatus_DoesNotIncludeStatusParameter()
+    {
+        var payload = new PagedResult<CargoDto>([], 0, 1, 20);
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        _ = await client.QueryAsync(new CargoListQuery(1, 20, "ana", "nombre_asc"));
+
+        Assert.Equal("/api/v1/cargos/consulta", handler.LastRequest?.RequestUri?.AbsolutePath);
+        var query = handler.LastRequest?.RequestUri?.Query ?? string.Empty;
+        Assert.Contains("search=ana", query, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("status=", query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReactivateAsync_Http200_ReturnsDtoAndHitsReactivarRoute()
+    {
+        var id = Guid.NewGuid();
+        var dto = new CargoDto(id, "DIRECTOR", "Director", null, Guid.NewGuid(), "Directivo");
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, dto));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.ReactivateAsync(id);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal(id, result.Value!.Id);
+        Assert.Equal(HttpMethod.Patch, handler.LastRequest?.Method);
+        Assert.Equal($"/api/v1/cargos/{id}/reactivar", handler.LastRequest?.RequestUri?.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ReactivateAsync_OnConflict_ReturnsConflictResult()
+    {
+        var id = Guid.NewGuid();
+        var problem = new ProblemDetails
+        {
+            Status = 409,
+            Title = "CodigoDuplicado",
+            Detail = "Ya existe un cargo activo con el mismo código."
+        };
+        var handler = new StubHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.ReactivateAsync(id);
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(CargoErrorType.Conflict, result.Error!.Type);
+        Assert.Equal("CodigoDuplicado", result.Error.Code);
     }
 
     private static HttpClient NewHttpClient(StubHandler handler) =>

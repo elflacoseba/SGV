@@ -14,8 +14,10 @@ public sealed record CargoListItemViewModel(
 
 /// <summary>
 /// Contrato de consulta para el listado web de cargos.
+/// <c>Status</c> se mapea al query string <c>status</c> de la API
+/// (<c>activas</c> por defecto, <c>eliminadas</c> para vista de eliminados).
 /// </summary>
-public sealed record CargoListQuery(int Page, int PageSize, string? Search, string? Sort);
+public sealed record CargoListQuery(int Page, int PageSize, string? Search, string? Sort, string? Status = null);
 
 /// <summary>
 /// Resultado de la baja lógica de un cargo traducida desde la API.
