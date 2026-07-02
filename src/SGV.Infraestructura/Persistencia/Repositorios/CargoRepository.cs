@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Organizacion.Consultas;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
@@ -126,5 +127,40 @@ public sealed class CargoRepository(SgvDbContext context)
                 p => p.CargoId == cargoId && p.IsActive && !p.IsDeleted,
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    public async Task<(IReadOnlyList<Cargo> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<CargoEntity> query = Context
+            .Set<CargoEntity>()
+            .AsNoTracking()
+            .Where(c => segmento == CargoSegmentoListado.Activas
+                ? (c.IsActive && !c.IsDeleted)
+                : (!c.IsActive && c.IsDeleted))
+            .Include(c => c.NivelCargo);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(c =>
+                c.Codigo.Contains(search) ||
+                c.Nombre.Contains(search) ||
+                (c.Descripcion != null && c.Descripcion.Contains(search)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var entities = await query
+            .OrderBy(c => c.Codigo)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (entities.Select(MapToDomain).ToArray(), totalCount);
     }
 }

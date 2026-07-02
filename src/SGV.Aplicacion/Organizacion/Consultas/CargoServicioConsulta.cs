@@ -18,6 +18,24 @@ public sealed class CargoServicioConsulta(ICargoRepository repository)
         return entity is not null ? MapToDto(entity) : null;
     }
 
+    public async Task<PagedResult<CargoDto>> QueryAsync(
+        CargoListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var (items, totalCount) = await repository.QueryAsync(
+            query.Search,
+            query.Page,
+            query.PageSize,
+            query.Segmento,
+            cancellationToken);
+
+        return new PagedResult<CargoDto>(
+            items.Select(MapToDto).ToList(),
+            totalCount,
+            query.Page,
+            query.PageSize);
+    }
+
     private static CargoDto MapToDto(Cargo entity)
     {
         return new CargoDto(

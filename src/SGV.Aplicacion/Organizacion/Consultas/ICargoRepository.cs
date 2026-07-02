@@ -1,4 +1,5 @@
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 
 namespace SGV.Aplicacion.Organizacion.Consultas;
@@ -47,4 +48,15 @@ public interface ICargoRepository : IReadOnlyRepository<Cargo>
     /// Returns true when the specified cargo has any active (non-deleted) associated puestos.
     /// </summary>
     Task<bool> HasActivePuestosAsync(Guid cargoId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a filtered, paginated set of cargos for the requested segment
+    /// (active or soft-deleted) and the total count matching the filters.
+    /// </summary>
+    Task<(IReadOnlyList<Cargo> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        CargoSegmentoListado segmento = CargoSegmentoListado.Activas,
+        CancellationToken cancellationToken = default);
 }

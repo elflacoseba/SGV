@@ -242,21 +242,45 @@ internal sealed class FakeCargoServicioComandos : ICargoServicioComandos
 internal sealed class FakeCargoServicio : ICargoServicioConsulta
 {
     public static readonly Guid CargoId1 = Guid.Parse("b0000000-0000-0000-0000-000000000001");
+    public static readonly Guid CargoEliminadoId1 = Guid.Parse("be000000-0000-0000-0000-000000000001");
 
     private readonly IReadOnlyList<CargoDto> _data;
+    private readonly IReadOnlyList<CargoDto> _eliminadas;
 
-    public FakeCargoServicio(bool isEmpty = false)
+    public FakeCargoServicio(bool isEmpty = false, bool withEliminadas = false)
     {
         _data = isEmpty
             ? []
             : [new(CargoId1, "DIRECTOR", "Director", null, Guid.Parse("70000000-0000-0000-0000-000000000001"))];
+
+        _eliminadas = (isEmpty || !withEliminadas)
+            ? []
+            : [new(CargoEliminadoId1, "ELIM-001", "Cargo Eliminado", null, Guid.Parse("70000000-0000-0000-0000-000000000001"))];
     }
 
     public Task<IReadOnlyList<CargoDto>> ListAsync(CancellationToken ct = default)
         => Task.FromResult(_data);
 
     public Task<CargoDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+        => Task.FromResult(_data.Concat(_eliminadas).FirstOrDefault(d => d.Id == id));
+
+    public Task<PagedResult<CargoDto>> QueryAsync(CargoListQuery query, CancellationToken ct = default)
+    {
+        var source = query.Segmento == CargoSegmentoListado.Eliminadas ? _eliminadas : _data;
+        var filtered = source.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var lowered = query.Search.ToLowerInvariant();
+            filtered = filtered.Where(d =>
+                d.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || d.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var list = filtered.ToList();
+        var total = list.Count;
+        var items = list.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToList();
+        return Task.FromResult(new PagedResult<CargoDto>(items, total, query.Page, query.PageSize));
+    }
 }
 
 internal sealed class FakePuestoServicio : IPuestoServicioConsulta
