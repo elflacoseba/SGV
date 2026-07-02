@@ -78,6 +78,88 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - Si cambiás persistencia, índices únicos, soft delete, Identity o migraciones, no alcanza con pruebas puramente unitarias.
 - Si tocás `SGV.Web` o assets frontend, validá al menos `bun run build` además de la suite .NET relevante.
 
+## Filosofía de Testing
+
+El objetivo de los tests es proteger el comportamiento funcional de la aplicación, no maximizar el porcentaje de cobertura ni la cantidad de código de pruebas.
+
+Cada test debe aportar valor real. Antes de generar un test, evaluar si protege una regla de negocio, un comportamiento importante o previene una regresión. Si la respuesta es negativa, no generar el test.
+
+### Qué debe testearse
+
+Priorizar siempre:
+
+- Reglas de negocio del Dominio.
+- Casos de uso de la capa Application.
+- Validaciones mediante FluentValidation.
+- Cálculos.
+- Transformaciones de datos con lógica.
+- Permisos y autorización.
+- Casos límite (Edge Cases).
+- Correcciones de errores (cada bug corregido debe quedar protegido por al menos un test).
+- Flujos de negocio que involucren múltiples operaciones.
+
+### Qué no debe testearse salvo que se solicite explícitamente
+
+Evitar generar tests para:
+
+- Getters y setters.
+- Constructores triviales.
+- DTOs.
+- Records sin lógica.
+- Entidades sin comportamiento.
+- Configuración de Dependency Injection.
+- Configuración de ASP.NET Core.
+- Código generado automáticamente.
+- Mapeos simples.
+- Controladores que únicamente delegan la ejecución al caso de uso correspondiente.
+- Repositorios cuya única responsabilidad sea invocar Entity Framework Core sin agregar lógica propia.
+
+### Cantidad de tests
+
+- No generar múltiples tests que validen exactamente el mismo comportamiento.
+- Cuando varios casos puedan cubrirse mediante un test parametrizado, utilizar un único test con Theory e InlineData en lugar de múltiples métodos prácticamente iguales.
+- Preferir pocos tests de alta calidad antes que muchos tests redundantes.
+- Si un método contiene una lógica sencilla y un único test cubre completamente su comportamiento, no generar casos adicionales innecesarios.
+
+### Relación entre código y tests
+
+- Es aceptable que el proyecto de tests tenga más líneas de código que el proyecto principal únicamente cuando exista una justificación funcional.
+- No generar automáticamente cinco o más tests para proteger un método trivial.
+- Si la implementación es pequeña y de bajo riesgo, mantener la suite de pruebas proporcional a su complejidad.
+
+### Enfoque de calidad
+
+- Los tests deben validar comportamiento observable, nunca detalles internos de implementación.
+- No escribir tests que dependan de nombres de variables, implementación privada o estructura interna del código.
+- Los tests deben seguir siendo válidos aunque la implementación cambie, siempre que el comportamiento esperado permanezca igual.
+
+### Cobertura
+
+- No perseguir el 100% de cobertura.
+- Priorizar cobertura sobre funcionalidades críticas antes que cobertura sobre código trivial.
+- Una cobertura razonable sobre reglas de negocio es preferible a una cobertura total basada en pruebas de bajo valor.
+
+### Optimización de tiempo y tokens
+
+- Antes de generar tests, evaluar el costo-beneficio.
+- No aumentar innecesariamente el tamaño del proyecto de pruebas.
+- Cada test adicional implica mayor tiempo de mantenimiento, mayor consumo de contexto y mayor consumo de tokens para futuras tareas.
+- Generar únicamente los tests necesarios para proporcionar confianza en el funcionamiento del sistema.
+
+### Prioridad por capas
+
+| Capa | Cobertura esperada |
+|---|---|
+| **Dominio** | Alta |
+| **Application (Casos de Uso)** | Alta |
+| **Infrastructure** | Moderada, únicamente cuando exista lógica propia |
+| **API** | Mínima. No testear controladores que solo deleguen |
+| **Razor Pages** | Testear únicamente cuando exista lógica relevante en el PageModel. No generar tests para código de presentación o marcado HTML |
+
+### Regla general
+
+Ante la duda, generar **menos** tests, pero que sean significativos, mantenibles y orientados al comportamiento del sistema. La calidad de una suite de pruebas se mide por el valor que aporta, no por la cantidad de archivos, métodos o líneas de código.
+
 ## Tests de Integración con MySQL
 
 - Si tenés MySQL local con `root` sin password en puerto 3306 (setup default de Homebrew/Docker), los tests `[MySqlFact]` corren automáticamente contra la DB `sgv_test` **sin configuración adicional**.
