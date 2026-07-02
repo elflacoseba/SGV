@@ -124,6 +124,7 @@ Esta pasada ataca los tres CRITICAL + F-006 siguiendo TDD estricto (RED → GREE
 |-----|--------|-------|
 | `061219e0` | `fix(cargos): propagate sort end-to-end in consulta query` | F-001 + F-006 |
 | `284881e1` | `fix(web): restore last deleted id banner for quick reactivate in cargo index` | F-002 + F-003 |
+| `fa1ddc33` | `docs(apply): merge second-pass progress into apply-progress.md` | docs (W-001) |
 
 ### Resoluciones detalladas
 

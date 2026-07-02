@@ -1,91 +1,121 @@
 # Verify Report: cargos-filtro-activos-eliminados
 
-## Cambios verificados
+## 1. Resumen ejecutivo
 
-- Backend (Aplicación + Infraestructura + API) para consulta segmentada de cargos activos/eliminados.
-- Cliente HTTP web (ICargoApiClient/CargoApiClient/CargoListItemViewModel) con `QueryAsync` y `ReactivateAsync`.
-- Razor Page `Index` de Cargos con toggle Activas/Eliminadas, hidden `status`, render condicional y `OnPostReactivateAsync`.
-- JS `cargos-index.js` con `wireCargoReactivateConfirmation`.
-- Tests unitarios, de aplicación, MySQL, API y web que cubren cada comportamiento nuevo.
-- Documentación Swagger (XML docs) del nuevo endpoint `GET /api/v1/cargos/consulta`.
+La re-validación independiente confirma que los tres hallazgos CRITICAL del verify anterior quedaron resueltos en código y en runtime: `sort` ahora viaja end-to-end y se aplica server-side antes de paginar, el banner de `LastDeletedId` volvió a funcionar en Activas y el placeholder vacío fue reemplazado por tests reales. El cambio compila, la suite focalizada nueva pasa y el build frontend también.
 
-## Comandos de validación
+La suite completa sigue cerrando con **1132 passed / 12 failed**, pero los 12 fallos son los preexistentes de `OcupacionRepositoryTests` documentados en el issue #59, sin evidencia de regresión atribuible a este cambio. También confirmé al menos un `[MySqlFact]` clave de orden cross-page, así que la corrección de F-001 no quedó solo en tests de capa alta.
+
+Queda un residuo menor de trazabilidad: `apply-progress.md` ya refleja la segunda pasada, pero su tabla de commits no incluye el commit documental `fa1ddc33`. No bloquea archive. Con el estado actual, mi decisión es **READY FOR ARCHIVE**.
+
+## 2. Comparativa con verify anterior
+
+### F-001 — `sort` server-side end-to-end
+- **Antes**: ❌ CRITICAL.
+- **Ahora**: ✅ Resuelto.
+- **Evidencia**:
+  - `src/SGV.Api/Controllers/CargosController.cs` → `GetConsulta(..., sort, ...)` propaga `sort` al `CargoListQuery`.
+  - `src/SGV.Web/Integration/Organizacion/CargoApiClient.cs` → `BuildQueryUri(...)` serializa `sort`.
+  - `src/SGV.Infraestructura/Persistencia/Repositorios/CargoRepository.cs` → `ApplySort(...)` corre antes de `Skip/Take`.
+  - `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` → `LoadAsync()` ya no reordena localmente.
+  - Tests runtime: `GetConsulta_PropagaSortAlServicio`, `QueryAsync_WithSort_SerializesSortInUri`, `QueryAsync_ConSortNombreDesc_OrdenaServidorAntesDePaginar`, `QueryAsync_MySql_SortNombreDesc_SeAplicaAntesDePaginar`.
+
+### F-002 — REQ-CW-06 (`LastDeletedId` + CTA banner)
+- **Antes**: ❌ CRITICAL.
+- **Ahora**: ✅ Resuelto.
+- **Evidencia**:
+  - `IndexModel.LastDeletedId` es `Guid?`, se puebla desde `TempData` y `HasLastDeleted` deriva de `LastDeletedId.HasValue`.
+  - `OnPostDeleteAsync()` redirige con `deletedId = id` tras éxito.
+  - `OnPostReactivateAsync()` limpia `TempData[nameof(LastDeletedId)]` con `ClearLastDeleted()`.
+  - `Index.cshtml` renderiza el CTA solo cuando `Model.HasLastDeleted && !Model.IsDeletedView`.
+  - Tests runtime: `Post_Delete_AlmacenaLastDeletedId_PermiteReactivarEnBanner`, `Post_Delete_CuandoSegmentoEsEliminadas_NoMuestraCtaReactivar`, `Post_Reactivate_Exito_LimpiaLastDeletedId_BannerDesaparece`.
+
+### F-003 — placeholder test sin asserts
+- **Antes**: ❌ CRITICAL.
+- **Ahora**: ✅ Resuelto.
+- **Evidencia**:
+  - `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs:412+` ya no contiene `await Task.CompletedTask;` como placeholder.
+  - El test ahora ejecuta flujo real `POST Delete -> PRG -> GET Index` y aserta CTA/banner/contexto.
+
+### F-006 — test cross-page sort
+- **Antes**: 💡 SUGGESTION.
+- **Ahora**: ✅ Implementado.
+- **Evidencia**:
+  - `tests/SGV.Tests/Persistencia/CargoRepositoryTests.cs` → `QueryAsync_MySql_SortNombreDesc_SeAplicaAntesDePaginar`.
+
+### F-004 y F-005 del verify anterior
+- **F-004 (`apply-progress` desalineado)**: ⚠️ Mejora parcial. El artefacto ya incluye la segunda pasada, pero la tabla de commits todavía no lista `fa1ddc33`.
+- **F-005 (cobertura/ramas flojas en flujos delicados)**: ✅ deja de ser hallazgo de gate. La segunda pasada agregó runtime tests justamente sobre los caminos que estaban ciegos (`sort` + banner/TempData).
+
+## 3. Comandos ejecutados y resultados
 
 | Comando | Resultado |
-|---------|-----------|
-| `dotnet build SGV.slnx` | OK — 0 warnings, 0 errors. |
-| `dotnet test SGV.slnx --no-build` | 1121 passed, 12 failed (pre-existentes en `OcupacionRepositoryTests`, no relacionados), 0 skipped. |
-| `bun install && bun run build` (en `src/SGV.Web`) | OK — warnings deprecados pre-existentes (`baseline-browser-mapping`, `caniuse-lite`). |
-| `curl -s http://localhost:5000/swagger/v1/swagger.json` (referencia manual) | El JSON expone `/api/v1/cargos/consulta` con query param `status` y mantiene `/api/v1/cargos/{id}/reactivar`. |
+|---|---|
+| `dotnet build SGV.slnx` | ✅ OK — 0 warnings, 0 errors |
+| `dotnet test SGV.slnx --no-build` | ✅/⚠️ 1132 passed, 12 failed, 0 skipped — los 12 fallos corresponden a `OcupacionRepositoryTests` issue #59 |
+| `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~SGV.Tests.Web.Cargo.CargoIndexPageTests"` | ✅ 18/18 |
+| `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~SGV.Tests.Api.CargosControllerTests"` | ✅ 41/41 |
+| `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~SGV.Tests.Api.SwaggerConfigurationTests.Cargos_ConsultaEndpoint_DocumentaParametroStatus\|FullyQualifiedName~SGV.Tests.Api.SwaggerConfigurationTests.Cargos_ReactivarEndpoint_SigueDocumentado"` | ✅ 2/2 |
+| `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~SGV.Tests.Persistencia.CargoRepositoryTests.QueryAsync_MySql_"` | ✅ 7/7 |
+| `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~SGV.Tests.Api.CargosControllerTests.GetConsulta_PropagaSortAlServicio\|FullyQualifiedName~SGV.Tests.Api.CargosControllerTests.GetConsulta_SortInvalido_NoLanzaYLlegaAlServicio\|FullyQualifiedName~SGV.Tests.Web.Cargo.CargoApiClientTests.QueryAsync_WithSort_SerializesSortInUri\|FullyQualifiedName~SGV.Tests.Persistencia.CargoRepositoryTests.QueryAsync_MySql_SortNombreDesc_SeAplicaAntesDePaginar\|FullyQualifiedName~SGV.Tests.Web.Cargo.CargoIndexPageTests.Post_Delete_AlmacenaLastDeletedId_PermiteReactivarEnBanner\|FullyQualifiedName~SGV.Tests.Web.Cargo.CargoIndexPageTests.Post_Delete_CuandoSegmentoEsEliminadas_NoMuestraCtaReactivar\|FullyQualifiedName~SGV.Tests.Web.Cargo.CargoIndexPageTests.Post_Reactivate_Exito_LimpiaLastDeletedId_BannerDesaparece\|FullyQualifiedName~SGV.Tests.Aplicacion.Organizacion.CargoServicioConsultaTests.QueryAsync_ConSortNombreDesc_OrdenaServidorAntesDePaginar"` | ✅ 8/8 |
+| `bun run build` (en `src/SGV.Web`) | ✅ OK — solo warnings preexistentes de Browserslist / baseline-browser-mapping |
 
-## Mapeo de requisitos vs evidencia
+### Nota sobre MySQL
 
-### REQ-CM-01 (consulta segmentada de cargos eliminados)
-- **Aplicación**: `CargoServicioConsultaTests.QueryAsync_ConSegmentoEliminadas_RetornaSoloEliminadas` ✅
-- **Persistencia MySQL**: `CargoRepositoryTests.QueryAsync_MySql_SegmentoEliminadas_RetornaSoloEliminados` ✅
-- **API**: `CargosControllerTests.GetConsulta_StatusEliminadas_RetornaSoloEliminadas` ✅
+En este entorno sí hubo MySQL disponible. Verifiqué explícitamente el regression test cross-page `QueryAsync_MySql_SortNombreDesc_SeAplicaAntesDePaginar` y la batería `QueryAsync_MySql_*` de `CargoRepositoryTests` pasó completa.
 
-### REQ-CM-02 (consulta activa por defecto y normalización de status)
-- **Aplicación/controlador**: `CargoServicioConsultaTests.QueryAsync_Default_SegmentoEsActivas` ✅
-- **API**: `CargosControllerTests.GetConsulta_StatusInvalido_CaeA_Activas` ✅
-- **API**: `CargosControllerTests.GetConsulta_SinStatus_RetornaActivas` ✅
+## 4. Mapeo requisito → evidencia
 
-### REQ-CM-03 (metadatos paginados desde el repositorio)
-- **Aplicación**: `CargoServicioConsultaTests.QueryAsync_TotalCountProvieneDelRepositorio` ✅
-- **Persistencia MySQL**: `CargoRepositoryTests.QueryAsync_MySql_Paginacion_TotalCountProvieneDelRepositorio` ✅
-- **API**: contrato de `PagedResult<CargoDto>` cubierto por los tests de `GetConsulta_*`.
+| Requisito | Test que lo cubre | Implementación verificada | Veredicto |
+|---|---|---|---|
+| REQ-CM-01 | `tests/SGV.Tests/Aplicacion/Organizacion/CargoServicioConsultaTests.cs` → `QueryAsync_ConSortNombreDesc_OrdenaServidorAntesDePaginar`; `tests/SGV.Tests/Api/CargosControllerTests.cs` → `GetConsulta_PropagaSortAlServicio`; `tests/SGV.Tests/Web/Cargo/CargoApiClientTests.cs` → `QueryAsync_WithSort_SerializesSortInUri`; `tests/SGV.Tests/Persistencia/CargoRepositoryTests.cs` → `QueryAsync_MySql_SortNombreDesc_SeAplicaAntesDePaginar` | `src/SGV.Api/Controllers/CargosController.cs` → `GetConsulta`; `src/SGV.Aplicacion/Organizacion/Consultas/CargoServicioConsulta.cs` → `QueryAsync`; `src/SGV.Infraestructura/Persistencia/Repositorios/CargoRepository.cs` → `QueryAsync` / `ApplySort`; `src/SGV.Web/Integration/Organizacion/CargoApiClient.cs` → `BuildQueryUri`; `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` → `LoadAsync` | ✅ |
+| REQ-CM-02 | `tests/SGV.Tests/Aplicacion/Organizacion/CargoListQueryTests.cs` → `Default_SegmentoEsActivas`; `tests/SGV.Tests/Api/CargosControllerTests.cs` → `GetConsulta_StatusInvalido_CaeA_Activas`, `GetConsulta_SinStatus_RetornaActivas` | `src/SGV.Aplicacion/Organizacion/Consultas/Dtos/CargoListQuery.cs`; `src/SGV.Api/Controllers/CargosController.cs` → normalización de `status` | ✅ |
+| REQ-CM-03 | `tests/SGV.Tests/Aplicacion/Organizacion/CargoServicioConsultaTests.cs` → `QueryAsync_TotalCountProvieneDelRepositorio`; `tests/SGV.Tests/Persistencia/CargoRepositoryTests.cs` → `QueryAsync_MySql_Paginacion_TotalCountProvieneDelRepositorio` | `src/SGV.Aplicacion/Organizacion/Consultas/CargoServicioConsulta.cs` → `QueryAsync`; `src/SGV.Infraestructura/Persistencia/Repositorios/CargoRepository.cs` → `CountAsync` antes del page slice | ✅ |
+| REQ-CM-04 | `tests/SGV.Tests/Api/CargosControllerTests.cs` → `PatchReactivar_Conflict_Returns409WithProblemDetails`; `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` → `Post_Reactivate_Falla_ConservaSegmentoEliminadas`; `tests/SGV.Tests/Persistencia/CargoRepositoryTests.cs` → `QueryAsync_MySql_ActivaYEliminada_MismoCodigo_RetornaAmbasEnDistintosSegmentos` | `src/SGV.Api/Controllers/CargosController.cs` → `Reactivate`; `src/SGV.Aplicacion/Organizacion/Comandos/CargoServicioComandos.cs` → `ReactivarAsync` | ✅ |
+| REQ-CW-01 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` → `Get_Index_Default_MuestraVistaActivas`, `Get_Index_StatusEliminadas_MuestraToggleActivoEnEliminadas`, `Get_Index_SinStatus_CaeA_Activas` | `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml` → toggle + hidden `status`; `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` → `BuildToggleSegmentoRouteValues`, `NormalizeSegmento` | ✅ |
+| REQ-CW-02 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` → `Get_Index_WhenAuthenticated_RendersActiveCargosTable`, `Get_Index_StatusEliminadas_MuestraToggleActivoEnEliminadas`, `Post_Reactivate_Exito_RedirigeAActivas`; `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` → `ReactivateConfirmationScript_WhenConfirmed_SubmitsFormOnce` | `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml` → ramas de acciones activas/eliminadas; `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` → `OnPostReactivateAsync` | ✅ |
+| REQ-CW-03 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` → `Post_Reactivate_Exito_RedirigeAActivas`, `Post_Reactivate_Falla_ConservaSegmentoEliminadas` | `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` → `OnPostReactivateAsync` | ✅ |
+| REQ-CW-04 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` → `Post_Reactivate_Exito_RedirigeAActivas`, `Post_Reactivate_Falla_ConservaSegmentoEliminadas`, `Post_Delete_AlmacenaLastDeletedId_PermiteReactivarEnBanner` | `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml` → links/hidden inputs con `status`, `search`, `sort`, `page`; `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` → redirects y `deletedId` PRG | ✅ |
+| REQ-CW-05 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` → `ReactivateConfirmationScript_WhenCancelled_DoesNotSubmitForm`, `ReactivateConfirmationScript_WhenConfirmed_SubmitsFormOnce` | `src/SGV.Web/wwwroot/js/pages/cargos-index.js` → `wireCargoReactivateConfirmation` | ✅ |
+| REQ-CW-06 | `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` → `Post_Delete_AlmacenaLastDeletedId_PermiteReactivarEnBanner`, `Post_Delete_CuandoSegmentoEsEliminadas_NoMuestraCtaReactivar`, `Post_Reactivate_Exito_LimpiaLastDeletedId_BannerDesaparece` | `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` → `LastDeletedId`, `HasLastDeleted`, `OnPostDeleteAsync`, `OnPostReactivateAsync`, `ClearLastDeleted`; `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml` → CTA banner | ✅ |
+| REQ-SRA-01 | `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` → `Cargos_ConsultaEndpoint_DocumentaParametroStatus`, `Cargos_ReactivarEndpoint_SigueDocumentado` | `src/SGV.Api/Controllers/CargosController.cs` → XML docs + `[HttpGet("consulta")]` + `[HttpPatch("{id:guid}/reactivar")]` | ✅ |
 
-### REQ-CM-04 (reactivación con unicidad activa preservada)
-- **API**: `CargosControllerTests.PatchReactivar_Conflict_Returns409WithProblemDetails` ✅ (preservado del comportamiento existente).
-- **Web**: `CargoIndexPageTests.Post_Reactivate_Falla_ConservaSegmentoEliminadas` ✅
-- **Persistencia MySQL**: `CargoRepositoryTests.QueryAsync_MySql_ActivaYEliminada_MismoCodigo_RetornaAmbasEnDistintosSegmentos` ✅
+## 5. Hallazgos nuevos
 
-### REQ-CW-01 (toggle binario Activas/Eliminadas con reset de página)
-- **Web**: `CargoIndexPageTests.Index_Default_MuestraVistaActivas` ✅
-- **Web**: `CargoIndexPageTests.Index_StatusEliminadas_MuestraToggleActivoEnEliminadas` ✅
-- **Web**: `CargoIndexPageTests.Index_Get_SinStatus_CaeA_Activas` ✅
+### CRITICAL
 
-### REQ-CW-02 (vista eliminadas con acción Reactivar)
-- **Web**: `CargoIndexPageTests.Index_StatusEliminadas_MuestraToggleActivoEnEliminadas` (verifica render de la fila) ✅
-- **JS**: `CargoIndexPageTests.ReactivateConfirmationScript_*` ✅
+- Ninguno.
 
-### REQ-CW-03 (redirección y feedback de reactivación)
-- **Web**: `CargoIndexPageTests.Post_Reactivate_Exito_RedirigeAActivas` ✅
-- **Web**: `CargoIndexPageTests.Post_Reactivate_Falla_ConservaSegmentoEliminadas` ✅
+### WARNING
 
-### REQ-CW-04 (preservación de `status` y contexto post-redirect)
-- **Web**: el toggle Activas/Eliminadas usa `BuildToggleSegmentoRouteValues` con reset `p=1`; orden, paginación y search preservan `status` en cada link; formularios POST incluyen hidden `status` — ver `Index.cshtml` actualizado y `Index.cshtml.cs` `BuildEditRouteValues`/`BuildDetailsRouteValues`/`BuildToggleSegmentoRouteValues`.
+#### W-001 — `apply-progress.md` todavía omite el commit documental `fa1ddc33`
+- **Evidencia**:
+  - `git log --oneline -15` incluye `fa1ddc33 docs(apply): merge second-pass progress into apply-progress.md`.
+  - La tabla `Commits (segunda pasada)` de `openspec/changes/cargos-filtro-activos-eliminados/apply-progress.md` lista `061219e0` y `284881e1`, pero no `fa1ddc33`.
+- **Impacto**: no afecta el comportamiento validado ni bloquea archive, pero deja trazabilidad incompleta del cierre documental.
 
-### REQ-CW-05 (confirmación JS de reactivación con SweetAlert2)
-- **JS**: `CargoIndexPageTests.ReactivateConfirmationScript_WhenCancelled_DoesNotSubmitForm` ✅
-- **JS**: `CargoIndexPageTests.ReactivateConfirmationScript_WhenConfirmed_SubmitsFormOnce` ✅
-- **Web**: `Index.cshtml` usa `data-cargo-reactivate-form` + `data-cargo-reactivate-button` + `data-cargo-item-name` + `data-cargo-item-code` ✅
+### SUGGESTION
 
-### REQ-CW-06 (CTA rápido de última baja — banner) — **desvío documentado en apply-progress.md**
-- Implementación: `LastDeletedId` se conserva en el page model pero la propiedad `HasLastDeleted` queda forzada a `false` y el banner no se renderiza hasta resolver un bug heredado de interacción `PageModel.TempData` ↔ Razor.
-- Test placeholder: `Post_Delete_AlmacenaLastDeletedId_PermiteReactivarEnBanner` documenta el comportamiento esperado y queda para una iteración futura.
+#### S-001 — fortalecer la evidencia web de REQ-CW-02 con asserts explícitos de hide/show en vista Eliminadas
+- Hoy la implementación está correcta y el flujo de reactivación está probado, pero una prueba adicional que aserte explícitamente ausencia de `Detalle/Editar/Eliminar/Crear` y presencia de `data-cargo-reactivate-button` en `status=eliminadas` reduciría futuros falsos verdes.
 
-### REQ-SRA-01 (Swagger documenta consulta segmentada y reactivación de cargos)
-- **Swagger**: `SwaggerConfigurationTests.Cargos_ConsultaEndpoint_DocumentaParametroStatus` ✅
-- **Swagger**: `SwaggerConfigurationTests.Cargos_ReactivarEndpoint_SigueDocumentado` ✅
-- **Swagger**: `SwaggerConfigurationTests.SwaggerDocument_ListsAllResourcePaths` confirma `/api/v1/cargos/consulta` listado ✅
+## 6. Decisión final
 
-## Verificación E2E manual (no automatizada por falta de UI headless)
+**READY FOR ARCHIVE**
 
-No automatizada en este slice. La verificación E2E se delega al owner del PR usando el entorno dev local. Pasos sugeridos:
-1. Levantar `src/SGV.Api` (`dotnet run`) y `src/SGV.Web` (`dotnet run`).
-2. Autenticarse como `admin` en `https://localhost:7xxx/auth/sign-in`.
-3. Ir a `/organizacion/cargos`. Confirmar:
-   - Toggle "Activas | Eliminadas" en el card header.
-   - Botones "Detalle | Editar | Eliminar" por fila.
-4. Click "Eliminar" en un cargo con puestos activos (o sin puestos) — el modal SweetAlert2 pide confirmación.
-5. Tras éxito, redirect a la lista Activas con mensaje verde.
-6. Click en "Eliminadas" del toggle — el listado cambia, las acciones por fila son sólo "Reactivar".
-7. Click "Reactivar" en una fila eliminada — el modal SweetAlert2 pregunta.
-8. Tras éxito, redirect a la lista Activas (sin `status=eliminadas`) con mensaje verde.
-9. Si el código ya está en uso por otro cargo activo, la reactivación falla con mensaje de error rojo y se permanece en Eliminadas.
-10. Verificar Swagger en `https://localhost:5xxx/swagger` — el endpoint `GET /api/v1/cargos/consulta` aparece con query param `status`.
+Razones:
+- Los CRITICAL previos **F-001, F-002 y F-003** quedaron resueltos con evidencia de código + ejecución.
+- La sugerencia **F-006** ya quedó materializada en un regression test MySQL cross-page.
+- Build, batería focalizada, tests web/API/aplicación/persistencia relevantes y frontend build pasaron.
+- La suite completa no introdujo fallos nuevos; solo persisten los 12 ya conocidos de `OcupacionRepositoryTests` (issue #59).
 
-## Conclusión
+## 7. Riesgos residuales
 
-Las 9 tareas del slice están implementadas y verificadas con suite automatizada. 8/9 requisitos funcionales cubiertos por tests. 1 requisito (REQ-CW-06) queda con un desvío documentado y un test placeholder; la causa raíz está aislada y la funcionalidad core de reactivación no se ve afectada. El slice está listo para merge.
+- **medio** — La trazabilidad documental de `apply-progress.md` no está 100 % alineada con `git log` por la omisión de `fa1ddc33` en la tabla de commits.
+- **bajo** — La vista Eliminadas está validada funcionalmente, pero podría beneficiarse de un assert web más explícito sobre el set exacto de acciones visibles.
+
+## 8. Próximos pasos sugeridos
+
+1. Pasar a `sdd-archive` para cerrar el cambio.
+2. Si se quiere dejar el rastro impecable, registrar en archive que `apply-progress.md` no lista `fa1ddc33` en la tabla de commits aunque sí incorpora su contenido.
+3. Mantener fuera del scope de este cambio los 12 fallos conocidos de `OcupacionRepositoryTests` y tratarlos por separado bajo el issue #59.
