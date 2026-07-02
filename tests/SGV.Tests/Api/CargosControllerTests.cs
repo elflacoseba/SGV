@@ -612,4 +612,71 @@ public sealed class CargosControllerTests
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(409, problem.Status);
     }
+
+    // ---- GET /api/v1/cargos/consulta ----
+
+    [Fact]
+    public async Task GetConsulta_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/cargos/consulta?status=eliminadas");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetConsulta_StatusEliminadas_RetornaSoloEliminadas()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoServicioConsulta>();
+            services.AddSingleton<ICargoServicioConsulta>(new FakeCargoServicio(withEliminadas: true));
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/cargos/consulta?status=eliminadas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PagedResult<CargoDto>>(response);
+        Assert.NotNull(page);
+        Assert.Single(page.Items);
+        Assert.Equal(FakeCargoServicio.CargoEliminadoId1, page.Items[0].Id);
+        Assert.Equal(1, page.TotalCount);
+    }
+
+    [Fact]
+    public async Task GetConsulta_StatusInvalido_CaeA_Activas()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoServicioConsulta>();
+            services.AddSingleton<ICargoServicioConsulta>(new FakeCargoServicio(withEliminadas: true));
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/cargos/consulta?status=archivo");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PagedResult<CargoDto>>(response);
+        Assert.NotNull(page);
+        Assert.Single(page.Items);
+        Assert.Equal(FakeCargoServicio.CargoId1, page.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetConsulta_SinStatus_RetornaActivas()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/cargos/consulta");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PagedResult<CargoDto>>(response);
+        Assert.NotNull(page);
+        Assert.Single(page.Items);
+        Assert.Equal(FakeCargoServicio.CargoId1, page.Items[0].Id);
+    }
 }
