@@ -105,11 +105,11 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
     }
 
     // ──────────────────────────────────────────────
-    // Task 2.4: POST exitoso → PRG a Edit con TempData de éxito
+    // Task 2.4: POST exitoso → PRG a Details con TempData de éxito
     // ──────────────────────────────────────────────
 
     [Fact]
-    public async Task Post_Edit_WhenSuccessful_RedirectsToEditWithConfirmation()
+    public async Task Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation()
     {
         var cargoId = Guid.NewGuid();
         var nivelId = CargoWebTestFixture.SeniorNivelId;
@@ -133,7 +133,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location?.OriginalString ?? string.Empty;
-        Assert.Contains($"/organizacion/cargos/editar/{cargoId}", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"/organizacion/cargos/detalles/{cargoId}", location, StringComparison.OrdinalIgnoreCase);
 
         // El payload se envió correctamente al API
         var update = Assert.Single(apiClient.UpdateCalls);
@@ -143,7 +143,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Equal(nivelId, update.Request.NivelId);
         Assert.Equal("Descripción actualizada", update.Request.Descripcion);
 
-        // Al refrescar, el TempData debe mostrar el mensaje de éxito
+        // Al refrescar, el TempData debe mostrar el mensaje de éxito en la página de detalle
         var refreshed = await client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);

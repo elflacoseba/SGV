@@ -45,14 +45,14 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains(second.Codigo, content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(second.Nombre, content, StringComparison.OrdinalIgnoreCase);
 
-        // Las filas deben exponer las acciones Detalle y Eliminar
+        // Las filas deben exponer las acciones Detalle, Editar y Eliminar
         Assert.Contains($"/organizacion/cargos/detalles/{first.Id}", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"/organizacion/cargos/editar/{first.Id}", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-title=\"Editar\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-cargo-delete-form", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-cargo-delete-button", content, StringComparison.OrdinalIgnoreCase);
 
-        // El alcance de PR 2 prohibe create/edit/skills/eliminados
-        Assert.DoesNotContain(">Crear<", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">Editar<", content, StringComparison.OrdinalIgnoreCase);
+        // El alcance actual prohibe skills y vista de eliminadas en este listado
         Assert.DoesNotContain("Habilidades", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Eliminadas", content, StringComparison.OrdinalIgnoreCase);
 

@@ -163,7 +163,7 @@ public sealed class EditModel(
         {
             TempData["StatusMessage"] = $"El cargo \"{result.Value.Nombre}\" se actualizó correctamente.";
             TempData["StatusKind"] = "success";
-            return RedirectToPage("/Organizacion/Cargos/Edit", new { id, p = ReturnPage, search = ReturnSearch, sort = ReturnSort });
+            return RedirectToPage("/Organizacion/Cargos/Details", new { id, p = ReturnPage, search = ReturnSearch, sort = ReturnSort });
         }
 
         if (result.Error is not null)
