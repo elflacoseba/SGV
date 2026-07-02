@@ -80,16 +80,10 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
 
     /// <summary>
-    /// Identificador del último cargo eliminado, expuesto en TempData para
-    /// permitir el CTA rápido de reactivación en el banner de activas.
+    /// <c>true</c> cuando el segmento actual es <c>eliminadas</c> y la página
+    /// expone la acción de reactivación por fila.
     /// </summary>
-    public string? LastDeletedId => TempData[nameof(LastDeletedId)] as string;
-
-    /// <summary>
-    /// <c>true</c> cuando hay un <see cref="LastDeletedId"/> vigente y el segmento
-    /// actual es <c>activas</c> (no se muestra el CTA en vista de eliminadas).
-    /// </summary>
-    public bool HasLastDeleted => !IsDeletedView && !string.IsNullOrWhiteSpace(LastDeletedId);
+    public bool HasLastDeleted => false;
 
     public async Task OnGetAsync(
         [FromQuery(Name = "p")] int currentPage = 1,
@@ -126,7 +120,6 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
             var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, normalizedSegmento, cancellationToken);
             TempData[nameof(StatusMessage)] = "El cargo se eliminó correctamente.";
             TempData[nameof(StatusKind)] = "success";
-            TempData[nameof(LastDeletedId)] = id.ToString();
 
             return RedirectToPage("/Organizacion/Cargos/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
         }
@@ -162,21 +155,26 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         {
             TempData[nameof(StatusMessage)] = "El cargo se reactivó correctamente.";
             TempData[nameof(StatusKind)] = "success";
-            TempData.Remove(nameof(LastDeletedId));
 
             // Tras éxito, redirigir a la vista Activas sin status=eliminadas.
             return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort });
         }
 
+        var errorCode = result.Error?.Code;
+        var errorMessage = result.Error?.Message;
         var message = result.Error?.Type switch
         {
-            CargoErrorType.Conflict => $"No se pudo reactivar el cargo. {result.Error.Message}",
+            CargoErrorType.Conflict => $"No se pudo reactivar el cargo. {errorMessage}",
             CargoErrorType.NotFound => "El cargo ya no está disponible para reactivar.",
             _ => "No se pudo reactivar el cargo. Intentá nuevamente."
         };
 
         TempData[nameof(StatusMessage)] = message;
         TempData[nameof(StatusKind)] = "danger";
+        if (!string.IsNullOrWhiteSpace(errorCode))
+        {
+            TempData["ErrorCode"] = errorCode;
+        }
 
         // Tras fallo, permanecer en la vista Eliminadas para permitir reintento.
         return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
