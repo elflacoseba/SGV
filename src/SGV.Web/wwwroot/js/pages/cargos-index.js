@@ -34,14 +34,52 @@ function wireCargoDeleteConfirmation(root, swal) {
     });
 }
 
+function wireCargoReactivateConfirmation(root, swal) {
+    if (!root || !swal || typeof swal.fire !== 'function') {
+        return;
+    }
+
+    root.querySelectorAll('[data-cargo-reactivate-form]').forEach(function (form) {
+        var button = form.querySelector('[data-cargo-reactivate-button]');
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+
+            swal.fire({
+                title: '¿Reactivar cargo?',
+                text: 'Se reactivará el cargo ' + (button.getAttribute('data-cargo-item-name') || '') + ' (' + (button.getAttribute('data-cargo-item-code') || '') + ').',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, reactivar',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
+            }).then(function (result) {
+                if (result.isConfirmed) {
+                    if (typeof form.requestSubmit === 'function') {
+                        form.requestSubmit(button);
+                        return;
+                    }
+
+                    form.submit();
+                }
+            });
+        });
+    });
+}
+
 if (typeof window !== 'undefined') {
     window.wireCargoDeleteConfirmation = wireCargoDeleteConfirmation;
+    window.wireCargoReactivateConfirmation = wireCargoReactivateConfirmation;
 
     if (window.document && window.Swal) {
         wireCargoDeleteConfirmation(window.document, window.Swal);
+        wireCargoReactivateConfirmation(window.document, window.Swal);
     }
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { wireCargoDeleteConfirmation };
+    module.exports = { wireCargoDeleteConfirmation, wireCargoReactivateConfirmation };
 }

@@ -137,6 +137,30 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Equal("Sí, eliminar", result.ConfirmButtonText);
     }
 
+    [Fact]
+    public async Task ReactivateConfirmationScript_WhenCancelled_DoesNotSubmitForm()
+    {
+        var result = await ExecuteReactivateConfirmationScriptAsync(false);
+
+        Assert.Equal(0, result.SubmitCount);
+        Assert.True(result.PreventDefaultCalled);
+        Assert.True(result.ShowCancelButton);
+        Assert.Equal("Cancelar", result.CancelButtonText);
+        Assert.True(result.ReverseButtons);
+        Assert.Equal("question", result.Icon);
+    }
+
+    [Fact]
+    public async Task ReactivateConfirmationScript_WhenConfirmed_SubmitsFormOnce()
+    {
+        var result = await ExecuteReactivateConfirmationScriptAsync(true);
+
+        Assert.Equal(1, result.SubmitCount);
+        Assert.True(result.PreventDefaultCalled);
+        Assert.Equal("Sí, reactivar", result.ConfirmButtonText);
+        Assert.Equal("¿Reactivar cargo?", result.Title);
+    }
+
     // ──────────────────────────────────────────────
     // Task 2.5: POST ?handler=Delete — éxito y conflicto
     // ──────────────────────────────────────────────
@@ -525,4 +549,136 @@ main().catch(error => {
         bool ReverseButtons,
         string? ConfirmButtonText,
         string? CancelButtonText);
+
+    private static async Task<ReactivateScriptExecutionResult> ExecuteReactivateConfirmationScriptAsync(bool isConfirmed)
+    {
+        var scriptPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SGV.Web/wwwroot/js/pages/cargos-index.js"));
+        var harnessPath = Path.Combine(Path.GetTempPath(), $"cargo-reactivate-confirmation-{Guid.NewGuid():N}.cjs");
+
+        await File.WriteAllTextAsync(harnessPath, $$"""
+const { wireCargoReactivateConfirmation } = require({{JsonSerializer.Serialize(scriptPath)}});
+
+let clickHandler = null;
+let submitCount = 0;
+let preventDefaultCalled = false;
+let swalConfig = null;
+
+const button = {
+  getAttribute(name) {
+    if (name === 'data-cargo-item-name') {
+      return 'Analista Eliminado';
+    }
+
+    if (name === 'data-cargo-item-code') {
+      return 'C-001';
+    }
+
+    return null;
+  },
+  addEventListener(type, handler) {
+    if (type === 'click') {
+      clickHandler = handler;
+    }
+  }
+};
+
+const form = {
+  querySelector(selector) {
+    return selector === '[data-cargo-reactivate-button]' ? button : null;
+  },
+  submit() {
+    submitCount += 1;
+  }
+};
+
+const root = {
+  querySelectorAll(selector) {
+    return selector === '[data-cargo-reactivate-form]' ? [form] : [];
+  }
+};
+
+const Swal = {
+  fire(config) {
+    swalConfig = config;
+    return Promise.resolve({ isConfirmed: {{(isConfirmed ? "true" : "false")}} });
+  }
+};
+
+async function main() {
+  wireCargoReactivateConfirmation(root, Swal);
+
+  if (!clickHandler) {
+    throw new Error('Reactivate confirmation click handler was not wired.');
+  }
+
+  clickHandler({
+    preventDefault() {
+      preventDefaultCalled = true;
+    }
+  });
+
+  await Promise.resolve();
+  await Promise.resolve();
+
+  process.stdout.write(JSON.stringify({
+    submitCount,
+    preventDefaultCalled,
+    showCancelButton: Boolean(swalConfig && swalConfig.showCancelButton),
+    reverseButtons: Boolean(swalConfig && swalConfig.reverseButtons),
+    confirmButtonText: swalConfig ? swalConfig.confirmButtonText : null,
+    cancelButtonText: swalConfig ? swalConfig.cancelButtonText : null,
+    title: swalConfig ? swalConfig.title : null,
+    icon: swalConfig ? swalConfig.icon : null
+  }));
+}
+
+main().catch(error => {
+  process.stderr.write(error.stack || String(error));
+  process.exit(1);
+});
+""");
+
+        try
+        {
+            var startInfo = new ProcessStartInfo("node", $"\"{harnessPath}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+
+            using var process = Process.Start(startInfo);
+            Assert.NotNull(process);
+
+            var standardOutput = await process.StandardOutput.ReadToEndAsync();
+            var standardError = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            Assert.True(process.ExitCode == 0, $"Node harness failed with exit code {process.ExitCode}: {standardError}");
+
+            var result = JsonSerializer.Deserialize<ReactivateScriptExecutionResult>(standardOutput, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            Assert.NotNull(result);
+            return result!;
+        }
+        finally
+        {
+            if (File.Exists(harnessPath))
+            {
+                File.Delete(harnessPath);
+            }
+        }
+    }
+
+    private sealed record ReactivateScriptExecutionResult(
+        int SubmitCount,
+        bool PreventDefaultCalled,
+        bool ShowCancelButton,
+        bool ReverseButtons,
+        string? ConfirmButtonText,
+        string? CancelButtonText,
+        string? Title,
+        string? Icon);
 }
