@@ -79,22 +79,43 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
 
     /// <summary>
-    /// <c>true</c> cuando el segmento actual es <c>eliminadas</c> y la página
-    /// expone la acción de reactivación por fila.
+    /// Identificador del último cargo eliminado, persistido en TempData
+    /// durante el PRG desde <see cref="OnPostDeleteAsync"/>. El valor
+    /// se limpia tras una reactivación exitosa
+    /// (<see cref="OnPostReactivateAsync"/>). Es <c>null</c> cuando no hay
+    /// una última baja pendiente de reactivación rápida.
     /// </summary>
-    public bool HasLastDeleted => false;
+    public Guid? LastDeletedId { get; private set; }
+
+    /// <summary>
+    /// <c>true</c> cuando hay un <see cref="LastDeletedId"/> pendiente de
+    /// reactivar desde el banner. El CTA solo se muestra cuando el
+    /// segmento vigente es Activas (REQ-CW-06 MUST NOT).
+    /// </summary>
+    public bool HasLastDeleted => LastDeletedId.HasValue;
 
     public async Task OnGetAsync(
         [FromQuery(Name = "p")] int currentPage = 1,
         string? search = null,
         string? sort = null,
         string? status = null,
+        Guid? deletedId = null,
         CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
         Search = Normalize(search);
         Sort = Normalize(sort);
         Segmento = NormalizeSegmento(status);
+
+        // REQ-CW-06: si el POST de Delete propagó el id del cargo eliminado
+        // como query string, lo persistimos en TempData para que el banner
+        // pueda renderizar el CTA de reactivación rápida. El Razor accede
+        // por TempData directamente (no por esta propiedad) por compatibilidad
+        // con el patrón de Unidades Organizativas.
+        if (deletedId.HasValue)
+        {
+            TempData[nameof(LastDeletedId)] = deletedId.Value.ToString();
+        }
 
         await LoadAsync(cancellationToken);
     }
@@ -120,7 +141,10 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
             TempData[nameof(StatusMessage)] = "El cargo se eliminó correctamente.";
             TempData[nameof(StatusKind)] = "success";
 
-            return RedirectToPage("/Organizacion/Cargos/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
+            // REQ-CW-06: propagar el id del cargo eliminado en el PRG para
+            // que el siguiente GET pueda persistirlo en TempData y renderizar
+            // el CTA de reactivación rápida en el banner.
+            return RedirectToPage("/Organizacion/Cargos/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento, deletedId = id });
         }
 
         var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
@@ -154,6 +178,10 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         {
             TempData[nameof(StatusMessage)] = "El cargo se reactivó correctamente.";
             TempData[nameof(StatusKind)] = "success";
+
+            // REQ-CW-06: limpiar el LastDeletedId tras una reactivación
+            // exitosa para que el banner ya no ofrezca el CTA.
+            ClearLastDeleted();
 
             // Tras éxito, redirigir a la vista Activas sin status=eliminadas.
             return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort });
@@ -243,6 +271,20 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     {
         LoadErrorMessage = null;
 
+        // REQ-CW-06: leer LastDeletedId desde TempData para que el banner
+        // del Razor pueda renderizar el CTA. El getter inline del Razor
+        // y esta propiedad quedan sincronizados para que ambas vistas
+        // (OnGet/OnPost) accedan al mismo valor persistido.
+        var rawLastDeleted = TempData[nameof(LastDeletedId)] as string;
+        if (Guid.TryParse(rawLastDeleted, out var parsedDeleted))
+        {
+            LastDeletedId = parsedDeleted;
+        }
+        else
+        {
+            LastDeletedId = null;
+        }
+
         try
         {
             // El sort viaja al backend (REQ-CM-01): el repositorio aplica el
@@ -270,6 +312,12 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
             CurrentPage = 1;
             LoadErrorMessage = "No se pudo cargar el listado de cargos. Intentá nuevamente.";
         }
+    }
+
+    private void ClearLastDeleted()
+    {
+        TempData.Remove(nameof(LastDeletedId));
+        LastDeletedId = null;
     }
 
     private async Task<int> ResolveRedirectPageAsync(

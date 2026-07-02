@@ -411,11 +411,120 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
     [Fact]
     public async Task Post_Delete_AlmacenaLastDeletedId_PermiteReactivarEnBanner()
     {
-        // El banner de reactivación rápida con LastDeletedId está fuera del
-        // scope de este slice (ver apply-progress.md / desvíos). Se conserva
-        // el test vacío para documentar la decisión y dejar el espacio para
-        // una iteración futura si la dirección lo requiere.
-        await Task.CompletedTask;
+        // REQ-CW-06: tras una baja lógica exitosa desde el listado, el
+        // banner de feedback debe mostrar un botón "Reactivar" que
+        // ejecute ?handler=Reactivate con el id del último cargo eliminado.
+        // El CTA se persiste vía TempData["LastDeletedId"] y solo se
+        // muestra cuando el segmento actual es Activas.
+        var toDelete = CargoWebTestFixture.BuildCargoDto("BANNER-01", "Para Eliminar", null, "Junior");
+        var remaining = CargoWebTestFixture.BuildCargoDto("BANNER-02", "Quedan Cargos", null, "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(toDelete, remaining);
+        apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos?p=1&search=ban&sort=nombre_asc");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var deleteResponse = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = toDelete.Id.ToString(),
+            ["page"] = "1",
+            ["search"] = "ban",
+            ["sort"] = "nombre_asc"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);
+        Assert.Equal(toDelete.Id, Assert.Single(apiClient.DeleteCalls));
+
+        var refreshed = await client.GetAsync(deleteResponse.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Contains("se eliminó correctamente", refreshedContent, StringComparison.OrdinalIgnoreCase);
+
+        // El banner debe contener el botón Reactivar apuntando a
+        // ?handler=Reactivate con el id del cargo eliminado.
+        Assert.Contains("formaction=\"?handler=Reactivate\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"value=\"{toDelete.Id}\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+
+        // El botón debe preservar el contexto: page, search, sort, status.
+        Assert.Contains("value=\"ban\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("value=\"nombre_asc\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Delete_CuandoSegmentoEsEliminadas_NoMuestraCtaReactivar()
+    {
+        // REQ-CW-06 MUST NOT: cuando el usuario está en la vista Eliminadas,
+        // el CTA de reactivación rápida del banner NO debe aparecer (el
+        // banner sigue mostrando el feedback, pero sin el botón Reactivar).
+        var toDelete = CargoWebTestFixture.BuildCargoDto("NOSHOW-01", "Eliminar Sin CTA", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList(toDelete);
+        apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var deleteResponse = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = toDelete.Id.ToString(),
+            ["page"] = "1",
+            ["status"] = "eliminadas"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);
+
+        // Tras la baja, el redirect debe llevar al usuario de vuelta a
+        // Eliminadas (la baja actualizó el segmento activo, pero la vista
+        // Eliminadas es donde seguimos). En esa vista el CTA NO debe mostrarse.
+        var refreshed = await client.GetAsync(deleteResponse.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        // El CTA Reactivar del banner debe estar AUSENTE.
+        Assert.DoesNotContain("formaction=\"?handler=Reactivate\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Reactivate_Exito_LimpiaLastDeletedId_BannerDesaparece()
+    {
+        // Triangulación: una vez que el usuario reactiva el último cargo
+        // eliminado, el CTA del banner debe desaparecer (LastDeletedId
+        // se limpia vía TempData.Remove).
+        var cargo = CargoWebTestFixture.BuildCargoDto("CLEAR-01", "Reactivar y Limpiar", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.ReactivateResult = CargoCommandResult.Success(
+            new CargoDto(cargo.Id, cargo.Codigo, cargo.Nombre, cargo.Descripcion, cargo.NivelId, cargo.NivelNombre));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        // GET inicial sin LastDeletedId: el CTA no debe aparecer.
+        var firstGet = await client.GetAsync("/organizacion/cargos");
+        var firstContent = HttpUtility.HtmlDecode(await firstGet.Content.ReadAsStringAsync());
+        Assert.DoesNotContain("formaction=\"?handler=Reactivate\"", firstContent, StringComparison.OrdinalIgnoreCase);
+
+        // Reactivar exitosamente debe limpiar el LastDeletedId para que
+        // un GET posterior no muestre el CTA.
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(firstGet);
+        var reactivate = await client.PostAsync("/organizacion/cargos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, reactivate.StatusCode);
+
+        var refreshed = await client.GetAsync(reactivate.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.DoesNotContain("formaction=\"?handler=Reactivate\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────

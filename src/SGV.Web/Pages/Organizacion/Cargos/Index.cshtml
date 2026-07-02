@@ -15,8 +15,23 @@
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
 {
-    <div class="alert alert-@Model.StatusKind" role="alert">
-        @Model.StatusMessage
+    <div class="alert alert-@Model.StatusKind d-flex justify-content-between align-items-center" role="alert">
+        <span>@Model.StatusMessage</span>
+        @* REQ-CW-06: el CTA Reactivar del banner SOLO se muestra en la vista Activas
+           y SOLO si hay un LastDeletedId persistido en TempData. La propiedad
+           Model.LastDeletedId se popula desde TempData en LoadAsync. *@
+        @if (Model.HasLastDeleted && !Model.IsDeletedView)
+        {
+            <form method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input name="id" type="hidden" value="@Model.LastDeletedId" />
+                <input name="page" type="hidden" value="@Model.CurrentPage" />
+                <input name="search" type="hidden" value="@Model.Search" />
+                <input name="sort" type="hidden" value="@Model.Sort" />
+                <input name="status" type="hidden" value="@Model.Segmento" />
+                <button type="submit" class="btn btn-sm btn-outline-primary ms-2" formaction="?handler=Reactivate">Reactivar</button>
+            </form>
+        }
         @if (TempData["ErrorCode"] is string errorCode && !string.IsNullOrWhiteSpace(errorCode))
         {
             <span class="badge bg-secondary ms-2">@errorCode</span>
