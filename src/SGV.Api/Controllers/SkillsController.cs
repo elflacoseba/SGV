@@ -138,16 +138,19 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// Actualiza los campos editables de una habilidad existente.
+    /// Actualiza los campos editables de una habilidad existente, incluido el
+    /// <c>Codigo</c>. La regla de unicidad activa del código es la misma que
+    /// aplica el alta y se traduce a <c>409 Conflict</c> cuando colisiona con
+    /// otra habilidad activa.
     /// </summary>
     /// <param name="id">Identificador único de la habilidad a actualizar.</param>
-    /// <param name="request">Datos actualizados de la habilidad.</param>
+    /// <param name="request">Datos actualizados de la habilidad, incluyendo el nuevo <c>Codigo</c>.</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Habilidad actualizada.</returns>
     /// <response code="200">Habilidad actualizada correctamente.</response>
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="404">No se encontró una habilidad con el ID especificado.</response>
-    /// <response code="409">Conflicto — el código ya está en uso por otra habilidad.</response>
+    /// <response code="409">Conflicto — el código ya está en uso por otra habilidad activa.</response>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(HabilidadDto), StatusCodes.Status200OK)]

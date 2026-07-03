@@ -550,7 +550,7 @@ internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos
     {
         if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
         return Task.FromResult(HabilidadCommandResult.Success(
-            new HabilidadDto(id, "PROG", request.Nombre, request.Descripcion, request.Categoria)));
+            new HabilidadDto(id, request.Codigo, request.Nombre, request.Descripcion, request.Categoria)));
     }
 
     public Task<HabilidadCommandResult> DesactivarAsync(
