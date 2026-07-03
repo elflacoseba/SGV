@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using SGV.Web.Integration.Auth;
+using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 
 [assembly: InternalsVisibleTo("SGV.Tests")]
@@ -62,6 +63,16 @@ builder.Services.AddHttpClient<ICargoApiClient, CargoApiClient>((serviceProvider
     // indistinguishable from a server-side crash. A bounded budget converts
     // transport stalls into TaskCanceledException, which CreateModel.OnPostAsync
     // already handles as a recoverable error.
+    client.Timeout = TimeSpan.FromSeconds(10);
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+builder.Services.AddHttpClient<IHabilidadApiClient, HabilidadApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // Mismo budget que CargoApiClient: 10s para que la espera del usuario sea
+    // acotada y los fallos de transporte se traduzcan en errores recuperables.
     client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
