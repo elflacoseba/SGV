@@ -104,7 +104,14 @@ public static class HttpClientExceptionScenarios
 
     private sealed class ThrowingHandler(Func<Exception> exceptionFactory) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            // Espeja la semántica de RecordingHandler y de los handlers reales de
+            // System.Net.Http (SocketsHttpHandler, etc.): un token pre-cancelado
+            // gana sobre cualquier excepción de transporte simulada. Ver el
+            // <remarks> de RecordingHandler.LastRequest para el contrato.
+            cancellationToken.ThrowIfCancellationRequested();
             throw exceptionFactory();
+        }
     }
 }
