@@ -18,7 +18,7 @@ Estado inicial: baseline limpio, sin cambios previos. `dotnet build SGV.slnx --c
 |----|--------|---------|---------|-------------|-------------|
 | PR 1 — Slice 1/A (Backend + tests xUnit) | ✅ Completado | #1.1 a #1.11 | a90e0e50, b8c49dc8 | 0 warnings / 0 errors | 191/191 backend nuevos |
 | PR 2 — Slice 2 (Cliente + shell) | ✅ Completado | #2.1 a #2.5 | a66199de | 0 warnings / 0 errors | 21/21 verde |
-| PR 3 — Slice 3A (Index + JS + tests listado) | Pendiente | #3.1 a #3.3 | — | — | — |
+| PR 3 — Slice 3A (Index + JS + tests listado) | ✅ Completado | #3.1 a #3.3 | (siguiente commit) | 0 warnings / 0 errors | 10/10 verde |
 | PR 4 — Slice 3B (Create/Edit/Details + _Form + tests + anti-drift) | Pendiente | #3.4 a #3.9 | — | — | — |
 
 ## PR 1 — Detalle de progreso
@@ -109,6 +109,34 @@ Estado inicial: baseline limpio, sin cambios previos. `dotnet build SGV.slnx --c
 ### Commits
 
 3. `feat(web): add habilidades HTTP client shell entry and sidenav` — incluye cliente tipado, VMs, DI, sidenav y tests.
+
+## PR 3 — Detalle de progreso
+
+### Tasks completadas
+
+- [x] **#3.1** `Pages/Organizacion/Habilidades/Index.cshtml(.cs)` con PageModel `[Authorize]` que consume `IHabilidadApiClient.QueryAsync`; toggle `activas|eliminadas` con reset de página; banner `TempData` con CTA de reactivación rápida (`LastDeletedId`); SweetAlert2 para confirmación de baja y reactivación.
+- [x] **#3.2** `wwwroot/js/pages/habilidades-index.js` con handlers `data-habilidad-delete-form` y `data-habilidad-reactivate-form` (paridad con `cargos-index.js`, mensajes en español, `icon: 'question'` para reactivación).
+- [x] **#3.3** (Anti-drift Slice 3A) Verificar que `Index.cshtml` NO muestra `data-cargo-*` ni ningún filtro/columna relacionado con nivel: assert `Assert.DoesNotContain("Nivel", content)` y `Assert.DoesNotContain("data-cargo-", content)` en `HabilidadIndexPageTests`.
+
+### Archivos creados / modificados
+
+| Archivo | Acción |
+|---------|--------|
+| `src/SGV.Web/Pages/Organizacion/Habilidades/Index.cshtml` | Creado |
+| `src/SGV.Web/Pages/Organizacion/Habilidades/Index.cshtml.cs` | Creado |
+| `src/SGV.Web/wwwroot/js/pages/habilidades-index.js` | Creado |
+| `tests/SGV.Tests/Web/Habilidad/HabilidadIndexPageTests.cs` | Creado (10 tests) |
+| `tests/SGV.Tests/Web/Habilidad/HabilidadWebTestFixture.cs` | Creado |
+
+### Verificación ejecutada
+
+- `dotnet build SGV.slnx --configuration Release` → 0 warnings, 0 errors.
+- `dotnet test SGV.slnx --filter "HabilidadIndexPageTests"` → 10/10 verde.
+- `bun run build` (en `src/SGV.Web`) → bundle frontend generado limpio.
+
+### Commits
+
+4. `feat(web): add habilidades index page with segmentado list and sweetalert` — incluye Index + JS + tests.
 
 ## TDD Cycle Evidence
 
