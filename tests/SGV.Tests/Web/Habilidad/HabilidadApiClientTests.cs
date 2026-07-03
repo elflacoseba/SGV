@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;
+using RecordingHandler = SGV.Tests.Web._Shared.HttpClientExceptionScenarios.RecordingHandler;
 
 namespace SGV.Tests.Web.Habilidad;
 
@@ -21,7 +23,7 @@ public class HabilidadApiClientTests
     {
         var id = Guid.NewGuid();
         var payload = new[] { new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual") };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.GetAllAsync();
@@ -38,7 +40,7 @@ public class HabilidadApiClientTests
     {
         var id = Guid.NewGuid();
         var payload = new HabilidadDto(id, "H-002", "Programación", null, "Técnica");
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.GetByIdAsync(id);
@@ -51,7 +53,7 @@ public class HabilidadApiClientTests
     [Fact]
     public async Task GetByIdAsync_Http404_ReturnsNullWithoutThrowing()
     {
-        var handler = new StubHandler(_ => Json<object?>(HttpStatusCode.NotFound, null));
+        var handler = new RecordingHandler(_ => Json<object?>(HttpStatusCode.NotFound, null));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.GetByIdAsync(Guid.NewGuid());
@@ -63,7 +65,7 @@ public class HabilidadApiClientTests
     public async Task DeleteAsync_Http204_ReturnsSuccessAndHitsDeleteRoute()
     {
         var id = Guid.NewGuid();
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.DeleteAsync(id);
@@ -86,7 +88,7 @@ public class HabilidadApiClientTests
             Detail = "Ya existe una habilidad activa con ese código.",
             Status = 409
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.DeleteAsync(id);
@@ -105,7 +107,7 @@ public class HabilidadApiClientTests
         {
             Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
         };
-        var handler = new StubHandler(_ => response);
+        var handler = new RecordingHandler(_ => response);
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.DeleteAsync(id);
@@ -128,7 +130,7 @@ public class HabilidadApiClientTests
             Title = "ValidationError",
             Detail = "Datos inválidos."
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.BadRequest, validation));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.BadRequest, validation));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var request = new CrearHabilidadRequest("", "Liderazgo");
@@ -146,7 +148,7 @@ public class HabilidadApiClientTests
     {
         var id = Guid.NewGuid();
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", null, "Conductual");
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, dto));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.ReactivarAsync(id);
@@ -167,7 +169,7 @@ public class HabilidadApiClientTests
             TotalCount: 1,
             Page: 1,
             PageSize: 20);
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.QueryAsync(new HabilidadListQuery(1, 20, "lid", "nombre_desc", "eliminadas"));
@@ -190,7 +192,7 @@ public class HabilidadApiClientTests
             new NivelHabilidadDto(Guid.NewGuid(), "BASICO", "Básico", 1, 1),
             new NivelHabilidadDto(Guid.NewGuid(), "AVANZADO", "Avanzado", 3, 3)
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new HabilidadApiClient(NewHttpClient(handler));
 
         var result = await client.GetNivelesHabilidadAsync();
@@ -200,7 +202,40 @@ public class HabilidadApiClientTests
         Assert.Equal("/api/v1/niveles-habilidad", handler.LastRequest?.RequestUri?.AbsolutePath);
     }
 
-    private static HttpClient NewHttpClient(StubHandler handler) =>
+    // ──────────────────────────────────────────────
+    // Cobertura de contrato de transporte (issue #78):
+    // fija que QueryAsync propaga excepciones nativas del pipeline HTTP
+    // y respeta un CancellationToken pre-cancelado sin iniciar el envío.
+    // Si el cliente capturara la excepción o disparara el handler con el
+    // token ya cancelado, estos tests fallan.
+    // ──────────────────────────────────────────────
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task QueryAsync_TransportFails_PropagatesNativeException(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new HabilidadApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.QueryAsync(new HabilidadListQuery(1, 20, null, null, null)));
+    }
+
+    [Fact]
+    public async Task QueryAsync_CancellationAlreadyRequested_ThrowsAndDoesNotSendRequest()
+    {
+        var handler = new RecordingHandler();
+        var client = new HabilidadApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.QueryAsync(new HabilidadListQuery(1, 20, null, null, null), new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
+    private static HttpClient NewHttpClient(HttpMessageHandler handler) =>
         new(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
 
     private static HttpResponseMessage Json<T>(HttpStatusCode status, T payload)
@@ -210,23 +245,5 @@ public class HabilidadApiClientTests
             Content = JsonContent.Create(payload)
         };
         return response;
-    }
-
-    private sealed class StubHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
-
-        public StubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
-        {
-            _responder = responder;
-        }
-
-        public HttpRequestMessage? LastRequest { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            LastRequest = request;
-            return Task.FromResult(_responder(request));
-        }
     }
 }
