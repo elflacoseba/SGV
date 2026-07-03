@@ -488,13 +488,8 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
-        // El CTA Reactivar del banner debe estar AUSENTE. El banner (válido
-        // sólo en vista Activas) tiene el texto plano "Reactivar" entre el
-        // tag <button>; los botones por fila de la grilla usan sólo el
-        // icono (data-cargo-reactivate-form). Por eso verificamos el texto
-        // del banner en vez del genérico formaction="?handler=Reactivate",
-        // que aparece también en cada fila de la grilla de Eliminadas.
-        Assert.DoesNotContain(">Reactivar</button>", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        // El CTA Reactivar del banner debe estar AUSENTE.
+        Assert.DoesNotContain("formaction=\"?handler=Reactivate\"", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
