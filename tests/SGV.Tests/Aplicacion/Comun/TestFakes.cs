@@ -1,5 +1,6 @@
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 
 namespace SGV.Tests.Aplicacion.Comun;
@@ -37,6 +38,15 @@ internal sealed class FakeHabilidadReadRepository : IHabilidadRepository
         => Task.FromResult(_habilidad?.Id == id ? _habilidad : null);
     public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken ct = default)
         => Task.FromResult(false);
+
+    public Task<(IReadOnlyList<Habilidad> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        HabilidadSegmentoListado segmento = HabilidadSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<(IReadOnlyList<Habilidad>, int)>(([], 0));
 }
 
 internal sealed class FakeNivelHabilidadRepo : INivelHabilidadRepository

@@ -23,7 +23,7 @@ public sealed class NivelHabilidadRepositoryTests
     }
 
     [MySqlFact]
-    public async Task ListAllAsync_RetornaNivelesOrdenadosPorCodigo()
+    public async Task ListAllAsync_RetornaNivelesOrdenadosPorOrden()
     {
         await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new NivelHabilidadRepository(context);
@@ -33,7 +33,10 @@ public sealed class NivelHabilidadRepositoryTests
         Assert.NotEmpty(niveles);
         for (var i = 1; i < niveles.Count; i++)
         {
-            Assert.True(string.Compare(niveles[i - 1].Codigo, niveles[i].Codigo, StringComparison.Ordinal) <= 0);
+            Assert.True(niveles[i - 1].Orden <= niveles[i].Orden,
+                $"Niveles no quedaron ordenados por Orden ascendente. " +
+                $"Posición {i - 1}: Orden={niveles[i - 1].Orden}, " +
+                $"Posición {i}: Orden={niveles[i].Orden}");
         }
     }
 

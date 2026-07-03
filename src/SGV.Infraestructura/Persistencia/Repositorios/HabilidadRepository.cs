@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
@@ -113,5 +114,61 @@ public sealed class HabilidadRepository(SgvDbContext context)
                 h.Id != excludingId,
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    public async Task<(IReadOnlyList<Habilidad> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        HabilidadSegmentoListado segmento = HabilidadSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<HabilidadEntity> query = Context
+            .Set<HabilidadEntity>()
+            .AsNoTracking()
+            .Where(h => segmento == HabilidadSegmentoListado.Activas
+                ? (h.IsActive && !h.IsDeleted)
+                : (!h.IsActive && h.IsDeleted));
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(h =>
+                h.Codigo.Contains(search) ||
+                h.Nombre.Contains(search) ||
+                (h.Categoria != null && h.Categoria.Contains(search)) ||
+                (h.Descripcion != null && h.Descripcion.Contains(search)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // El sort se aplica ANTES del Skip/Take para que la paginación respete
+        // el orden visible (REQ-CM-01 equivalente para habilidades). Valores
+        // soportados: codigo_asc / codigo_desc / nombre_asc / nombre_desc /
+        // categoria_asc / categoria_desc. Cualquier otro valor cae al orden
+        // por defecto por Codigo asc para preservar contratos existentes.
+        var ordered = ApplySort(query, sort);
+
+        var entities = await ordered
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
+    private static IOrderedQueryable<HabilidadEntity> ApplySort(IQueryable<HabilidadEntity> query, string? sort)
+    {
+        return sort?.ToLowerInvariant() switch
+        {
+            "codigo_desc" => query.OrderByDescending(h => h.Codigo),
+            "codigo_asc" => query.OrderBy(h => h.Codigo),
+            "nombre_desc" => query.OrderByDescending(h => h.Nombre),
+            "nombre_asc" => query.OrderBy(h => h.Nombre),
+            "categoria_desc" => query.OrderByDescending(h => h.Categoria ?? string.Empty),
+            "categoria_asc" => query.OrderBy(h => h.Categoria ?? string.Empty),
+            _ => query.OrderBy(h => h.Codigo)
+        };
     }
 }
