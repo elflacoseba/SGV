@@ -1,12 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
+using RecordingHandler = SGV.Tests.Web._Shared.HttpClientExceptionScenarios.RecordingHandler;
 
 namespace SGV.Tests.Web.Cargo;
 
@@ -22,7 +23,7 @@ public class CargoApiClientTests
     {
         var id = Guid.NewGuid();
         var payload = new[] { new CargoDto(id, "C-001", "Analista", null, Guid.NewGuid()) };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.GetAllAsync();
@@ -39,7 +40,7 @@ public class CargoApiClientTests
     {
         var id = Guid.NewGuid();
         var payload = new CargoDto(id, "C-002", "Líder", "Desc", Guid.NewGuid());
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.GetByIdAsync(id);
@@ -52,7 +53,7 @@ public class CargoApiClientTests
     [Fact]
     public async Task GetByIdAsync_Http404_ReturnsNullWithoutThrowing()
     {
-        var handler = new StubHandler(_ => Json<object?>(HttpStatusCode.NotFound, null));
+        var handler = new RecordingHandler(_ => Json<object?>(HttpStatusCode.NotFound, null));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.GetByIdAsync(Guid.NewGuid());
@@ -64,7 +65,7 @@ public class CargoApiClientTests
     public async Task DeleteAsync_Http204_ReturnsSuccessAndHitsDeleteRoute()
     {
         var id = Guid.NewGuid();
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.DeleteAsync(id);
@@ -82,7 +83,7 @@ public class CargoApiClientTests
     {
         var id = Guid.NewGuid();
         var problem = new ProblemDetails { Title = "NotFound", Detail = "Cargo no disponible", Status = 404 };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.NotFound, problem));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.NotFound, problem));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.DeleteAsync(id);
@@ -103,7 +104,7 @@ public class CargoApiClientTests
             Detail = "El cargo tiene puestos activos",
             Status = 409
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.DeleteAsync(id);
@@ -122,7 +123,7 @@ public class CargoApiClientTests
         {
             Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
         };
-        var handler = new StubHandler(_ => response);
+        var handler = new RecordingHandler(_ => response);
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.DeleteAsync(id);
@@ -142,7 +143,7 @@ public class CargoApiClientTests
     {
         var nivelId = Guid.NewGuid();
         var dto = new CargoDto(Guid.NewGuid(), "C-001", "Analista", "Desc", nivelId, "Junior");
-        var handler = new StubHandler(_ => Json(HttpStatusCode.Created, dto));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Created, dto));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var request = new CrearCargoRequest("C-001", "Analista", nivelId, "Desc");
@@ -169,7 +170,7 @@ public class CargoApiClientTests
             Title = "ValidationError",
             Detail = "Datos inválidos."
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.BadRequest, validation));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.BadRequest, validation));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var request = new CrearCargoRequest("", "Analista", nivelId);
@@ -193,7 +194,7 @@ public class CargoApiClientTests
             Title = "CodigoDuplicado",
             Detail = "Ya existe un cargo activo con ese código."
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var request = new CrearCargoRequest("C-DUP", "Analista", nivelId);
@@ -215,7 +216,7 @@ public class CargoApiClientTests
             new NivelCargoDto(nivelId, "JR", "Junior", 1, 1),
             new NivelCargoDto(Guid.NewGuid(), "SR", "Senior", 2, 2)
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.GetNivelesAsync();
@@ -237,7 +238,7 @@ public class CargoApiClientTests
         var id = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
         var dto = new CargoDto(id, "C-001", "Analista Senior", "Desc actualizada", nivelId, "Senior");
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, dto));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var request = new ActualizarCargoRequest("C-001", "Analista Senior", nivelId, "Desc actualizada");
@@ -268,7 +269,7 @@ public class CargoApiClientTests
             Title = "ValidationError",
             Detail = "Datos inválidos."
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.BadRequest, validation));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.BadRequest, validation));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var request = new ActualizarCargoRequest(
@@ -298,7 +299,7 @@ public class CargoApiClientTests
             Title = "CodigoDuplicado",
             Detail = "Ya existe un cargo activo con el código C-DUP."
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var request = new ActualizarCargoRequest("C-DUP", "Cargo Duplicado", nivelId);
@@ -325,7 +326,7 @@ public class CargoApiClientTests
             TotalCount: 1,
             Page: 1,
             PageSize: 20);
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.QueryAsync(new CargoListQuery(1, 20, null, null, "eliminadas"));
@@ -341,7 +342,7 @@ public class CargoApiClientTests
     public async Task QueryAsync_WithoutStatus_DoesNotIncludeStatusParameter()
     {
         var payload = new PagedResult<CargoDto>([], 0, 1, 20);
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         _ = await client.QueryAsync(new CargoListQuery(1, 20, "ana", "nombre_asc"));
@@ -363,7 +364,7 @@ public class CargoApiClientTests
             TotalCount: 1,
             Page: 1,
             PageSize: 10);
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         _ = await client.QueryAsync(new CargoListQuery(1, 10, null, "nombre_desc", null));
@@ -378,7 +379,7 @@ public class CargoApiClientTests
         // Triangulación: cuando no hay sort, NO debe aparecer `sort=` en la URL
         // para no ensuciar el contrato con strings vacíos.
         var payload = new PagedResult<CargoDto>([], 0, 1, 10);
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, payload));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         _ = await client.QueryAsync(new CargoListQuery(1, 10, null, null, null));
@@ -392,7 +393,7 @@ public class CargoApiClientTests
     {
         var id = Guid.NewGuid();
         var dto = new CargoDto(id, "DIRECTOR", "Director", null, Guid.NewGuid(), "Directivo");
-        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, dto));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.ReactivateAsync(id);
@@ -414,7 +415,7 @@ public class CargoApiClientTests
             Title = "CodigoDuplicado",
             Detail = "Ya existe un cargo activo con el mismo código."
         };
-        var handler = new StubHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
         var client = new CargoApiClient(NewHttpClient(handler));
 
         var result = await client.ReactivateAsync(id);
@@ -425,7 +426,40 @@ public class CargoApiClientTests
         Assert.Equal("CodigoDuplicado", result.Error.Code);
     }
 
-    private static HttpClient NewHttpClient(StubHandler handler) =>
+    // ──────────────────────────────────────────────
+    // Cobertura de contrato de transporte (issue #78):
+    // fija que QueryAsync propaga excepciones nativas del pipeline HTTP
+    // y respeta un CancellationToken pre-cancelado sin iniciar el envío.
+    // Si el cliente capturara la excepción o disparara el handler con el
+    // token ya cancelado, estos tests fallan.
+    // ──────────────────────────────────────────────
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task QueryAsync_TransportFails_PropagatesNativeException(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.QueryAsync(new CargoListQuery(1, 20, null, null, null)));
+    }
+
+    [Fact]
+    public async Task QueryAsync_CancellationAlreadyRequested_ThrowsAndDoesNotSendRequest()
+    {
+        var handler = new RecordingHandler();
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.QueryAsync(new CargoListQuery(1, 20, null, null, null), new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
+    private static HttpClient NewHttpClient(HttpMessageHandler handler) =>
         new(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
 
     private static HttpResponseMessage Json<T>(HttpStatusCode status, T payload)
@@ -435,23 +469,5 @@ public class CargoApiClientTests
             Content = JsonContent.Create(payload)
         };
         return response;
-    }
-
-    private sealed class StubHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
-
-        public StubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
-        {
-            _responder = responder;
-        }
-
-        public HttpRequestMessage? LastRequest { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            LastRequest = request;
-            return Task.FromResult(_responder(request));
-        }
     }
 }
