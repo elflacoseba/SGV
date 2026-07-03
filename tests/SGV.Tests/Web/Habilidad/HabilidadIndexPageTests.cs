@@ -215,6 +215,70 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     }
 
     [Fact]
+    public async Task Get_Index_ToggleSegmentoLink_PreservesSearchAndSortAndResetsPage()
+    {
+        // Escenario MUST de `habilidad-web-listado-detalle-baja`: al alternar entre
+        // activas y eliminadas se preserva la búsqueda y el orden vigentes y se resetea
+        // la página a 1.
+
+        var firstActive = HabilidadWebTestFixture.BuildHabilidadDto("H-001", "Liderazgo", "Desc", "Conductual");
+        var firstDeleted = HabilidadWebTestFixture.BuildHabilidadDto("H-DEL", "Habilidad Eliminada", "Desc", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(firstActive);
+        apiClient.QueryHandler = query =>
+            string.Equals(query?.Status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+                ? new PagedResult<HabilidadDto>([firstDeleted], 1, 1, 20)
+                : new PagedResult<HabilidadDto>([firstActive], 1, 1, 20);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        // Act 1: Index en activas con search='lid', sort='nombre_desc' y p=3.
+        var activas = await client.GetAsync("/organizacion/habilidades?search=lid&sort=nombre_desc&p=3");
+        var htmlActivas = HttpUtility.HtmlDecode(await activas.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, activas.StatusCode);
+        Assert.Contains("value=\"lid\"", htmlActivas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("value=\"nombre_desc\"", htmlActivas, StringComparison.OrdinalIgnoreCase);
+
+        // El link "Eliminadas" preserva search/sort y resetea p=1.
+        var hrefToEliminadas = ExtractSegmentoHref(htmlActivas, "Eliminadas", "activas");
+        Assert.Contains("status=eliminadas", hrefToEliminadas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=lid", hrefToEliminadas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_desc", hrefToEliminadas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("p=1", hrefToEliminadas, StringComparison.OrdinalIgnoreCase);
+
+        // Act 2: GET directo al segmento eliminadas con el mismo contexto.
+        var eliminadas = await client.GetAsync("/organizacion/habilidades?search=lid&sort=nombre_desc&p=3&status=eliminadas");
+        var htmlEliminadas = HttpUtility.HtmlDecode(await eliminadas.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, eliminadas.StatusCode);
+        Assert.Contains("Listado de habilidades eliminadas", htmlEliminadas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("value=\"lid\"", htmlEliminadas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("value=\"nombre_desc\"", htmlEliminadas, StringComparison.OrdinalIgnoreCase);
+
+        // El link "Activas" preserva search/sort, resetea p=1 y limpia status.
+        var hrefToActivas = ExtractSegmentoHref(htmlEliminadas, "Activas", "eliminadas");
+        Assert.DoesNotContain("status=eliminadas", hrefToActivas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=lid", hrefToActivas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_desc", hrefToActivas, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("p=1", hrefToActivas, StringComparison.OrdinalIgnoreCase);
+
+        // El backend recibió dos QueryAsync: una por segmento.
+        Assert.Equal(2, apiClient.QueryCalls.Count);
+        Assert.Null(apiClient.QueryCalls[0].Status);
+        Assert.Equal("eliminadas", apiClient.QueryCalls[1].Status);
+    }
+
+    private static string ExtractSegmentoHref(string html, string linkText, string expectedSourceSegmento)
+    {
+        // Encuentra el <a ... href="..."> TEXTO </a> y devuelve el href.
+        // El HTML está decodificado por el caller; manejamos href con &amp; posibles.
+        var pattern = $"<a[^>]*href=\"(?<href>[^\"]+)\"[^>]*>\\s*{System.Text.RegularExpressions.Regex.Escape(linkText)}\\s*</a>";
+        var match = System.Text.RegularExpressions.Regex.Match(html, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        Assert.True(match.Success, $"Debe existir un link '{linkText}' en la vista '{expectedSourceSegmento}' del Index de Habilidades.");
+        return System.Web.HttpUtility.HtmlDecode(match.Groups["href"].Value);
+    }
+
+    [Fact]
     public async Task Get_Index_NoExponePlaceholdersDeCargosNiFiltroPorNivel()
     {
         // Anti-drift centralizado para Slice 3A.
