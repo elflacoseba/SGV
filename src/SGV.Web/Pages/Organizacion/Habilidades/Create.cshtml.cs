@@ -27,7 +27,7 @@ public sealed class CreateModel(
     public bool IsEdit => false;
 
     [BindProperty]
-    public string? ReturnPage { get; set; }
+    public int ReturnPage { get; set; } = 1;
 
     [BindProperty]
     public string? ReturnSearch { get; set; }
@@ -35,13 +35,17 @@ public sealed class CreateModel(
     [BindProperty]
     public string? ReturnSort { get; set; }
 
-    public string ReturnToListUrl => HabilidadFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort);
+    public string ReturnToListUrl => HabilidadFormHelpers.BuildReturnToListUrl(
+        Url,
+        ReturnPage,
+        ReturnSearch,
+        ReturnSort);
 
-    public async Task OnGetAsync(string? p = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    public async Task OnGetAsync([FromQuery(Name = "p")] int p = 1, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
     {
-        ReturnPage = p ?? string.Empty;
-        ReturnSearch = search ?? string.Empty;
-        ReturnSort = sort ?? string.Empty;
+        ReturnPage = Math.Max(1, p);
+        ReturnSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        ReturnSort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken = default)
@@ -78,9 +82,7 @@ public sealed class CreateModel(
         {
             TempData["StatusMessage"] = $"La habilidad \"{result.Value.Nombre}\" se creó correctamente.";
             TempData["StatusKind"] = "success";
-            // Redirect manual a Details (creado en PR 4) sin pasar por
-            // RedirectToPage que requiere que el destino exista al compilar.
-            return Redirect($"/organizacion/habilidades/detalles/{result.Value.Id}");
+            return RedirectToPage("/Organizacion/Habilidades/Details", new { id = result.Value.Id });
         }
 
         if (result.Error is not null)

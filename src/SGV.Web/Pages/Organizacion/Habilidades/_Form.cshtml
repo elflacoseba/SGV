@@ -6,17 +6,24 @@
 @using SGV.Web.Integration.Habilidades
 @model SGV.Web.Integration.Habilidades.IHabilidadForm
 
-@{
-    // REQ-HCW-01: Codigo es readonly en edit (regla de inmutabilidad del dominio).
-    string? codigoReadonly = Model.IsEdit ? "readonly" : null;
-}
+@* REQ-HCW-01: Codigo es readonly en edit (regla de inmutabilidad del dominio) y editable en create.
+   El input se renderiza con dos ramas para evitar el ambigüedad del atributo booleano HTML5:
+   `readonly="@nullable"` puede serializar el atributo como `readonly=""` en Create, dejando
+   el campo bloqueado. Renderizar dos ramas garantiza ausencia total del atributo en alta. *@
 
 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
 <div class="row g-3">
     <div class="col-md-6">
         <div class="form-floating">
-            <input asp-for="Input.Codigo" class="form-control" placeholder="Código" readonly="@codigoReadonly" />
+            @if (Model.IsEdit)
+            {
+                <input asp-for="Input.Codigo" class="form-control" placeholder="Código" readonly />
+            }
+            else
+            {
+                <input asp-for="Input.Codigo" class="form-control" placeholder="Código" />
+            }
             <label asp-for="Input.Codigo">Código</label>
             <span asp-validation-for="Input.Codigo" class="text-danger"></span>
         </div>

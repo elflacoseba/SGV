@@ -69,6 +69,103 @@ public sealed class CargoWebTests
         Assert.DoesNotContain("<span class=\"menu-text\">Catálogos</span>", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Get_Sidenav_WhenAuthenticated_ExposesHabilidadesModule()
+    {
+        using var client = await CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync("/");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El grupo Habilidades debe aparecer con icono y submenú Listado + Nueva.
+        Assert.Contains("<span class=\"menu-text\">Habilidades</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/habilidades\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/habilidades/crear\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ti ti-star", content, StringComparison.OrdinalIgnoreCase);
+
+        // Y NO debe mostrar placeholders no especificados.
+        Assert.DoesNotContain("<span class=\"menu-text\">Vacantes</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Reclutamiento</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Cat&aacute;logos</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Catálogos</span>", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Sidenav_WhenAtHabilidadesIndex_MarksListadoActive()
+    {
+        // Spec CRITICAL-04: al estar en /organizacion/habilidades el item
+        // Listado del submenú Habilidades debe llevar la clase "active",
+        // pero el item Nueva NO debe llevarlo.
+        using var client = await CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync("/organizacion/habilidades");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.True(
+            LinkHasActive(content, "/organizacion/habilidades", classIncludesOnlyActive: true),
+            "Listado should be marked active when at /organizacion/habilidades");
+
+        Assert.False(
+            LinkHasActive(content, "/organizacion/habilidades/crear"),
+            "Nueva should NOT be active when at /organizacion/habilidades");
+    }
+
+    [Fact]
+    public async Task Get_Sidenav_WhenAtHabilidadesCrear_MarksNuevaActive()
+    {
+        // Spec CRITICAL-04: al estar en /organizacion/habilidades/crear el
+        // item Nueva del submenú Habilidades debe llevar la clase "active"
+        // y el item Listado NO debe llevarla.
+        using var client = await CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync("/organizacion/habilidades/crear");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.True(
+            LinkHasActive(content, "/organizacion/habilidades/crear"),
+            "Nueva should be marked active when at /organizacion/habilidades/crear");
+
+        Assert.False(
+            LinkHasActive(content, "/organizacion/habilidades"),
+            "Listado should NOT be active when at /organizacion/habilidades/crear");
+    }
+
+    private static bool LinkHasActive(string content, string href, bool classIncludesOnlyActive = false)
+    {
+        // Localiza el <a ... href="..."> específico y devuelve true si su
+        // atributo class contiene "active".
+        var hrefToken = $"href=\"{href}\"";
+        var idx = content.IndexOf(hrefToken, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0)
+        {
+            return false;
+        }
+
+        // Retrocede hasta encontrar la apertura '<a '.
+        var anchorStart = content.LastIndexOf("<a ", idx, StringComparison.OrdinalIgnoreCase);
+        if (anchorStart < 0)
+        {
+            return false;
+        }
+
+        var anchorEnd = content.IndexOf('>', idx);
+        if (anchorEnd < 0)
+        {
+            return false;
+        }
+
+        var anchor = content[anchorStart..(anchorEnd + 1)];
+        var hasActive = anchor.Contains(" active\"", StringComparison.OrdinalIgnoreCase)
+            || anchor.Contains("\"active ", StringComparison.OrdinalIgnoreCase)
+            || anchor.Contains("active ", StringComparison.OrdinalIgnoreCase)
+            || anchor.Contains(" active ", StringComparison.OrdinalIgnoreCase);
+        return hasActive;
+    }
+
     private static async Task<HttpClient> CreateAuthenticatedClientAsync()
     {
         var handler = new RecordingHttpMessageHandler(

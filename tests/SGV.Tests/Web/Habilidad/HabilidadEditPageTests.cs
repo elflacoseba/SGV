@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -120,7 +121,9 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
     public async Task EditPage_MuestraCodigoComoReadonly_O_Disabled()
     {
         // El input de Input.Codigo en edit debe llevar readonly (la regla
-        // de inmutabilidad del dominio Codigo se respeta en UI).
+        // de inmutabilidad del dominio Codigo se respeta en UI). El selector
+        // es puntual: la marca `readonly` debe estar en el MISMO tag <input>
+        // que el name del campo, no en cualquier parte del HTML.
         var id = Guid.NewGuid();
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
@@ -130,10 +133,16 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        // El helper tag de asp-for renderiza readonly como atributo cuando el
-        // valor es true. Buscamos la marca en el HTML renderizado.
-        Assert.Contains("name=\"Input.Codigo\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("readonly", content, StringComparison.OrdinalIgnoreCase);
+        Assert.True(HabilidadWebTestFixture.HasInputNamed(content, "Input.Codigo"),
+            "El campo Input.Codigo debe renderizarse en la página de edición.");
+        Assert.True(HabilidadWebTestFixture.InputHasAttribute(content, "Input.Codigo", "readonly"),
+            "El campo Input.Codigo debe llevar el atributo `readonly` en Edit (regla de inmutabilidad).");
+        // El resto de los campos editables NO deben llevar readonly.
+        foreach (var other in new[] { "Input.Nombre", "Input.Categoria", "Input.Descripcion" })
+        {
+            Assert.False(HabilidadWebTestFixture.InputHasAttribute(content, other, "readonly"),
+                $"El campo {other} no debe llevar readonly.");
+        }
     }
 
     [Fact]

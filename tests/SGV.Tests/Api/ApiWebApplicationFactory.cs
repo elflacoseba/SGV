@@ -314,8 +314,13 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
 
     private readonly IReadOnlyList<HabilidadDto> _data;
     private readonly IReadOnlyList<HabilidadDto> _eliminadas;
+    private readonly HashSet<Guid> _inactivas;
 
-    public FakeHabilidadServicio(bool isEmpty = false, bool withEliminadas = false, bool withInactive = false)
+    public FakeHabilidadServicio(
+        bool isEmpty = false,
+        bool withEliminadas = false,
+        bool withInactive = false,
+        IReadOnlyCollection<Guid>? inactiveIds = null)
     {
         _data = isEmpty
             ? []
@@ -325,13 +330,23 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
             ? []
             : [new(HabilidadEliminadaId1, "DEL-001", "Eliminada", "Descripción eliminada", "General")];
 
-        // Nota: el flag withInactive solo activa el id inactiva esperado;
-        // NO agrega una entrada en _data ni en _eliminadas. La habilidad
-        // inactiva existe conceptualmente en la persistencia (IsActive=false,
-        // IsDeleted=false) pero no es devuelta por GetByIdAsync porque el
-        // repository filtra por IsActive. Esta es la semántica que la spec
-        // exige para "obtener habilidad inactiva devuelve 404".
-        _ = withInactive;
+        // Set de ids soft-disabled (IsActive=false, IsDeleted=false). El
+        // repository filtra por IsActive=true, por lo que estos ids existen
+        // conceptualmente pero GetByIdAsync devuelve null. Tests que necesiten
+        // ids arbitrarios pueden pasarlos vía inactiveIds; el flag withInactive
+        // agrega el id semilla para los escenarios MUST del sdd-verify.
+        _inactivas = new HashSet<Guid>();
+        if (withInactive)
+        {
+            _inactivas.Add(HabilidadInactivaId1);
+        }
+        if (inactiveIds is not null)
+        {
+            foreach (var id in inactiveIds)
+            {
+                _inactivas.Add(id);
+            }
+        }
     }
 
     public Task<IReadOnlyList<HabilidadDto>> ListAsync(CancellationToken ct = default)
@@ -339,10 +354,8 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
 
     public Task<HabilidadDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        // Inactiva: la spec exige 404 al consultar por GET /api/v1/skills/{id}
-        // cuando IsActive=false. GetByIdAsync no expone la inactiva aunque
-        // exista en la base.
-        if (id == HabilidadInactivaId1)
+        // La spec MUST escenario 1: una habilidad soft-disable responde 404.
+        if (_inactivas.Contains(id))
         {
             return Task.FromResult<HabilidadDto?>(null);
         }

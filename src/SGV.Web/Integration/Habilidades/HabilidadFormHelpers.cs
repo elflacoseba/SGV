@@ -7,15 +7,19 @@ namespace SGV.Web.Integration.Habilidades;
 /// </summary>
 internal static class HabilidadFormHelpers
 {
-    public static string BuildReturnToListUrl(IUrlHelper url, string? page, string? search, string? sort)
+    /// <summary>
+    /// Construye la URL de retorno al listado preservando filtros.
+    /// <paramref name="page"/> se normaliza a entero ≥ 1.
+    /// </summary>
+    public static string BuildReturnToListUrl(IUrlHelper url, int page, string? search, string? sort)
     {
-        page ??= "1";
+        var normalizedPage = page < 1 ? 1 : page;
         var normalizedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         var normalizedSort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
 
         return url.Page("/Organizacion/Habilidades/Index", new
         {
-            p = int.TryParse(page, out var p) && p > 0 ? p : 1,
+            p = normalizedPage,
             search = normalizedSearch,
             sort = normalizedSort
         }) ?? "/organizacion/habilidades";
