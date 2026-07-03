@@ -54,11 +54,13 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains("data-cargo-delete-form", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-cargo-delete-button", content, StringComparison.OrdinalIgnoreCase);
 
-        // En vista activas: no se exponen skills ni acciones de eliminadas
-        Assert.DoesNotContain("Habilidades", content, StringComparison.OrdinalIgnoreCase);
+        // En vista activas: no se exponen acciones de eliminadas. La entrada
+        // "Habilidades" en el sidenav sí está visible (PR 3A la agregó), pero
+        // NO debe aparecer como contenido de la grilla de cargos.
         Assert.DoesNotContain("data-cargo-reactivate-button", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Listado de cargos eliminados", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("data-cargo-reactivate-form", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-habilidad-delete-form", content, StringComparison.OrdinalIgnoreCase);
 
         // Después del refactor a server-side, el page model invoca QueryAsync
         // en vez de GetAllAsync. Mantener ambos checks permite asegurar el corte.
