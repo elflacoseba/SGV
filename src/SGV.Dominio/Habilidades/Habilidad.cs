@@ -15,7 +15,9 @@ public sealed class Habilidad : EntidadAuditable
     }
 
     /// <summary>
-    /// Código único de la habilidad. Se define en la creación y NO puede modificarse.
+    /// Código único de la habilidad. Mutable solo desde dentro de la entidad
+    /// vía <see cref="Actualizar"/>; la verificación de unicidad activa contra
+    /// otras Habilidades es responsabilidad del servicio de aplicación.
     /// </summary>
     public string Codigo { get; private set; } = string.Empty;
 
@@ -40,11 +42,18 @@ public sealed class Habilidad : EntidadAuditable
     }
 
     /// <summary>
-    /// Actualiza los campos editables de la habilidad. NO modifica <see cref="Codigo"/>.
-    /// La verificación de unicidad activa del código es responsabilidad del servicio de aplicación.
+    /// Actualiza los campos editables de la habilidad, incluido <see cref="Codigo"/>.
+    /// La unicidad activa del código se valida en el servicio de aplicación
+    /// antes de invocar este método; este solo aplica reglas de shape
+    /// (requerido, longitud máxima).
     /// </summary>
-    public void Actualizar(string nombre, string? categoria = null, string? descripcion = null)
+    /// <param name="codigo">Nuevo código de la habilidad. Requerido, máximo 50 caracteres.</param>
+    /// <param name="nombre">Nuevo nombre de la habilidad. Requerido, máximo 200 caracteres.</param>
+    /// <param name="categoria">Categoría opcional, máximo 100 caracteres.</param>
+    /// <param name="descripcion">Descripción opcional, máximo 1000 caracteres.</param>
+    public void Actualizar(string codigo, string nombre, string? categoria = null, string? descripcion = null)
     {
+        Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
         Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
         Categoria = ValidacionesDominio.Opcional(categoria, nameof(Categoria), 100);
         Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
