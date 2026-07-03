@@ -3,7 +3,16 @@
     var homeActive = currentPath == "/" ? "active" : string.Empty;
     var unidadesOrganizativasActive = currentPath.StartsWithSegments("/organizacion/unidades-organizativas") ? "active" : string.Empty;
     var cargosActive = currentPath.StartsWithSegments("/organizacion/cargos") ? "active" : string.Empty;
-    var habilidadesActive = currentPath.StartsWithSegments("/organizacion/habilidades") ? "active" : string.Empty;
+    // CRITICAL-04: el item "Listado" se marca activo solo cuando la ruta
+    // exacta es /organizacion/habilidades (no /crear, /editar, /detalles).
+    // "Nueva" se marca activo cuando la ruta es /organizacion/habilidades/crear.
+    var habilidadesGroupActive = currentPath.StartsWithSegments("/organizacion/habilidades") ? "active" : string.Empty;
+    var habilidadesListadoActive = string.Equals(currentPath, "/organizacion/habilidades", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
+    var habilidadesNuevaActive = string.Equals(currentPath, "/organizacion/habilidades/crear", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
 }
 
 <div class="sidenav-menu">
@@ -84,7 +93,7 @@
 </div>
 </li>
 <li class="side-nav-item">
-<a aria-controls="habilidades" aria-expanded="false" class="side-nav-link side-nav-link-toggle @habilidadesActive" data-bs-toggle="collapse" href="#habilidades">
+<a aria-controls="habilidades" aria-expanded="false" class="side-nav-link side-nav-link-toggle @habilidadesGroupActive" data-bs-toggle="collapse" href="#habilidades">
 <span class="menu-icon"><i class="ti ti-star"></i></span>
 <span class="menu-text">Habilidades</span>
 <span class="menu-arrow"></span>
@@ -92,12 +101,12 @@
 <div class="collapse" id="habilidades">
 <ul class="sub-menu">
 <li class="side-nav-item">
-<a class="side-nav-link @habilidadesActive" href="/organizacion/habilidades">
+<a class="side-nav-link @habilidadesListadoActive" href="/organizacion/habilidades">
 <span class="menu-text">Listado</span>
 </a>
 </li>
 <li class="side-nav-item">
-<a class="side-nav-link" href="/organizacion/habilidades/crear">
+<a class="side-nav-link @habilidadesNuevaActive" href="/organizacion/habilidades/crear">
 <span class="menu-text">Nueva</span>
 </a>
 </li>
