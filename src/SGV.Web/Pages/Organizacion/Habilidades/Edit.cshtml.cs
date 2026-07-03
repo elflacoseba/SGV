@@ -46,7 +46,7 @@ public sealed class EditModel(
 
     public string ReturnToListUrl => HabilidadFormHelpers.BuildReturnToListUrl(
         Url,
-        ReturnPage.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ReturnPage,
         ReturnSearch,
         ReturnSort);
 
@@ -126,7 +126,7 @@ public sealed class EditModel(
         {
             TempData["StatusMessage"] = $"La habilidad \"{result.Value.Nombre}\" se actualizó correctamente.";
             TempData["StatusKind"] = "success";
-            return Redirect($"/organizacion/habilidades/detalles/{result.Value.Id}");
+            return RedirectToPage("/Organizacion/Habilidades/Details", new { id = result.Value.Id });
         }
 
         if (result.Error is not null)

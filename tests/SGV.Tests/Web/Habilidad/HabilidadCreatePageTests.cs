@@ -61,6 +61,27 @@ public sealed class HabilidadCreatePageTests : IClassFixture<HabilidadWebTestFix
     }
 
     [Fact]
+    public async Task Get_Create_WhenAuthenticated_CodigoEsEditable()
+    {
+        // En Create, el campo Input.Codigo NO debe ser readonly: el usuario
+        // debe poder ingresar el código de la nueva habilidad. El antiguo
+        // patrón `readonly="@nullable"` podía dejar el atributo como
+        // `readonly=""` en Create (boolean attribute HTML5). El render actual
+        // separa Edit/Create y este test blinda explícitamente el camino de
+        // alta.
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/habilidades/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(HabilidadWebTestFixture.HasInputNamed(content, "Input.Codigo"));
+        Assert.False(HabilidadWebTestFixture.InputHasAttribute(content, "Input.Codigo", "readonly"),
+            "El campo Input.Codigo en Create no debe llevar readonly (debe ser editable).");
+    }
+
+    [Fact]
     public async Task Post_Create_WhenSuccessful_RedirectsToDetailsWithConfirmation()
     {
         var createdId = Guid.NewGuid();

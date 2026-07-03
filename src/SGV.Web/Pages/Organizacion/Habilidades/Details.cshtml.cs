@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Text.Json;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Web.Integration.Habilidades;
 
@@ -82,7 +83,11 @@ public sealed class DetailsModel(IHabilidadApiClient habilidadApiClient, ILogger
                 logger.LogWarning("Habilidad with Id {HabilidadId} was not found or is no longer available.", id);
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (
+            ex is HttpRequestException ||
+            ex is TaskCanceledException ||
+            ex is JsonException ||
+            ex is OperationCanceledException)
         {
             logger.LogError(ex, "Failed to load habilidad with Id {HabilidadId}.", id);
             IsNotFound = true;
