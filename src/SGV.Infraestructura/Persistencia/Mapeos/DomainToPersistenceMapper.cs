@@ -142,6 +142,7 @@ internal static class DomainToPersistenceMapper
 
     public static void UpdateEntity(HabilidadEntity entity, Habilidad domain)
     {
+        entity.Codigo = domain.Codigo;
         entity.Nombre = domain.Nombre;
         entity.Descripcion = domain.Descripcion;
         entity.Categoria = domain.Categoria;

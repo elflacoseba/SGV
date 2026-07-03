@@ -306,7 +306,8 @@ public sealed class HabilidadRepositoryTests
             var habilidad = await repo.GetByIdForUpdateAsync(entity.Id, default);
             Assert.NotNull(habilidad);
 
-            habilidad!.Actualizar("Modificado", "NuevaCategoria", "Desc modificada");
+            var nuevoCodigo = entity.Codigo + "-V2";
+            habilidad!.Actualizar(nuevoCodigo, "Modificado", "NuevaCategoria", "Desc modificada");
             await repo.UpdateAsync(habilidad, default);
             await context.SaveChangesAsync();
 
@@ -315,12 +316,87 @@ public sealed class HabilidadRepositoryTests
             Assert.Equal("Modificado", modificado!.Nombre);
             Assert.Equal("NuevaCategoria", modificado.Categoria);
             Assert.Equal("Desc modificada", modificado.Descripcion);
-            Assert.Equal(entity.Codigo, modificado.Codigo); // Codigo unchanged
+            Assert.Equal(nuevoCodigo, modificado.Codigo);
         }
         finally
         {
             context.Set<HabilidadEntity>().Remove(
                 await context.Set<HabilidadEntity>().FirstAsync(h => h.Id == entity.Id));
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task UpdateAsync_MismoCodigo_NoViolaIndice()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var entity = RepositoryTestData.CreateHabilidad("HAB-SAME");
+        await context.Set<HabilidadEntity>().AddAsync(entity);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new HabilidadRepository(context);
+            var habilidad = await repo.GetByIdForUpdateAsync(entity.Id, default);
+            Assert.NotNull(habilidad);
+
+            // Reenviar el mismo Codigo no debe chocar contra el índice único
+            // porque el filtro `excludingId` lo excluye (a nivel de servicio) y
+            // porque a nivel de DB la fila que se está actualizando no viola
+            // consigo misma.
+            habilidad!.Actualizar(entity.Codigo, "Nombre actualizado", null, null);
+            await repo.UpdateAsync(habilidad, default);
+            await context.SaveChangesAsync();
+
+            var modificado = await repo.GetByIdAsync(entity.Id, default);
+            Assert.NotNull(modificado);
+            Assert.Equal(entity.Codigo, modificado!.Codigo);
+            Assert.Equal("Nombre actualizado", modificado.Nombre);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().Remove(
+                await context.Set<HabilidadEntity>().FirstAsync(h => h.Id == entity.Id));
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task UpdateAsync_CodigoDuplicadoDeOtraActiva_ThrowsDbUpdateException()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var codigoCompartido = $"UNIQ-UP-{sufijo}";
+
+        var objetivo = RepositoryTestData.CreateHabilidad("HAB-TGT");
+        var otra = RepositoryTestData.CreateHabilidad("HAB-OTR");
+        objetivo.Codigo = $"{codigoCompartido}-A";
+        otra.Codigo = $"{codigoCompartido}-B";
+
+        await context.Set<HabilidadEntity>().AddRangeAsync(objetivo, otra);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new HabilidadRepository(context);
+            var habilidad = await repo.GetByIdForUpdateAsync(objetivo.Id, default);
+            Assert.NotNull(habilidad);
+
+            // El test emula la carrera: el servicio no hizo pre-check y llega
+            // un Codigo que ya pertenece a otra activa. La BD debe rechazar
+            // con DbUpdateException por el índice único activo.
+            habilidad!.Actualizar(otra.Codigo, "Nombre objetivo", null, null);
+            await repo.UpdateAsync(habilidad, default);
+
+            var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            Assert.Contains("IX_Habilidades_ActiveCodigoUnique", ex.InnerException?.Message ?? ex.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>()
+                    .Where(h => h.Id == objetivo.Id || h.Id == otra.Id)
+                    .ToListAsync());
             await context.SaveChangesAsync();
         }
     }
