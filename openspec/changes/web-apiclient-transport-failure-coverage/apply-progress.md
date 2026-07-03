@@ -133,6 +133,17 @@ Passed!  - Failed: 0, Passed: 11, Total: 11  # los 4 tests nuevos (con theory ex
 | `0e635ddb` | `test(web): add shared HttpClientExceptionScenarios helper for transport failures` | 2 | +176 |
 | `e4dac348` | `test(web): migrate HabilidadApiClientTests to shared helper and add transport failure coverage` | 2 | +51 / −30 |
 | `25a77974` | `test(web): add transport failure coverage for CargoApiClient via shared helper` | 1 | +57 / −41 |
+| `b548879b` | `docs(sdd): record apply progress for web-apiclient-transport-failure-coverage` | 2 | +215 |
+| `d64e3758` | `test(web): address verify warnings on HttpClientExceptionScenarios` | 2 | +18 / −5 |
+
+## Post-verify remediation
+
+Tras el primer `sdd-verify` (status READY-FOR-MERGE con 2 warnings no bloqueantes), el orchestrator consultó al usuario y se optó por corregir los warnings antes de archivar. El commit `d64e3758` atiende:
+
+- **Warning 1**: `LastRequest` recibe un `<remarks>` que ata la invariante al escenario del spec y explica la paridad con `SocketsHttpHandler`. La intención del chequeo de cancelación queda ahora visible en la API pública del helper, no solo en un comentario interno.
+- **Warning 2**: dos `var` sobre enteros (`factoryInvocations`, `responderCalls`) reemplazados por `int` explícito.
+
+Verificación post-remediación: `dotnet test SGV.slnx --configuration Release` → 1254 passed / 12 failed (mismo baseline #59, sin regresiones).
 
 ## Riesgos / Notas para `sdd-verify`
 
