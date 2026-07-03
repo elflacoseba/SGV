@@ -71,10 +71,10 @@ public class SkillsController : ControllerBase
     /// usado cuando el valor es desconocido o se omite) o <c>eliminadas</c>.
     /// No mezcla ambos conjuntos en una misma respuesta.
     /// </summary>
-    /// <param name="page">Número de página (default: 1).</param>
-    /// <param name="pageSize">Tamaño de página (default: 20).</param>
+    /// <param name="page">Número de página (1-based). Si <c>page &lt; 1</c> se normaliza a <c>1</c> en el controller.</param>
+    /// <param name="pageSize">Tamaño de página. Si <c>pageSize &lt; 1</c> se normaliza a <c>20</c> (defecto). Si <c>pageSize &gt; 100</c> se limita a <c>100</c>.</param>
     /// <param name="search">Búsqueda por código, nombre, categoría o descripción.</param>
-    /// <param name="sort">Expresión de orden server-side. Valores soportados: <c>codigo_asc</c>, <c>codigo_desc</c>, <c>nombre_asc</c>, <c>nombre_desc</c>, <c>categoria_asc</c>, <c>categoria_desc</c>. Cualquier otro valor cae a <c>codigo_asc</c>.</param>
+    /// <param name="sort">Expresión de orden server-side. Valores soportados: <c>codigo_asc</c>, <c>codigo_desc</c>, <c>nombre_asc</c>, <c>nombre_desc</c>, <c>categoria_asc</c>, <c>categoria_desc</c>. Cualquier otro valor cae a <c>codigo_asc</c> en el repositorio.</param>
     /// <param name="status">Filtro de estado: <c>activas</c> (por defecto) o <c>eliminadas</c>.</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Resultado paginado de habilidades.</returns>
@@ -91,11 +91,18 @@ public class SkillsController : ControllerBase
         [FromQuery] string? status = null,
         CancellationToken cancellationToken = default)
     {
+        // CRITICAL-01: la normalización de page/pageSize/status vive en el
+        // controller para no contaminar el record de dominio. Mantiene el
+        // record HabilidadListQuery plano (POJO-like) y fija el contrato
+        // HTTP documentado en el proposal/design/tasks.
+        var normalizedPage = page < 1 ? 1 : page;
+        var normalizedPageSize = pageSize < 1 ? 20 : Math.Min(100, pageSize);
+
         var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
             ? HabilidadSegmentoListado.Eliminadas
             : HabilidadSegmentoListado.Activas;
 
-        var query = new HabilidadListQuery(page, pageSize, search, sort, segmento);
+        var query = new HabilidadListQuery(normalizedPage, normalizedPageSize, search, sort, segmento);
         var result = await _servicio.QueryAsync(query, cancellationToken);
         return Ok(result);
     }
