@@ -218,6 +218,51 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         Assert.Contains("value=\"H-001\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Post_Edit_WhenCodigoReusedFromSoftDeleted_Succeeds()
+    {
+        // Scenario del delta spec `habilidad-web-crear-editar`:
+        // "Reutilizar un Codigo liberado por baja lógica". El backend YA
+        // acepta el guardado (cubierto por
+        // `ActualizarAsync_CodigoDeEliminada_PermiteReutilizar` en el servicio
+        // de aplicación). Este test verifica el camino observable web:
+        // la página de Edit postea el Codigo reusado al cliente API y
+        // completa el PRG con redirect a Details cuando el backend confirma
+        // el guardado.
+        var idActiva = Guid.NewGuid();
+        var idEliminada = Guid.NewGuid();
+        var codigoReusado = "H-LEGACY";
+
+        var dtoActiva = new HabilidadDto(idActiva, "H-OLD", "Liderazgo", "Desc", "Conductual");
+        var dtoEliminada = new HabilidadDto(idEliminada, codigoReusado, "Trabajo en equipo", "Desc legacy", "Conductual");
+
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(dtoActiva, dtoEliminada);
+        // Sembrar la baja lógica de la habilidad previa que tiene el Codigo
+        // que se va a reusar.
+        await apiClient.DeleteAsync(idEliminada);
+        Assert.True(apiClient.IsDeleted(idEliminada),
+            "Setup: la habilidad previa debe estar marcada como eliminada en el fake.");
+
+        var dtoActualizado = new HabilidadDto(idActiva, codigoReusado, "Liderazgo", "Desc", "Conductual");
+        apiClient.UpdateResult = HabilidadCommandResult.Success(dtoActualizado);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{idActiva}");
+
+        var formPost = await PostEditAsync(client, token, idActiva, codigoReusado, "Liderazgo", "Conductual", "Desc");
+
+        Assert.Equal(HttpStatusCode.Redirect, formPost.StatusCode);
+        Assert.Contains($"/organizacion/habilidades/detalles/{idActiva}",
+            formPost.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(apiClient.UpdateCalls);
+        Assert.Equal(codigoReusado, apiClient.UpdateCalls[0].Request.Codigo);
+        Assert.Equal("Liderazgo", apiClient.UpdateCalls[0].Request.Nombre);
+        // La baja lógica previa debe preservarse: el guardado de la activa no
+        // reactiva la soft-deleted.
+        Assert.True(apiClient.IsDeleted(idEliminada),
+            "La habilidad previa con baja lógica no debe reactivarse al guardar la habilidad activa.");
+    }
+
     private static async Task<HttpResponseMessage> PostEditAsync(
         HttpClient client,
         string antiforgeryToken,

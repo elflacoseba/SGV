@@ -4,7 +4,7 @@
 
 - Estado final: 🔶 parcial (implementación completa, diff sobre el budget de 400 líneas)
 - Work units completados: 6/6 (Dominio, Aplicación, Persistencia, API, Web, Specs)
-- Commits creados: 7 (todos los work units + docs + pruning de tests redundantes)
+- Commits creados: 8 (work units + docs de OpenSpec + pruning de tests redundantes + apply-progress) — ver §"Batch de remediación (post-verify)" para el conteo post-batch
 - Tests añadidos/actualizados/removidos: +20 tests nuevos, 8 tests existentes reescritos/eliminados, 0 regresiones en la suite `Habilidad`
 
 ### Commits (en orden de aplicación)
@@ -139,3 +139,61 @@
 - `sdd-verify` para validar formalmente el cambio: ejecutar la suite contra MySQL, leer los delta specs y mapear cada scenario a su test verde, y firmar el verify-report.
 - `sdd-archive` para sincronizar los deltas contra `openspec/specs/habilidad-management/spec.md` y `openspec/specs/habilidad-web-crear-editar/spec.md`, y generar el `archive-report.md`.
 - **Decisión de budget**: si el orquestador quiere recortar, los candidatos están listados arriba; si no, el PR queda con 622 changed lines (~55% sobre budget) justificado por cobertura de scenarios.
+
+## Batch de remediación (post-verify)
+
+> Verdict del `sdd-verify` previo: `NEEDS-FIX`. Issues atendidos en este batch.
+
+### Issue 1 (CRITICAL) — test web observable del scenario de reutilización
+
+- **Scenario cubierto**: `habilidad-web-crear-editar` → "Reutilizar un Codigo liberado por baja lógica".
+- **Archivo**: `tests/SGV.Tests/Web/Habilidad/HabilidadEditPageTests.cs`.
+- **Test nuevo**: `Post_Edit_WhenCodigoReusedFromSoftDeleted_Succeeds`.
+- **Comportamiento verificado**:
+  1. Se siembran dos `HabilidadDto` (activa + soft-deleted con el mismo `Codigo`) en el fake.
+  2. La soft-deleted se marca vía `await apiClient.DeleteAsync(idEliminada)` y se valida con `IsDeleted`.
+  3. `UpdateResult = HabilidadCommandResult.Success(dtoActualizado)` con el `Codigo` reusado.
+  4. POST del form reusa el `Codigo` soft-deleted.
+  5. Asserts reales: HTTP 302, redirect a `/organizacion/habilidades/detalles/{idActiva}`, una sola llamada a `UpdateCalls[0]`, `Request.Codigo == codigoReusado`, `Request.Nombre` correcto, y la baja lógica previa se preserva (no se reactiva por accidente).
+- **Strict TDD**: el scenario YA estaba implementado en backend (cubierto por `HabilidadServicioComandosTests.ActualizarAsync_CodigoDeEliminada_PermiteReutilizar`). Este test es **observability/coverage pura**, no un RED→GREEN de código de producción: la página web nunca validó unicidad localmente — delega al cliente API. Como el flujo `form → cliente API → Success → PRG` ya estaba listo, el test pasa en la primera corrida sin tocar `SGV.Web` ni el fake más allá de los seams ya existentes (`DeleteAsync`/`IsDeleted` ya estaban en `FakeHabilidadApiClient`).
+
+### Issue 2 (WARNING) — drift de apply-progress corregido
+
+- Conteo de commits corregido en la línea de resumen: 7 → 8 (el apply-progress previo omitía el commit `50dfe5ea docs(sdd): record apply-progress`).
+- Conteo de tests `~Habilidad` revalidado contra corrida real post-batch: 213 (antes del test nuevo) → 214 (después). El apply-progress original afirmaba 214 pero el pruning de `Post_Edit_WhenCodigoUnchanged_UpdatesOtherFields` en `310ea94a` lo había bajado a 213 antes de este batch. Con el test nuevo se vuelve a 214.
+- Sección "Batch de remediación (post-verify)" agregada al pie del archivo (este bloque).
+- Commits post-batch: ver HEAD de la rama tras este batch; el verify-report y el resumen del orquestador registrarán el SHA final exacto.
+
+### Issue 3 (SUGGESTION) — warnings de tooling frontend
+
+- `bun run build` emite warnings preexistentes de `baseline-browser-mapping` y `browserslist` (data de 9 meses). NO atendidos en este batch: fuera de scope y no bloqueantes; convienen en un cambio separado de higiene de pipeline.
+
+### Validación post-batch
+
+| Comando | Resultado | Notas |
+|---|---|---|
+| `dotnet build SGV.slnx --configuration Release` | ✅ | `0 Warning(s), 0 Error(s)`. |
+| `dotnet test --filter "FullyQualifiedName~Habilidad"` | ✅ | `214/214` verdes (213 previos + 1 nuevo). |
+| `dotnet test SGV.slnx --no-build --configuration Release` | 🔶 | `1273` pass / `12` rojos preexistentes de `OcupacionRepositoryTests` (issue #59, fuera de scope). **0 nuevos rojos**. |
+| `bun install && bun run build` (en `src/SGV.Web`) | ✅ | Mismos warnings preexistentes de tooling, no bloqueantes. |
+| `openspec validate permitir-editar-el-codigo-de-una-habilidad --strict --json` | ✅ | `passed: 1, failed: 0`. |
+
+### TDD Cycle Evidence (post-batch)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| Remediación verify (observability) | `tests/SGV.Tests/Web/Habilidad/HabilidadEditPageTests.cs` | Integration | ✅ 9/9 | ✅ Written | ✅ Passed (10/10) | ➖ Single scenario del delta | ➖ None needed |
+
+### Test Summary (post-batch)
+
+- **Tests añadidos en este batch**: +1 (`Post_Edit_WhenCodigoReusedFromSoftDeleted_Succeeds`).
+- **Total tests escritos (cumulative)**: +21 (20 del batch previo + 1 de este batch).
+- **Total tests passing**: 214 en la suite `Habilidad` (0 regresiones).
+- **Layers used**: Integration (1).
+
+### Diff summary post-batch
+
+- 1 archivo modificado: `tests/SGV.Tests/Web/Habilidad/HabilidadEditPageTests.cs`.
+- Líneas añadidas: ~43 (test + comentarios).
+- `apply-progress.md` actualizado in-place sin overwrite del contenido previo.
+- Commit batch: HEAD post-batch del PR; el verify-report y el resumen del orquestador registran el SHA final exacto.
