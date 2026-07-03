@@ -28,7 +28,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
 
 ### 1. Dominio
 
-- [ ] **1.1 RED: tests de dominio para edición de `Codigo`**.
+- [x] **1.1 RED: tests de dominio para edición de `Codigo`**.
     - Capa: Dominio (tests).
     - Archivos: `tests/SGV.Tests/Dominio/HabilidadTests.cs`.
     - Eliminar o reemplazar `Codigo_EsInmutableTrasCreacion`,
@@ -45,7 +45,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
       "FullyQualifiedName~HabilidadTests"` falla con el motivo esperado.
     - Dependencias: —.
 
-- [ ] **1.2 GREEN: `Habilidad.Actualizar` acepta `codigo`**.
+- [x] **1.2 GREEN: `Habilidad.Actualizar` acepta `codigo`**.
     - Capa: Dominio.
     - Archivo: `src/SGV.Dominio/Habilidades/Habilidad.cs`.
     - Nueva firma:
@@ -58,7 +58,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
 
 ### 2. Aplicación
 
-- [ ] **2.1 RED: tests del validator para `Codigo` en update**.
+- [x] **2.1 RED: tests del validator para `Codigo` en update**.
     - Capa: Aplicación (tests).
     - Archivo: `tests/SGV.Tests/Aplicacion/Habilidades/ActualizarHabilidadRequestValidatorTests.cs`.
     - Tests: `Should_Have_Error_When_Codigo_Is_Empty`,
@@ -71,7 +71,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
     - Verificación: validator tests rojos.
     - Dependencias: 1.2.
 
-- [ ] **2.2 GREEN: extender `ActualizarHabilidadRequest` y su
+- [x] **2.2 GREEN: extender `ActualizarHabilidadRequest` y su
       validator**.
     - Capa: Aplicación.
     - Archivos:
@@ -87,7 +87,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
       `HabilidadApiClient.UpdateAsync`, `HabilidadServicioComandos`).
     - Dependencias: 2.1.
 
-- [ ] **2.3 RED: tests de servicio para unicidad activa en update**.
+- [x] **2.3 RED: tests de servicio para unicidad activa en update**.
     - Capa: Aplicación (tests).
     - Archivo: `tests/SGV.Tests/Aplicacion/Habilidades/HabilidadServicioComandosTests.cs`.
     - Tests:
@@ -105,7 +105,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
       `HabilidadErrorType.Conflict`/`CodigoDuplicado`.
     - Dependencias: 2.2.
 
-- [ ] **2.4 GREEN: `HabilidadServicioComandos.ActualizarAsync` con
+- [x] **2.4 GREEN: `HabilidadServicioComandos.ActualizarAsync` con
       pre-check de unicidad + catch de índice único**.
     - Capa: Aplicación.
     - Archivo:
@@ -129,7 +129,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
     - Verificación: 2.3 verde.
     - Dependencias: 2.3.
 
-- [ ] **2.5 Migrar tests existentes que protegen la regla opuesta**.
+- [x] **2.5 Migrar tests existentes que protegen la regla opuesta**.
     - Capa: Aplicación (tests).
     - Archivos:
       `tests/SGV.Tests/Aplicacion/Habilidades/HabilidadServicioComandosTests.cs`,
@@ -145,7 +145,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
 
 ### 3. Persistencia
 
-- [ ] **3.1 RED: tests de repositorio para `UpdateAsync` que propaga
+- [x] **3.1 RED: tests de repositorio para `UpdateAsync` que propaga
       `Codigo`**.
     - Capa: Persistencia (tests).
     - Archivo: `tests/SGV.Tests/Persistencia/HabilidadRepositoryTests.cs`.
@@ -165,7 +165,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
       y por la excepción esperada.
     - Dependencias: 2.5.
 
-- [ ] **3.2 GREEN: propagar `Codigo` en `UpdateEntity`**.
+- [x] **3.2 GREEN: propagar `Codigo` en `UpdateEntity`**.
     - Capa: Persistencia.
     - Archivo:
       `src/SGV.Infraestructura/Persistencia/Mapeos/DomainToPersistenceMapper.cs`.
@@ -180,7 +180,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
 
 ### 4. API
 
-- [ ] **4.1 RED: tests de API para `PUT` con `codigo` (400/409)**.
+- [x] **4.1 RED: tests de API para `PUT` con `codigo` (400/409)**.
     - Capa: API (tests).
     - Archivo: `tests/SGV.Tests/Api/SkillsControllerTests.cs`.
     - Tests:
@@ -196,7 +196,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
     - Verificación: tests rojos con los códigos esperados.
     - Dependencias: 2.5.
 
-- [ ] **4.2 GREEN: actualizar XML doc y contrato del `PUT`**.
+- [x] **4.2 GREEN: actualizar XML doc y contrato del `PUT`**.
     - Capa: API.
     - Archivo: `src/SGV.Api/Controllers/SkillsController.cs`.
     - El endpoint ya delega a `HabilidadServicioComandos`; bastan
@@ -212,7 +212,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
 
 ### 5. Web
 
-- [ ] **5.1 RED: tests web de Edit con `Codigo` editable**.
+- [x] **5.1 RED: tests web de Edit con `Codigo` editable**.
     - Capa: Web (tests).
     - Archivo: `tests/SGV.Tests/Web/Habilidad/HabilidadEditPageTests.cs`.
     - Reemplazar el test
@@ -234,7 +234,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
       conflicto).
     - Dependencias: 4.2.
 
-- [ ] **5.2 GREEN: remover `readonly` en `_Form.cshtml` y postear
+- [x] **5.2 GREEN: remover `readonly` en `_Form.cshtml` y postear
       `Codigo` desde `Edit.cshtml.cs`**.
     - Capa: Web.
     - Archivos:
@@ -253,7 +253,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
     - Verificación: 5.1 verde.
     - Dependencias: 5.1.
 
-- [ ] **5.3 GREEN: transporte de `Codigo` en el cliente HTTP y su
+- [x] **5.3 GREEN: transporte de `Codigo` en el cliente HTTP y su
       fake**.
     - Capa: Web + Web (tests).
     - Archivos:
@@ -273,7 +273,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
     - Dependencias: 5.2 (no compila hasta que 5.2 cambie la firma del
       request).
 
-- [ ] **5.4 VERIFY: suite web completa + smoke frontend**.
+- [x] **5.4 VERIFY: suite web completa + smoke frontend**.
     - Capa: Soporte.
     - Comandos: `dotnet build SGV.slnx`; `dotnet test SGV.slnx
       --no-build --configuration Release`; `bun install && bun run
@@ -284,7 +284,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
 
 ### 6. Specs (delta formales + archive posterior)
 
-- [ ] **6.1 Confirmar delta specs contra la implementación final**.
+- [x] **6.1 Confirmar delta specs contra la implementación final**.
     - Capa: Specs.
     - Archivos:
       `openspec/changes/permitir-editar-el-codigo-de-una-habilidad/specs/habilidad-web-crear-editar/spec.md`,
@@ -298,7 +298,7 @@ que cumple y la verificación observable. Numeración jerárquica por capa.
       retorna éxito.
     - Dependencias: 5.4.
 
-- [ ] **6.2 NOTE**: la sincronización de los delta specs contra los
+- [x] **6.2 NOTE**: la sincronización de los delta specs contra los
       baselines (`openspec/specs/.../spec.md`) y el `archive-report.md`
       se ejecutan en la fase **`sdd-archive`**, no en esta fase.
       Quedan fuera del scope de `sdd-apply`.
