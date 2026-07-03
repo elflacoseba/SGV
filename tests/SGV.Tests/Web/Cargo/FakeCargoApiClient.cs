@@ -200,6 +200,13 @@ public sealed class FakeCargoApiClient : ICargoApiClient
         return Task.FromResult(DeleteResult);
     }
 
+    /// <summary>
+    /// Indica si el identificador fue marcado como eliminado en este fake
+    /// (vía <see cref="DeleteAsync"/>). Útil para tests que necesitan
+    /// sembrar bajas lógicas sin tener que invocar el handler HTTP.
+    /// </summary>
+    public bool IsDeleted(Guid id) => _deletedIds.Contains(id);
+
     public Task<CargoCommandResult> CreateAsync(CrearCargoRequest request, CancellationToken cancellationToken = default)
     {
         CreateCalls.Add(request);
@@ -253,9 +260,8 @@ public sealed class FakeCargoApiClient : ICargoApiClient
         // El fake ahora modela la semántica server-side del repositorio:
         // sort + filter + paginación coherentes, así los tests web pueden
         // triangular REQ-CM-01 sin pedir a cada test su propio QueryHandler.
-        var snapshot = (_getAllResult ?? Array.Empty<CargoDto>())
-            .Where(c => !_deletedIds.Contains(c.Id))
-            .ToList();
+        var source = (_getAllResult ?? Array.Empty<CargoDto>()).ToList();
+        var snapshot = ApplyStatusFilter(source, query.Status);
 
         var lowered = query.Search?.ToLowerInvariant();
         if (!string.IsNullOrWhiteSpace(lowered))
@@ -275,6 +281,19 @@ public sealed class FakeCargoApiClient : ICargoApiClient
             .ToList();
 
         return Task.FromResult(new PagedResult<CargoDto>(pageItems, total, query.Page, query.PageSize));
+    }
+
+    private List<CargoDto> ApplyStatusFilter(List<CargoDto> source, string? status)
+    {
+        // Status = "eliminadas" (case-insensitive) → sólo registros en _deletedIds.
+        // Status = "activas" (case-insensitive) o null → snapshot activo, idéntico
+        // a GetAllAsync (excluye _deletedIds).
+        if (string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase))
+        {
+            return source.Where(c => _deletedIds.Contains(c.Id)).ToList();
+        }
+
+        return source.Where(c => !_deletedIds.Contains(c.Id)).ToList();
     }
 
     private static List<CargoDto> ApplySort(List<CargoDto> source, string? sort) =>
