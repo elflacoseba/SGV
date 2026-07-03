@@ -17,7 +17,7 @@ Estado inicial: baseline limpio, sin cambios previos. `dotnet build SGV.slnx --c
 | PR | Estado | Tasks # | Commits | Verif build | Verif tests |
 |----|--------|---------|---------|-------------|-------------|
 | PR 1 — Slice 1/A (Backend + tests xUnit) | ✅ Completado | #1.1 a #1.11 | a90e0e50, b8c49dc8 | 0 warnings / 0 errors | 191/191 backend nuevos |
-| PR 2 — Slice 2 (Cliente + shell) | Pendiente | #2.1 a #2.5 | — | — | — |
+| PR 2 — Slice 2 (Cliente + shell) | ✅ Completado | #2.1 a #2.5 | a66199de | 0 warnings / 0 errors | 21/21 verde |
 | PR 3 — Slice 3A (Index + JS + tests listado) | Pendiente | #3.1 a #3.3 | — | — | — |
 | PR 4 — Slice 3B (Create/Edit/Details + _Form + tests + anti-drift) | Pendiente | #3.4 a #3.9 | — | — | — |
 
@@ -74,6 +74,41 @@ Estado inicial: baseline limpio, sin cambios previos. `dotnet build SGV.slnx --c
 
 1. `feat(skills): consulta segmentada y catalogo de niveles ordenado por Orden` — incluye tipos, repos y servicios de aplicación + tests.
 2. `feat(skills): authorize skills endpoints and add consulta and niveles-habilidad` — incluye controllers + auth + swagger + tests + ajuste de preflight MySQL.
+
+## PR 2 — Detalle de progreso
+
+### Tasks completadas
+
+- [x] **#2.1** `HabilidadListItemViewModel` + `HabilidadListQuery` (web) + `HabilidadDeleteResult` (web) + `HabilidadInputModel` (con longitudes del dominio)
+- [x] **#2.2** `IHabilidadApiClient` con 8 métodos (GetAll/GetById/Delete/Create/Update/GetNivelesHabilidad/Query/Reactivar)
+- [x] **#2.3** `HabilidadApiClient` HTTP tipado + tests (ruta /api/v1/skills, /api/v1/niveles-habilidad, BuildQueryUri con status=eliminadas)
+- [x] **#2.4** `AddHttpClient<IHabilidadApiClient, HabilidadApiClient>` registrado en `Program.cs` (BaseUrl + 10s timeout + ApiBearerTokenHandler) + `ProductionRegistration_ResolvesHabilidadApiClient` + `WithOverrides_HabilidadApiClient_SwapsToFakeImplementation`
+- [x] **#2.5** Entrada colapsable `Habilidades` en `_Sidenav.cshtml` (icono `ti ti-star`, submenú `Listado` + `Nueva`, variable `habilidadesActive` por `StartsWithSegments`) + test `Get_Sidenav_WhenAuthenticated_ExposesHabilidadesModule`
+
+### Archivos creados / modificados
+
+| Archivo | Acción |
+|---------|--------|
+| `src/SGV.Web/Integration/Habilidades/HabilidadListItemViewModel.cs` | Creado |
+| `src/SGV.Web/Integration/Habilidades/IHabilidadApiClient.cs` | Creado |
+| `src/SGV.Web/Integration/Habilidades/HabilidadApiClient.cs` | Creado |
+| `src/SGV.Web/Integration/Habilidades/HabilidadInputModel.cs` | Creado (también cubre #3.4) |
+| `src/SGV.Web/Program.cs` | Modificado (registro DI) |
+| `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` | Modificado (entrada Habilidades) |
+| `tests/SGV.Tests/Web/Habilidad/HabilidadWebSeamTests.cs` | Creado (7 tests) |
+| `tests/SGV.Tests/Web/Habilidad/HabilidadApiClientTests.cs` | Creado (10 tests) |
+| `tests/SGV.Tests/Web/Habilidad/FakeHabilidadApiClient.cs` | Creado (fake en memoria) |
+| `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs` | Modificado (overrides para IHabilidadApiClient) |
+| `tests/SGV.Tests/Web/CargoWebTests.cs` | Modificado (nuevo test Get_Sidenav_WhenAuthenticated_ExposesHabilidadesModule) |
+
+### Verificación ejecutada
+
+- `dotnet build SGV.slnx --configuration Release` → 0 warnings, 0 errors.
+- `dotnet test SGV.slnx --filter "HabilidadWebSeamTests|HabilidadApiClientTests|CargoWebTests"` → 21/21 verde.
+
+### Commits
+
+3. `feat(web): add habilidades HTTP client shell entry and sidenav` — incluye cliente tipado, VMs, DI, sidenav y tests.
 
 ## TDD Cycle Evidence
 
