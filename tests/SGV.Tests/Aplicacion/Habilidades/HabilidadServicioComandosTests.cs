@@ -1,6 +1,7 @@
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 using Xunit;
 
@@ -384,6 +385,15 @@ internal sealed class FakeHabilidadWriteRepository : IHabilidadRepository
         }
         return Task.CompletedTask;
     }
+
+    public Task<(IReadOnlyList<Habilidad> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        HabilidadSegmentoListado segmento = HabilidadSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<(IReadOnlyList<Habilidad>, int)>(([], 0));
 }
 
 internal sealed class FakeUnitOfWork : IUnitOfWork
