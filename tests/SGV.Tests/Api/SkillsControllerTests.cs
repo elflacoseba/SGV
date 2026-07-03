@@ -118,6 +118,28 @@ public sealed class SkillsControllerTests
     }
 
     [Fact]
+    public async Task GetById_InactiveHabilidad_ReturnsNotFound()
+    {
+        // Spec CRITICAL-05 escenario 1: el endpoint GET /api/v1/skills/{id}
+        // expone solo habilidades activas; cuando la habilidad existe en
+        // persistencia con IsActive=false pero no eliminada (soft-delete),
+        // la consulta por id MUST responder 404. El repository filtra por
+        // IsActive, así que GetByIdAsync devuelve null y el controller
+        // NotFound.
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(
+                new FakeHabilidadServicio(withInactive: true));
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync($"/api/v1/skills/{FakeHabilidadServicio.HabilidadInactivaId1}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public void Controller_HasAuthorizeAttribute()
     {
         // Cambio de contrato: SkillsController ahora exige autenticación en
@@ -558,6 +580,9 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetConsulta_PageSizeMayorA100_NormalizaA100()
     {
+        // Spec CRITICAL-01: pageSize > 100 MUST normalizarse a 100 en el
+        // controller antes de llegar al servicio. El servicio recibe la query
+        // ya normalizada, no los 500 crudos del query string.
         HabilidadListQuery? capturedQuery = null;
         var fakeServicio = new RecordingHabilidadServicio();
         fakeServicio.QueryHandler = q =>
@@ -574,24 +599,18 @@ public sealed class SkillsControllerTests
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
 
-        // El servicio recibe PageSize=500 tal cual del query string; la
-        // normalización a 100 vive en el contrato del repositorio. Lo que
-        // validamos es que la query llega intacta al servicio.
         var response = await client.GetAsync("/api/v1/skills/consulta?pageSize=500&page=0");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(capturedQuery);
-        Assert.Equal(500, capturedQuery!.PageSize);
-        Assert.Equal(0, capturedQuery.Page);
+        Assert.Equal(100, capturedQuery!.PageSize);
+        Assert.Equal(1, capturedQuery.Page);
     }
 
     [Fact]
-    public async Task GetConsulta_PageInvalido_LlegaCeroYServicioLoManeja()
+    public async Task GetConsulta_PageInvalido_NormalizaA1()
     {
-        // El controller no normaliza page/pageSize: el query del repo espera
-        // page>=1; en MySQL Skip((-1)*20) devolvería la última página, no la
-        // primera. Mantener la query sin normalizar documenta el contrato
-        // actual y deja espacio a una capa de normalización futura.
+        // Spec CRITICAL-01: page < 1 MUST normalizarse a 1 en el controller.
         HabilidadListQuery? capturedQuery = null;
         var fakeServicio = new RecordingHabilidadServicio();
         fakeServicio.QueryHandler = q =>
@@ -612,7 +631,34 @@ public sealed class SkillsControllerTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(capturedQuery);
-        Assert.Equal(0, capturedQuery!.Page);
+        Assert.Equal(1, capturedQuery!.Page);
+    }
+
+    [Fact]
+    public async Task GetConsulta_PageSizeNegativo_CaeADefault20()
+    {
+        // Spec CRITICAL-01: pageSize < 1 MUST normalizarse a 20 (defecto).
+        HabilidadListQuery? capturedQuery = null;
+        var fakeServicio = new RecordingHabilidadServicio();
+        fakeServicio.QueryHandler = q =>
+        {
+            capturedQuery = q;
+            return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
+        };
+
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/skills/consulta?pageSize=0");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(capturedQuery);
+        Assert.Equal(20, capturedQuery!.PageSize);
     }
 
     // ---- Autorización por roles en mutaciones ----
