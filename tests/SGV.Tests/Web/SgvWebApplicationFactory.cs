@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using SGV.Web.Integration.Auth;
+using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Tests.Web;
@@ -21,6 +22,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly HttpMessageHandler? _cargoApiHandler;
     private readonly IUnidadOrganizativaApiClient? _unidadOrganizativaApiClient;
     private readonly ICargoApiClient? _cargoApiClient;
+    private readonly IHabilidadApiClient? _habilidadApiClient;
 
     public SgvWebApplicationFactory()
     {
@@ -31,13 +33,15 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         HttpMessageHandler? authApiHandler,
         HttpMessageHandler? cargoApiHandler,
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient,
-        ICargoApiClient? cargoApiClient)
+        ICargoApiClient? cargoApiClient,
+        IHabilidadApiClient? habilidadApiClient)
     {
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
         _cargoApiHandler = cargoApiHandler;
         _unidadOrganizativaApiClient = unidadOrganizativaApiClient;
         _cargoApiClient = cargoApiClient;
+        _habilidadApiClient = habilidadApiClient;
     }
 
     public SgvWebApplicationFactory WithOverrides(
@@ -45,15 +49,24 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         HttpMessageHandler? authApiHandler = null,
         HttpMessageHandler? cargoApiHandler = null,
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient = null,
-        ICargoApiClient? cargoApiClient = null)
+        ICargoApiClient? cargoApiClient = null,
+        IHabilidadApiClient? habilidadApiClient = null)
     {
         return new SgvWebApplicationFactory(
             configureServices,
             authApiHandler,
             cargoApiHandler,
             unidadOrganizativaApiClient,
-            cargoApiClient);
+            cargoApiClient,
+            habilidadApiClient);
     }
+
+    /// <summary>
+    /// Convenience helper to swap <see cref="IHabilidadApiClient"/> for a fake
+    /// without touching the rest of the configuration surface.
+    /// </summary>
+    public SgvWebApplicationFactory WithHabilidadApiClient(IHabilidadApiClient fake)
+        => WithOverrides(habilidadApiClient: fake);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -103,6 +116,12 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<ICargoApiClient>();
                 services.AddSingleton(_cargoApiClient);
+            }
+
+            if (_habilidadApiClient is not null)
+            {
+                services.RemoveAll<IHabilidadApiClient>();
+                services.AddSingleton(_habilidadApiClient);
             }
         });
     }
