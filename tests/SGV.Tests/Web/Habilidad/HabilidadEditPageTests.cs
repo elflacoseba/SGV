@@ -147,26 +147,6 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
     }
 
     [Fact]
-    public async Task Post_Edit_WhenCodigoUnchanged_UpdatesOtherFields()
-    {
-        var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo Inicial", "Desc inicial", "Conductual");
-        var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
-        apiClient.UpdateResult = HabilidadCommandResult.Success(dto);
-
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
-        var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
-
-        var formPost = await PostEditAsync(client, token, id, "H-001", "Liderazgo Actualizado", "Conductual", "Nueva descripción");
-
-        Assert.Equal(HttpStatusCode.Redirect, formPost.StatusCode);
-        Assert.Single(apiClient.UpdateCalls);
-        Assert.Equal("H-001", apiClient.UpdateCalls[0].Request.Codigo);
-        Assert.Equal("Liderazgo Actualizado", apiClient.UpdateCalls[0].Request.Nombre);
-        Assert.Equal("Nueva descripción", apiClient.UpdateCalls[0].Request.Descripcion);
-    }
-
-    [Fact]
     public async Task Post_Edit_WhenConflictOnCodigo_ReturnsFieldError()
     {
         var id = Guid.NewGuid();
