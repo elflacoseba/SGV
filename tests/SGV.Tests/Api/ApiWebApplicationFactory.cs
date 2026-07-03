@@ -310,11 +310,12 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
 {
     public static readonly Guid HabilidadId1 = Guid.Parse("d0000000-0000-0000-0000-000000000001");
     public static readonly Guid HabilidadEliminadaId1 = Guid.Parse("de000000-0000-0000-0000-000000000001");
+    public static readonly Guid HabilidadInactivaId1 = Guid.Parse("d1000000-0000-0000-0000-000000000001");
 
     private readonly IReadOnlyList<HabilidadDto> _data;
     private readonly IReadOnlyList<HabilidadDto> _eliminadas;
 
-    public FakeHabilidadServicio(bool isEmpty = false, bool withEliminadas = false)
+    public FakeHabilidadServicio(bool isEmpty = false, bool withEliminadas = false, bool withInactive = false)
     {
         _data = isEmpty
             ? []
@@ -323,13 +324,31 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
         _eliminadas = (isEmpty || !withEliminadas)
             ? []
             : [new(HabilidadEliminadaId1, "DEL-001", "Eliminada", "Descripción eliminada", "General")];
+
+        // Nota: el flag withInactive solo activa el id inactiva esperado;
+        // NO agrega una entrada en _data ni en _eliminadas. La habilidad
+        // inactiva existe conceptualmente en la persistencia (IsActive=false,
+        // IsDeleted=false) pero no es devuelta por GetByIdAsync porque el
+        // repository filtra por IsActive. Esta es la semántica que la spec
+        // exige para "obtener habilidad inactiva devuelve 404".
+        _ = withInactive;
     }
 
     public Task<IReadOnlyList<HabilidadDto>> ListAsync(CancellationToken ct = default)
         => Task.FromResult(_data);
 
     public Task<HabilidadDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => Task.FromResult(_data.Concat(_eliminadas).FirstOrDefault(d => d.Id == id));
+    {
+        // Inactiva: la spec exige 404 al consultar por GET /api/v1/skills/{id}
+        // cuando IsActive=false. GetByIdAsync no expone la inactiva aunque
+        // exista en la base.
+        if (id == HabilidadInactivaId1)
+        {
+            return Task.FromResult<HabilidadDto?>(null);
+        }
+
+        return Task.FromResult(_data.Concat(_eliminadas).FirstOrDefault(d => d.Id == id));
+    }
 
     public Task<PagedResult<HabilidadDto>> QueryAsync(HabilidadListQuery query, CancellationToken ct = default)
     {
@@ -363,11 +382,18 @@ internal sealed class FakeNivelHabilidadServicio : INivelHabilidadServicioConsul
         new(AvanzadoId, "AVANZADO", "Avanzado", 3, 3),
     ];
 
+    private readonly IReadOnlyList<NivelHabilidadDto> _data;
+
+    public FakeNivelHabilidadServicio(bool isEmpty = false)
+    {
+        _data = isEmpty ? [] : SeedData;
+    }
+
     public Task<IReadOnlyList<NivelHabilidadDto>> ListAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult(SeedData);
+        => Task.FromResult(_data);
 
     public Task<NivelHabilidadDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-        => Task.FromResult(SeedData.FirstOrDefault(d => d.Id == id));
+        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
 }
 
 internal sealed class FakePuestoServicioComandos : IPuestoServicioComandos

@@ -235,6 +235,92 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
         Assert.DoesNotContain("name=\"nivelId\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Get_Index_WhenSwitchingToEliminadasWithFilters_PreservesSearchAndSort()
+    {
+        // Spec CRITICAL-05 escenario 3: al cambiar de segmento de activas a
+        // eliminadas, la búsqueda y el orden vigentes se preservan en el
+        // request al API. Lo verificamos observando la query exacta que se
+        // envía al IHabilidadApiClient cuando navegamos a
+        // /organizacion/habilidades?status=eliminadas&search=lider&sort=nombre_desc.
+        var first = HabilidadWebTestFixture.BuildHabilidadDto("H-DEL", "Eliminada", "Desc", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(first);
+        apiClient.QueryHandler = _ => new PagedResult<HabilidadDto>([first], 1, 1, 20);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync(
+            "/organizacion/habilidades?status=eliminadas&search=lider&sort=nombre_desc");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        Assert.NotEmpty(apiClient.QueryCalls);
+        var query = apiClient.QueryCalls[0];
+        Assert.Equal("lider", query.Search);
+        Assert.Equal("nombre_desc", query.Sort);
+        Assert.Equal("eliminadas", query.Status);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenAtListadoWithP2_ToggleLinkGeneratesP1AndPreservesFilters()
+    {
+        // Spec CRITICAL-05 escenario 3: al estar en /organizacion/habilidades
+        // con búsqueda y orden aplicados, el link "Ver eliminadas" del
+        // submenú debe resetear la página al cambiar de segmento y
+        // preservar los filtros vigentes.
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList();
+        apiClient.QueryHandler = _ => new PagedResult<HabilidadDto>([], 0, 1, 20);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync(
+            "/organizacion/habilidades?search=lider&sort=nombre_desc&p=2");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Localizar el anchor de "Eliminadas" generado por
+        // Url.Page("/Organizacion/Habilidades/Index", BuildToggleSegmentoRouteValues("eliminadas"))
+        // y verificar que su href contiene p=1 (reset) y los filtros vigentes.
+        var eliminadasAnchor = ExtractAnchorForHrefContaining(content, "status=eliminadas", "search=lider", "sort=nombre_desc");
+        Assert.NotNull(eliminadasAnchor);
+
+        Assert.Contains("status=eliminadas", eliminadasAnchor!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=lider", eliminadasAnchor!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_desc", eliminadasAnchor!, StringComparison.OrdinalIgnoreCase);
+        // Página reseteada a 1.
+        Assert.Contains("p=1", eliminadasAnchor!, StringComparison.OrdinalIgnoreCase);
+        // Y NO debe contener p=2 en ese anchor.
+        Assert.DoesNotContain("p=2", eliminadasAnchor!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ExtractAnchorForHrefContaining(string content, params string[] requiredTokens)
+    {
+        var idx = 0;
+        while ((idx = content.IndexOf("<a ", idx, StringComparison.OrdinalIgnoreCase)) >= 0)
+        {
+            var anchorEnd = content.IndexOf('>', idx);
+            if (anchorEnd < 0) break;
+            var anchor = content[idx..(anchorEnd + 1)];
+            var hrefStart = anchor.IndexOf("href=\"", StringComparison.OrdinalIgnoreCase);
+            if (hrefStart >= 0)
+            {
+                var hrefValueStart = hrefStart + "href=\"".Length;
+                var hrefValueEnd = anchor.IndexOf('"', hrefValueStart);
+                if (hrefValueEnd > 0)
+                {
+                    var hrefValue = anchor[hrefValueStart..hrefValueEnd];
+                    if (requiredTokens.All(t => hrefValue.Contains(t, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return hrefValue;
+                    }
+                }
+            }
+            idx = anchorEnd + 1;
+        }
+        return null;
+    }
+
     private static async Task<HttpResponseMessage> PostDeleteAsync(
         HttpClient client,
         string antiforgeryToken,
