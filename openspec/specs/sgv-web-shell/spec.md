@@ -41,16 +41,23 @@ The system MUST NOT expose Inspinia demo pages, sample dashboards, fake data scr
 
 ### Requirement: Minimal technical navigation
 
-El sistema MUST incluir la navegación mínima del shell y, a partir de este cambio, MUST exponer `Unidades Organizativas` y `Cargos` como módulos funcionales de negocio habilitados. La navegación autenticada MUST mantener `Home`, `Unidades Organizativas` y `Cargos`, y MUST NOT mostrar placeholders de otros módulos de negocio todavía no especificados.
+El sistema MUST incluir la navegación mínima del shell y, a partir de este cambio, MUST exponer `Unidades Organizativas`, `Cargos` y `Habilidades` como módulos funcionales de negocio habilitados. La navegación autenticada MUST mantener `Home`, `Unidades Organizativas`, `Cargos` y `Habilidades`; `Habilidades` MUST renderizarse debajo de `Cargos` como grupo colapsable con icono `ti ti-star` y submenú `Listado` + `Nueva`; y el shell MUST NOT mostrar placeholders de otros módulos no especificados.
 
-(Previously: la navegación autenticada exponía `Home` y `Unidades Organizativas` como único módulo funcional de negocio.)
+(Previously: la navegación autenticada exponía `Home`, `Unidades Organizativas` y `Cargos` como módulos funcionales habilitados.)
 
-#### Scenario: Navegación mínima con módulos funcionales habilitados
+#### Scenario: Navegación mínima con Habilidades habilitado
 
 - GIVEN el menú de navegación autenticado renderizado
 - WHEN un usuario inspecciona las entradas disponibles
-- THEN las entradas MUST incluir `Home`, `Unidades Organizativas` y `Cargos`
-- AND `Cargos` MUST ser alcanzable como destino del shell.
+- THEN las entradas MUST incluir `Home`, `Unidades Organizativas`, `Cargos` y `Habilidades`
+- AND `Habilidades` MUST ser alcanzable como destino del shell.
+
+#### Scenario: Submenú de Habilidades visible y activo
+
+- GIVEN un usuario autenticado ubicado en una página de Habilidades
+- WHEN se renderiza el grupo `Habilidades`
+- THEN la navegación MUST mostrar `Listado` y `Nueva`
+- AND MUST reflejar el estado `active` del grupo y de la opción correspondiente.
 
 #### Scenario: Otros módulos siguen fuera de alcance
 

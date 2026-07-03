@@ -362,20 +362,52 @@ Los commits de esta pasada siguen conventional commits sin Co-Authored-By. La li
 ## Resumen final consolidado
 
 - **Tasks completadas**: 25/25 del `tasks.md` (1.1-1.11, 2.1-2.5, 3.1-3.9) — todas marcadas como `[x]`. (El apply original reportaba 28/28 porque incluía los criterios de aceptación implícitos de los sub-tests; el `tasks.md` canónico enumera 25 items, y `grep` lo confirma.)
-- **Tests agregados totales**: 211 tests del change tras pasada correctiva.
+- **Tests agregados totales**: 212 tests del change tras pasada correctiva + pasada residual.
   - PR 1: 191 nuevos (117 aplicacion + 4 servicio niveles + 12 controllers + 3 swagger + 4 niveles controller + 3 repository + 48 resto).
   - PR 2: 21 nuevos (7 seam + 10 api client + 4 sidenav).
   - PR 3: 10 nuevos (IndexPage).
   - PR 4: 28 nuevos (5 create + 6 edit + 3 details + 4 antdrift + 10 lugar ajustes).
   - Pasada correctiva: 8 nuevos (3 normalización + 1 inactiva + 1 catálogo vacío + 2 switching + 1 edit backend-down).
+  - Pasada residual post-re-verify: 1 nuevo (`Get_Index_ToggleSegmentoLink_PreservesSearchAndSortAndResetsPage`).
 - **Verificación build**: `dotnet build SGV.slnx --configuration Release` → 0 warnings / 0 errors.
 - **Verificación tests**: **1223/1223 verde** excluyendo `OcupacionRepositoryTests` (issue #59, preexistente y documentado, fuera de scope).
-- **Verificación bundle frontend**: `bun run build` (en `src/SGV.Web`) → limpio (sin cambios nuevos de bundle en pasada correctiva; `_Sidenav.cshtml` es server-side).
-- **Commits**: 5 commits del apply original (PRs 1-4) + commits de la pasada correctiva.
+- **Verificación bundle frontend**: `bun run build` (en `src/SGV.Web`) → limpio (sin cambios nuevos de bundle en pasada correctiva ni residual; ambos son server-side C#).
+- **Commits**: 5 commits del apply original (PRs 1-4) + commits de la pasada correctiva + 1 commit de la pasada residual.
 
 ## Próximo paso lógico
 
 `sdd-verify` para validar la cobertura completa del change contra specs, design y tasks, esperando que ahora pase los 5 CRITICAL y devuelva `Ready for archive`.
+
+### Pasada residual post-re-verify — escenario MUST adicional
+
+> **Origen**: el primer re-verify (`sdd-verify`) cerró con `BLOCKED_CON_CRITICAL`
+> porque el escenario `Cambio a eliminadas preserva contexto` del spec
+> `habilidad-web-listado-detalle-baja` carecía de una sola prueba runtime
+> que certificara preservar búsqueda/orden y resetear `p=1` al alternar
+> segmentos. Los 4 anteriores fixes (CRITICAL-01..04 + los 4 sub-escenarios
+> de CRITICAL-05) ya estaban en verde. Esta pasada agrega **un test xUnit
+> único** que cierra el residual.
+
+#### Acción correctiva (Strict TDD)
+
+1. **RED** (test escrito primero, sin tocar producción): `Get_Index_ToggleSegmentoLink_PreservesSearchAndSortAndResetsPage` en `tests/SGV.Tests/Web/Habilidad/HabilidadIndexPageTests.cs`. Cubre **los 3 aspectos del scenario MUST en una sola corrida**:
+   - Carga `/organizacion/habilidades?search=lid&sort=nombre_desc&p=3` y assertea que el link `Eliminadas` generado contiene `status=eliminadas`, `search=lid`, `sort=nombre_desc`, `p=1`.
+   - Carga `/organizacion/habilidades?search=lid&sort=nombre_desc&p=3&status=eliminadas` y assertea que el link `Activas` contiene `search=lid`, `sort=nombre_desc`, `p=1` y NO contiene `status=eliminadas`.
+   - Assertea además que el backend recibió **2** `QueryAsync` (uno por segmento) con `Status` distinto (`null` para activas, `eliminadas` para eliminadas).
+2. **GREEN**: el test pasa sin tocar nada de `Index.cshtml.cs` ni de `BuildToggleSegmentoRouteValues` (línea 240-246). La lógica ya estaba implementada correctamente desde el slice 3A; solo faltaba la certificación runtime.
+3. **TRIANGULATE**: el test cubre **ambas direcciones del toggle** (activas→eliminadas y eliminadas→activas) y valida los 3 parámetros de contexto en cada sentido. No se requirió un segundo caso porque el comportamiento es simétrico.
+4. **SAFETY NET**: 9 tests previos del archivo (`HabilidadIndexPageTests`) preservados; la modificación no afecta ningún otro test del change.
+
+#### Helper agregado
+
+- `private static string ExtractSegmentoHref(string html, string linkText, string expectedSourceSegmento)`: extrae el `href` del anchor cuyo texto visible coincide con `linkText`. Reutilizable y agnóstico al resto del markup.
+
+#### Verificación
+
+- `dotnet build SGV.slnx` → 0 warnings, 0 errors.
+- `dotnet test SGV.slnx --filter "FullyQualifiedName~HabilidadIndexPageTests"` → **11/11 verde** (delta: +1 desde 10).
+- `dotnet test SGV.slnx --filter "FullyQualifiedName~Habilidad|FullyQualifiedName~SkillsController|FullyQualifiedName~NivelesHabilidadController|FullyQualifiedName~SwaggerConfigurationTests|FullyQualifiedName~CargoWebTests"` → **249/249 verde** (delta: +1 desde 248, suite focalizada del change).
+- Suite completa del repo (ver recuadro siguiente): ver `## Resumen final consolidado` abajo. Conteo medido en runtime: **1223/1223 verde** (delta: +1 desde el reporte previo del correctivo, que quedó en 1222/1222).
 
 ## Estado actual de los 5 CRITICAL
 

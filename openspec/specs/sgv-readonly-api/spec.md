@@ -88,14 +88,14 @@ The system MUST return response models intended for API consumers. Responses MUS
 
 ### Requirement: Public API Discoverability
 
-The system MUST publish API documentation that allows consumers to discover read endpoints, write endpoints for organizational units, roles (cargos), positions, skills, and Personas, and response contracts.
-(Previously: documentation excluded write operations for positions and skills. Personas were not documented as an API resource.)
+The system MUST publish API documentation that allows consumers to discover read endpoints, write endpoints for organizational units, roles (cargos), positions, skills, Personas, `GET /api/v1/skills/consulta`, and `GET /api/v1/niveles-habilidad`, along with their response contracts. Documentation for skills MUST preserve `GET /api/v1/skills` as the legacy active-only read route and MUST describe `skills/consulta` as the segmented read contract.
+(Previously: documentation allowed consumers to discover read endpoints and write endpoints for organizational units, roles, positions, skills, and Personas, but did not document `skills/consulta` or `niveles-habilidad`.)
 
 #### Scenario: Discover endpoints through API documentation
 
 - **GIVEN** the API is running locally
 - **WHEN** a client opens the API documentation
-- **THEN** the documentation MUST list read endpoints for organizational units, organizational unit types, roles, positions, skills, and Personas
+- **THEN** the documentation MUST list read endpoints for organizational units, organizational unit types, roles, positions, skills, Personas, and `niveles-habilidad`
 - **AND** it MUST describe the successful response contract for each endpoint.
 
 #### Scenario: Discover organizational unit write operations
@@ -120,7 +120,22 @@ The system MUST publish API documentation that allows consumers to discover read
 
 - **GIVEN** skill management is supported
 - **WHEN** a client inspects the API documentation
-- **THEN** documented skill create, update, deactivate, and reactivate operations under `/api/v1/skills` MUST be discoverable.
+- **THEN** documented skill create, update, deactivate, and reactivate operations under `/api/v1/skills` MUST be discoverable
+- **AND** `GET /api/v1/skills/consulta` MUST appear as the segmented query route.
+
+#### Scenario: Discover segmented skill query parameters
+
+- **GIVEN** a client inspects `GET /api/v1/skills/consulta`
+- **WHEN** the query parameters are reviewed
+- **THEN** the documentation MUST describe `status=activas|eliminadas`, `search`, `sort`, `page` and `pageSize`
+- **AND** MUST indicate that `activas` is the default segment.
+
+#### Scenario: Discover skill-level catalog
+
+- **GIVEN** a client inspects the API documentation
+- **WHEN** the documented read resources are reviewed
+- **THEN** `GET /api/v1/niveles-habilidad` MUST be discoverable
+- **AND** its success response MUST describe the consumer-safe level catalog.
 
 #### Scenario: Discover persona management operations
 
