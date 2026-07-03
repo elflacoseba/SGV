@@ -69,6 +69,29 @@ public sealed class CargoWebTests
         Assert.DoesNotContain("<span class=\"menu-text\">Catálogos</span>", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Get_Sidenav_WhenAuthenticated_ExposesHabilidadesModule()
+    {
+        using var client = await CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync("/");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El grupo Habilidades debe aparecer con icono y submenú Listado + Nueva.
+        Assert.Contains("<span class=\"menu-text\">Habilidades</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/habilidades\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/organizacion/habilidades/crear\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ti ti-star", content, StringComparison.OrdinalIgnoreCase);
+
+        // Y NO debe mostrar placeholders no especificados.
+        Assert.DoesNotContain("<span class=\"menu-text\">Vacantes</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Reclutamiento</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Cat&aacute;logos</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Catálogos</span>", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task<HttpClient> CreateAuthenticatedClientAsync()
     {
         var handler = new RecordingHttpMessageHandler(
