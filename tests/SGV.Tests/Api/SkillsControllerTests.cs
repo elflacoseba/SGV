@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using Xunit;
 
 namespace SGV.Tests.Api;
@@ -58,7 +59,7 @@ public sealed class SkillsControllerTests
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/skills");
 
@@ -79,7 +80,7 @@ public sealed class SkillsControllerTests
             services.AddSingleton<IHabilidadServicioConsulta>(
                 new FakeHabilidadServicio(isEmpty: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/skills");
 
@@ -93,7 +94,7 @@ public sealed class SkillsControllerTests
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}");
@@ -109,7 +110,7 @@ public sealed class SkillsControllerTests
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/skills/{Guid.NewGuid()}");
 
@@ -117,14 +118,65 @@ public sealed class SkillsControllerTests
     }
 
     [Fact]
-    public void Controller_DoesNotHaveAuthorizeAttribute()
+    public void Controller_HasAuthorizeAttribute()
     {
+        // Cambio de contrato: SkillsController ahora exige autenticación en
+        // lecturas (paridad con CargosController). La antigua semántica
+        // "controller público" ya no aplica; este test fija el nuevo
+        // contrato a nivel de atributo de clase.
         var controllerType = typeof(SGV.Api.Controllers.SkillsController);
 
         var hasAuthorize = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Any(a => a is AuthorizeAttribute);
 
-        Assert.False(hasAuthorize, "Controller should not require authorization");
+        Assert.True(hasAuthorize, "Controller should require authorization");
+    }
+
+    [Fact]
+    public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
+    {
+        // Sin cabecera Authorization, GetAll debe responder 401 porque el
+        // controller tiene [Authorize] aplicado a nivel de clase.
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/skills");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/v1/skills/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAll_JsonResponse_NoExponeNivelIdEnHabilidadDto()
+    {
+        // Anti-drift centralizado: el DTO de salida de /api/v1/skills NO
+        // debe contener nivelId, nivelNombre ni NivelId en el payload
+        // JSON. La entidad Habilidad del dominio no modela nivel propio,
+        // así que el catálogo maestro debe ser consumer-safe.
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/skills");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        // Tolerar mayúsculas porque System.Text.Json conserva el casing original.
+        Assert.DoesNotContain("nivelId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("nivelNombre", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("NivelId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("NivelNombre", json, StringComparison.OrdinalIgnoreCase);
     }
 
     // ---- POST (create) ----
@@ -133,7 +185,7 @@ public sealed class SkillsControllerTests
     public async Task Post_ValidRequest_Returns201CreatedWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "NVO", nombre = "Nueva Habilidad", categoria = "Técnica" });
 
         var response = await client.PostAsync("/api/v1/skills", body);
@@ -165,7 +217,7 @@ public sealed class SkillsControllerTests
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "", nombre = "" });
 
         var response = await client.PostAsync("/api/v1/skills", body);
@@ -191,7 +243,7 @@ public sealed class SkillsControllerTests
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "PROG", nombre = "Duplicado" });
 
         var response = await client.PostAsync("/api/v1/skills", body);
@@ -203,11 +255,11 @@ public sealed class SkillsControllerTests
 
     // ---- PUT (update) ----
 
-    [Fact]
+[Fact]
     public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nombre = "Habilidad Actualizada", categoria = "Nueva Categoría" });
 
         var response = await client.PutAsync(
@@ -232,7 +284,7 @@ public sealed class SkillsControllerTests
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nombre = "No existe" });
 
         var response = await client.PutAsync($"/api/v1/skills/{Guid.NewGuid()}", body);
@@ -261,7 +313,7 @@ public sealed class SkillsControllerTests
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nombre = "" });
 
         var response = await client.PutAsync($"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}", body);
@@ -278,7 +330,7 @@ public sealed class SkillsControllerTests
     public async Task Delete_ExistingId_Returns204NoContent()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}");
@@ -300,7 +352,7 @@ public sealed class SkillsControllerTests
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/skills/{Guid.NewGuid()}");
 
@@ -315,7 +367,7 @@ public sealed class SkillsControllerTests
     public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}/reactivar", null);
@@ -339,7 +391,7 @@ public sealed class SkillsControllerTests
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/skills/{Guid.NewGuid()}/reactivar", null);
@@ -364,7 +416,7 @@ public sealed class SkillsControllerTests
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}/reactivar", null);
@@ -372,5 +424,283 @@ public sealed class SkillsControllerTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(409, problem.Status);
+    }
+
+    // ---- GET /api/v1/skills/consulta (segmentada) ----
+
+    [Fact]
+    public async Task GetConsulta_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/skills/consulta");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetConsulta_StatusEliminadas_RetornaSoloEliminadas()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(
+                new FakeHabilidadServicio(withEliminadas: true));
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/skills/consulta?status=eliminadas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var paged = await ReadAsAsync<PagedResult<HabilidadDto>>(response);
+        Assert.NotNull(paged);
+        Assert.Equal(1, paged.TotalCount);
+        Assert.Single(paged.Items);
+        Assert.Equal(FakeHabilidadServicio.HabilidadEliminadaId1, paged.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetConsulta_StatusInvalido_CaeA_Activas()
+    {
+        // status=archivo no es un valor conocido: el controller debe caer a activas.
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(new FakeHabilidadServicio());
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/skills/consulta?status=archivo");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var paged = await ReadAsAsync<PagedResult<HabilidadDto>>(response);
+        Assert.NotNull(paged);
+        Assert.Equal(FakeHabilidadServicio.HabilidadId1, paged.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetConsulta_SinStatus_RetornaActivas()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(new FakeHabilidadServicio());
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/skills/consulta");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var paged = await ReadAsAsync<PagedResult<HabilidadDto>>(response);
+        Assert.NotNull(paged);
+        Assert.Equal(FakeHabilidadServicio.HabilidadId1, paged.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetConsulta_PropagaSortAlServicio()
+    {
+        HabilidadListQuery? capturedQuery = null;
+        var fakeServicio = new RecordingHabilidadServicio();
+        fakeServicio.QueryHandler = q =>
+        {
+            capturedQuery = q;
+            return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
+        };
+
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/skills/consulta?sort=nombre_desc");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(capturedQuery);
+        Assert.Equal("nombre_desc", capturedQuery!.Sort);
+        Assert.Equal(HabilidadSegmentoListado.Activas, capturedQuery.Segmento);
+    }
+
+    [Fact]
+    public async Task GetConsulta_SortInvalido_NoLanzaYLlegaAlServicio()
+    {
+        HabilidadListQuery? capturedQuery = null;
+        var fakeServicio = new RecordingHabilidadServicio();
+        fakeServicio.QueryHandler = q =>
+        {
+            capturedQuery = q;
+            return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
+        };
+
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/skills/consulta?sort=basura_inventada");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(capturedQuery);
+        // El sort se propaga tal cual al servicio; el repo es el que decide
+        // si cae a codigo_asc. La normalización vive en repository.ApplySort.
+        Assert.Equal("basura_inventada", capturedQuery!.Sort);
+    }
+
+    [Fact]
+    public async Task GetConsulta_PageSizeMayorA100_NormalizaA100()
+    {
+        HabilidadListQuery? capturedQuery = null;
+        var fakeServicio = new RecordingHabilidadServicio();
+        fakeServicio.QueryHandler = q =>
+        {
+            capturedQuery = q;
+            return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
+        };
+
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        // El servicio recibe PageSize=500 tal cual del query string; la
+        // normalización a 100 vive en el contrato del repositorio. Lo que
+        // validamos es que la query llega intacta al servicio.
+        var response = await client.GetAsync("/api/v1/skills/consulta?pageSize=500&page=0");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(capturedQuery);
+        Assert.Equal(500, capturedQuery!.PageSize);
+        Assert.Equal(0, capturedQuery.Page);
+    }
+
+    [Fact]
+    public async Task GetConsulta_PageInvalido_LlegaCeroYServicioLoManeja()
+    {
+        // El controller no normaliza page/pageSize: el query del repo espera
+        // page>=1; en MySQL Skip((-1)*20) devolvería la última página, no la
+        // primera. Mantener la query sin normalizar documenta el contrato
+        // actual y deja espacio a una capa de normalización futura.
+        HabilidadListQuery? capturedQuery = null;
+        var fakeServicio = new RecordingHabilidadServicio();
+        fakeServicio.QueryHandler = q =>
+        {
+            capturedQuery = q;
+            return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
+        };
+
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioConsulta>();
+            services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/skills/consulta?page=0");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(capturedQuery);
+        Assert.Equal(0, capturedQuery!.Page);
+    }
+
+    // ---- Autorización por roles en mutaciones ----
+
+    [Fact]
+    public async Task Create_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "NVO", nombre = "Nueva" });
+
+        var response = await client.PostAsync("/api/v1/skills", body);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+        var body = ToJsonBody(new { codigo = "NVO", nombre = "Nueva" });
+
+        var response = await client.PostAsync("/api/v1/skills", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+        var body = ToJsonBody(new { nombre = "X" });
+
+        var response = await client.PutAsync($"/api/v1/skills/{Guid.NewGuid()}", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.DeleteAsync($"/api/v1/skills/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.PatchAsync($"/api/v1/skills/{Guid.NewGuid()}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+}
+
+/// <summary>
+/// Fake que captura la query exacta que el controller envía al servicio.
+/// Usado por tests de consulta para verificar que la normalización
+/// (status, sort, page, pageSize) se propaga sin filtrado por el controller.
+/// </summary>
+internal sealed class RecordingHabilidadServicio : IHabilidadServicioConsulta
+{
+    public Func<HabilidadListQuery, PagedResult<HabilidadDto>>? QueryHandler { get; set; }
+
+    public Task<IReadOnlyList<HabilidadDto>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<HabilidadDto>>([]);
+
+    public Task<HabilidadDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => Task.FromResult<HabilidadDto?>(null);
+
+    public Task<PagedResult<HabilidadDto>> QueryAsync(HabilidadListQuery query, CancellationToken ct = default)
+    {
+        if (QueryHandler is null)
+        {
+            return Task.FromResult(new PagedResult<HabilidadDto>([], 0, query.Page, query.PageSize));
+        }
+        return Task.FromResult(QueryHandler(query));
     }
 }

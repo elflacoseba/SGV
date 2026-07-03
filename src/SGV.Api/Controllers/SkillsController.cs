@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Seguridad;
 
 namespace SGV.Api.Controllers;
 
@@ -11,6 +14,7 @@ namespace SGV.Api.Controllers;
 [ApiController]
 [Route("api/v1/skills")]
 [Produces("application/json")]
+[Authorize]
 public class SkillsController : ControllerBase
 {
     private readonly IHabilidadServicioConsulta _servicio;
@@ -32,6 +36,7 @@ public class SkillsController : ControllerBase
     /// <response code="200">Lista de habilidades devuelta correctamente.</response>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<HabilidadDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<HabilidadDto>>> GetAll(
         CancellationToken cancellationToken)
     {
@@ -49,6 +54,7 @@ public class SkillsController : ControllerBase
     /// <response code="404">No se encontró una habilidad con el ID especificado.</response>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(HabilidadDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<HabilidadDto>> GetById(
         Guid id, CancellationToken cancellationToken)
@@ -56,6 +62,41 @@ public class SkillsController : ControllerBase
         var result = await _servicio.GetByIdAsync(id, cancellationToken);
         if (result is null)
             return NotFound();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Consulta paginada y filtrada de habilidades activas o eliminadas. El
+    /// parámetro <c>status</c> acepta <c>activas</c> (por defecto, también
+    /// usado cuando el valor es desconocido o se omite) o <c>eliminadas</c>.
+    /// No mezcla ambos conjuntos en una misma respuesta.
+    /// </summary>
+    /// <param name="page">Número de página (default: 1).</param>
+    /// <param name="pageSize">Tamaño de página (default: 20).</param>
+    /// <param name="search">Búsqueda por código, nombre, categoría o descripción.</param>
+    /// <param name="sort">Expresión de orden server-side. Valores soportados: <c>codigo_asc</c>, <c>codigo_desc</c>, <c>nombre_asc</c>, <c>nombre_desc</c>, <c>categoria_asc</c>, <c>categoria_desc</c>. Cualquier otro valor cae a <c>codigo_asc</c>.</param>
+    /// <param name="status">Filtro de estado: <c>activas</c> (por defecto) o <c>eliminadas</c>.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Resultado paginado de habilidades.</returns>
+    /// <response code="200">Resultado paginado devuelto correctamente con el mismo contrato <c>HabilidadDto</c> para vistas activas o eliminadas; no mezcla ambos conjuntos en una misma respuesta.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    [HttpGet("consulta")]
+    [ProducesResponseType(typeof(PagedResult<HabilidadDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<PagedResult<HabilidadDto>>> GetConsulta(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? HabilidadSegmentoListado.Eliminadas
+            : HabilidadSegmentoListado.Activas;
+
+        var query = new HabilidadListQuery(page, pageSize, search, sort, segmento);
+        var result = await _servicio.QueryAsync(query, cancellationToken);
         return Ok(result);
     }
 
@@ -69,8 +110,11 @@ public class SkillsController : ControllerBase
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="409">Conflicto — ya existe una habilidad activa con el mismo código.</response>
     [HttpPost]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(HabilidadDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<HabilidadDto>> Create(
         CrearHabilidadRequest request,
@@ -98,8 +142,11 @@ public class SkillsController : ControllerBase
     /// <response code="404">No se encontró una habilidad con el ID especificado.</response>
     /// <response code="409">Conflicto — el código ya está en uso por otra habilidad.</response>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(HabilidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<HabilidadDto>> Update(
@@ -125,7 +172,10 @@ public class SkillsController : ControllerBase
     /// <response code="204">Habilidad desactivada correctamente.</response>
     /// <response code="404">No se encontró una habilidad con el ID especificado.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(
         Guid id,
@@ -147,7 +197,10 @@ public class SkillsController : ControllerBase
     /// <response code="404">No se encontró una habilidad con el ID especificado.</response>
     /// <response code="409">Conflicto — ya existe una habilidad activa con el mismo código.</response>
     [HttpPatch("{id:guid}/reactivar")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(HabilidadDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<HabilidadDto>> Reactivate(
