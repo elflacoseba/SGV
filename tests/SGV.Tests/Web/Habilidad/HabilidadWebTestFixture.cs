@@ -78,6 +78,32 @@ public sealed class HabilidadWebTestFixture : IDisposable
         return match.Groups[1].Value;
     }
 
+    /// <summary>
+    /// Indica si el HTML contiene un <c>&lt;input&gt;</c> con
+    /// <c>name="{inputName}"</c> (selector puntual, evita falsos positivos
+    /// por aparición textual del nombre en otro lugar del documento).
+    /// </summary>
+    public static bool HasInputNamed(string content, string inputName)
+    {
+        var pattern = $@"<input\b[^>]*\bname=""{Regex.Escape(inputName)}""[^>]*\/?>";
+        return Regex.IsMatch(content, pattern, RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// Indica si el <c>&lt;input&gt;</c> con <c>name="{inputName}"</c> tiene
+    /// el atributo <paramref name="attributeName"/>. El chequeo se hace sobre
+    /// el MISMO tag para no confundir con un input posterior.
+    /// </summary>
+    public static bool InputHasAttribute(string content, string inputName, string attributeName)
+    {
+        var pattern = $@"<input\b[^>]*\bname=""{Regex.Escape(inputName)}""[^>]*\/?>";
+        var match = Regex.Match(content, pattern, RegexOptions.IgnoreCase);
+        if (!match.Success) return false;
+
+        var inputTag = content.Substring(match.Index, match.Length);
+        return Regex.IsMatch(inputTag, $@"\b{Regex.Escape(attributeName)}\b(=""[^""]*"")?", RegexOptions.IgnoreCase);
+    }
+
     public void Dispose() => _baseFactory?.Dispose();
 
     /// <summary>

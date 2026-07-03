@@ -1,0 +1,52 @@
+@* This is a field partial, not a complete form. The consumer must provide: <form>, antiforgery token, hidden return, submit/cancel actions. *@
+@* Shared form partial for create/edit of Habilidades. *@
+@* Expects a model that implements IHabilidadForm. *@
+@* El catálogo maestro de Habilidad NO modela nivel propio, por lo que NO *@
+@* se incluye ningún <select> con label "Nivel" en este partial. *@
+@using SGV.Web.Integration.Habilidades
+@model SGV.Web.Integration.Habilidades.IHabilidadForm
+
+@* REQ-HCW-01: Codigo es readonly en edit (regla de inmutabilidad del dominio) y editable en create.
+   El input se renderiza con dos ramas para evitar el ambigüedad del atributo booleano HTML5:
+   `readonly="@nullable"` puede serializar el atributo como `readonly=""` en Create, dejando
+   el campo bloqueado. Renderizar dos ramas garantiza ausencia total del atributo en alta. *@
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="form-floating">
+            @if (Model.IsEdit)
+            {
+                <input asp-for="Input.Codigo" class="form-control" placeholder="Código" readonly />
+            }
+            else
+            {
+                <input asp-for="Input.Codigo" class="form-control" placeholder="Código" />
+            }
+            <label asp-for="Input.Codigo">Código</label>
+            <span asp-validation-for="Input.Codigo" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Nombre" class="form-control" placeholder="Nombre" />
+            <label asp-for="Input.Nombre">Nombre</label>
+            <span asp-validation-for="Input.Nombre" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Categoria" class="form-control" placeholder="Categoría" />
+            <label asp-for="Input.Categoria">Categoría</label>
+            <span asp-validation-for="Input.Categoria" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-floating">
+            <textarea asp-for="Input.Descripcion" class="form-control" placeholder="Descripción" style="min-height: 80px"></textarea>
+            <label asp-for="Input.Descripcion">Descripción</label>
+            <span asp-validation-for="Input.Descripcion" class="text-danger"></span>
+        </div>
+    </div>
+</div>

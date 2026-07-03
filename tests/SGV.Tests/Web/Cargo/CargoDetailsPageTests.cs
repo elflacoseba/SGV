@@ -49,10 +49,12 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains("Editar", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"href=\"/organizacion/cargos/editar/{cargo.Id}", content, StringComparison.OrdinalIgnoreCase);
 
-        // No debe exponer acciones fuera del alcance
+        // No debe exponer acciones fuera del alcance. "Habilidades" sí aparece en
+        // el sidenav (PR 3A lo agregó), pero NO debe figurar como contenido
+        // del detalle del cargo ni como acción.
         Assert.DoesNotContain(">Crear<", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Habilidades", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Reactivar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-cargo-reactivate-button", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

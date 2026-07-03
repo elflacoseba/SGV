@@ -1,0 +1,80 @@
+@page "/organizacion/habilidades/detalles/{id:guid}"
+@model SGV.Web.Pages.Organizacion.Habilidades.DetailsModel
+
+@{
+    ViewBag.title = "Detalle de habilidad";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
+@if (Model.IsNotFound)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">La habilidad solicitada no está disponible.</h5>
+                    <p class="text-muted mb-3">Es posible que la habilidad haya sido eliminada o que haya ocurrido un error al consultarla.</p>
+                    <a class="btn btn-primary" href="@Model.ReturnToListUrl">
+                        <i class="ti ti-arrow-left me-1"></i>Volver al listado
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (Model.Habilidad is not null)
+{
+    <div class="row">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Detalle de habilidad</h5>
+                    <a class="btn btn-light btn-sm" href="@Model.ReturnToListUrl">
+                        <i class="ti ti-arrow-left me-1"></i>Volver al listado
+                    </a>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Código</dt>
+                        <dd class="col-sm-9 fw-semibold">@Model.Habilidad.Codigo</dd>
+
+                        <dt class="col-sm-3">Nombre</dt>
+                        <dd class="col-sm-9">@Model.Habilidad.Nombre</dd>
+
+                        <dt class="col-sm-3">Categoría</dt>
+                        <dd class="col-sm-9">
+                            @if (!string.IsNullOrWhiteSpace(Model.Habilidad.Categoria))
+                            {
+                                <span class="badge badge-soft-secondary fs-xs">@Model.Habilidad.Categoria</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Sin categoría</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3">Descripción</dt>
+                        <dd class="col-sm-9">
+                            @if (!string.IsNullOrWhiteSpace(Model.Habilidad.Descripcion))
+                            {
+                                @Model.Habilidad.Descripcion
+                            }
+                            else
+                            {
+                                <span class="text-muted">Sin descripción</span>
+                            }
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+}
