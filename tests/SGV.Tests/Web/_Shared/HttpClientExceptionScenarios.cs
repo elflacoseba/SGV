@@ -76,13 +76,26 @@ public static class HttpClientExceptionScenarios
         /// Última solicitud recibida por el handler, o <c>null</c> si aún no
         /// se invocó <c>SendAsync</c> o si el token estaba cancelado.
         /// </summary>
+        /// <remarks>
+        /// Esta propiedad es la base del contrato observable del helper:
+        /// el escenario del spec
+        /// <c>web-apiclient-transport-contract / Respetar cancelación cooperativa del consumidor</c>
+        /// exige que un <see cref="CancellationToken"/> pre-cancelado NO
+        /// dispare el envío HTTP, y eso se valida con
+        /// <c>Assert.Null(handler.LastRequest)</c>. La invariante se sostiene
+        /// gracias al <c>ThrowIfCancellationRequested</c> previo a la captura
+        /// en <see cref="SendAsync"/>, que espeja el comportamiento de
+        /// <c>SocketsHttpHandler</c> y demás handlers reales de
+        /// <c>System.Net.Http</c>. Si se elimina esa línea, este escenario
+        /// queda sin guardarraíl.
+        /// </remarks>
         public HttpRequestMessage? LastRequest { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            // Respeta el contrato de cancelación antes de capturar la solicitud,
-            // para reflejar el comportamiento de los handlers reales y permitir
-            // que los tests de token pre-cancelado afirmen LastRequest == null.
+            // El throw debe ocurrir ANTES de capturar LastRequest: si el token
+            // ya está cancelado, el handler no debe observarse como "atendido".
+            // Ver <see cref="LastRequest"/> para la justificación del contrato.
             cancellationToken.ThrowIfCancellationRequested();
             LastRequest = request;
             return Task.FromResult(_responder(request));

@@ -23,7 +23,7 @@ public class HttpClientExceptionScenariosTests
     [Fact]
     public async Task NewHandlerThrowing_InvokesFactoryInSendAsync_AndPropagatesException()
     {
-        var factoryInvocations = 0;
+        int factoryInvocations = 0;
         HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(() =>
         {
             factoryInvocations++;
@@ -55,7 +55,7 @@ public class HttpClientExceptionScenariosTests
     [Fact]
     public async Task RecordingHandler_WithCustomResponder_UsesResponderAndCapturesLastRequest()
     {
-        var responderCalls = 0;
+        int responderCalls = 0;
         var handler = HttpClientExceptionScenarios.NewRecordingHandler(_ =>
         {
             responderCalls++;
