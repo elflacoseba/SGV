@@ -29,6 +29,9 @@ function wireHabilidadDeleteConfirmation(root, swal) {
 
                     form.submit();
                 }
+            }).catch(function () {
+                // El usuario cerró el modal sin confirmar (X, ESC, backdrop).
+                // No disparamos submit; dejamos que el form quede intacto.
             });
         });
     });
@@ -65,6 +68,9 @@ function wireHabilidadReactivateConfirmation(root, swal) {
 
                     form.submit();
                 }
+            }).catch(function () {
+                // El usuario cerró el modal sin confirmar (X, ESC, backdrop).
+                // No disparamos submit; dejamos que el form quede intacto.
             });
         });
     });

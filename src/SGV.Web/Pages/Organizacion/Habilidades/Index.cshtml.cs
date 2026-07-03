@@ -131,10 +131,14 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
 
         if (result.Succeeded)
         {
+            // Si la baja dejó vacía la página vigente, retrocedemos una para
+            // evitar que el PRG caiga en una página sin filas. Espejo del
+            // helper que PR #71 añadió al Index de Cargos.
+            var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, normalizedSegmento, cancellationToken);
             TempData[nameof(StatusMessage)] = "La habilidad se eliminó correctamente.";
             TempData[nameof(StatusKind)] = "success";
 
-            return RedirectToPage("/Organizacion/Habilidades/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento, deletedId = id });
+            return RedirectToPage("/Organizacion/Habilidades/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento, deletedId = id });
         }
 
         var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
@@ -284,6 +288,39 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
     {
         TempData.Remove(nameof(LastDeletedId));
         LastDeletedId = null;
+    }
+
+    /// <summary>
+    /// Tras una baja lógica puede ocurrir que la página vigente quede vacía.
+    /// En ese caso retrocedemos una sola posición. Sin un endpoint de TotalCount
+    /// sin paginar, recalculamos consultando la misma página: si quedó sin
+    /// filas, devolvemos <c>currentPage - 1</c>; en cualquier excepción
+    /// caemos al <c>currentPage</c> original para no bloquear el flujo.
+    /// </summary>
+    private async Task<int> ResolveRedirectPageAsync(
+        int currentPage,
+        string? search,
+        string? sort,
+        string? segmento,
+        CancellationToken cancellationToken)
+    {
+        if (currentPage <= 1)
+        {
+            return 1;
+        }
+
+        try
+        {
+            var refreshed = await habilidadApiClient.QueryAsync(
+                new HabilidadListQuery(currentPage, DefaultPageSize, search, sort, segmento),
+                cancellationToken);
+            return refreshed.Items.Count == 0 ? currentPage - 1 : currentPage;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to recalculate redirect page after deleting habilidad.");
+            return currentPage;
+        }
     }
 
     private static string? Normalize(string? value)
