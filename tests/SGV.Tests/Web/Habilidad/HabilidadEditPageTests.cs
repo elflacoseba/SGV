@@ -136,6 +136,29 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         Assert.Contains("readonly", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Post_Edit_WhenBackendUnavailable_ShowsRecoverableError()
+    {
+        // Spec CRITICAL-05 escenario 4: edit backend no disponible durante
+        // el guardado MUST mostrar un error visible con acción de reintento
+        // y preservar los valores del form.
+        var id = Guid.NewGuid();
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
+        apiClient.UpdateException = new HttpRequestException("API caída");
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
+
+        var formPost = await PostEditAsync(client, token, id, "Reintento", null, null);
+
+        Assert.Equal(HttpStatusCode.OK, formPost.StatusCode);
+        var content = HttpUtility.HtmlDecode(await formPost.Content.ReadAsStringAsync());
+        Assert.Contains("No se pudo contactar al servicio", content, StringComparison.OrdinalIgnoreCase);
+        // El valor del Codigo debe preservarse para que el usuario pueda reintentar.
+        Assert.Contains("value=\"H-001\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task<HttpResponseMessage> PostEditAsync(
         HttpClient client,
         string antiforgeryToken,

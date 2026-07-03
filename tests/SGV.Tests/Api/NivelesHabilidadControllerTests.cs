@@ -81,4 +81,25 @@ public sealed class NivelesHabilidadControllerTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public async Task GetAll_WithEmptyCatalog_Returns200WithEmptyArray()
+    {
+        // Spec CRITICAL-05 escenario 2: cuando el catálogo de niveles está
+        // vacío, el endpoint MUST responder 200 OK con una colección vacía.
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<INivelHabilidadServicioConsulta>();
+            services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio(isEmpty: true));
+        });
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.GetAsync("/api/v1/niveles-habilidad");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dtos = await response.Content.ReadFromJsonAsync<List<NivelHabilidadDto>>();
+        Assert.NotNull(dtos);
+        Assert.Empty(dtos!);
+    }
 }
