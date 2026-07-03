@@ -15,6 +15,7 @@ namespace SGV.Tests.Web.Habilidad;
 public sealed class FakeHabilidadApiClient : IHabilidadApiClient
 {
     private readonly IReadOnlyList<HabilidadDto>? _getAllResult;
+    private readonly HashSet<Guid> _deletedIds = new();
 
     public FakeHabilidadApiClient()
         : this(Array.Empty<HabilidadDto>())
@@ -71,12 +72,22 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
     public Task<IReadOnlyList<HabilidadDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         GetAllCalls.Add(1);
-        return Task.FromResult<IReadOnlyList<HabilidadDto>>(_getAllResult ?? []);
+
+        IReadOnlyList<HabilidadDto> snapshot = _getAllResult ?? [];
+        if (_deletedIds.Count > 0)
+        {
+            snapshot = snapshot.Where(h => !_deletedIds.Contains(h.Id)).ToArray();
+        }
+
+        return Task.FromResult(snapshot);
     }
 
     public Task<HabilidadDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         if (_getAllResult is null)
+            return Task.FromResult<HabilidadDto?>(null);
+
+        if (_deletedIds.Contains(id))
             return Task.FromResult<HabilidadDto?>(null);
 
         return Task.FromResult(_getAllResult.FirstOrDefault(c => c.Id == id));
@@ -85,8 +96,21 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
     public Task<HabilidadDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         DeleteCalls.Add(id);
+
+        if (DeleteResult.Succeeded)
+        {
+            _deletedIds.Add(id);
+        }
+
         return Task.FromResult(DeleteResult);
     }
+
+    /// <summary>
+    /// Indica si el identificador fue marcado como eliminado en este fake
+    /// (vía <see cref="DeleteAsync"/>). Útil para tests que necesitan
+    /// sembrar bajas lógicas sin tener que invocar el handler HTTP.
+    /// </summary>
+    public bool IsDeleted(Guid id) => _deletedIds.Contains(id);
 
     public Task<HabilidadCommandResult> CreateAsync(CrearHabilidadRequest request, CancellationToken cancellationToken = default)
     {
@@ -139,8 +163,9 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
         }
 
         // Comportamiento server-side simulado (paridad con FakeCargoApiClient):
-        // filtro por segmento + búsqueda (case-insensitive) + sort + paginación.
-        var snapshot = (_getAllResult ?? Array.Empty<HabilidadDto>()).ToList();
+        // filtro por segmento (Status) + búsqueda (case-insensitive) + sort + paginación.
+        var source = (_getAllResult ?? Array.Empty<HabilidadDto>()).ToList();
+        var snapshot = ApplyStatusFilter(source, query.Status);
 
         var lowered = query.Search?.ToLowerInvariant();
         if (!string.IsNullOrWhiteSpace(lowered))
@@ -162,6 +187,19 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
             .ToList();
 
         return Task.FromResult(new PagedResult<HabilidadDto>(pageItems, total, query.Page, query.PageSize));
+    }
+
+    private List<HabilidadDto> ApplyStatusFilter(List<HabilidadDto> source, string? status)
+    {
+        // Status = "eliminadas" (case-insensitive) → sólo registros en _deletedIds.
+        // Status = "activas" (case-insensitive) o null → snapshot activo, idéntico
+        // a GetAllAsync (excluye _deletedIds).
+        if (string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase))
+        {
+            return source.Where(h => _deletedIds.Contains(h.Id)).ToList();
+        }
+
+        return source.Where(h => !_deletedIds.Contains(h.Id)).ToList();
     }
 
     private static List<HabilidadDto> ApplySort(List<HabilidadDto> source, string? sort) =>
