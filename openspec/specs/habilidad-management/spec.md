@@ -63,21 +63,57 @@ El sistema MUST mantener `GET /api/v1/skills` y `GET /api/v1/skills/{id:guid}` c
 
 ### Requirement: Actualizar Habilidad
 
-El sistema MUST permitir actualizar `Nombre`, `Categoria` y `Descripcion` de una Habilidad existente. `Codigo` MUST NOT ser editable tras la creación.
+La operación de update MUST aceptar `Codigo` como campo editable y MUST aplicar las mismas reglas de shape y unicidad activa que el alta.
 
-#### Scenario: Actualización exitosa
+El sistema MUST permitir actualizar `Codigo`, `Nombre`, `Categoria` y `Descripcion` de una Habilidad existente. `Codigo` MUST conservar las mismas reglas de shape que en create y MUST seguir siendo único entre habilidades activas.
+
+#### Scenario: Actualización exitosa con cambio de Codigo
 
 - **DADO** una Habilidad activa existente
-- **CUANDO** se actualizan sus campos editables
+- **CUANDO** se actualiza con un `Codigo` válido que no pertenece a otra Habilidad activa y con el resto de los campos válidos
 - **ENTONCES** el sistema MUST persistir los cambios
-- **Y** devolver la Habilidad actualizada.
+- **Y** devolver la Habilidad actualizada con el nuevo `Codigo`.
 
-#### Scenario: Codigo inmutable
+#### Scenario: Actualización exitosa sin cambiar Codigo
 
-- **DADO** una Habilidad existente con `Codigo` "COM01"
-- **CUANDO** se intenta cambiar `Codigo`
-- **ENTONCES** el sistema MUST NOT permitir la modificación
-- **Y** el contrato de actualización MUST NOT incluir `Codigo` como campo editable.
+- **DADO** una Habilidad activa existente
+- **CUANDO** se actualizan `Nombre`, `Categoria` o `Descripcion` manteniendo el mismo `Codigo`
+- **ENTONCES** el sistema MUST persistir los demás cambios
+- **Y** MUST conservar el `Codigo` existente sin alteraciones.
+
+#### Scenario: Codigo inválido en update
+
+- **DADO** una Habilidad activa existente
+- **CUANDO** se solicita actualizarla con `Codigo` vacío, demasiado largo o fuera del formato admitido por la regla vigente
+- **ENTONCES** el sistema MUST rechazar la operación por validación
+- **Y** MUST NOT persistir cambios parciales de la actualización.
+
+### Requirement: Edición de Codigo con unicidad activa
+
+La actualización de una Habilidad MUST aplicar el nuevo `Codigo` cuando se provee un valor válido y MUST rechazarlo con conflicto cuando colisiona con otra Habilidad activa.
+
+#### Scenario: Update con Codigo de otra Habilidad activa
+
+- **DADO** una Habilidad activa existente
+- **Y** existe otra Habilidad activa con el `Codigo` solicitado
+- **CUANDO** se intenta actualizar la primera Habilidad con ese `Codigo`
+- **ENTONCES** el sistema MUST rechazar la operación con conflicto
+- **Y** MUST conservar sin cambios el estado persistido de la Habilidad editada.
+
+#### Scenario: Update con el mismo Codigo actual
+
+- **DADO** una Habilidad activa existente con un `Codigo` vigente
+- **CUANDO** se solicita actualizarla enviando ese mismo `Codigo` junto con otros cambios válidos o sin cambios adicionales
+- **ENTONCES** el sistema MUST aceptar la operación
+- **Y** MUST mantener el mismo `Codigo` sin tratarlo como duplicado.
+
+#### Scenario: Update con Codigo de una Habilidad eliminada
+
+- **DADO** una Habilidad activa existente
+- **Y** existe una Habilidad eliminada con el `Codigo` solicitado
+- **CUANDO** se actualiza la Habilidad activa con ese `Codigo`
+- **ENTONCES** el sistema MUST aceptar la operación
+- **Y** MUST persistir el nuevo `Codigo` porque la unicidad solo aplica a registros activos.
 
 ### Requirement: Desactivar y Reactivar Habilidad
 
