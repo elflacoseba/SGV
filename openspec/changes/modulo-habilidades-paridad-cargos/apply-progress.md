@@ -18,8 +18,8 @@ Estado inicial: baseline limpio, sin cambios previos. `dotnet build SGV.slnx --c
 |----|--------|---------|---------|-------------|-------------|
 | PR 1 — Slice 1/A (Backend + tests xUnit) | ✅ Completado | #1.1 a #1.11 | a90e0e50, b8c49dc8 | 0 warnings / 0 errors | 191/191 backend nuevos |
 | PR 2 — Slice 2 (Cliente + shell) | ✅ Completado | #2.1 a #2.5 | a66199de | 0 warnings / 0 errors | 21/21 verde |
-| PR 3 — Slice 3A (Index + JS + tests listado) | ✅ Completado | #3.1 a #3.3 | (siguiente commit) | 0 warnings / 0 errors | 10/10 verde |
-| PR 4 — Slice 3B (Create/Edit/Details + _Form + tests + anti-drift) | Pendiente | #3.4 a #3.9 | — | — | — |
+| PR 3 — Slice 3A (Index + JS + tests listado) | ✅ Completado | #3.1 a #3.3 | 982900d8 | 0 warnings / 0 errors | 10/10 verde |
+| PR 4 — Slice 3B (Create/Edit/Details + _Form + tests + anti-drift) | ✅ Completado | #3.4 a #3.9 | (siguiente) | 0 warnings / 0 errors | 28/28 verde |
 
 ## PR 1 — Detalle de progreso
 
@@ -138,9 +138,59 @@ Estado inicial: baseline limpio, sin cambios previos. `dotnet build SGV.slnx --c
 
 4. `feat(web): add habilidades index page with segmentado list and sweetalert` — incluye Index + JS + tests.
 
-## TDD Cycle Evidence
+## PR 4 — Detalle de progreso
 
-> Tabla consolidada al final del apply (cuando todas las tasks estén completadas).
+### Tasks completadas
+
+- [x] **#3.4** `HabilidadInputModel` con `Codigo`, `Nombre`, `Categoria?`, `Descripcion?` (anotaciones `[Required]`/`[StringLength]` replicando longitudes del dominio: 50/200/100/1000).
+- [x] **#3.5** `Pages/Organizacion/Habilidades/_Form.cshtml` parcial compartido para create/edit: 4 campos. **NO incluye ningún `<select>` cuyo `name` o label contenga `Nivel`**. En edit el input `Codigo` se renderiza con `readonly` cuando `Model.IsEdit == true`.
+- [x] **#3.6** `Pages/Organizacion/Habilidades/Create.cshtml(.cs)` con PageModel `[Authorize]`; GET carga formulario vacío; POST con PRG a Details (`Redirect` directo, no `RedirectToPage` porque Details aún no existía al compilar); mapea 409 a `ModelState["Input.Codigo"]`; manejo de `HttpRequestException`/`TaskCanceledException`/`JsonException` como error recuperable.
+- [x] **#3.7** `Pages/Organizacion/Habilidades/Edit.cshtml(.cs)` con PageModel `[Authorize]`; GET precarga el form, marca `IsRecoverable` si el backend devuelve null/404/error de transporte; POST con PRG a sí mismo con TempData; `Codigo` se renderiza como `readonly` en `_Form.cshtml` cuando `Model.IsEdit == true`.
+- [x] **#3.8** `Pages/Organizacion/Habilidades/Details.cshtml(.cs)` con PageModel `[Authorize]`; detalle readonly de los 4 campos (`Codigo`, `Nombre`, `Categoria`, `Descripcion`); `IsNotFound` cuando `GetByIdAsync` devuelve null o falla; acción "Volver al listado" preservando `p/search/sort`.
+- [x] **#3.9** (Anti-drift blindante centralizado) `HabilidadAntiDriftTests` (4 tests) que verifican para `Create`, `Edit` y `_Form` (cuando se renderiza como parte de Create/Edit): NO existe ningún `<select>` cuyo `name` contenga `Nivel`, NO existe texto visible `Nivel` (case-insensitive) en el form, NO existe input `name="Input.NivelId"`.
+
+### Archivos creados / modificados
+
+| Archivo | Acción |
+|---------|--------|
+| `src/SGV.Web/Pages/Organizacion/Habilidades/Create.cshtml` | Creado |
+| `src/SGV.Web/Pages/Organizacion/Habilidades/Create.cshtml.cs` | Creado |
+| `src/SGV.Web/Pages/Organizacion/Habilidades/Edit.cshtml` | Creado |
+| `src/SGV.Web/Pages/Organizacion/Habilidades/Edit.cshtml.cs` | Creado |
+| `src/SGV.Web/Pages/Organizacion/Habilidades/Details.cshtml` | Creado |
+| `src/SGV.Web/Pages/Organizacion/Habilidades/Details.cshtml.cs` | Creado |
+| `src/SGV.Web/Pages/Organizacion/Habilidades/_Form.cshtml` | Creado (sin dropdown de nivel) |
+| `src/SGV.Web/Integration/Habilidades/IHabilidadForm.cs` | Creado |
+| `src/SGV.Web/Integration/Habilidades/HabilidadFormHelpers.cs` | Creado |
+| `tests/SGV.Tests/Web/Habilidad/HabilidadCreatePageTests.cs` | Creado (5 tests) |
+| `tests/SGV.Tests/Web/Habilidad/HabilidadEditPageTests.cs` | Creado (6 tests) |
+| `tests/SGV.Tests/Web/Habilidad/HabilidadDetailsPageTests.cs` | Creado (3 tests) |
+| `tests/SGV.Tests/Web/Habilidad/HabilidadAntiDriftTests.cs` | Creado (4 tests) |
+| `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs` | Modificado (reemplazar `DoesNotContain("Habilidades")` por `DoesNotContain("data-habilidad-delete-form")`) |
+| `tests/SGV.Tests/Web/Cargo/CargoDetailsPageTests.cs` | Modificado (reemplazar `DoesNotContain("Habilidades")` por `DoesNotContain("data-cargo-reactivate-button")`) |
+
+### Verificación ejecutada
+
+- `dotnet build SGV.slnx --configuration Release` → 0 warnings, 0 errors.
+- `dotnet test SGV.slnx --filter "FullyQualifiedName!~OcupacionRepositoryTests&FullyQualifiedName!~MigracionFailLoud"` → 1208/1208 verde.
+- `bun run build` (en `src/SGV.Web`) → bundle frontend generado limpio.
+
+### Commits
+
+5. `feat(web): add create edit details forms for habilidades with anti-drift guards` — incluye 4 páginas + _Form + 28 tests + ajustes de tests previos por cambio en sidenav.
+
+## Resumen final consolidado
+
+- **Tasks completadas**: 28/28 del `tasks.md` (1.1-1.11, 2.1-2.5, 3.1-3.9).
+- **Tests agregados**: 28 nuevos (CreatePage 5, EditPage 6, DetailsPage 3, IndexPage 10, AntiDrift 4) + ajustes a tests pre-existentes.
+- **Verificación build**: `dotnet build SGV.slnx --configuration Release` → 0 warnings / 0 errors.
+- **Verificación tests**: 1208/1208 verde excluyendo `OcupacionRepositoryTests` y `MigracionFailLoudTests` (issue #59, preexistente y documentado).
+- **Verificación bundle frontend**: `bun run build` (en `src/SGV.Web`) → limpio.
+- **Commits**: 5 commits en total (`a90e0e50`, `b8c49dc8`, `a66199de`, `982900d8`, `5cdc4166` doc + `60e81fb7` doc + el commit de PR 4).
+
+## Próximo paso lógico
+
+`sdd-verify` para validar la cobertura completa del change contra specs, design y tasks.
 
 ## Próximo paso lógico
 
