@@ -74,12 +74,16 @@ public static class HttpClientExceptionScenarios
 
         /// <summary>
         /// Última solicitud recibida por el handler, o <c>null</c> si aún no
-        /// se invocó <c>SendAsync</c>.
+        /// se invocó <c>SendAsync</c> o si el token estaba cancelado.
         /// </summary>
         public HttpRequestMessage? LastRequest { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            // Respeta el contrato de cancelación antes de capturar la solicitud,
+            // para reflejar el comportamiento de los handlers reales y permitir
+            // que los tests de token pre-cancelado afirmen LastRequest == null.
+            cancellationToken.ThrowIfCancellationRequested();
             LastRequest = request;
             return Task.FromResult(_responder(request));
         }
