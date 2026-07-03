@@ -8,15 +8,15 @@ using SGV.Web.Integration.Habilidades;
 namespace SGV.Web.Pages.Organizacion.Habilidades;
 
 /// <summary>
-/// PageModel for the Edit page of a Habilidad. Carga la habilidad por id
-/// en GET y la persiste vía <see cref="IHabilidadApiClient.UpdateAsync"/> en
-/// POST. El campo <c>Codigo</c> es readonly en el form (regla de
-/// inmutabilidad del dominio) y NO se envía al backend.
-/// </summary>
-[Authorize]
-public sealed class EditModel(
-    IHabilidadApiClient habilidadApiClient,
-    ILogger<EditModel> logger) : PageModel, IHabilidadForm
+    /// PageModel for the Edit page of a Habilidad. Carga la habilidad por id
+    /// en GET y la persiste vía <see cref="IHabilidadApiClient.UpdateAsync"/> en
+    /// POST. El campo <c>Codigo</c> es editable y se envía al backend para
+    /// que la unicidad activa se evalúe contra otras Habilidades activas.
+    /// </summary>
+    [Authorize]
+    public sealed class EditModel(
+        IHabilidadApiClient habilidadApiClient,
+        ILogger<EditModel> logger) : PageModel, IHabilidadForm
 {
     [BindProperty]
     public HabilidadInputModel Input { get; set; } = new();
@@ -101,6 +101,7 @@ public sealed class EditModel(
         }
 
         var request = new ActualizarHabilidadRequest(
+            Input.Codigo,
             Input.Nombre,
             string.IsNullOrWhiteSpace(Input.Categoria) ? null : Input.Categoria.Trim(),
             string.IsNullOrWhiteSpace(Input.Descripcion) ? null : Input.Descripcion.Trim());

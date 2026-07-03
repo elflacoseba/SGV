@@ -32,7 +32,10 @@ public interface IHabilidadApiClient
     Task<HabilidadCommandResult> CreateAsync(CrearHabilidadRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Actualiza los campos editables (excepto <c>Codigo</c>) de una habilidad activa.
+    /// Actualiza los campos editables de una habilidad activa, incluido el
+    /// <c>Codigo</c>. El backend re-valida la unicidad activa contra otras
+    /// habilidades y traduce la violación a un resultado con
+    /// <see cref="HabilidadErrorType.Conflict"/>.
     /// </summary>
     Task<HabilidadCommandResult> UpdateAsync(Guid id, ActualizarHabilidadRequest request, CancellationToken cancellationToken = default);
 

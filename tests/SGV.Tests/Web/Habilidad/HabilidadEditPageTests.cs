@@ -76,6 +76,35 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
     }
 
     [Fact]
+    public async Task EditPage_MuestraCodigoEditable()
+    {
+        // Cambio de contrato: el campo Input.Codigo en edit ya no lleva
+        // readonly; el usuario puede editar el código y la unicidad activa se
+        // evalúa contra otras Habilidades al guardar. El selector sigue
+        // siendo puntual sobre el mismo tag <input>.
+        var id = Guid.NewGuid();
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        var response = await client.GetAsync($"/organizacion/habilidades/editar/{id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(HabilidadWebTestFixture.HasInputNamed(content, "Input.Codigo"),
+            "El campo Input.Codigo debe renderizarse en la página de edición.");
+        Assert.False(HabilidadWebTestFixture.InputHasAttribute(content, "Input.Codigo", "readonly"),
+            "El campo Input.Codigo NO debe llevar readonly en Edit (ahora es editable).");
+        // El resto de los campos editables siguen sin llevar readonly por la
+        // misma razón: el form es completamente editable.
+        foreach (var other in new[] { "Input.Nombre", "Input.Categoria", "Input.Descripcion" })
+        {
+            Assert.False(HabilidadWebTestFixture.InputHasAttribute(content, other, "readonly"),
+                $"El campo {other} no debe llevar readonly.");
+        }
+    }
+
+    [Fact]
     public async Task Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation()
     {
         var id = Guid.NewGuid();
@@ -86,12 +115,55 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
-        var formPost = await PostEditAsync(client, token, id, "Liderazgo Senior", "Conductual", "Desc actualizada");
+        var formPost = await PostEditAsync(client, token, id, "H-001", "Liderazgo Senior", "Conductual", "Desc actualizada");
 
         Assert.Equal(HttpStatusCode.Redirect, formPost.StatusCode);
         Assert.Contains($"/organizacion/habilidades/detalles/{id}", formPost.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
         Assert.Single(apiClient.UpdateCalls);
+        Assert.Equal("H-001", apiClient.UpdateCalls[0].Request.Codigo);
         Assert.Equal("Liderazgo Senior", apiClient.UpdateCalls[0].Request.Nombre);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenCodigoChanges_RedirectsWithUpdatedCodigo()
+    {
+        // Cambio de código end-to-end: el form envía un Codigo distinto y el
+        // request que llega al backend lo refleja exactamente. El redirect
+        // apunta a Details de la misma habilidad (el id no cambia).
+        var id = Guid.NewGuid();
+        var originalDto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var dtoActualizado = new HabilidadDto(id, "H-002", "Liderazgo Senior", "Desc", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(originalDto);
+        apiClient.UpdateResult = HabilidadCommandResult.Success(dtoActualizado);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
+
+        var formPost = await PostEditAsync(client, token, id, "H-002", "Liderazgo Senior", "Conductual", "Desc");
+
+        Assert.Equal(HttpStatusCode.Redirect, formPost.StatusCode);
+        Assert.Single(apiClient.UpdateCalls);
+        Assert.Equal("H-002", apiClient.UpdateCalls[0].Request.Codigo);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenCodigoUnchanged_UpdatesOtherFields()
+    {
+        var id = Guid.NewGuid();
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo Inicial", "Desc inicial", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
+        apiClient.UpdateResult = HabilidadCommandResult.Success(dto);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
+
+        var formPost = await PostEditAsync(client, token, id, "H-001", "Liderazgo Actualizado", "Conductual", "Nueva descripción");
+
+        Assert.Equal(HttpStatusCode.Redirect, formPost.StatusCode);
+        Assert.Single(apiClient.UpdateCalls);
+        Assert.Equal("H-001", apiClient.UpdateCalls[0].Request.Codigo);
+        Assert.Equal("Liderazgo Actualizado", apiClient.UpdateCalls[0].Request.Nombre);
+        Assert.Equal("Nueva descripción", apiClient.UpdateCalls[0].Request.Descripcion);
     }
 
     [Fact]
@@ -110,7 +182,7 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
-        var formPost = await PostEditAsync(client, token, id, "Nuevo nombre", null, null);
+        var formPost = await PostEditAsync(client, token, id, "H-002", "Nuevo nombre", null, null);
 
         Assert.Equal(HttpStatusCode.OK, formPost.StatusCode);
         var content = HttpUtility.HtmlDecode(await formPost.Content.ReadAsStringAsync());
@@ -118,31 +190,29 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
     }
 
     [Fact]
-    public async Task EditPage_MuestraCodigoComoReadonly_O_Disabled()
+    public async Task Post_Edit_WhenInvalidCodigo_ShowsValidationErrorAndKeepsForm()
     {
-        // El input de Input.Codigo en edit debe llevar readonly (la regla
-        // de inmutabilidad del dominio Codigo se respeta en UI). El selector
-        // es puntual: la marca `readonly` debe estar en el MISMO tag <input>
-        // que el name del campo, no en cualquier parte del HTML.
         var id = Guid.NewGuid();
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
+        var fieldErrors = new Dictionary<string, string[]>
+        {
+            ["codigo"] = new[] { "El código es obligatorio." }
+        };
+        apiClient.UpdateResult = HabilidadCommandResult.Failure(
+            new HabilidadError(HabilidadErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+            fieldErrors);
 
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
-        var response = await client.GetAsync($"/organizacion/habilidades/editar/{id}");
-        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(HabilidadWebTestFixture.HasInputNamed(content, "Input.Codigo"),
-            "El campo Input.Codigo debe renderizarse en la página de edición.");
-        Assert.True(HabilidadWebTestFixture.InputHasAttribute(content, "Input.Codigo", "readonly"),
-            "El campo Input.Codigo debe llevar el atributo `readonly` en Edit (regla de inmutabilidad).");
-        // El resto de los campos editables NO deben llevar readonly.
-        foreach (var other in new[] { "Input.Nombre", "Input.Categoria", "Input.Descripcion" })
-        {
-            Assert.False(HabilidadWebTestFixture.InputHasAttribute(content, other, "readonly"),
-                $"El campo {other} no debe llevar readonly.");
-        }
+        var formPost = await PostEditAsync(client, token, id, "H-002", "Liderazgo", null, null);
+
+        Assert.Equal(HttpStatusCode.OK, formPost.StatusCode);
+        var content = HttpUtility.HtmlDecode(await formPost.Content.ReadAsStringAsync());
+        Assert.Contains("El código es obligatorio", content, StringComparison.OrdinalIgnoreCase);
+        // El form debe conservar el resto de los datos para corregir.
+        Assert.Contains("value=\"Liderazgo\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -159,7 +229,7 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
-        var formPost = await PostEditAsync(client, token, id, "Reintento", null, null);
+        var formPost = await PostEditAsync(client, token, id, "H-001", "Reintento", null, null);
 
         Assert.Equal(HttpStatusCode.OK, formPost.StatusCode);
         var content = HttpUtility.HtmlDecode(await formPost.Content.ReadAsStringAsync());
@@ -172,6 +242,7 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         HttpClient client,
         string antiforgeryToken,
         Guid id,
+        string codigo,
         string nombre,
         string? categoria,
         string? descripcion)
@@ -179,7 +250,7 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var form = new MultipartFormDataContent
         {
             { new StringContent(id.ToString()), "id" },
-            { new StringContent("H-001"), "Input.Codigo" },
+            { new StringContent(codigo), "Input.Codigo" },
             { new StringContent(nombre), "Input.Nombre" },
             { new StringContent(categoria ?? string.Empty), "Input.Categoria" },
             { new StringContent(descripcion ?? string.Empty), "Input.Descripcion" },
