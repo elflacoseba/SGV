@@ -352,6 +352,24 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
     }
 }
 
+internal sealed class FakeNivelHabilidadServicio : INivelHabilidadServicioConsulta
+{
+    public static readonly Guid BasicoId = Guid.Parse("91000000-0000-0000-0000-000000000001");
+    public static readonly Guid AvanzadoId = Guid.Parse("91000000-0000-0000-0000-000000000002");
+
+    private static readonly IReadOnlyList<NivelHabilidadDto> SeedData =
+    [
+        new(BasicoId, "BASICO", "Básico", 1, 1),
+        new(AvanzadoId, "AVANZADO", "Avanzado", 3, 3),
+    ];
+
+    public Task<IReadOnlyList<NivelHabilidadDto>> ListAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(SeedData);
+
+    public Task<NivelHabilidadDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => Task.FromResult(SeedData.FirstOrDefault(d => d.Id == id));
+}
+
 internal sealed class FakePuestoServicioComandos : IPuestoServicioComandos
 {
     public static readonly Guid DefaultPuestoId = Guid.Parse("c0000000-0000-0000-0000-000000000001");
@@ -802,6 +820,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<ICargoServicioComandos>();
             services.RemoveService<IPuestoServicioComandos>();
             services.RemoveService<INivelCargoServicioConsulta>();
+            services.RemoveService<INivelHabilidadServicioConsulta>();
             services.RemoveService<IHabilidadServicioComandos>();
             services.RemoveService<IPersonaServicioConsulta>();
             services.RemoveService<IPersonaServicioComandos>();
@@ -822,6 +841,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<ICargoServicioComandos>(new FakeCargoServicioComandos());
             services.AddSingleton<IPuestoServicioComandos>(new FakePuestoServicioComandos());
             services.AddSingleton<INivelCargoServicioConsulta>(new FakeNivelCargoServicioConsulta());
+            services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio());
             services.AddSingleton<IHabilidadServicioComandos>(new FakeHabilidadServicioComandos());
             services.AddSingleton<IPersonaServicioConsulta>(new FakePersonaServicioConsulta());
             services.AddSingleton<IPersonaServicioComandos>(new FakePersonaServicioComandos());

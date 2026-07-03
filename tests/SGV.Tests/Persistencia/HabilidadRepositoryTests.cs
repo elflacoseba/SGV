@@ -91,42 +91,45 @@ public sealed class HabilidadRepositoryTests
         await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new HabilidadRepository(context);
-        var codes = new[] { "HAB-ZZZ", "HAB-YYY", "HAB-XXX" };
-        var entities = codes
-            .Select((code, idx) =>
-            {
-                var e = RepositoryTestData.CreateHabilidad(code);
-                // nombres en orden alfabético inverso al orden de códigos
-                e.Nombre = idx switch { 0 => "Zeta", 1 => "Yankee", _ => "Xray" };
-                return e;
-            })
-            .ToArray();
+        // RepositoryTestData.CreateHabilidad appends a Guid suffix; capture
+        // the resulting Codigo values to compare against the query result.
+        var e1 = RepositoryTestData.CreateHabilidad("HAB-SORT-Z");
+        var e2 = RepositoryTestData.CreateHabilidad("HAB-SORT-Y");
+        var e3 = RepositoryTestData.CreateHabilidad("HAB-SORT-X");
+        e1.Nombre = "Zeta";
+        e2.Nombre = "Yankee";
+        e3.Nombre = "Xray";
+        var entities = new[] { e1, e2, e3 };
 
         await context.Set<HabilidadEntity>().AddRangeAsync(entities);
         await context.SaveChangesAsync();
 
+        var expectedCodes = entities.Select(e => e.Codigo).ToList();
+        var searchKey = expectedCodes[0][..Math.Min(8, expectedCodes[0].Length)];
+
         try
         {
             var (items, _) = await repo.QueryAsync(
-                search: "HAB-",
+                search: searchKey,
                 page: 1,
-                pageSize: 10,
+                pageSize: 50,
                 sort: "nombre_desc",
                 segmento: HabilidadSegmentoListado.Activas);
 
-            var nombres = items
-                .Where(h => codes.Contains(h.Codigo))
+            // Solo nos importan los recién insertados.
+            var nuevos = items
+                .Where(h => expectedCodes.Contains(h.Codigo))
                 .Select(h => h.Nombre)
                 .ToList();
 
-            // El subset de los recién insertados debe estar ordenado Z, Y, X
-            // porque sort=nombre_desc se aplicó ANTES del Skip/Take y la
-            // búsqueda los mantiene a todos.
-            Assert.Equal(new[] { "Zeta", "Yankee", "Xray" }, nombres);
+            Assert.Equal(new[] { "Zeta", "Yankee", "Xray" }, nuevos);
         }
         finally
         {
-            context.Set<HabilidadEntity>().RemoveRange(entities);
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>()
+                    .Where(h => h.Id == e1.Id || h.Id == e2.Id || h.Id == e3.Id)
+                    .ToListAsync());
             await context.SaveChangesAsync();
         }
     }
@@ -137,25 +140,33 @@ public sealed class HabilidadRepositoryTests
         await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
         var repo = new HabilidadRepository(context);
-        var code1 = "HAB-AAA-" + Guid.NewGuid().ToString("N")[..6];
-        var code2 = "HAB-BBB-" + Guid.NewGuid().ToString("N")[..6];
-        var e1 = RepositoryTestData.CreateHabilidad(code1);
-        var e2 = RepositoryTestData.CreateHabilidad(code2);
+        // RepositoryTestData.CreateHabilidad appends a Guid suffix; use it
+        // directly as our search/expected.
+        var e1 = RepositoryTestData.CreateHabilidad("HAB-UNKN-A");
+        var e2 = RepositoryTestData.CreateHabilidad("HAB-UNKN-B");
+        var entities = new[] { e1, e2 };
 
-        await context.Set<HabilidadEntity>().AddRangeAsync(e1, e2);
+        await context.Set<HabilidadEntity>().AddRangeAsync(entities);
         await context.SaveChangesAsync();
+
+        var expectedCodes = entities.Select(e => e.Codigo).OrderBy(c => c).ToArray();
 
         try
         {
             var (items, _) = await repo.QueryAsync(
-                search: code1[..8],
+                search: "HAB-UNKN",
                 page: 1,
                 pageSize: 50,
                 sort: "no_existe_este_sort",
                 segmento: HabilidadSegmentoListado.Activas);
 
-            var codes = items.Select(h => h.Codigo).ToList();
-            Assert.Equal(new[] { code1, code2 }, codes);
+            var nuevos = items
+                .Where(h => expectedCodes.Contains(h.Codigo))
+                .Select(h => h.Codigo)
+                .ToArray();
+
+            // codigo_asc ordena alfabéticamente ascendente
+            Assert.Equal(expectedCodes, nuevos);
         }
         finally
         {
