@@ -121,11 +121,11 @@ public sealed class HabilidadServicioComandosTests
         var servicio = CrearServicio(repo, uow);
 
         var resultado = await servicio.ActualizarAsync(existente.Id,
-            new ActualizarHabilidadRequest("Comunicación Efectiva", "Blandas/Avanzadas", "Nueva descripción"), default);
+            new ActualizarHabilidadRequest("COM01", "Comunicación Efectiva", "Blandas/Avanzadas", "Nueva descripción"), default);
 
         Assert.True(resultado.IsSuccess);
         Assert.Equal("Comunicación Efectiva", resultado.Value!.Nombre);
-        Assert.Equal("COM01", resultado.Value.Codigo); // Inmutable
+        Assert.Equal("COM01", resultado.Value.Codigo);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -137,7 +137,7 @@ public sealed class HabilidadServicioComandosTests
         var servicio = CrearServicio(repo, uow);
 
         var resultado = await servicio.ActualizarAsync(Guid.NewGuid(),
-            new ActualizarHabilidadRequest("Nombre"), default);
+            new ActualizarHabilidadRequest("COM01", "Nombre"), default);
 
         Assert.False(resultado.IsSuccess);
         Assert.Equal(HabilidadErrorType.NotFound, resultado.Error!.Type);
@@ -146,20 +146,93 @@ public sealed class HabilidadServicioComandosTests
     }
 
     [Fact]
-    public async Task ActualizarAsync_CodigoNoExpuesto_LoIgnora()
+    public async Task ActualizarAsync_CodigoValido_PersisteYCambiaCodigo()
     {
-        // El request NO tiene Codigo; aunque el DTO se construya sin Codigo,
-        // el código original debe preservarse.
         var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva);
         var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(repo, uow);
 
         var resultado = await servicio.ActualizarAsync(existente.Id,
-            new ActualizarHabilidadRequest("Comunicación Efectiva", null, null), default);
+            new ActualizarHabilidadRequest("COM02", "Comunicación Efectiva", null, null), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("COM02", resultado.Value!.Codigo);
+        Assert.Equal("COM02", existente.Codigo);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_MismoCodigo_NoSeTrataComoDuplicado()
+    {
+        // El pre-check debe excluir el id de la habilidad que se está editando,
+        // de modo que reenviar el mismo Codigo no dispare conflicto.
+        var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva);
+        var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id,
+            new ActualizarHabilidadRequest("COM01", "Comunicación Actualizada", null, null), default);
 
         Assert.True(resultado.IsSuccess);
         Assert.Equal("COM01", resultado.Value!.Codigo);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoDuplicadoActivo_RetornaConflictoYSinGuardar()
+    {
+        var objetivo = CrearHabilidadActiva("COM01", HabilidadIdActiva);
+        var otra = CrearHabilidadActiva("COM02", HabilidadIdConflicto);
+        var repo = new FakeHabilidadWriteRepository { Datos = [objetivo, otra] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.ActualizarAsync(objetivo.Id,
+            new ActualizarHabilidadRequest("COM02", "Nombre nuevo", null, null), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(HabilidadErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+        Assert.Equal("COM01", objetivo.Codigo);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoDeEliminada_PermiteReutilizar()
+    {
+        // Una habilidad con soft-delete no bloquea la unicidad activa.
+        var objetivo = CrearHabilidadActiva("COM01", HabilidadIdActiva);
+        var eliminada = CrearHabilidadInactiva("COM02", HabilidadIdConflicto);
+        var repo = new FakeHabilidadWriteRepository { Datos = [objetivo, eliminada] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.ActualizarAsync(objetivo.Id,
+            new ActualizarHabilidadRequest("COM02", "Comunicación renombrada", null, null), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("COM02", objetivo.Codigo);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CodigoInvalido_CortaAntesDeConsultarRepos()
+    {
+        var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva);
+        var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id,
+            new ActualizarHabilidadRequest("", "Comunicación", null, null), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, repo.GetByIdForUpdateCallCount);
+        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
     }
 
     [Fact]
@@ -171,7 +244,7 @@ public sealed class HabilidadServicioComandosTests
         var servicio = CrearServicio(repo, uow);
 
         var resultado = await servicio.ActualizarAsync(existente.Id,
-            new ActualizarHabilidadRequest("", null, null), default);
+            new ActualizarHabilidadRequest("COM01", "", null, null), default);
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);

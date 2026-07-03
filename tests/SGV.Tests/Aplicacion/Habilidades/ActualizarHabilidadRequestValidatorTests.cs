@@ -8,9 +8,46 @@ namespace SGV.Tests.Aplicacion.Habilidades;
 public sealed class ActualizarHabilidadRequestValidatorTests
 {
     private static ActualizarHabilidadRequest RequestValido() => new(
+        Codigo: "COM01",
         Nombre: "Comunicación Efectiva");
 
     private readonly ActualizarHabilidadRequestValidator _validator = new();
+
+    // ── Codigo ────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("   ")]
+    public void Should_Have_Error_When_Codigo_Is_Empty(string? codigo)
+    {
+        var request = RequestValido() with { Codigo = codigo! };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldHaveValidationErrorFor(r => r.Codigo);
+    }
+
+    [Fact]
+    public void Should_Have_Error_When_Codigo_Exceeds_Max_Length()
+    {
+        var request = RequestValido() with { Codigo = new string('X', 51) };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldHaveValidationErrorFor(r => r.Codigo);
+    }
+
+    [Fact]
+    public void Should_Not_Have_Error_For_Valid_Codigo()
+    {
+        var request = RequestValido() with { Codigo = "COM-02" };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldNotHaveValidationErrorFor(r => r.Codigo);
+    }
 
     // ── Nombre ────────────────────────────────────────────────
 
