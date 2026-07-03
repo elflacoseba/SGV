@@ -309,21 +309,65 @@ internal sealed class FakePuestoServicio : IPuestoServicioConsulta
 internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
 {
     public static readonly Guid HabilidadId1 = Guid.Parse("d0000000-0000-0000-0000-000000000001");
+    public static readonly Guid HabilidadEliminadaId1 = Guid.Parse("de000000-0000-0000-0000-000000000001");
 
     private readonly IReadOnlyList<HabilidadDto> _data;
+    private readonly IReadOnlyList<HabilidadDto> _eliminadas;
 
-    public FakeHabilidadServicio(bool isEmpty = false)
+    public FakeHabilidadServicio(bool isEmpty = false, bool withEliminadas = false)
     {
         _data = isEmpty
             ? []
             : [new(HabilidadId1, "PROG", "Programación", "Lenguajes de programación", "Técnica")];
+
+        _eliminadas = (isEmpty || !withEliminadas)
+            ? []
+            : [new(HabilidadEliminadaId1, "DEL-001", "Eliminada", "Descripción eliminada", "General")];
     }
 
     public Task<IReadOnlyList<HabilidadDto>> ListAsync(CancellationToken ct = default)
         => Task.FromResult(_data);
 
     public Task<HabilidadDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+        => Task.FromResult(_data.Concat(_eliminadas).FirstOrDefault(d => d.Id == id));
+
+    public Task<PagedResult<HabilidadDto>> QueryAsync(HabilidadListQuery query, CancellationToken ct = default)
+    {
+        var source = query.Segmento == HabilidadSegmentoListado.Eliminadas ? _eliminadas : _data;
+        var filtered = source.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var lowered = query.Search.ToLowerInvariant();
+            filtered = filtered.Where(d =>
+                d.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || d.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || (d.Categoria?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (d.Descripcion?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        var list = filtered.ToList();
+        var total = list.Count;
+        var items = list.Skip(Math.Max(0, (query.Page - 1) * query.PageSize)).Take(query.PageSize).ToList();
+        return Task.FromResult(new PagedResult<HabilidadDto>(items, total, query.Page, query.PageSize));
+    }
+}
+
+internal sealed class FakeNivelHabilidadServicio : INivelHabilidadServicioConsulta
+{
+    public static readonly Guid BasicoId = Guid.Parse("91000000-0000-0000-0000-000000000001");
+    public static readonly Guid AvanzadoId = Guid.Parse("91000000-0000-0000-0000-000000000002");
+
+    private static readonly IReadOnlyList<NivelHabilidadDto> SeedData =
+    [
+        new(BasicoId, "BASICO", "Básico", 1, 1),
+        new(AvanzadoId, "AVANZADO", "Avanzado", 3, 3),
+    ];
+
+    public Task<IReadOnlyList<NivelHabilidadDto>> ListAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(SeedData);
+
+    public Task<NivelHabilidadDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => Task.FromResult(SeedData.FirstOrDefault(d => d.Id == id));
 }
 
 internal sealed class FakePuestoServicioComandos : IPuestoServicioComandos
@@ -776,6 +820,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<ICargoServicioComandos>();
             services.RemoveService<IPuestoServicioComandos>();
             services.RemoveService<INivelCargoServicioConsulta>();
+            services.RemoveService<INivelHabilidadServicioConsulta>();
             services.RemoveService<IHabilidadServicioComandos>();
             services.RemoveService<IPersonaServicioConsulta>();
             services.RemoveService<IPersonaServicioComandos>();
@@ -796,6 +841,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<ICargoServicioComandos>(new FakeCargoServicioComandos());
             services.AddSingleton<IPuestoServicioComandos>(new FakePuestoServicioComandos());
             services.AddSingleton<INivelCargoServicioConsulta>(new FakeNivelCargoServicioConsulta());
+            services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio());
             services.AddSingleton<IHabilidadServicioComandos>(new FakeHabilidadServicioComandos());
             services.AddSingleton<IPersonaServicioConsulta>(new FakePersonaServicioConsulta());
             services.AddSingleton<IPersonaServicioComandos>(new FakePersonaServicioComandos());
