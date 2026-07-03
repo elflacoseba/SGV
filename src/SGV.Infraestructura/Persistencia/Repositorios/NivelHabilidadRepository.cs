@@ -32,10 +32,13 @@ public sealed class NivelHabilidadRepository(SgvDbContext context)
     public async Task<IReadOnlyList<NivelHabilidad>> ListAllAsync(
         CancellationToken cancellationToken = default)
     {
+        // El orden es por Orden ascendente (no por Codigo) para que el
+        // catálogo /api/v1/niveles-habilidad entregue los niveles en el
+        // orden conceptual: Básico → Intermedio → Avanzado → Experto.
         var entities = await _context
             .Set<NivelHabilidadEntity>()
             .AsNoTracking()
-            .OrderBy(e => e.Codigo)
+            .OrderBy(e => e.Orden)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 

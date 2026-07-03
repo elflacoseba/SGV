@@ -454,13 +454,17 @@ public sealed class SwaggerConfigurationTests
             reactivarOps.Add(op.Name.ToLowerInvariant());
         Assert.Contains("patch", reactivarOps);
 
-        // No other paths should live under /api/v1/skills (e.g. assignment endpoints)
+        // No other paths should live under /api/v1/skills (e.g. assignment endpoints).
+        // /consulta es la ruta segmentada y es esperada para este módulo.
         foreach (var path in paths.EnumerateObject())
         {
             if (path.Name.StartsWith("/api/v1/skills", StringComparison.OrdinalIgnoreCase))
             {
                 Assert.True(
-                    path.Name is "/api/v1/skills" or "/api/v1/skills/{id}" or "/api/v1/skills/{id}/reactivar",
+                    path.Name is "/api/v1/skills"
+                        or "/api/v1/skills/{id}"
+                        or "/api/v1/skills/{id}/reactivar"
+                        or "/api/v1/skills/consulta",
                     $"Unexpected skill catalog sub-path documented: {path.Name}");
             }
         }
@@ -755,5 +759,80 @@ public sealed class SwaggerConfigurationTests
 
         // Verifica que el endpoint PATCH /api/v1/cargos/{id}/reactivar sigue documentado.
         Assert.True(patchOp.TryGetProperty("responses", out _));
+    }
+
+    // ---- Habilidades / NivelesHabilidad discoverability ----
+
+    [Fact]
+    public async Task DiscoverSkillsConsultaEndpoint_Test()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        Assert.True(paths.TryGetProperty("/api/v1/skills/consulta", out var consultaPath),
+            "Swagger MUST document GET /api/v1/skills/consulta");
+        var getOp = consultaPath.GetProperty("get");
+
+        // El método GET debe estar documentado con sus responses 200/401.
+        Assert.True(getOp.TryGetProperty("responses", out var responses));
+        Assert.True(responses.TryGetProperty("200", out _));
+        Assert.True(responses.TryGetProperty("401", out _));
+
+        // El parámetro status debe estar declarado como query string.
+        var parameters = getOp.GetProperty("parameters");
+        var statusParam = parameters.EnumerateArray()
+            .FirstOrDefault(p => p.GetProperty("name").GetString() == "status");
+
+        Assert.NotEqual(default, statusParam);
+        Assert.Equal("query", statusParam.GetProperty("in").GetString());
+    }
+
+    [Fact]
+    public async Task DiscoverNivelesHabilidadEndpoint_Test()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        Assert.True(paths.TryGetProperty("/api/v1/niveles-habilidad", out var nivelPath),
+            "Swagger MUST document GET /api/v1/niveles-habilidad");
+        var getOp = nivelPath.GetProperty("get");
+
+        Assert.True(getOp.TryGetProperty("responses", out var responses));
+        Assert.True(responses.TryGetProperty("200", out _));
+        Assert.True(responses.TryGetProperty("401", out _));
+    }
+
+    [Fact]
+    public async Task Habilidades_ConsultaEndpoint_StatusParameter_DocumentaValoresActivasYEliminadas()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+        var consultaPath = paths.GetProperty("/api/v1/skills/consulta");
+        var getOp = consultaPath.GetProperty("get");
+        var parameters = getOp.GetProperty("parameters");
+
+        var statusParam = parameters.EnumerateArray()
+            .FirstOrDefault(p => p.GetProperty("name").GetString() == "status");
+
+        Assert.NotEqual(default, statusParam);
+
+        var description = statusParam.GetProperty("description").GetString() ?? "";
+        Assert.Contains("activas", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("eliminadas", description, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
@@ -41,6 +42,139 @@ public sealed class HabilidadRepositoryTests
         for (var i = 1; i < entidades.Count; i++)
         {
             Assert.True(string.Compare(entidades[i - 1].Codigo, entidades[i].Codigo, StringComparison.Ordinal) <= 0);
+        }
+    }
+
+    // ===================== Query segmentada (activas / eliminadas) =====================
+
+    [MySqlFact]
+    public async Task QueryAsync_SegmentoEliminadas_ExcluyeActivas()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+
+        var repo = new HabilidadRepository(context);
+        var entityActiva = RepositoryTestData.CreateHabilidad("HAB-ACTIVA");
+        var entityEliminada = RepositoryTestData.CreateHabilidad("HAB-ELIM");
+        entityEliminada.IsActive = false;
+        entityEliminada.IsDeleted = true;
+        entityEliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<HabilidadEntity>().AddRangeAsync(entityActiva, entityEliminada);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var (items, totalCount) = await repo.QueryAsync(
+                search: null,
+                page: 1,
+                pageSize: 50,
+                sort: null,
+                segmento: HabilidadSegmentoListado.Eliminadas);
+
+            Assert.Contains(items, h => h.Id == entityEliminada.Id);
+            Assert.DoesNotContain(items, h => h.Id == entityActiva.Id);
+            Assert.True(totalCount >= 1);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>()
+                    .Where(h => h.Id == entityActiva.Id || h.Id == entityEliminada.Id)
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_SortNombreDesc_AplicaAntesDePaginar()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+
+        var repo = new HabilidadRepository(context);
+        // RepositoryTestData.CreateHabilidad appends a Guid suffix; capture
+        // the resulting Codigo values to compare against the query result.
+        var e1 = RepositoryTestData.CreateHabilidad("HAB-SORT-Z");
+        var e2 = RepositoryTestData.CreateHabilidad("HAB-SORT-Y");
+        var e3 = RepositoryTestData.CreateHabilidad("HAB-SORT-X");
+        e1.Nombre = "Zeta";
+        e2.Nombre = "Yankee";
+        e3.Nombre = "Xray";
+        var entities = new[] { e1, e2, e3 };
+
+        await context.Set<HabilidadEntity>().AddRangeAsync(entities);
+        await context.SaveChangesAsync();
+
+        var expectedCodes = entities.Select(e => e.Codigo).ToList();
+        var searchKey = expectedCodes[0][..Math.Min(8, expectedCodes[0].Length)];
+
+        try
+        {
+            var (items, _) = await repo.QueryAsync(
+                search: searchKey,
+                page: 1,
+                pageSize: 50,
+                sort: "nombre_desc",
+                segmento: HabilidadSegmentoListado.Activas);
+
+            // Solo nos importan los recién insertados.
+            var nuevos = items
+                .Where(h => expectedCodes.Contains(h.Codigo))
+                .Select(h => h.Nombre)
+                .ToList();
+
+            Assert.Equal(new[] { "Zeta", "Yankee", "Xray" }, nuevos);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>()
+                    .Where(h => h.Id == e1.Id || h.Id == e2.Id || h.Id == e3.Id)
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task QueryAsync_SortDesconocido_CaeACodigoAsc()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+
+        var repo = new HabilidadRepository(context);
+        // RepositoryTestData.CreateHabilidad appends a Guid suffix; use it
+        // directly as our search/expected.
+        var e1 = RepositoryTestData.CreateHabilidad("HAB-UNKN-A");
+        var e2 = RepositoryTestData.CreateHabilidad("HAB-UNKN-B");
+        var entities = new[] { e1, e2 };
+
+        await context.Set<HabilidadEntity>().AddRangeAsync(entities);
+        await context.SaveChangesAsync();
+
+        var expectedCodes = entities.Select(e => e.Codigo).OrderBy(c => c).ToArray();
+
+        try
+        {
+            var (items, _) = await repo.QueryAsync(
+                search: "HAB-UNKN",
+                page: 1,
+                pageSize: 50,
+                sort: "no_existe_este_sort",
+                segmento: HabilidadSegmentoListado.Activas);
+
+            var nuevos = items
+                .Where(h => expectedCodes.Contains(h.Codigo))
+                .Select(h => h.Codigo)
+                .ToArray();
+
+            // codigo_asc ordena alfabéticamente ascendente
+            Assert.Equal(expectedCodes, nuevos);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>()
+                    .Where(h => h.Id == e1.Id || h.Id == e2.Id)
+                    .ToListAsync());
+            await context.SaveChangesAsync();
         }
     }
 

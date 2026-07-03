@@ -52,6 +52,7 @@ public static class DependencyInjection
         services.AddScoped<IHabilidadServicioConsulta, HabilidadServicioConsulta>();
         services.AddScoped<ITipoUnidadOrganizativaServicioConsulta, TipoUnidadOrganizativaServicioConsulta>();
         services.AddScoped<INivelCargoServicioConsulta, NivelCargoServicioConsulta>();
+        services.AddScoped<INivelHabilidadServicioConsulta, NivelHabilidadServicioConsulta>();
         services.AddScoped<IPersonaServicioConsulta, PersonaServicioConsulta>();
         services.AddScoped<IOcupacionServicioConsulta, OcupacionServicioConsulta>();
 
