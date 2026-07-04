@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
@@ -233,6 +234,35 @@ public sealed class HabilidadServicioComandosTests
         Assert.Equal(0, repo.GetByIdForUpdateCallCount);
         Assert.Equal(0, repo.ExistsActiveCodeCallCount);
         Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_DbUpdateExceptionPorIndiceUnicoEnSaveChanges_TraduceACodigoDuplicado()
+    {
+        // Safety-net: el pre-check de ExistsActiveCodeAsync cubre el camino
+        // feliz, pero existe una ventana de carrera entre el check y
+        // SaveChangesAsync. Si el índice IX_Habilidades_ActiveCodigoUnique
+        // se dispara en SaveChanges (otra transacción escribió el mismo
+        // Codigo activo entre medio), el catch con
+        // IsActiveCodigoUniqueViolation debe mapear a CodigoDuplicado /
+        // Conflict para no exponer un 500 genérico al cliente.
+        var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva);
+        var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
+        // El pre-check NO detecta duplicado (otra habilidad entra en carrera
+        // después del check), pero SaveChangesAsync sí lo detecta.
+        var innerDup = new Exception(
+            "Duplicate entry 'COM02' for key 'habilidades.IX_Habilidades_ActiveCodigoUnique'");
+        var uow = new FakeThrowingDbUpdateUnitOfWork(
+            new DbUpdateException("Duplicate entry", innerDup));
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id,
+            new ActualizarHabilidadRequest("COM02", "Comunicación renombrada", null, null), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(HabilidadErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+        Assert.Equal(1, uow.SaveChangesCount);
     }
 
     [Fact]
@@ -477,5 +507,23 @@ internal sealed class FakeUnitOfWork : IUnitOfWork
     {
         SaveChangesCount++;
         return Task.FromResult(1);
+    }
+}
+
+internal sealed class FakeThrowingDbUpdateUnitOfWork : IUnitOfWork
+{
+    private readonly DbUpdateException _exceptionToThrow;
+
+    public FakeThrowingDbUpdateUnitOfWork(DbUpdateException exceptionToThrow)
+    {
+        _exceptionToThrow = exceptionToThrow;
+    }
+
+    public int SaveChangesCount { get; private set; }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        SaveChangesCount++;
+        throw _exceptionToThrow;
     }
 }
