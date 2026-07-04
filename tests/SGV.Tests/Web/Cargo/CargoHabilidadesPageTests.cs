@@ -387,7 +387,7 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
     }
 
     [Fact]
-    public async Task Post_BackendReturns400WithPonderacionFieldError_RendersFieldErrorInPage()
+    public async Task Post_Asignar_LocalPonderacionOutOfRange_RendersRangeErrorInPage()
     {
         var cargoId = Guid.NewGuid();
         var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
@@ -430,5 +430,69 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
         Assert.True(
             Regex.IsMatch(content, @"data-valmsg-for=""AsignarInput\.Ponderacion""[^>]*>[\s\S]*?La ponderaci", RegexOptions.IgnoreCase),
             "Expected the Ponderacion field-error to render in the AsignarInput.Ponderacion validation span.");
+    }
+
+    [Fact]
+    public async Task Post_Asignar_BackendPonderacionFieldError_RendersErrorInAsignarInputPonderacion()
+    {
+        // Este test verifica el camino real de ApplySkillFailureToModelState:
+        // el backend rechaza la petición CON FieldErrors por campo. La
+        // validación local pasa (Ponderacion = 50.00 ∈ [0.01, 100.00]),
+        // cargoApiClient.UpsertSkillAsync es invocado, y la página
+        // re-renderiza el error del backend bajo el data-valmsg-for
+        // "AsignarInput.Ponderacion". El test anterior
+        // (Post_Asignar_LocalPonderacionOutOfRange) NO ejercita este
+        // camino porque su payload estaba fuera del [Range] y el handler
+        // short-circuiteaba antes de invocar al cliente API.
+        var cargoId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
+            new CargoSkillError(
+                CargoSkillErrorType.Validation,
+                "DatosInvalidos",
+                "Uno o más campos son inválidos."),
+            new Dictionary<string, string[]>
+            {
+                ["Ponderacion"] = new[] { "La ponderación no puede superar 100.00." }
+            });
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["AsignarInput.SkillId"] = skillId.ToString(),
+                ["AsignarInput.NivelRequeridoId"] = nivelId.ToString(),
+                ["AsignarInput.Ponderacion"] = "50.00"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El cliente API fue efectivamente invocado: el [Range] local no
+        // short-circuiteó, así que este test prueba el mapeo real de
+        // ApplySkillFailureToModelState con FieldErrors no vacíos.
+        var upsert = Assert.Single(apiClient.SkillUpsertCalls);
+        Assert.Equal(cargoId, upsert.CargoId);
+        Assert.Equal(skillId, upsert.SkillId);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El mensaje específico del backend (no el [Range] local) debe
+        // aparecer bajo el data-valmsg-for correcto. Esta aserción
+        // distingue el camino de ApplySkillFailureToModelState del
+        // short-circuit local: el mensaje "no puede superar 100.00" sólo
+        // viene del backend, no del validador del input model.
+        Assert.True(
+            Regex.IsMatch(content, @"data-valmsg-for=""AsignarInput\.Ponderacion""[^>]*>[\s\S]*?La ponderación no puede superar 100\.00", RegexOptions.IgnoreCase),
+            "Expected the backend Ponderacion field-error to render in the AsignarInput.Ponderacion validation span.");
     }
 }
