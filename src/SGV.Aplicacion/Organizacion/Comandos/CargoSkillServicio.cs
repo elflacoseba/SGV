@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentValidation;
 using FluentValidation.Results;
 using SGV.Aplicacion.Comun.Persistencia;
@@ -184,7 +185,6 @@ public sealed class CargoSkillServicio(
     private static CargoSkillDto BuildDto(Guid skillId, Guid nivelRequeridoId, decimal ponderacion, bool esObligatoria)
         => new(skillId, nivelRequeridoId)
         {
-            NivelRequeridoId = nivelRequeridoId,
             Ponderacion = ponderacion,
             EsObligatoria = esObligatoria,
         };
@@ -198,17 +198,7 @@ public sealed class CargoSkillServicio(
     private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(ValidationResult validationResult)
     {
         return validationResult.Errors
-            .GroupBy(e => ToCamelCase(e.PropertyName))
+            .GroupBy(e => JsonNamingPolicy.CamelCase.ConvertName(e.PropertyName))
             .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
-    }
-
-    private static string ToCamelCase(string propertyName)
-    {
-        if (string.IsNullOrEmpty(propertyName) || char.IsLower(propertyName[0]))
-        {
-            return propertyName;
-        }
-
-        return char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
     }
 }
