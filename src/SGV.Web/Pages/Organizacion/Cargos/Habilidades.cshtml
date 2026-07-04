@@ -1,0 +1,216 @@
+@page "/organizacion/cargos/{id:guid}/habilidades"
+@model SGV.Web.Pages.Organizacion.Cargos.HabilidadesModel
+
+@{
+    ViewBag.title = "Habilidades del cargo";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+@if (Model.IsRecoverable)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">El cargo solicitado no está disponible.</h5>
+                    <p class="text-muted mb-3">Es posible que el cargo haya sido eliminado o que haya ocurrido un error al consultarlo.</p>
+                    <a class="btn btn-primary" href="/organizacion/cargos">
+                        <i class="ti ti-arrow-left me-1"></i>Volver al listado
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (!Model.EsAdministrador)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-shield-x fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">Acceso denegado</h5>
+                    <p class="text-muted mb-3">Esta sección requiere rol Administrador.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row mb-3">
+        <div class="col-12">
+            <h4 class="mb-0">Habilidades de @Model.CargoNombre</h4>
+        </div>
+    </div>
+
+    @if (Model.Skills.Count == 0)
+    {
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-info" role="alert">
+                    Este cargo no tiene habilidades asignadas. Usá el formulario de abajo para agregar la primera.
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Habilidad</th>
+                                        <th>NivelRequerido</th>
+                                        <th style="width: 120px;">Ponderación</th>
+                                        <th style="width: 110px;">Obligatoria</th>
+                                        <th style="width: 200px;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var skill in Model.Skills)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">@skill.Skill.Nombre</div>
+                                                <div class="text-muted small">@skill.Skill.Codigo</div>
+                                            </td>
+                                            <td colspan="4">
+                                                <form method="post" asp-page-handler="Actualizar" class="row g-2 align-items-center">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="skillId" value="@skill.SkillId" />
+                                                    <div class="col-md-4">
+                                                        <select name="NivelRequeridoId" class="form-select form-select-sm">
+                                                            @foreach (var nivel in Model.NivelOptions)
+                                                            {
+                                                                if (nivel.Id == skill.NivelRequeridoId)
+                                                                {
+                                                                    <option value="@nivel.Id" selected="selected">@nivel.Nombre</option>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <option value="@nivel.Id">@nivel.Nombre</option>
+                                                                }
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <input type="number"
+                                                               name="Ponderacion"
+                                                               value="@skill.Ponderacion.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                                               step="0.01"
+                                                               min="0.01"
+                                                               max="100.00"
+                                                               class="form-control form-control-sm" />
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <div class="form-check">
+                                                            @if (skill.EsObligatoria)
+                                                            {
+                                                                <input type="checkbox" name="EsObligatoria" value="true" checked="checked" class="form-check-input" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <input type="checkbox" name="EsObligatoria" value="true" class="form-check-input" />
+                                                            }
+                                                            <label class="form-check-label small">Obligatoria</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3 d-flex gap-1">
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+                                                        <button type="submit"
+                                                                formaction="?handler=Quitar&amp;skillId=@skill.SkillId"
+                                                                class="btn btn-sm btn-outline-danger">Quitar</button>
+                                                    </div>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row mt-4">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Asignar nueva habilidad</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" asp-page-handler="Asignar">
+                        @Html.AntiForgeryToken()
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="AsignarInput.SkillId" class="form-label">Habilidad</label>
+                                <select asp-for="AsignarInput.SkillId" class="form-select">
+                                    <option value="">Seleccionar habilidad...</option>
+                                    @foreach (var habilidad in Model.HabilidadesDisponibles)
+                                    {
+                                        <option value="@habilidad.Id">@habilidad.Nombre (@habilidad.Codigo)</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="AsignarInput.SkillId" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="AsignarInput.NivelRequeridoId" class="form-label">Nivel requerido</label>
+                                <select asp-for="AsignarInput.NivelRequeridoId" class="form-select">
+                                    <option value="">Seleccionar nivel...</option>
+                                    @foreach (var nivel in Model.NivelOptions)
+                                    {
+                                        <option value="@nivel.Id">@nivel.Nombre</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="AsignarInput.NivelRequeridoId" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="AsignarInput.Ponderacion" class="form-label">Ponderación</label>
+                                <input asp-for="AsignarInput.Ponderacion"
+                                       type="number"
+                                       step="0.01"
+                                       min="0.01"
+                                       max="100.00"
+                                       class="form-control" />
+                                <span asp-validation-for="AsignarInput.Ponderacion" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input asp-for="AsignarInput.EsObligatoria" class="form-check-input" />
+                                    <label asp-for="AsignarInput.EsObligatoria" class="form-check-label">Obligatoria</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">Asignar habilidad</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
