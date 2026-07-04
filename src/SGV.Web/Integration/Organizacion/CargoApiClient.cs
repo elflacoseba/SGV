@@ -166,10 +166,37 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 
         if (response.IsSuccessStatusCode)
         {
-            var dto = await response.Content
-                .ReadFromJsonAsync<CargoSkillDto>(cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-            return CargoSkillCommandResult.Success(dto!);
+            // PR3a review follow-up (R1): si el backend responde 2xx con body
+            // vacío o con el literal JSON `null`, ReadFromJsonAsync o devuelve
+            // null o tira JsonException. La rama `Success(dto!)` original
+            // propagaba esa anomalía como un "éxito con DTO null" o como un
+            // crash — ninguno de los dos es aceptable para PR3b, que necesita
+            // distinguir "asignación persistida" de "asignación sin payload".
+            // Capturamos ambos casos y devolvemos un Failure tipado
+            // Validation/EmptyBody para que la Razor Page muestre el mensaje
+            // estándar sin filtrar una excepción nativa al usuario.
+            CargoSkillDto? dto;
+            try
+            {
+                dto = await response.Content
+                    .ReadFromJsonAsync<CargoSkillDto>(cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                dto = null;
+            }
+
+            if (dto is null)
+            {
+                return CargoSkillCommandResult.Failure(
+                    new CargoSkillError(
+                        CargoSkillErrorType.Validation,
+                        "EmptyBody",
+                        "El servidor respondió 200 sin payload."));
+            }
+
+            return CargoSkillCommandResult.Success(dto);
         }
 
         return await ToSkillCommandResultAsync(response, cancellationToken).ConfigureAwait(false);
