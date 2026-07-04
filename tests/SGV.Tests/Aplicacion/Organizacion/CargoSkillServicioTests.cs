@@ -260,6 +260,37 @@ public sealed class CargoSkillServicioTests
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
+    [Fact]
+    public async Task UpsertAsync_AsociacionExistente_MismoRequestEsIdempotente()
+    {
+        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var existing = new CargoHabilidad(CargoIdValido, SkillIdValido, NivelIdValido, 2.5m, true)
+        {
+            Id = Guid.NewGuid()
+        };
+        var skillRepo = new FakeCargoSkillRepository(existing);
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var primerRequest = CrearRequest(ponderacion: 2.50m, esObligatoria: true);
+        var primerResultado = await servicio.UpsertAsync(CargoIdValido, SkillIdValido, primerRequest, default);
+
+        Assert.True(primerResultado.IsSuccess);
+        Assert.Equal(2.50m, primerResultado.Value!.Ponderacion);
+        Assert.True(primerResultado.Value.EsObligatoria);
+
+        // Re-invocar con exactamente la misma carga debe dejar una única asociación activa.
+        var segundaVez = await servicio.UpsertAsync(CargoIdValido, SkillIdValido, primerRequest, default);
+
+        Assert.True(segundaVez.IsSuccess);
+        Assert.Equal(2.50m, segundaVez.Value!.Ponderacion);
+        Assert.True(segundaVez.Value.EsObligatoria);
+        Assert.Single(skillRepo.Datos);
+        Assert.Equal(2, uow.SaveChangesCount);
+    }
+
     // ── DeleteAsync ─────────────────────────────────────────────
 
     [Fact]
@@ -309,7 +340,7 @@ public sealed class CargoSkillServicioTests
         var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
         var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
         var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
-        var skill1 = new CargoHabilidad(CargoIdValido, SkillIdValido, NivelIdValido, 1.0m, false)
+        var skill1 = new CargoHabilidad(CargoIdValido, SkillIdValido, NivelIdValido, 2.50m, true)
         {
             Id = Guid.NewGuid()
         };
@@ -324,13 +355,17 @@ public sealed class CargoSkillServicioTests
         var resultado = await servicio.ListAsync(CargoIdValido, default);
 
         Assert.Equal(2, resultado.Count);
-        Assert.Contains(resultado, d => d.Skill.Id == SkillIdValido);
-        Assert.Contains(resultado, d => d.Skill.Id == Guid.Parse("82000000-0000-0000-0000-000000000002"));
-        Assert.All(resultado, d =>
-        {
-            Assert.NotNull(d.Skill);
-            Assert.NotNull(d.Nivel);
-        });
+        var obligatorio = resultado.Single(d => d.Skill.Id == SkillIdValido);
+        Assert.Equal(SkillIdValido, obligatorio.SkillId);
+        Assert.Equal(NivelIdValido, obligatorio.NivelRequeridoId);
+        Assert.Equal(2.50m, obligatorio.Ponderacion);
+        Assert.True(obligatorio.EsObligatoria);
+        Assert.NotNull(obligatorio.Skill);
+        Assert.NotNull(obligatorio.Nivel);
+
+        var opcional = resultado.Single(d => d.Skill.Id == Guid.Parse("82000000-0000-0000-0000-000000000002"));
+        Assert.Equal(1.00m, opcional.Ponderacion);
+        Assert.False(opcional.EsObligatoria);
     }
 
     [Fact]
