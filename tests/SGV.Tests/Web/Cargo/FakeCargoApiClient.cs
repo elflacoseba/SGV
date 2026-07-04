@@ -319,4 +319,113 @@ public sealed class FakeCargoApiClient : ICargoApiClient
 
         return Task.FromResult(ReactivateResult);
     }
+
+    // ──────────────────────────────────────────────
+    // PR3a — subrecurso CargoSkill (T3.3)
+    //
+    // Stubs por defecto durante el ciclo RED del strict TDD; T3.3 los
+    // consolida con defaults sensatos (lista vacía para Get, Success para
+    // Upsert/Delete) y los cohorts (calls) se anexan a continuación.
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="GetSkillsAsync"/>. Por defecto,
+    /// lista vacía (la grilla editable parte del estado vacío).
+    /// </summary>
+    public IReadOnlyList<CargoSkillDetailDto> GetSkillsResult { get; set; } = Array.Empty<CargoSkillDetailDto>();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="GetSkillsAsync"/> debe lanzar antes de
+    /// devolver el resultado. Útil para tests que simulan caídas de transporte
+    /// del subrecurso durante la carga inicial de la página.
+    /// </summary>
+    public Exception? GetSkillsException { get; set; }
+
+    /// <summary>
+    /// Identificadores del cargo consultados vía <see cref="GetSkillsAsync"/>
+    /// (incluye el identificador del cargo y la cantidad de invocaciones).
+    /// </summary>
+    public List<Guid> GetSkillsCalls { get; } = new();
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="UpsertSkillAsync"/>. Por defecto,
+    /// un Failure de Validation con código <c>FakeNotConfigured</c> para que
+    /// cualquier test que olvide cablear explícitamente el resultado falle
+    /// de forma ruidosa en vez de devolver silenciosamente
+    /// <c>Success(Guid.Empty, Guid.Empty)</c> (default anterior que creaba
+    /// la ilusión de cobertura). Los tests que sí quieren un Success lo
+    /// reconfiguran explícitamente vía setter.
+    /// </summary>
+    public CargoSkillCommandResult SkillUpsertResult { get; set; } = CargoSkillCommandResult.Failure(
+        new CargoSkillError(
+            CargoSkillErrorType.Validation,
+            "FakeNotConfigured",
+            "SkillUpsertResult no fue cableado en el fake."));
+
+    /// <summary>
+    /// Solicitudes recibidas por <see cref="UpsertSkillAsync"/>. Permite
+    /// inspeccionar el <c>cargoId</c>, <c>skillId</c> y el payload enviado por
+    /// la página a la API en cada test.
+    /// </summary>
+    public List<(Guid CargoId, Guid SkillId, AsignarCargoSkillRequest Request)> SkillUpsertCalls { get; } = new();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="UpsertSkillAsync"/> debe lanzar antes de
+    /// devolver el resultado. Útil para tests que verifican el manejo de errores
+    /// recuperables en el PageModel.
+    /// </summary>
+    public Exception? SkillUpsertException { get; set; }
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="DeleteSkillAsync"/>. Por defecto,
+    /// éxito con <c>204 No Content</c>.
+    /// </summary>
+    public CargoSkillDeleteResult SkillDeleteResult { get; set; } = new(true, HttpStatusCode.NoContent, null, null);
+
+    /// <summary>
+    /// Pares <c>(cargoId, skillId)</c> enviados a <see cref="DeleteSkillAsync"/>.
+    /// </summary>
+    public List<(Guid CargoId, Guid SkillId)> SkillDeleteCalls { get; } = new();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="DeleteSkillAsync"/> debe lanzar antes de
+    /// devolver el resultado.
+    /// </summary>
+    public Exception? SkillDeleteException { get; set; }
+
+    public Task<IReadOnlyList<CargoSkillDetailDto>> GetSkillsAsync(Guid cargoId, CancellationToken cancellationToken = default)
+    {
+        GetSkillsCalls.Add(cargoId);
+
+        if (GetSkillsException is not null)
+        {
+            throw GetSkillsException;
+        }
+
+        return Task.FromResult(GetSkillsResult);
+    }
+
+    public Task<CargoSkillCommandResult> UpsertSkillAsync(Guid cargoId, Guid skillId, AsignarCargoSkillRequest request, CancellationToken cancellationToken = default)
+    {
+        SkillUpsertCalls.Add((cargoId, skillId, request));
+
+        if (SkillUpsertException is not null)
+        {
+            throw SkillUpsertException;
+        }
+
+        return Task.FromResult(SkillUpsertResult);
+    }
+
+    public Task<CargoSkillDeleteResult> DeleteSkillAsync(Guid cargoId, Guid skillId, CancellationToken cancellationToken = default)
+    {
+        SkillDeleteCalls.Add((cargoId, skillId));
+
+        if (SkillDeleteException is not null)
+        {
+            throw SkillDeleteException;
+        }
+
+        return Task.FromResult(SkillDeleteResult);
+    }
 }
