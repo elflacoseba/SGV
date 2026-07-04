@@ -16,7 +16,7 @@ public sealed class CargoSkillControllerTests
 
     private static readonly Guid ExistingCargoId = FakeCargoServicio.CargoId1;
     private static readonly Guid ExistingSkillId = FakeHabilidadServicio.HabilidadId1;
-    private static readonly Guid ExistingNivelId = Guid.Parse("70000000-0000-0000-0000-000000000001");
+    private static readonly Guid ExistingNivelRequeridoId = Guid.Parse("70000000-0000-0000-0000-000000000001");
     private static readonly Guid NonExistentCargoId = Guid.Parse("b9999999-0000-0000-0000-000000000000");
     private static readonly Guid NonExistentSkillId = Guid.Parse("d9999999-0000-0000-0000-000000000000");
 
@@ -50,7 +50,7 @@ public sealed class CargoSkillControllerTests
         ExistingSkillId, "PROG", "Programación", "Lenguajes", "Técnica");
 
     private static readonly NivelHabilidadDto DefaultNivel = new(
-        ExistingNivelId, "N1", "Nivel 1", 1, 1);
+        ExistingNivelRequeridoId, "N1", "Nivel 1", 1, 1);
 
     private sealed class FakeCargoSkillServicio : ICargoSkillServicio
     {
@@ -80,7 +80,7 @@ public sealed class CargoSkillControllerTests
             Guid cargoId, Guid skillId, CancellationToken cancellationToken = default)
         {
             if (DeleteHandler is not null) return DeleteHandler(cargoId, skillId, cancellationToken);
-            return Task.FromResult(CargoSkillCommandResult.Success(new CargoSkillDto(skillId, ExistingNivelId)));
+            return Task.FromResult(CargoSkillCommandResult.Success(new CargoSkillDto(skillId, ExistingNivelRequeridoId)));
         }
     }
 
@@ -103,7 +103,7 @@ public sealed class CargoSkillControllerTests
         Assert.NotNull(dtos);
         Assert.NotEmpty(dtos);
         Assert.Equal(ExistingSkillId, dtos[0].Skill.Id);
-        Assert.Equal(ExistingNivelId, dtos[0].Nivel.Id);
+        Assert.Equal(ExistingNivelRequeridoId, dtos[0].Nivel.Id);
         Assert.NotNull(dtos[0].Skill);
         Assert.Equal("PROG", dtos[0].Skill.Codigo);
         Assert.NotNull(dtos[0].Nivel);
@@ -217,7 +217,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelId });
+        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelRequeridoId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
@@ -225,7 +225,7 @@ public sealed class CargoSkillControllerTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var dto = await ReadAsAsync<CargoSkillDto>(response);
         Assert.Equal(ExistingSkillId, dto.SkillId);
-        Assert.Equal(ExistingNivelId, dto.NivelRequeridoId);
+        Assert.Equal(ExistingNivelRequeridoId, dto.NivelRequeridoId);
     }
 
     [Fact]
@@ -238,7 +238,7 @@ public sealed class CargoSkillControllerTests
         });
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
-        var body = ToJsonBody(new { nivelId = ExistingNivelId });
+        var body = ToJsonBody(new { nivelId = ExistingNivelRequeridoId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
@@ -288,7 +288,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelId = ExistingNivelId });
+        var body = ToJsonBody(new { nivelId = ExistingNivelRequeridoId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{NonExistentCargoId}/skills/{ExistingSkillId}", body);
@@ -314,7 +314,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelId = ExistingNivelId });
+        var body = ToJsonBody(new { nivelId = ExistingNivelRequeridoId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{NonExistentSkillId}", body);
@@ -371,7 +371,7 @@ public sealed class CargoSkillControllerTests
 
         HttpResponseMessage response = method switch
         {
-            "PUT"    => await client.PutAsync(path, ToJsonBody(new { nivelId = ExistingNivelId })),
+            "PUT"    => await client.PutAsync(path, ToJsonBody(new { nivelId = ExistingNivelRequeridoId })),
             "DELETE" => await client.DeleteAsync(path),
             _        => throw new ArgumentOutOfRangeException(nameof(method), method, "Unsupported HTTP method")
         };
@@ -438,7 +438,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelId = ExistingNivelId });
+        var body = ToJsonBody(new { nivelId = ExistingNivelRequeridoId });
 
         // This should hit the cargo skill subresource, NOT the skills catalog
         var response = await client.PutAsync(
