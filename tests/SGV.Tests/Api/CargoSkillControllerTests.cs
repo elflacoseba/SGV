@@ -427,6 +427,115 @@ public sealed class CargoSkillControllerTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task UpsertSkill_FieldErrors_ReturnsValidationProblemDetails()
+    {
+        // PR2-T2.2: cuando el servicio devuelve FieldErrors (validación por
+        // campo), el controller DEBE emitir un ValidationProblemDetails con
+        // la clave "errors" poblada — NO un ProblemDetails genérico.
+        // Escenario: cargo-skill-asignar-editar Req 3 "Nivel requerido inexistente".
+        var fieldErrors = new Dictionary<string, string[]>
+        {
+            ["nivelRequeridoId"] = ["El nivel de habilidad referenciado no existe."]
+        };
+        var fake = new FakeCargoSkillServicio
+        {
+            UpsertHandler = (_, _, _, _) => Task.FromResult(
+                CargoSkillCommandResult.Failure(
+                    new CargoSkillError(CargoSkillErrorType.Validation, "NivelHabilidadNoExiste",
+                        "El nivel de habilidad referenciado no existe."),
+                    fieldErrors))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoSkillServicio>();
+            services.AddSingleton<ICargoSkillServicio>(fake);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new { nivelRequeridoId = Guid.NewGuid() });
+
+        var response = await client.PutAsync(
+            $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+        Assert.True(doc.RootElement.TryGetProperty("errors", out var errors),
+            "ValidationProblemDetails MUST expose an 'errors' object keyed by field name");
+        Assert.True(errors.TryGetProperty("nivelRequeridoId", out _),
+            "errors MUST contain the 'nivelRequeridoId' key");
+    }
+
+    [Fact]
+    public async Task UpsertSkill_PonderacionExcede100_Returns400ConCampoPonderacion()
+    {
+        // PR2-T2.2: una Ponderacion > 100.00 debe regresar 400 con un
+        // ValidationProblemDetails donde el campo 'ponderacion' sea la
+        // clave del error — escenario cargo-skill-ponderacion-obligatoria Req 4.
+        var fieldErrors = new Dictionary<string, string[]>
+        {
+            ["ponderacion"] = ["La ponderación no puede superar 100.00."]
+        };
+        var fake = new FakeCargoSkillServicio
+        {
+            UpsertHandler = (_, _, _, _) => Task.FromResult(
+                CargoSkillCommandResult.Failure(
+                    new CargoSkillError(CargoSkillErrorType.Validation, "DatosInvalidos",
+                        "Uno o más campos del vínculo contienen errores de validación."),
+                    fieldErrors))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoSkillServicio>();
+            services.AddSingleton<ICargoSkillServicio>(fake);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelRequeridoId, ponderacion = 150m });
+
+        var response = await client.PutAsync(
+            $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+        Assert.True(doc.RootElement.TryGetProperty("errors", out var errors),
+            "ValidationProblemDetails MUST expose 'errors' when FieldErrors present");
+        Assert.True(errors.TryGetProperty("ponderacion", out _),
+            "errors MUST contain the 'ponderacion' key for超出-rango failures");
+    }
+
+    [Fact]
+    public async Task UpsertSkill_ValidationErrorSinFieldErrors_MantieneProblemDetails()
+    {
+        // PR2-T2.2: un error de validación sin FieldErrors (e.g. NotFound
+        // downstream) debe seguir emitiendo ProblemDetails, NO ValidationProblemDetails.
+        // Conserva compatibilidad con consumidores existentes del subrecurso.
+        var fake = new FakeCargoSkillServicio
+        {
+            UpsertHandler = (_, _, _, _) => Task.FromResult(
+                CargoSkillCommandResult.Failure(
+                    new CargoSkillError(CargoSkillErrorType.Validation, "NivelInvalido",
+                        "El nivel de habilidad especificado no existe.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ICargoSkillServicio>();
+            services.AddSingleton<ICargoSkillServicio>(fake);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new { nivelRequeridoId = Guid.NewGuid() });
+
+        var response = await client.PutAsync(
+            $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+        Assert.False(doc.RootElement.TryGetProperty("errors", out _),
+            "Without FieldErrors the body MUST NOT include 'errors' (uses ProblemDetails)");
+        Assert.Equal("NivelInvalido", doc.RootElement.GetProperty("title").GetString());
+    }
+
     // ---- Route isolation: must not mix with /api/v1/skills ----
 
     [Fact]
