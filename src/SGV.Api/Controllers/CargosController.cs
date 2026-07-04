@@ -247,7 +247,7 @@ public class CargosController : ControllerBase
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Habilidad asignada al cargo.</returns>
     /// <response code="200">Habilidad asignada o actualizada correctamente.</response>
-    /// <response code="400">Nivel de habilidad inválido.</response>
+    /// <response code="400">Datos inválidos. Cuando el servicio devuelve <c>FieldErrors</c> el cuerpo es un <c>ValidationProblemDetails</c> con la clave <c>errors</c> poblada; en cualquier otro caso el cuerpo es un <c>ProblemDetails</c> genérico con <c>title</c>/<c>detail</c>.</response>
     /// <response code="404">Cargo o habilidad no encontrados.</response>
     [HttpPut("{cargoId:guid}/skills/{skillId:guid}")]
     [Authorize(Roles = RolesSgv.Administrador)]
@@ -266,7 +266,7 @@ public class CargosController : ControllerBase
         if (result.IsSuccess)
             return Ok(result.Value);
 
-        return ToSkillProblemResult(result.Error!);
+        return ToSkillProblemResult(result.Error!, result);
     }
 
     /// <summary>
@@ -291,7 +291,7 @@ public class CargosController : ControllerBase
         var result = await _skillServicio.DeleteAsync(cargoId, skillId, cancellationToken);
         return result.IsSuccess
             ? NoContent()
-            : ToSkillProblemResult(result.Error!);
+            : ToSkillProblemResult(result.Error!, result);
     }
 
     private ActionResult ToProblemResult(CargoError error)
@@ -333,7 +333,7 @@ public class CargosController : ControllerBase
         return BadRequest(details);
     }
 
-    private ActionResult ToSkillProblemResult(CargoSkillError error)
+    private ActionResult ToSkillProblemResult(CargoSkillError error, CargoSkillCommandResult? result = null)
     {
         var statusCode = error.Type switch
         {
@@ -341,6 +341,31 @@ public class CargosController : ControllerBase
             CargoSkillErrorType.Validation => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status400BadRequest
         };
+
+        // PR2-T2.2: cuando el servicio devuelve FieldErrors (validación por
+        // campo) emitimos un ValidationProblemDetails para que el cliente
+        // pueda mapear errores por nombre de campo sin ambigüedad. Sin
+        // FieldErrors seguimos usando ProblemDetails para preservar el
+        // shape histórico del subrecurso.
+        if (statusCode == StatusCodes.Status400BadRequest
+            && result?.FieldErrors is { Count: > 0 })
+        {
+            var modelState = new Dictionary<string, string[]>();
+            foreach (var kvp in result.FieldErrors)
+            {
+                modelState[kvp.Key] = kvp.Value;
+            }
+
+            var details = new ValidationProblemDetails(modelState)
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = error.Code,
+                Detail = error.Message,
+                Type = "https://httpstatuses.com/400"
+            };
+
+            return BadRequest(details);
+        }
 
         return Problem(
             statusCode: statusCode,
