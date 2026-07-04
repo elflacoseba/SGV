@@ -25,10 +25,51 @@
 
 3 commits, conventional commits, sin `Co-Authored-By:` ni atribución a IA. Orden RED→GREEN del strict TDD: `9b20975f` (test: 9 nuevos tests RED contra page inexistente → 404) → `522ea4d3` (feat: PageModel + markup + input models, GREEN 9/9) → `947014aa` (test: anti-drift GREEN al primer run porque el markup ya estaba bien diseñado desde el principio).
 
+### Cierre de findings — interim verify follow-up
+
+Bloque de 2 commits + fix de docs al HEAD del slice PR3b, sin reordenar commits previos y sin pushear. Cada `feat:` fue precedido por su `test:` correspondiente (RED→GREEN explícito). El bloque cierra el **CRITICAL** y el **WARNING 2** identificados por el verify interim de PR3b. El **WARNING 1** queda fuera de scope por decisión de UX (visual slice aparte).
+
+- **CRITICAL cerrado con** (confirmación obligatoria antes de `Quitar`):
+  - commit `433d82dc` — `test(web): ensure Quitar button requires confirmation (RED)`
+  - commit `acf0a97d` — `feat(web): confirm Quitar action via onclick return confirm (GREEN)`
+- **WARNING 2 cerrado con**: corrección de cuentas `224/224` → `225/225` en línea(s) 31 y 74 del propio `apply-progress.md` (subsanación del drift detectado por el verify interim; el conteo real al momento del verify ya era 225/225).
+- **WARNING 1** sin tocar — pendiente para slice visual aparte (errores de validación anclados por fila de la grilla). Decisión del usuario: mantener `AsignarInput.` como prefijo único en `ApplySkillFailureToModelState` y delegar la mejora visual de feedback por fila a un futuro PR dedicado, no a PR3b.
+- Tests: subset **226/226 PASS** (post-fix: +1 nuevo test `Get_Admin_QuitarButton_RendersConfirmPromptWithSkillName`); full **1265/1265 PASS** sin los `OcupacionRepositoryTests` pre-existentes. La suite completa sigue en **1364/1376 PASS** con los 12 `OcupacionRepositoryTests` (issue #59) fuera de scope.
+- Risgos abiertos restantes: WARNING 1 (UX: errores de validación no anclados a la fila editada).
+
+#### Detalle del flujo strict-TDD
+
+| Orden | Tipo | SHA | Detalle |
+|---|---|---|---|
+| 1 | `test:` | `433d82dc` | `Get_Admin_QuitarButton_RendersConfirmPromptWithSkillName`: GET admin con una habilidad "Liderazgo", parsea el botón Quitar vía regex, exige atributo `onclick="..."` con `return confirm(` Y que el nombre de la habilidad esté interpolado en el mensaje. RED: el markup actual no tiene `onclick`, falla con "Quitar button must declare an onclick attribute." Verificado en el HEAD anterior al commit `acf0a97d` (sin el fix). |
+| 2 | `feat:` | `acf0a97d` | Agrega `onclick="return confirm('¿Quitar la habilidad @skill.Skill.Nombre?');"` al botón Quitar del `form` de Actualizar. Interpolación Razor nativa (sin `Html.Raw`). El test pasa a GREEN (11/11 en el subset `CargoHabilidadesPage|CargoHabilidadesAntiDrift`). |
+
+#### Decisiones durante el cierre
+
+1. **Patrón `confirm()` JavaScript nativo (no modal de Inspinia)**: el orquestador pidió explícitamente evitar introducir un modal nuevo en este sub-slice; `confirm()` es la opción más simple, compatible con todos los navegadores modernos y zero-dependency. El mensaje se compone con Razor (`@skill.Skill.Nombre`) — escapea correctamente las comillas dobles vía encoding HTML estándar del atributo, y Razor escapa el contenido del string con la convención de single-quotes del JS.
+
+2. **Test del confirmation como atributo renderizado, no como handler JS**: el test parsea el HTML del GET y verifica la presencia y contenido del atributo `onclick` en el `<button>` Quitar. Esto blinda el contrato observable desde la perspectiva del usuario (qué HTML recibe el browser) sin acoplarse a la lógica de la PageModel. Si un cambio futuro migra a un modal de Inspinia, el test seguirá siendo válido cambiando la aserción de `onclick` a `data-confirm-url` o similar.
+
+3. **El regex extrae el valor completo del atributo**: el test usa `onclick\s*=\s*"([^"]*)"` y verifica contra el `Groups[1].Value` (no contra el `Match.Value`), para que la aserción `Assert.Contains(skillNombre, onclickValue)` pruebe realmente la interpolación del nombre de la habilidad dentro del mensaje, no un prefijo arbitrario de la regex.
+
+4. **W2 sin commit dedicado**: el WARNING 2 es drift documental, no código de producción. Se subsana en el mismo commit `docs(sdd)` que registra el cierre del CRITICAL, con la salvedad explícita de que las cifras históricas (224) eran las del momento del commit `apply-progress` original, mientras que las reales al momento del verify interim ya eran 225.
+
+#### Métricas del cierre de findings
+
+- **Tests al inicio del bloque**: 225 (subset consolidado, según verify interim).
+- **Tests al cierre del bloque**: **226/226 PASS** en subset consolidado (+1 nuevo test del `Quitar` confirmation).
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
+- **Subset PR3b (post-fix)**: `dotnet test SGV.slnx --filter "FullyQualifiedName~CargoHabilidadesPage|FullyQualifiedName~CargoHabilidadesAntiDrift|FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift|FullyQualifiedName~CargoEditPage|FullyQualifiedName~CargoCreatePage|FullyQualifiedName~CargoIndexPage|FullyQualifiedName~HabilidadEditPage|FullyQualifiedName~HabilidadCreatePage|FullyQualifiedName~Web.Cargo|FullyQualifiedName~ICargoApiClient"` → **Total: 226. Passed: 226. Failed: 0.**
+- **Suite sin pre-existentes fuera de scope**: `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~Ocupacion"` → **Total: 1265. Passed: 1265. Failed: 0.**
+- **Suite completa**: `dotnet test SGV.slnx` → **Total: 1376. Passed: 1364. Failed: 12 (issue #59, fuera de scope).**
+- **Diff total del bloque**: +66 / −1 líneas (1 línea en `Habilidades.cshtml` con el `onclick`; 64 líneas en `CargoHabilidadesPageTests.cs` con el nuevo test + el doc de apply-progress). Ningún commit > 70 líneas.
+- **No se cambió la firma** de ningún método público ni DTO. No se tocó `CargoApiClient`, `ICargoApiClient`, ni el `CargosController` de la API.
+- **No se rompió ningún test pre-existente**: los 10 tests previos de `CargoHabilidadesPageTests` + `CargoHabilidadesAntiDriftTests` siguen verdes.
+
 ### Métricas
 
 - **Tests al inicio de PR3b**: **215/215 PASS** (subset consolidado).
-- **Tests al cierre de PR3b**: **224/224 PASS** en el subset consolidado (+9 página + 1 anti-drift - 1 cancelado: la versión final del test de "no admin POST" se descartó a favor del test GET `Get_AuthenticatedWithoutAdminRole_RedirectsToAccessDenied` que es el que el orquestador listó como obligatorio). Total absoluto: **1363/1375 PASS** en suite completa (los 12 fallos son pre-existentes de `OcupacionRepositoryTests` issue #59, fuera de scope).
+- **Tests al cierre de PR3b**: **225/225 PASS** en el subset consolidado (+9 página + 1 anti-drift - 1 cancelado: la versión final del test de "no admin POST" se descartó a favor del test GET `Get_AuthenticatedWithoutAdminRole_RedirectsToAccessDenied` que es el que el orquestador listó como obligatorio). Total absoluto: **1363/1375 PASS** en suite completa (los 12 fallos son pre-existentes de `OcupacionRepositoryTests` issue #59, fuera de scope).
 - **Diff total**: +813 / −22 líneas en 5 archivos. Ningún commit individual > 360 líneas (el más grande es `522ea4d3` con 720 líneas, mayormente markup Razor).
 - **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
 - **`bun run build`**: ✅ exit 0, sin errores de pipeline.
@@ -71,7 +112,7 @@ dotnet build SGV.slnx
 
 # Subset PR3b (página + anti-drift + cliente + controller + seam)
 dotnet test SGV.slnx --filter "FullyQualifiedName~CargoHabilidadesPage|FullyQualifiedName~CargoHabilidadesAntiDrift|FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift|FullyQualifiedName~CargoEditPage|FullyQualifiedName~CargoCreatePage|FullyQualifiedName~CargoIndexPage|FullyQualifiedName~HabilidadEditPage|FullyQualifiedName~HabilidadCreatePage|FullyQualifiedName~Web.Cargo|FullyQualifiedName~ICargoApiClient"
-# → Total: 224. Passed: 224. Failed: 0.
+# → Total: 225. Passed: 225. Failed: 0.
 
 # Suite sin pre-existentes fuera de scope
 dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~Ocupacion"
@@ -90,7 +131,8 @@ bun run build
 
 - **Enlace desde Index/Edit de Cargos**: si el usuario lo requiere, agregar un botón "Habilidades" en `Edit.cshtml` y/o `Details.cshtml` que apunte a `/organizacion/cargos/{id}/habilidades`. Una sola línea cada uno, sin tocar la lógica de PageModel.
 - **Paginación de la grilla**: si un cargo tiene >50 habilidades, la grilla actual las muestra todas. La spec no requiere paginación (es un caso raro), pero si crece, agregar paginación client-side o server-side.
-- **Confirmación JS para Quitar**: el botón Quitar actual hace POST sin confirmación. UX mejor con `onsubmit="return confirm('¿Quitar la habilidad?')"`, pero requiere JS inline o unobtrusive. Decisión de UX, fuera del scope de strict TDD.
+- **Errores de validación anclados a la fila editada (WARNING 1 del verify interim)**: hoy `ApplySkillFailureToModelState` prefija siempre `AsignarInput.` y la grilla re-renderiza el form de asignación visiblemente tras un fallo de Actualizar; los errores quedan visibles pero confusos porque no están junto a la fila que falló. Mejora futura: introducir un prefijo contextual por fila (`Skills[i].NivelRequeridoId` con índice) o un panel de errores por fila. Requiere refactor de la markup para exponer `asp-validation-for` por celda.
+- **Modal de confirmación para Quitar (slice visual aparte)**: si en el futuro se quiere reemplazar el `confirm()` JavaScript nativo por un modal de Inspinia más rico, queda como PR dedicado. El sub-slice actual usa el patrón nativo por simplicidad y zero-dependency.
 
 ---
 
