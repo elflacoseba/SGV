@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -11,7 +12,9 @@ namespace SGV.Web.Integration.Habilidades;
 /// <summary>
 /// Cliente HTTP que consume los endpoints de habilidades de la API.
 /// </summary>
-public sealed class HabilidadApiClient(HttpClient httpClient) : IHabilidadApiClient
+public sealed class HabilidadApiClient(
+    HttpClient httpClient,
+    ILogger<HabilidadApiClient> logger) : IHabilidadApiClient
 {
     private const string BaseRoute = "/api/v1/skills";
     private const string NivelesRoute = "/api/v1/niveles-habilidad";
@@ -168,7 +171,7 @@ public sealed class HabilidadApiClient(HttpClient httpClient) : IHabilidadApiCli
         return builder.ToString();
     }
 
-    private static async Task<HabilidadCommandResult> ToCommandResultAsync(
+    private async Task<HabilidadCommandResult> ToCommandResultAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
@@ -189,19 +192,57 @@ public sealed class HabilidadApiClient(HttpClient httpClient) : IHabilidadApiCli
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
+            var problem = await TryReadProblemDetailsAsync(response, cancellationToken).ConfigureAwait(false);
             return HabilidadCommandResult.Failure(
                 new HabilidadError(HabilidadErrorType.NotFound, problem?.Title ?? "NotFound", problem?.Detail ?? "Recurso no encontrado."));
         }
 
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
+            var problem = await TryReadProblemDetailsAsync(response, cancellationToken).ConfigureAwait(false);
             return HabilidadCommandResult.Failure(
                 new HabilidadError(HabilidadErrorType.Conflict, problem?.Title ?? "Conflict", problem?.Detail ?? "Conflicto."));
         }
 
-        return HabilidadCommandResult.Failure(
-            new HabilidadError(HabilidadErrorType.Validation, "Unexpected", "Respuesta inesperada del servidor."));
+        // Status inesperado (5xx, 408, 3xx que cuele, etc.): no lo enmascaremos
+        // como Validation. Loggeamos el status real con la respuesta y
+        // devolvemos Infrastructure preservando el status code para
+        // diagnóstico downstream (la página lo usa para mostrar error de
+        // servidor sin asociarlo a un campo del form).
+        var statusCode = (int)response.StatusCode;
+        logger.LogError(
+            "HabilidadApiClient received unexpected status {StatusCode} on {Method} {Uri}.",
+            statusCode,
+            response.RequestMessage?.Method,
+            response.RequestMessage?.RequestUri);
+        return HabilidadCommandResult.Failure(new HabilidadError(
+            HabilidadErrorType.Infrastructure,
+            "ServerError",
+            "El servicio de habilidades no respondió correctamente. Intentá nuevamente.",
+            StatusCode: statusCode));
+    }
+
+    /// <summary>
+    /// Lee un <see cref="ProblemDetails"/> del cuerpo de la respuesta,
+    /// tolerando cuerpos no-JSON o ausentes (devuelve <c>null</c> en ese
+    /// caso en vez de propagar <see cref="System.Text.Json.JsonException"/>).
+    /// </summary>
+    private static async Task<ProblemDetails?> TryReadProblemDetailsAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
     }
 }

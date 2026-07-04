@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -24,7 +25,7 @@ public class HabilidadApiClientTests
         var id = Guid.NewGuid();
         var payload = new[] { new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual") };
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.GetAllAsync();
 
@@ -41,7 +42,7 @@ public class HabilidadApiClientTests
         var id = Guid.NewGuid();
         var payload = new HabilidadDto(id, "H-002", "Programación", null, "Técnica");
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.GetByIdAsync(id);
 
@@ -54,7 +55,7 @@ public class HabilidadApiClientTests
     public async Task GetByIdAsync_Http404_ReturnsNullWithoutThrowing()
     {
         var handler = new RecordingHandler(_ => Json<object?>(HttpStatusCode.NotFound, null));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.GetByIdAsync(Guid.NewGuid());
 
@@ -66,7 +67,7 @@ public class HabilidadApiClientTests
     {
         var id = Guid.NewGuid();
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.DeleteAsync(id);
 
@@ -89,7 +90,7 @@ public class HabilidadApiClientTests
             Status = 409
         };
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.DeleteAsync(id);
 
@@ -108,7 +109,7 @@ public class HabilidadApiClientTests
             Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
         };
         var handler = new RecordingHandler(_ => response);
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.DeleteAsync(id);
 
@@ -131,7 +132,7 @@ public class HabilidadApiClientTests
             Detail = "Datos inválidos."
         };
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.BadRequest, validation));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var request = new CrearHabilidadRequest("", "Liderazgo");
         var result = await client.CreateAsync(request);
@@ -143,13 +144,67 @@ public class HabilidadApiClientTests
         Assert.Contains("codigo", result.FieldErrors!.Keys);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    public async Task UpdateAsync_UnexpectedStatusCode_ReturnsInfrastructureFailureWithStatusPreserved(
+        HttpStatusCode unexpectedStatus)
+    {
+        // Status inesperado (5xx / RequestTimeout / etc.) NO debe caer en
+        // Validation: preservamos el status code y devolvemos Infrastructure
+        // para que la página muestre un error de servidor (no de input).
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(unexpectedStatus)
+        {
+            Content = new StringContent("server boom", System.Text.Encoding.UTF8, "text/plain")
+        });
+        var logger = new TestLogger<HabilidadApiClient>();
+        var client = new HabilidadApiClient(NewHttpClient(handler), logger);
+
+        var id = Guid.NewGuid();
+        var request = new ActualizarHabilidadRequest("H-001", "Liderazgo");
+        var result = await client.UpdateAsync(id, request);
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(HabilidadErrorType.Infrastructure, result.Error!.Type);
+        Assert.Equal((int)unexpectedStatus, result.Error.StatusCode);
+        Assert.NotEmpty(logger.Entries);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_UnexpectedStatusCode_StillMaps404And409ToKnownTypes()
+    {
+        // Sanity: 404 y 409 SIGUEN mapeándose a NotFound / Conflict aunque
+        // entren a la rama inesperada sin un cuerpo ProblemDetails legible.
+        var handler404 = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        });
+        var logger = new TestLogger<HabilidadApiClient>();
+        var client404 = new HabilidadApiClient(NewHttpClient(handler404), logger);
+        var result404 = await client404.UpdateAsync(Guid.NewGuid(), new ActualizarHabilidadRequest("H", "n"));
+        Assert.False(result404.IsSuccess);
+        Assert.Equal(HabilidadErrorType.NotFound, result404.Error!.Type);
+
+        var handler409 = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        });
+        var client409 = new HabilidadApiClient(NewHttpClient(handler409), logger);
+        var result409 = await client409.UpdateAsync(Guid.NewGuid(), new ActualizarHabilidadRequest("H", "n"));
+        Assert.False(result409.IsSuccess);
+        Assert.Equal(HabilidadErrorType.Conflict, result409.Error!.Type);
+    }
+
     [Fact]
     public async Task ReactivarAsync_Http200_ReturnsDtoAndHitsReactivarRoute()
     {
         var id = Guid.NewGuid();
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", null, "Conductual");
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.ReactivarAsync(id);
 
@@ -170,7 +225,7 @@ public class HabilidadApiClientTests
             Page: 1,
             PageSize: 20);
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.QueryAsync(new HabilidadListQuery(1, 20, "lid", "nombre_desc", "eliminadas"));
 
@@ -193,7 +248,7 @@ public class HabilidadApiClientTests
             new NivelHabilidadDto(Guid.NewGuid(), "AVANZADO", "Avanzado", 3, 3)
         };
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         var result = await client.GetNivelesHabilidadAsync();
 
@@ -216,7 +271,7 @@ public class HabilidadApiClientTests
         string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
     {
         HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         await Assert.ThrowsAsync(
             expectedExceptionType,
@@ -227,7 +282,7 @@ public class HabilidadApiClientTests
     public async Task QueryAsync_CancellationAlreadyRequested_ThrowsAndDoesNotSendRequest()
     {
         var handler = new RecordingHandler();
-        var client = new HabilidadApiClient(NewHttpClient(handler));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             client.QueryAsync(new HabilidadListQuery(1, 20, null, null, null), new CancellationToken(canceled: true)));
@@ -238,6 +293,8 @@ public class HabilidadApiClientTests
     private static HttpClient NewHttpClient(HttpMessageHandler handler) =>
         new(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
 
+    private static ILogger<HabilidadApiClient> NullLogger() => Microsoft.Extensions.Logging.Abstractions.NullLogger<HabilidadApiClient>.Instance;
+
     private static HttpResponseMessage Json<T>(HttpStatusCode status, T payload)
     {
         var response = new HttpResponseMessage(status)
@@ -245,5 +302,31 @@ public class HabilidadApiClientTests
             Content = JsonContent.Create(payload)
         };
         return response;
+    }
+}
+
+/// <summary>
+/// Minimal <see cref="ILogger{T}"/> stub que captura entradas para
+/// assertions. Suficiente para verificar que el cliente loggea cuando
+/// recibe un status inesperado.
+/// </summary>
+internal sealed class TestLogger<T> : ILogger<T>
+{
+    public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = new();
+
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+        Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        Entries.Add((logLevel, formatter(state, exception), exception));
+    }
+
+    private sealed class NullScope : IDisposable
+    {
+        public static readonly NullScope Instance = new();
+        public void Dispose() { }
     }
 }
