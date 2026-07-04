@@ -305,4 +305,58 @@ public sealed class CargoSkillRepositoryTests
 
         Assert.Empty(resultado);
     }
+
+    [MySqlFact]
+    public async Task ListDetailedByCargoIdAsync_ProyectaSkillIdNivelRequeridoIdPonderacionYEsObligatoria()
+    {
+        // PR2-T2.1: la proyección enriquecida del subrecurso debe popular
+        // explícitamente SkillId, NivelRequeridoId, Ponderacion y EsObligatoria
+        // desde la fila persistida de CargoHabilidadEntity, en una sola query
+        // sin N+1 (cargo-skill-query-contract Req 1 y 4).
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new CargoSkillRepository(context);
+
+        var cargo = RepositoryTestData.CreateCargo("CSK-PRJ", NivelCargoConstantes.DirectivoId);
+        var habilidad = RepositoryTestData.CreateHabilidad("CSK-PRJ-HAB");
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<HabilidadEntity>().AddAsync(habilidad);
+        await context.SaveChangesAsync();
+
+        var asignacion = new CargoHabilidad(
+            cargo.Id, habilidad.Id, DatosSemilla.NivelBasicoId, 2.50m, true);
+        await repo.AddAsync(asignacion, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var resultado = await repo.ListDetailedByCargoIdAsync(cargo.Id, default);
+
+            Assert.Single(resultado);
+            var item = resultado[0];
+
+            // Identificadores explícitos del vínculo, sin alias 'nivelId'.
+            Assert.Equal(habilidad.Id, item.SkillId);
+            Assert.Equal(DatosSemilla.NivelBasicoId, item.NivelRequeridoId);
+
+            // Valores persistidos del vínculo (Ponderacion=2.50, EsObligatoria=true).
+            Assert.Equal(2.50m, item.Ponderacion);
+            Assert.True(item.EsObligatoria);
+
+            // Objetos anidados siguen poblados.
+            Assert.NotNull(item.Skill);
+            Assert.NotNull(item.Nivel);
+            Assert.Equal(habilidad.Codigo, item.Skill.Codigo);
+            Assert.Equal("Básico", item.Nivel.Nombre);
+        }
+        finally
+        {
+            context.Set<CargoHabilidadEntity>().RemoveRange(
+                await context.Set<CargoHabilidadEntity>()
+                    .Where(ch => ch.CargoId == cargo.Id)
+                    .ToListAsync());
+            context.Set<HabilidadEntity>().Remove(habilidad);
+            context.Set<CargoEntity>().Remove(cargo);
+            await context.SaveChangesAsync();
+        }
+    }
 }
