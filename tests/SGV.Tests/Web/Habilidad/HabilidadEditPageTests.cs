@@ -172,27 +172,44 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
     [Fact]
     public async Task Post_Edit_WhenInvalidCodigo_ShowsValidationErrorAndKeepsForm()
     {
+        // Cobertura REAL de validación: se postea un Codigo inválido y se
+        // verifica que la página corta antes de invocar al cliente API,
+        // muestra el error de ModelState sobre Input.Codigo y conserva el
+        // resto de los datos del form. Cubre tres escenarios: vacío,
+        // whitespace (no es vacío pero tampoco válido) y exactamente 51
+        // caracteres (boundary + 1 sobre el máximo).
         var id = Guid.NewGuid();
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
-        var fieldErrors = new Dictionary<string, string[]>
-        {
-            ["codigo"] = new[] { "El código es obligatorio." }
-        };
-        apiClient.UpdateResult = HabilidadCommandResult.Failure(
-            new HabilidadError(HabilidadErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
-            fieldErrors);
 
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
-        var formPost = await PostEditAsync(client, token, id, "H-002", "Liderazgo", null, null);
+        // Tres POST inválidos consecutivos. Cada uno debe ser rechazado por
+        // ModelState sin invocar al cliente API.
+        var invalidCodigos = new[]
+        {
+            string.Empty,
+            new string(' ', 3),
+            new string('X', 51)
+        };
 
-        Assert.Equal(HttpStatusCode.OK, formPost.StatusCode);
-        var content = HttpUtility.HtmlDecode(await formPost.Content.ReadAsStringAsync());
-        Assert.Contains("El código es obligatorio", content, StringComparison.OrdinalIgnoreCase);
-        // El form debe conservar el resto de los datos para corregir.
-        Assert.Contains("value=\"Liderazgo\"", content, StringComparison.OrdinalIgnoreCase);
+        foreach (var codigoInvalido in invalidCodigos)
+        {
+            var formPost = await PostEditAsync(client, token, id, codigoInvalido, "Liderazgo", "Conductual", "DescripcionX");
+
+            Assert.Equal(HttpStatusCode.OK, formPost.StatusCode);
+            var content = HttpUtility.HtmlDecode(await formPost.Content.ReadAsStringAsync());
+            Assert.Contains("El código", content, StringComparison.OrdinalIgnoreCase);
+            // El form debe conservar el resto de los datos para corregir
+            // (Nombre y Categoria son <input>; Descripcion es <textarea>).
+            Assert.Contains("value=\"Liderazgo\"", content, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("value=\"Conductual\"", content, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Validación cliente/servidor corta antes de invocar al cliente API.
+        // Ninguno de los 3 POST debe haber llegado al backend.
+        Assert.Empty(apiClient.UpdateCalls);
     }
 
     [Fact]
