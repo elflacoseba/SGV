@@ -80,6 +80,53 @@ Estos son **approval tests** del comportamiento actual del contrato — capturan
 | T3.1 | (no test — estructural: interface only) | n/a | n/a | n/a — no testeable aisladamente; entra con T3.2 | n/a | n/a | n/a |
 | T3.2 + T3.3 | `tests/SGV.Tests/Web/Cargo/CargoApiClientTests.cs` | Unit (DelegatingHandler `RecordingHandler` + `HttpClient`) | ✅ 35/35 (subset cliente pre-existente) | ✅ Commit `e7b2c675`: 14 nuevos tests fallan con `NotImplementedException` contra los stubs del commit `941b705e` (compile verde, runtime RED) | ✅ Commit `c3bc2743`: 14 nuevos + 35 originales = **49/49 PASS**. `GetSkillsAsync` parsea 200 con shape enriquecido y devuelve `[]` en 404; `UpsertSkillAsync` bifurca `ValidationProblemDetails.Errors.Count > 0` (FieldErrors poblado) vs `ProblemDetails` plano (sin FieldErrors), sigue `ToSkillCommandResultAsync` que devuelve `NotFound` en 404; `DeleteSkillAsync` traduce 204 a Success y el resto a `Failure(StatusCode, Code, Message)` con `ProblemDetails` cuando esté disponible | ✅ 14 tests, 11 methods × 1 + 3 Theory × 2 (transport TaskCanceled + HttpRequest ×2 = 4 runs, una para `DeleteSkill` y otra para `UpsertSkill`); cubren: GET 200/404; PUT 200 (verifica que NO agrega `cargoId`/`skillId` al body), PUT 400 con FieldErrors (`ponderacion`), PUT 400 sin FieldErrors, PUT 404, PUT transport ×2; DELETE 204/404/500/transport ×2/cancelación | ➖ Helper único (`ToSkillCommandResultAsync`) extraído con forma consistente con `ToCommandResultAsync` pero firmando `CargoSkillCommandResult`, evita reutilizar la conversión del subrecurso padre |
 
+### PR3a review follow-up — cierre de hallazgos
+
+Bloque de 7 commits al HEAD del slice PR3a, sin reordenar commits previos y sin pushear. Cada `feat:` y `refactor:` fue precedido por su `test:` correspondiente (strict TDD). El bloque cierra cinco hallazgos publicados sobre PR #84: R1 (200 con body vacío en `UpsertSkillAsync`), R2 + R5 (parseo de `ProblemDetails` centralizado en helper compartido + try/catch consistente en 4xx y 5xx), R3 (`DeleteSkillAsync` asimétrico que ahora bifurca 401/403/409/5xx vía el mismo helper), R4 (default ruidoso del fake en lugar de `Success(Guid.Empty, Guid.Empty)`).
+
+- **R1 cerrado con**:
+  - commit `83351be1` — `test(web): UpsertSkillAsync returns failure on 200 with empty body` (RED; falla con `JsonException`)
+  - commit `60e2da48` — `feat(web): handle empty body in UpsertSkillAsync 200 response` (GREEN; el cuerpo del PUT 2xx ahora devuelve `Failure(Validation, "EmptyBody", "…")` cuando el body está vacío o parsea a `null`)
+- **R3 cerrado con**:
+  - commit `62e2486a` — `test(web): DeleteSkillAsync distinguishes 401/403/409/4xx/5xx` (RED; 5 tests nuevos fallan con `Code=null` esperado vs. código default)
+  - commit `8bc998b0` — `feat(web): bifurcate DeleteSkillAsync via shared problem reader` (GREEN; introduce `MapSkillError` + `ReadSkillProblemAsync` y los aplica a `DeleteSkillAsync`; las 5 nuevas pasan y la suite de 140 sigue verde)
+- **R2 + R5 cerrado con** (refactor puro, sin cambios de comportamiento):
+  - commit `f35da65b` — `refactor(web): centralize ProblemDetails parsing in skill helpers` (5 ramas de `ToSkillCommandResultAsync` — 404/401/403/409/5xx — se colapsan a un único `ReadSkillProblemAsync` + mapping; 5xx deja de tener su propio try/catch inline porque el helper ya absorbe las tres excepciones. −78 líneas netas)
+- **R4 cerrado con** (cambio de fixture, sin requerir test nuevo):
+  - commit `d9f3c297` — `feat(test): switch FakeCargoApiClient.SkillUpsertResult default to not-configured failure` (el default anterior `Success(Guid.Empty, Guid.Empty)` desaparece; ahora cualquier test que olvide cablear `SkillUpsertResult` recibe `Failure(Validation, "FakeNotConfigured", "…")` en vez de un "éxito" silencioso)
+- **Docs**:
+  - commit de esta sub-sección — `docs(sdd): record review follow-up commits in apply-progress`
+
+#### Detalle del flujo strict-TDD
+
+| Orden | Tipo | SHA | Detalle |
+|---|---|---|---|
+| 1 | `test:` | `83351be1` | `UpsertSkillAsync_Http200WithEmptyBody_ReturnsFailureWithEmptyBodyCode`: valida `Result.Error.Type=Validation`, `Error.Code="EmptyBody"`, `Error.Message="El servidor respondió 200 sin payload."`. Falla con `JsonException` porque el código previo asume el body siempre parsea. |
+| 2 | `feat:` | `60e2da48` | Wrap de `ReadFromJsonAsync` en try/catch + check de `null`; cuando el body es vacío o inválido, devuelve el `Failure` tipado. Sustituye el `dto!` que era el origen del NRE. |
+| 3 | `test:` | `62e2486a` | Cinco tests nuevos (`Http401`/`Http403`/`Http409`/`Http500 con non-json`/`Http400 con non-json`) usando cuerpos no-JSON para forzar la rama de defaults. **Todos en RED**: `Code`/`Message` quedan `null` en el código previo. |
+| 4 | `feat:` | `8bc998b0` | Introduce `MapSkillError(status)` (que devuelve `(CargoSkillErrorType, Code, Message)`) + `ReadSkillProblemAsync(response, defaults)` (que absorbe `NotSupportedException`/`HttpRequestException`/`JsonException` y devuelve `(Code, Message)` poblados con ProblemDetails si está disponible, sino defaults). Aplica ambos a `DeleteSkillAsync`. Actualiza el test legacy `DeleteSkillAsync_Http500WithNonJsonBody_ReturnsFailureWithoutCrashing` para reflejar el nuevo contrato (Code="TransportError" en vez de null). |
+| 5 | `refactor:` | `f35da65b` | Aplica los mismos helpers al helper `ToSkillCommandResultAsync`. Elimina los 4 bloques `if (status == X) { ReadFromJsonAsync… return Failure(...) }` repetidos (404/401/403/409) + el bloque 5xx con su try/catch inline. Net: −78 líneas. |
+| 6 | `feat:` | `d9f3c297` | `SkillUpsertResult` ahora es `Failure(Validation, "FakeNotConfigured", "…")`. Verificado contra las 195 pruebas del subset consolidado del subrecurso + Web.Cargo: 0 fallan porque ningún test actual dependía del default silencioso. |
+
+#### Métricas del review follow-up
+
+- **Tests al inicio del bloque**: 134 (subset `CargoApiClient|FakeCargoApiClient|CargoSkill|ICargoApiClient|CargoSkillDeleteResult`).
+- **Tests al cierre**: **140/140 PASS** (+1 R1 + 5 R3 = +6 nuevos; el ajuste del test legacy `DeleteSkillAsync_Http500WithNonJsonBody` no cambia el conteo).
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
+- **Suite sin los OcupacionRepositoryTests pre-existentes**: `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~Ocupacion"` — sigue verde (verificación al final del bloque).
+- **Diff total del bloque**: ~+150 / −100 líneas concentradas en `CargoApiClient.cs` (+46/−78 en el refactor); los `tests` agregan ~+170 (RED de R1 + RED de R3) y modifican 1 test legacy.
+- **Ningún commit > 360 líneas**: el más grande es `8bc998b0` (~80 líneas inc/dec); el refactor `f35da65b` es −78 netas.
+- **No se cambió la firma** de `ICargoApiClient`, `CargoApiClient`, ni de los records `CargoSkillCommandResult`/`CargoSkillDeleteResult`.
+- **No se rompió ningún test pre-existente**: el único test afectado (`DeleteSkillAsync_Http500WithNonJsonBody_ReturnsFailureWithoutCrashing`) actualiza sus asserts al nuevo contrato; sigue verificando "no crash" + "StatusCode preservado".
+
+#### Decisiones durante el follow-up
+
+1. **Helper compartido en vez de duplicar**: `ReadSkillProblemAsync` y `MapSkillError` se usan desde dos call sites (`ToSkillCommandResultAsync` y `DeleteSkillAsync`). R2+R5 sugieren extraer; R3 pide bifurcar Delete; ambos quedan servidos por el mismo par de helpers sin duplicación.
+2. **`MapSkillError` retorna el tipo además del code/message**: la rama DELETE no usa el tipo (su record no lo incluye), pero un solo helper con tres campos cubre ambos call sites y elimina la duplicación. La rama PUT sí usa el tipo, así que se preserva ese beneficio.
+3. **Test legacy actualizado en vez de preservar el comportamiento silencioso**: el test `DeleteSkillAsync_Http500WithNonJsonBody_ReturnsFailureWithoutCrashing` testeaba el contrato anterior (5xx con non-json → Code=null). El nuevo contrato es 5xx con non-json → Code="TransportError" (alineado con la rama equivalente del PUT). Actualizar el assert es honesto: el silencio ya no es la propiedad que se quiere probar.
+4. **R4 sin test nuevo**: el cambio es en el fixture mismo — el default `Failure("FakeNotConfigured")` ES el assert: cualquier test futuro que olvide cablear `SkillUpsertResult` recibirá un failure ruidoso. No se necesita test sobre el test, pero se validó que los 195 tests actuales del subset siguen verdes con el nuevo default (lo que confirma que el cambio es seguro en este momento).
+5. **R1 cubre más que "null literal"**: la spec del review menciona "returns null on 200". El código previo NO cae en NRE con `null` literal (el record acepta `null` en `Value`), pero SÍ tira `JsonException` con body de `string.Empty`. Se amplía el fix para cubrir ambos casos con un solo try/catch + null check, alineado con el principio "defend the happy path AND the silent-failure modes".
+
 ### Métricas
 
 - **Tests al inicio de PR3a**: 35 (subset `CargoApiClient|FakeCargoApiClient`) + 177 (subset consolidado `CargoSkill|HabilidadAntiDrift|CargoApiClient|FakeCargoApiClient|Web.Cargo`).
