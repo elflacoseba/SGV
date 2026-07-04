@@ -18,6 +18,18 @@ public sealed class HabilidadServicioComandos(
     IValidator<ActualizarHabilidadRequest> actualizarValidator) : IHabilidadServicioComandos
 {
     /// <summary>
+    /// Mensaje único para resultados de conflicto por <c>CodigoDuplicado</c>.
+    /// </summary>
+    private const string CodigoDuplicadoMessage = "Ya existe una habilidad activa con el mismo código.";
+
+    /// <summary>
+    /// Nombre del índice activo de <c>Codigo</c> detectado en la
+    /// <see cref="DbUpdateException"/> para mapear a <c>CodigoDuplicado</c>.
+    /// Single source of truth compartido entre pre-check e IsActive*Violation.
+    /// </summary>
+    private const string ActiveCodigoUniqueIndex = "IX_Habilidades_ActiveCodigoUnique";
+
+    /// <summary>
     /// Converts a PascalCase property name to camelCase for field-error keys.
     /// </summary>
     private static string ToCamelCase(string propertyName) =>
@@ -67,9 +79,7 @@ public sealed class HabilidadServicioComandos(
         }
         catch (DbUpdateException ex) when (IsActiveCodigoUniqueViolation(ex))
         {
-            return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Conflict, "CodigoDuplicado",
-                    "Ya existe una habilidad activa con el mismo código."));
+            return FailureCodigoDuplicado();
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -112,9 +122,7 @@ public sealed class HabilidadServicioComandos(
         }
         catch (DbUpdateException ex) when (IsActiveCodigoUniqueViolation(ex))
         {
-            return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Conflict, "CodigoDuplicado",
-                    "Ya existe una habilidad activa con el mismo código."));
+            return FailureCodigoDuplicado();
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -162,9 +170,7 @@ public sealed class HabilidadServicioComandos(
 
         if (await repository.ExistsActiveCodeAsync(habilidad.Codigo, id, cancellationToken).ConfigureAwait(false))
         {
-            return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Conflict, "CodigoDuplicado",
-                    "Ya existe una habilidad activa con el mismo código."));
+            return FailureCodigoDuplicado();
         }
 
         try
@@ -217,16 +223,25 @@ public sealed class HabilidadServicioComandos(
     {
         if (await repository.ExistsActiveCodeAsync(codigo, excludingId, cancellationToken).ConfigureAwait(false))
         {
-            return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Conflict, "CodigoDuplicado",
-                    "Ya existe una habilidad activa con el mismo código."));
+            return FailureCodigoDuplicado();
         }
         return null;
     }
 
     /// <summary>
+    /// Single factory for the <c>CodigoDuplicado</c> failure result, used by
+    /// both the pre-check (<see cref="EnsureCodigoNoDuplicadoAsync"/>),
+    /// the post-check safety net on <see cref="DbUpdateException"/> en
+    /// <c>CrearAsync</c>/<c>ActualizarAsync</c>, and the reactivar path.
+    /// Centraliza el mensaje y el código HTTP-contract.
+    /// </summary>
+    private static HabilidadCommandResult FailureCodigoDuplicado()
+        => HabilidadCommandResult.Failure(
+            new(HabilidadErrorType.Conflict, "CodigoDuplicado", CodigoDuplicadoMessage));
+
+    /// <summary>
     /// Detects whether a <see cref="DbUpdateException"/> corresponds to a
-    /// violation of the <c>IX_Habilidades_ActiveCodigoUnique</c> index
+    /// violation of the <see cref="ActiveCodigoUniqueIndex"/> index
     /// specifically. The check inspects the inner exception message for the
     /// MySQL "Duplicate entry ... for key" pattern referencing our
     /// active-codigo index. Any other constraint violation (FK, other unique
@@ -237,9 +252,8 @@ public sealed class HabilidadServicioComandos(
     /// The match is done by inner message content (no MySqlException type
     /// reference) to keep <c>SGV.Aplicacion</c> free of any MySQL provider
     /// dependency (Clean Architecture). The combination "Duplicate entry" +
-    /// "IX_Habilidades_ActiveCodigoUnique" is MySQL-specific and is the
-    /// exact message MySQL emits for violations of the active-codigo unique
-    /// index.
+    /// the index name is MySQL-specific and is the exact message MySQL
+    /// emits for violations of the active-codigo unique index.
     /// </remarks>
     private static bool IsActiveCodigoUniqueViolation(DbUpdateException exception)
     {
@@ -255,9 +269,8 @@ public sealed class HabilidadServicioComandos(
             return false;
         }
 
-        const StringComparison Comparison = StringComparison.Ordinal;
-        return message.Contains("IX_Habilidades_ActiveCodigoUnique", Comparison)
+        return message.Contains(ActiveCodigoUniqueIndex, StringComparison.Ordinal)
             && (message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("1062", Comparison));
+                || message.Contains("1062", StringComparison.Ordinal));
     }
 }
