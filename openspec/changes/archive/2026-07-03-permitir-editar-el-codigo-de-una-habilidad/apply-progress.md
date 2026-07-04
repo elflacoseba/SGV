@@ -197,3 +197,78 @@
 - Líneas añadidas: ~43 (test + comentarios).
 - `apply-progress.md` actualizado in-place sin overwrite del contenido previo.
 - Commit batch: HEAD post-batch del PR; el verify-report y el resumen del orquestador registran el SHA final exacto.
+
+## Batch de remediación 4R (post-pr-review)
+
+> Veredicto previo: `READY-FOR-MERGE` con `sdd-verify` post-remediación; 4R reviews = `COMMENT-ONLY` (6 WARNING + 5 SUGGESTION). Este batch cierra cada uno de los 11 findings.
+
+### Findings atendidos
+
+- **R3 Reliability**
+  - **R3-W1** (PRIORIDAD 1): nuevo test `ActualizarAsync_DbUpdateExceptionPorIndiceUnicoEnSaveChanges_TraduceACodigoDuplicado` en `HabilidadServicioComandosTests` que cubre el safety net `DbUpdateException → CodigoDuplicado` usando `FakeThrowingDbUpdateUnitOfWork`. La implementación YA soportaba el camino; el test es observability pura para la ventana de carrera entre pre-check y SaveChanges.
+  - **R3-W2** (PRIORIDAD 1): test `Post_Edit_WhenInvalidCodigo_ShowsValidationErrorAndKeepsForm` reescrito en `HabilidadEditPageTests` para ejercitar validación REAL (3 escenarios: `""`, whitespace de 3, 51 chars). Aserciones: HTTP 200, mensaje "El código" presente, `value="Liderazgo"` y `value="Conductual"` preservados, `apiClient.UpdateCalls` vacío (ModelState corta antes del backend).
+  - **R3-S1** (PRIORIDAD 3): nuevo test `Should_Not_Have_Error_When_Codigo_Is_Exactly_Max_Length` en `ActualizarHabilidadRequestValidatorTests` para cubrir el boundary exacto de 50 chars (válido).
+- **R4 Resilience**
+  - **R4-W1** (PRIORIDAD 2): `Edit.cshtml.cs.OnPostAsync` ya no captura `OperationCanceledException` cuando `cancellationToken.IsCancellationRequested` — la cancelación cooperativa se propaga. Solo `HttpRequestException` y `JsonException` (transporte) caen al fallback de "No se pudo contactar al servicio".
+  - **R4-W2** (PRIORIDAD 2): `HabilidadApiClient` inyecta `ILogger<HabilidadApiClient>` y mapea status codes inesperados (5xx, 408, etc.) a un nuevo `HabilidadErrorType.Infrastructure` preservando el status en `HabilidadError.StatusCode`. Loggea con método y URI. Se añade `TryReadProblemDetailsAsync` para tolerar respuestas 404/409 con cuerpo no-JSON.
+- **R2 Readability**
+  - **R2-W1** (PRIORIDAD 3): `Habilidad.Actualizar` ahora delega en `CambiarDatos`; una sola fuente de invariantes de shape.
+  - **R2-W2** (PRIORIDAD 3): `HabilidadServicioComandos` extrae `private static HabilidadCommandResult FailureCodigoDuplicado()` (usado por `EnsureCodigoNoDuplicadoAsync`, `CrearAsync`, `ActualizarAsync`, `ReactivarAsync`) y la constante `ActiveCodigoUniqueIndex = "IX_Habilidades_ActiveCodigoUnique"` consumida por `IsActiveCodigoUniqueViolation`. Mensaje `CodigoDuplicadoMessage` extraído.
+  - **R2-S1** (PRIORIDAD 3): `HabilidadRules.CodigoMaxLength = 50` en `src/SGV.Dominio/Habilidades/HabilidadRules.cs` (Single Source of Truth). Reemplaza el `50` inline en `Habilidad.CambiarDatos`, `ActualizarHabilidadRequestValidator`, y el test `Should_Have_Error_When_Codigo_Exceeds_Max_Length`.
+  - **R2-S2** (PRIORIDAD 4): indentación del bloque `/// <summary>` / `[Authorize]` / `class EditModel` corregida en `Edit.cshtml.cs`. Bundled con R4-W1 en el mismo commit porque ambos viven en el mismo bloque de código.
+- **R1 Risk**
+  - **R1-S1** (PRIORIDAD 4): XML doc del `PUT /api/v1/skills/{id}` agrega `<remarks>` con la nota explícita de breaking change (`Codigo` ahora obligatorio) y la regla del índice `IX_Habilidades_ActiveCodigoUnique` que traduce a `409 Conflict`. El `<response code="400">` ahora menciona explícitamente la causa típica (campo `Codigo` faltante/vacío/>50).
+
+### Validación post-batch
+
+| Comando | Resultado | Notas |
+|---|---|---|
+| `dotnet build SGV.slnx --configuration Release` | ✅ | `0 Warning(s), 0 Error(s)`. |
+| `dotnet test --filter "FullyQualifiedName~Habilidad"` | ✅ | `216/216` verdes (214 previos + 1 R3-W1 + 1 R3-S1; R3-W2 fue rewrite sin sumar conteo). |
+| `dotnet test SGV.slnx --no-build --configuration Release` | 🔶 | `1280` pass / `12` rojos preexistentes de `OcupacionRepositoryTests` (issue #59, fuera de scope). **0 nuevos rojos**. Suite completa: +7 tests (1 R3-W1, 1 R3-S1, 4 R4-W2 Theory + 1 R4-W2 404/409 sanity, 1 R3-W2 rewrite mantuvo 1). |
+| `bun install && bun run build` (en `src/SGV.Web`) | ✅ | Mismos warnings preexistentes de tooling, no bloqueantes. |
+
+### TDD Cycle Evidence (post-4R-batch)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| R3-W1 safety net | `tests/SGV.Tests/Aplicacion/Habilidades/HabilidadServicioComandosTests.cs` | Unit | ✅ 16/16 | ✅ Written (1) | ✅ Passed (17/17) | ➖ Single scenario del safety net | ➖ None needed |
+| R3-W2 form real | `tests/SGV.Tests/Web/Habilidad/HabilidadEditPageTests.cs` | Integration | ✅ 9/9 | ✅ Written (rewrite) | ✅ Passed (10/10) | ✅ 3 paths (vacío, whitespace, 51 chars) | ➖ None needed |
+| R3-S1 boundary | `tests/SGV.Tests/Aplicacion/Habilidades/ActualizarHabilidadRequestValidatorTests.cs` | Unit | ✅ 17/17 | ✅ Written (1) | ✅ Passed (18/18) | ➖ Single scenario boundary | ➖ None needed |
+| R4-W2 5xx | `tests/SGV.Tests/Web/Habilidad/HabilidadApiClientTests.cs` | Unit | ✅ 22/22 | ✅ Written (5) | ✅ Passed (27/27) | ✅ 4 statuses (500/502/503/408) + 1 sanity 404/409 | ➖ None needed |
+| R2-W1/R2-S1/R2-S2 (refactors) | n/a (behavior preserved) | n/a | ✅ 28 dominio + 18 validator + 10 edit | n/a | n/a | n/a | ✅ Refactor green |
+
+### Test Summary (post-4R-batch)
+
+- **Tests añadidos**: +7 (R3-W1: 1; R3-S1: 1; R4-W2: 4 Theory + 1 sanity = 5; R3-W2 rewrite: 0 net; total = 7).
+- **Total tests escritos (cumulative)**: +28 (21 previos + 7 de este batch).
+- **Total tests passing**: 216 en la suite `Habilidad`, 1280 en la suite completa (0 regresiones nuevas).
+- **Layers used**: Unit (3), Integration (1).
+- **Pure functions created**: 1 (`FailureCodigoDuplicado` factory) + 1 constant (`ActiveCodigoUniqueIndex`) + 1 constant (`HabilidadRules.CodigoMaxLength`) + 1 helper (`TryReadProblemDetailsAsync`).
+- **Behavior changes**: R4-W1 (cooperative cancellation) + R4-W2 (Infrastructure error type con status preservado).
+- **Refactors (sin cambio de comportamiento)**: R2-W1 + R2-W2 + R2-S1 + R2-S2.
+
+### Commits del batch
+
+| Hash | Mensaje | Área |
+|---|---|---|
+| `681ae322` | refactor: introducir constante CodigoMaxLength y consolidar Actualizar en Habilidad | Dominio / Validación (R2-W1 + R2-S1 + R3-S1) |
+| `bda86357` | test(aplicacion): cubrir carrera save_changes con DbUpdateException del indice unico | Aplicación tests (R3-W1) |
+| `3383301c` | refactor(aplicacion): extraer helper CodigoDuplicado y constante del indice unico | Aplicación (R2-W2) |
+| `a05e6dfe` | test(web): ejercitar validacion real de Codigo en formulario Edit | Web tests (R3-W2) |
+| `58a8a675` | fix(web): respetar cancelacion cooperativa en Edit OnPostAsync | Web production (R4-W1 + R2-S2 bundled) |
+| `b49d6f87` | fix(web): preservar status code en respuestas inesperadas de HabilidadApiClient | Web production + tests (R4-W2) |
+| `84482894` | docs(api): explicitar breaking change en XML doc del PUT | API docs (R1-S1) |
+
+### Diff summary post-4R-batch
+
+- 9 archivos modificados + 1 archivo nuevo (`HabilidadRules.cs`).
+- Líneas netas: ~+200 código y tests, ~+30 docs (XML doc PUT).
+- `apply-progress.md` actualizado in-place agregando la sección "## Batch de remediación 4R (post-pr-review)" sin tocar las secciones previas.
+- HEAD post-batch: ver `git log --oneline origin/develop..HEAD`; el verify-report y el resumen del orquestador registran el SHA final exacto.
+
+### Próximos pasos
+
+- Re-pr-review 4R sobre los commits de este batch: las 6 WARNING + 5 SUGGESTION deberían quedar todas en RESOLVED.
+- Si la review aprueba: el slice queda listo para merge a `develop`.
+- Pendientes fuera de scope (no atendidos): warnings preexistentes de tooling frontend (`baseline-browser-mapping`/`browserslist`), issue #59 `OcupacionRepositoryTests`.
