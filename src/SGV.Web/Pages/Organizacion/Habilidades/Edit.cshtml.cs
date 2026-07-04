@@ -79,10 +79,16 @@ public sealed class EditModel(
 
             return Page();
         }
+        // Cancelación cooperativa: misma regla que OnPostAsync. Si el cliente
+        // cerró el navegador / navegó a otra página, HttpContext.RequestAborted
+        // se cancela y el cliente API propaga OperationCanceledException. NO la
+        // capturamos: renderizar en un request cancelado desperdicia trabajo y
+        // puede generar logs ruidosos.
         catch (Exception ex) when (
             ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException)
+            ex is JsonException ||
+            ((ex is TaskCanceledException || ex is OperationCanceledException)
+                && !cancellationToken.IsCancellationRequested))
         {
             logger.LogError(ex, "Habilidad edit GET transport failure.");
             IsRecoverable = true;
