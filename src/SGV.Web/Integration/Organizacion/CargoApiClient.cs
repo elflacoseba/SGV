@@ -278,10 +278,11 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
     /// <c>ValidationProblemDetails</c> (cuando el cuerpo trae errores por
     /// campo) y <c>ProblemDetails</c> (fallo plano). Se mantiene deliberadamente
     /// separada de <see cref="ToCommandResultAsync"/> — el subrecurso sólo emite
-    /// 400/401/403/404 en la rama de errores, pero el helper se mantiene
-    /// defensivo para que un futuro 409 ó 500 también se traduzca a un
-    /// <see cref="CargoSkillErrorType"/> sin propagar la excepción cruda al
-    /// consumidor.
+    /// 400/401/403/404/409/5xx en la rama de errores; cada código se traduce a
+    /// un <see cref="CargoSkillErrorType"/> específico para que la Razor Page
+    /// de PR3b pueda distinguir entre validación, conflicto, falta de
+    /// autenticación, falta de autorización y errores de servidor/transporte
+    /// sin depender del texto del mensaje.
     /// </summary>
     private static async Task<CargoSkillCommandResult> ToSkillCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
@@ -320,9 +321,83 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
                     problem?.Detail ?? "Recurso no encontrado."));
         }
 
-        // El subrecurso no emite 409 hoy; el helper se mantiene defensivo por
-        // simetría con ToCommandResultAsync y para que un cambio futuro del
-        // backend no devuelva una excepción cruda al cliente web.
+        // 401 Unauthorized — sesión expirada o token inválido. La página
+        // debería redirigir a login o a una pantalla de re-login.
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            var problem = await response.Content
+                .ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            return CargoSkillCommandResult.Failure(
+                new CargoSkillError(
+                    CargoSkillErrorType.Unauthorized,
+                    problem?.Title ?? "Unauthorized",
+                    problem?.Detail ?? "Acceso no autorizado."));
+        }
+
+        // 403 Forbidden — usuario autenticado sin rol requerido. La página
+        // debería mostrar "Acceso denegado" en vez de un error genérico.
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            var problem = await response.Content
+                .ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            return CargoSkillCommandResult.Failure(
+                new CargoSkillError(
+                    CargoSkillErrorType.Forbidden,
+                    problem?.Title ?? "Forbidden",
+                    problem?.Detail ?? "Acceso denegado."));
+        }
+
+        // 409 Conflict —> aunque el controller actual no emita 409 desde
+        // este subrecurso, mantener la rama hace al helper simétrico con
+        // ToCommandResultAsync y preparado para una futura evolución del
+        // backend (e.g. "asociación duplicada").
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            var problem = await response.Content
+                .ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            return CargoSkillCommandResult.Failure(
+                new CargoSkillError(
+                    CargoSkillErrorType.Conflict,
+                    problem?.Title ?? "Conflict",
+                    problem?.Detail ?? "Conflicto."));
+        }
+
+        // 5xx — error del backend. La página muestra "Servicio no disponible"
+        // con CTA de reintento. La excepción cruda (transport nativo) sigue
+        // propagándose aguas arriba de este helper, así que acá sólo
+        // respondemos al caso "el server respondió con 5xx".
+        if ((int)response.StatusCode >= 500)
+        {
+            ProblemDetails? problem = null;
+            try
+            {
+                problem = await response.Content
+                    .ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (NotSupportedException)
+            {
+            }
+            catch (HttpRequestException)
+            {
+            }
+            catch (System.Text.Json.JsonException)
+            {
+            }
+
+            return CargoSkillCommandResult.Failure(
+                new CargoSkillError(
+                    CargoSkillErrorType.Transport,
+                    problem?.Title ?? "TransportError",
+                    problem?.Detail ?? "Servicio no disponible."));
+        }
+
+        // Cualquier otro código no manejado explícitamente cae al fallback
+        // genérico. La idea es la misma que antes: nunca propagamos la
+        // excepción cruda al consumidor del cliente.
         return CargoSkillCommandResult.Failure(
             new CargoSkillError(
                 CargoSkillErrorType.Validation,
