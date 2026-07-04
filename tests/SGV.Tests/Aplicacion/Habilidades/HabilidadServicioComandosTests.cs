@@ -262,6 +262,7 @@ public sealed class HabilidadServicioComandosTests
         Assert.False(resultado.IsSuccess);
         Assert.Equal(HabilidadErrorType.Conflict, resultado.Error!.Type);
         Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+        Assert.Equal("Ya existe una habilidad activa con el mismo código.", resultado.Error!.Message);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
