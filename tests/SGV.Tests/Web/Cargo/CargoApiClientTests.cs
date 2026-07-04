@@ -657,6 +657,57 @@ public class CargoApiClientTests
         Assert.Null(result.FieldErrors);
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // PR3a follow-up — W2 helper bifurcation.
+    //
+    // El helper ToSkillCommandResultAsync actual colapsa 401/403/409/5xx en
+    // un Validation con code "Unexpected". PR3b no podrá diferenciar acceso
+    // denegado de error de servidor; recibirá siempre un mensaje genérico.
+    // Esta Theory cierra el W2 del verify-report: cada código tiene que
+    // traducirse a un CargoSkillErrorType distinto para que la Razor Page
+    // pueda decidir entre "redirigir a login", "mostrar 403", "mostrar
+    // conflicto" o "mostrar error recuperable".
+    // ─────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, CargoSkillErrorType.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, CargoSkillErrorType.Forbidden)]
+    [InlineData(HttpStatusCode.Conflict, CargoSkillErrorType.Conflict)]
+    [InlineData(HttpStatusCode.InternalServerError, CargoSkillErrorType.Transport)]
+    [InlineData(HttpStatusCode.BadGateway, CargoSkillErrorType.Transport)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, CargoSkillErrorType.Transport)]
+    public async Task UpsertSkillAsync_NonSuccessStatus_ReturnsCorrectCargoSkillErrorType(
+        HttpStatusCode status, CargoSkillErrorType expectedType)
+    {
+        // W2 RED: hasta que el helper bifurque los códigos, los cuatro casos
+        // caen en el fallback "Unexpected" con Validation. La Theory fallará
+        // hasta que el feat(web) correspondiente extienda el helper.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+
+        // Usar un body ProblemDetails neutral para que cualquier código
+        // 4xx/5xx reciba un cuerpo JSON válido y no dispare la rama de
+        // parse fallido (que también cae en Unexpected). El helper debe
+        // bifurcar por StatusCode independientemente del cuerpo.
+        var problem = new ProblemDetails
+        {
+            Status = (int)status,
+            Title = $"Err{status}",
+            Detail = "Detalle de la prueba."
+        };
+        var handler = new RecordingHandler(_ => Json(status, problem));
+        var client = new CargoApiClient(NewHttpClient(handler));
+        var request = new AsignarCargoSkillRequest(nivelId);
+
+        var result = await client.UpsertSkillAsync(cargoId, skillId, request);
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(expectedType, result.Error!.Type);
+        Assert.Null(result.FieldErrors);
+    }
+
     [Fact]
     public async Task DeleteSkillAsync_Http204_ReturnsDeleteSuccessAndHitsDeleteSubresourceRoute()
     {
