@@ -1,5 +1,45 @@
 # Apply Progress — Implementar asignar/quitar Habilidades de un Cargo
 
+## PR1 — Cleanup `NivelId` legacy (refactor, completado)
+
+- **Branch**: `feat/cargo-habilidad-pr1-aplicacion`
+- **Estado**: completado
+- **Strict TDD**: activo. El refactor preserva comportamiento: el test subset PR1 estaba **verde antes** (68/68) y siguió **verde después** (68/68).
+- **Alcance**: refactor enfocado. Único objetivo: eliminar el parámetro posicional `NivelId` (alias legacy) de `CargoSkillDto` y alinear el contrato con la decisión de usuario — solo `NivelRequeridoId`, sin alias `nivelId` en el write DTO.
+
+### Archivos tocados
+
+| Archivo | Líneas antes | Líneas después | Delta | Acción |
+|---|---:|---:|---:|---|
+| `src/SGV.Aplicacion/Organizacion/Consultas/Dtos/CargoSkillDto.cs` | 47 | 32 | −15 | Eliminado parámetro posicional `NivelId`; `NivelRequeridoId` ahora es posicional (segundo arg); eliminada la propiedad `init` redundante y la doc-comment que justificaba el alias transitorio. |
+| `tests/SGV.Tests/Api/CargoSkillControllerTests.cs` | 449 | 449 | 0 | Renombrada constante local `ExistingNivelId` → `ExistingNivelRequeridoId` (11 referencias) para alinear el nombre con la semántica del nuevo shape posicional. Los call sites ya pasaban el valor correcto (`request.NivelRequeridoId` y `ExistingNivelRequeridoId`); el cambio es puramente de nomenclatura. Los JSON bodies con `new { nivelId = ... }` no cambian de forma (la LHS del objeto anónimo sigue siendo `nivelId`); el RHS usa el valor del Guid, no el nombre del identificador. |
+
+### TDD Cycle Evidence (refactor)
+
+| Aspecto | Resultado |
+|---|---|
+| Safety net (pre) | `dotnet test --filter "FullyQualifiedName~CargoSkill\|FullyQualifiedName~HabilidadAntiDrift"` → **68/68 PASS** antes del refactor. |
+| RED (test escrito primero) | N/A — refactor, no se introduce comportamiento nuevo. |
+| GREEN (post) | Mismo subset → **68/68 PASS** después del refactor. |
+| Build | `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s). |
+| Suite completa | `dotnet test SGV.slnx` → **1309/1321 PASS** (mismo baseline; los 12 fallos siguen siendo `OcupacionRepositoryTests` pre-existentes, issue #59). |
+| Test summary | 0 tests modificados (refactor mecánico de constante), 0 tests nuevos (no se introduce comportamiento). |
+| Aprobación tests | El comportamiento observable del `CargoSkillDto` (lo que el controller serializa y lo que los tests verifican) **no cambia**: el `UpsertAsync`/`DeleteAsync` fake sigue devolviendo `new CargoSkillDto(skillId, ExistingNivelRequeridoId)` y la aserción `Assert.Equal(ExistingNivelRequeridoId, dto.NivelRequeridoId)` sigue verde. |
+
+### Commit
+
+```
+1e33c101 refactor(cargo-skill): remove legacy NivelId positional from CargoSkillDto
+```
+
+SHA: `1e33c101a99dc86bdfddbfbd72b97da71317628d`. Diff: 2 files changed, +19/−34. Sin `Co-Authored-By:` ni atribución a IA.
+
+### Notas del refactor
+
+1. **Call sites del constructor**: solo había dos — líneas 76 y 83 de `CargoSkillControllerTests.cs`. La línea 76 (`new CargoSkillDto(skillId, request.NivelRequeridoId)`) ya pasaba el valor correcto, por lo que el cambio del shape posicional la beneficia sin tocarla (el segundo arg ahora es `NivelRequeridoId`, que es exactamente el valor que ya pasaba). La línea 83 pasaba el Guid desde la constante, que se renombró para reflejar la nueva semántica.
+2. **`CargoSkillServicio.BuildDto`** usa `new(skillId, nivelRequeridoId) { NivelRequeridoId = nivelRequeridoId, ... }` — el positional pasa el Guid correcto al segundo arg (ahora `NivelRequeridoId`) y el `init` setea `NivelRequeridoId` explícitamente. Después del refactor, el `init` queda **redundante** (idéntico al default derivado del positional), pero el comportamiento no cambia y queda fuera del scope de este commit. PR2 puede limpiarlo cuando enriquezca la proyección LINQ.
+3. **No se tocó** `CargoSkillDetailDto` (DTO de GET, usa `(Skill, Nivel)` con `Id` nested — concepto distinto), `PersonaSkillDto` (DTO de otro agregado), `CargoDto`/`Cargo`/`CargoHabilidad` (entidades de dominio con `NivelId` como FK a `NivelesCargo`, concepto distinto). El refactor es estrictamente local al write DTO `CargoSkillDto`.
+
 ## PR1 — Aplicación (completado)
 
 - **Branch**: `feat/cargo-habilidad-pr1-aplicacion`
