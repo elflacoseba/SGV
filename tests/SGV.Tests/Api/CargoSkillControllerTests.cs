@@ -184,7 +184,7 @@ public sealed class CargoSkillControllerTests
     }
 
     [Fact]
-    public async Task GetSkills_ResponseContainsSkillIdAndNivelId()
+    public async Task GetSkills_ResponseContainsNestedSkillAndNivel()
     {
         using var factory = new ApiWebApplicationFactory(services =>
         {
@@ -238,7 +238,7 @@ public sealed class CargoSkillControllerTests
         });
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
-        var body = ToJsonBody(new { nivelId = ExistingNivelRequeridoId });
+        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelRequeridoId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
@@ -247,7 +247,7 @@ public sealed class CargoSkillControllerTests
     }
 
     [Fact]
-    public async Task PutSkill_InvalidNivelId_Returns400WithProblemDetails()
+    public async Task PutSkill_InvalidNivelRequeridoId_Returns400WithProblemDetails()
     {
         var fake = new FakeCargoSkillServicio
         {
@@ -262,7 +262,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelId = Guid.NewGuid() });
+        var body = ToJsonBody(new { nivelRequeridoId = Guid.NewGuid() });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
@@ -288,7 +288,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelId = ExistingNivelRequeridoId });
+        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelRequeridoId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{NonExistentCargoId}/skills/{ExistingSkillId}", body);
@@ -314,7 +314,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio>(fake);
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelId = ExistingNivelRequeridoId });
+        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelRequeridoId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{NonExistentSkillId}", body);
@@ -371,7 +371,7 @@ public sealed class CargoSkillControllerTests
 
         HttpResponseMessage response = method switch
         {
-            "PUT"    => await client.PutAsync(path, ToJsonBody(new { nivelId = ExistingNivelRequeridoId })),
+            "PUT"    => await client.PutAsync(path, ToJsonBody(new { nivelRequeridoId = ExistingNivelRequeridoId })),
             "DELETE" => await client.DeleteAsync(path),
             _        => throw new ArgumentOutOfRangeException(nameof(method), method, "Unsupported HTTP method")
         };
@@ -438,7 +438,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelId = ExistingNivelRequeridoId });
+        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelRequeridoId });
 
         // This should hit the cargo skill subresource, NOT the skills catalog
         var response = await client.PutAsync(
