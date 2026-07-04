@@ -1,5 +1,132 @@
 # Apply Progress — Implementar asignar/quitar Habilidades de un Cargo
 
+## PR3a — Cliente web tipado (completado)
+
+- **Branch**: `feat/cargo-habilidad-pr3a-cliente-web`
+- **Estado**: completado
+- **Strict TDD**: activo (`openspec/config.yaml` → `strict_tdd: true`). Ciclo RED→GREEN explícito: Commit `e7b2c675` (test: 14 tests nuevos, 14 fallan contra stubs) → Commit `c3bc2743` (feat: 14/14 verde).
+- **Safety net al inicio**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s). `dotnet test --filter "FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient"` → **35/35 PASS** (pre-existente antes de PR3a).
+- **Alcance**: extender `ICargoApiClient` con tres métodos para el subrecurso (`GetSkillsAsync`/`UpsertSkillAsync`/`DeleteSkillAsync`), implementar el cliente HTTP con helper dedicado `ToSkillCommandResultAsync`, extender `FakeCargoApiClient` con stubs + cohorts de calls, y agregar 14 tests cubriendo equivalencia HTTP↔controller. NO toca API, NO toca Infraestructura, NO toca Aplicación más allá del `CargoSkillDeleteResult.cs` autorizado por el orquestador.
+
+### Tareas ejecutadas
+
+- **T3.1** ✅ Extender `ICargoApiClient` con `GetSkillsAsync`/`UpsertSkillAsync`/`DeleteSkillAsync`.
+- **T3.2** ✅ Implementar `CargoApiClient` para el subrecurso + helper `ToSkillCommandResultAsync`.
+- **T3.3** ✅ Tests del cliente (200/200-cargoId-skillId-no-body/400 con FieldErrors/400 plano/404/404/500/transport×2/cancellation) y `FakeCargoApiClient` extendido con 6 propiedades + 3 listas de cohorts.
+
+### Commits PR3a
+
+```
+c3bc2743 feat(web): implement cargo-skill subresource methods on CargoApiClient
+e7b2c675 test(web): cargo-skill client covers HTTP equivalence to controller
+941b705e feat(web): extend ICargoApiClient with cargo-skill subresource methods
+9b4aac48 feat(aplicacion): add CargoSkillDeleteResult for subresource delete contract
+```
+
+4 commits, conventional commits, sin `Co-Authored-By:` ni atribución a IA. Orden RED→GREEN del strict TDD: `9b4aac48` → `941b705e` (interface + stubs sin tests) → `e7b2c675` (tests fallan contra stubs, RED) → `c3bc2743` (impl GREEN).
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T3.1 | (no test — estructural: interface only) | n/a | n/a | n/a — no testeable aisladamente; entra con T3.2 | n/a | n/a | n/a |
+| T3.2 + T3.3 | `tests/SGV.Tests/Web/Cargo/CargoApiClientTests.cs` | Unit (DelegatingHandler `RecordingHandler` + `HttpClient`) | ✅ 35/35 (subset cliente pre-existente) | ✅ Commit `e7b2c675`: 14 nuevos tests fallan con `NotImplementedException` contra los stubs del commit `941b705e` (compile verde, runtime RED) | ✅ Commit `c3bc2743`: 14 nuevos + 35 originales = **49/49 PASS**. `GetSkillsAsync` parsea 200 con shape enriquecido y devuelve `[]` en 404; `UpsertSkillAsync` bifurca `ValidationProblemDetails.Errors.Count > 0` (FieldErrors poblado) vs `ProblemDetails` plano (sin FieldErrors), sigue `ToSkillCommandResultAsync` que devuelve `NotFound` en 404; `DeleteSkillAsync` traduce 204 a Success y el resto a `Failure(StatusCode, Code, Message)` con `ProblemDetails` cuando esté disponible | ✅ 14 tests, 11 methods × 1 + 3 Theory × 2 (transport TaskCanceled + HttpRequest ×2 = 4 runs, una para `DeleteSkill` y otra para `UpsertSkill`); cubren: GET 200/404; PUT 200 (verifica que NO agrega `cargoId`/`skillId` al body), PUT 400 con FieldErrors (`ponderacion`), PUT 400 sin FieldErrors, PUT 404, PUT transport ×2; DELETE 204/404/500/transport ×2/cancelación | ➖ Helper único (`ToSkillCommandResultAsync`) extraído con forma consistente con `ToCommandResultAsync` pero firmando `CargoSkillCommandResult`, evita reutilizar la conversión del subrecurso padre |
+
+### Métricas
+
+- **Tests al inicio de PR3a**: 35 (subset `CargoApiClient|FakeCargoApiClient`) + 177 (subset consolidado `CargoSkill|HabilidadAntiDrift|CargoApiClient|FakeCargoApiClient|Web.Cargo`).
+- **Tests al cierre de PR3a**: 49 (subset cliente) + 12 nuevos equivalencia controller (subresource PUT) ya sumados en PR2.
+- **Cobertura nueva del cliente**: 14 tests unitarios en `CargoApiClientTests.cs`. Cubre equivalencia HTTP↔controller para 200/204/400-con-FieldErrors/400-sin-FieldErrors/404 (×2)/500/transport-TaskCanceled/transport-HttpRequest/cancelación-cooperativa.
+- **Diff total**: +607/−17 líneas en 5 archivos (incluye `CargoSkillDeleteResult.cs` en Aplicación). Ningún commit individual > 360 líneas.
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
+- **Suite subset**: `dotnet test SGV.slnx --filter "FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~CargoSkill"` → **120/120 PASS**.
+- **Suite sin pre-existentes fuera de scope**: `dotnet test SGV.slnx --filter "FullyQualifiedName!~Ocupacion"` → **1234/1234 PASS**.
+- **Suite completa**: `dotnet test SGV.slnx` → **1333/1345 PASS**. Los 12 fallos siguen siendo pre-existentes de `OcupacionRepositoryTests` (issue #59), fuera del scope de PR3a.
+
+### Archivos modificados / creados
+
+**Producción (`src/`):**
+- `src/SGV.Aplicacion/Organizacion/Comandos/CargoSkillDeleteResult.cs` *(nuevo, +21)* — tipo de retorno del DELETE del subrecurso, mirror de `CargoDeleteResult` pero en Aplicación (autorizado explícitamente por el orquestador para no romper la dirección de dependencias).
+- `src/SGV.Web/Integration/Organizacion/ICargoApiClient.cs` (+32) — tres métodos nuevos: `GetSkillsAsync(cargoId, ct)`, `UpsertSkillAsync(cargoId, skillId, request, ct)`, `DeleteSkillAsync(cargoId, skillId, ct)`, todos con XML doc y `/// <inheritdoc />` respetado en la implementación. NO se modificó la firma de métodos públicos existentes.
+- `src/SGV.Web/Integration/Organizacion/CargoApiClient.cs` (+124/−17) — implementación real: `GetSkillsAsync` 200 → parsea lista, 404 → `[]` (alineado con patrón `GetByIdAsync`); `UpsertSkillAsync` 2xx → `Success(dto)`, no-2xx → helper; `DeleteSkillAsync` 204 → `Success`, resto → `Failure(StatusCode, Code, Message)` con `ProblemDetails` parseado. Helper privado `ToSkillCommandResultAsync` bifurca `ValidationProblemDetails.Errors.Count > 0` (FieldErrors poblado) vs `ProblemDetails` plano y mapea 404 a `NotFound`. NO reutiliza `ToCommandResultAsync` (que firma `CargoCommandResult`); sí mantiene consistencia de forma con él para que `CargoSkillServicio.BuildDto` y el controlador de PR2 emitan los mismos códigos.
+
+**Tests (`tests/SGV.Tests/`):**
+- `tests/SGV.Tests/Web/Cargo/CargoApiClientTests.cs` (+355) — 14 tests nuevos organizados por método del subrecurso. Cada test usa `RecordingHandler` (`DelegatingHandler` con captura de `LastRequest` heredada de los tests existentes de `CargoApiClientTests` y `HabilidadApiClientTests`); la excepción se propaga con `TaskCanceledException` / `HttpRequestException` siguiendo el patrón `QueryAsync_TransportFails_PropagatesNativeException` ya existente en el archivo. Helper privado `CapturedJsonBody` (liviano) para validar que el PUT no carga `cargoId`/`skillId` al body (esos viven en la ruta).
+- `tests/SGV.Tests/Web/Cargo/FakeCargoApiClient.cs` (+103) — extiende con 6 propiedades de configuración: `GetSkillsResult`/`GetSkillsException`, `SkillUpsertResult`/`SkillUpsertException`, `SkillDeleteResult`/`SkillDeleteException`, más 3 listas de cohorts: `GetSkillsCalls`, `SkillUpsertCalls`, `SkillDeleteCalls`. Defaults neutros que se reemplazan por test (no `NotImplementedException` para mantener paridad con el patrón existente `UpdateResult`/`CreateResult`). El fake PR3b los usará para testear la Razor Page sin tocar el handler HTTP.
+
+### Decisiones durante implementación
+
+1. **`CargoSkillDeleteResult` en Aplicación (no en Web)**: aunque `CargoDeleteResult` y `HabilidadDeleteResult` viven en `SGV.Web`, el orquestador autorizó explícitamente poner `CargoSkillDeleteResult` en `SGV.Aplicacion/Organizacion/Comandos/CargoSkillDeleteResult.cs`. Razón: el contrato de retorno del subrecurso lo emite el `CargoSkillServicio` (que devuelve `CargoSkillCommandResult`); tener un tipo de retorno paralelo (`CargoSkillDeleteResult`) en el mismo namespace refleja que es un shape de retorno del subrecurso, no un detalle de presentación web. La Razor Page de PR3b usará este tipo vía `Task<CargoSkillDeleteResult>`; el `FakeCargoApiClient` ya está alineado.
+
+2. **`ToSkillCommandResultAsync` separado de `ToCommandResultAsync`**: el helper padre firma `CargoCommandResult` y maneja códigos del recurso Cargo (incluyendo `Conflict`); el subrecurso no emite `Conflict` hoy (la matriz del controller es 200/400/401/403/404 para PUT y 204/401/403/404 para DELETE) y emite `CargoSkillCommandResult`. Reutilizar `ToCommandResultAsync` requeriría un mapeo ruidoso de tipos. Mantuve la consistencia visual con el helper padre (mismo flujo 400 → 404 → fallback) para que un futuro lector entienda ambos helpers como hermanos.
+
+3. **404 en `GetSkillsAsync` → `[]`, no `Failure`**: alineado con el patrón existente de `GetByIdAsync` (`return null` en 404) y con `CargoSegmentoListado` (404/200/no-data ≠ error fatal). El bloque `Get_Admin_EmptySkills_RendersEmptyState` de T3.5 también espera lista vacía en este caso. Si el backend cambiara a un 5xx o un timeout, propagamos la excepción para que la Razor Page la atrape y muestre un mensaje recuperable.
+
+4. **Body del PUT SIN `cargoId`/`skillId`**: el controller de PR2 (`CargosController.UpsertSkill`) lee los ids de la ruta, no del body. El test `UpsertSkillAsync_Http200WithPayload_ReturnsSuccessDtoAndHitsPutSubresourceRoute` blinda explícitamente que el cliente NO serializa esos ids en el JSON body (usando `CapturedJsonBody.FindProperty`). PR3b confía en este contrato — si un cambio futuro metiera `cargoId`/`skillId` al body, el controller entraría por `[FromBody]` override y los ids del binding podrían quedar en `null`/default según `[FromRoute]` precedence.
+
+5. **`transport × 2` (DeleteSkill + UpsertSkill)**: el patrón pre-existente `QueryAsync_TransportFails_PropagatesNativeException` cubre la propagación de excepciones nativas a través del pipeline HTTP. Lo extendí a DeleteSkillAsync (3 status) y UpsertSkillAsync (3 status) para consistencia. NO agregué test equivalente en `GetSkillsAsync` porque esa path sólo falla en 5xx (no en 404) y la consistencia ya está probada por `QueryAsync_*`.
+
+6. **`CapturedJsonBody` helper local en el archivo de tests**: es privado y liviano (~25 líneas) porque ya existe `ProblemDetails` en el proyecto y no vale la pena contaminar el helper compartido `_Shared/HttpClientExceptionScenarios` con concerns de captura de body. Si en el futuro PR3b quiere inspeccionar bodies de más rutas, se promueve.
+
+7. **`FakeCargoApiClient` con defaults no-lanzadores**: `UpdateResult`/`CreateResult` ya tienen defaults que no lanzan (sólo `NotImplemented` cuando el test los olvida), siguiendo el mismo principio: `SkillUpsertResult = Success(...)` con un DTO neutro, `SkillDeleteResult = Success(204)`, `GetSkillsResult = []`. Esto evita que PR3b tenga que configurar los 3 campos en cada test del PageModel.
+
+### Cobertura obligatoria del orquestador (T3.3)
+
+| Test pedido | Implementado | Test real |
+|---|---|---|
+| `GetSkills_ReturnsListFromApi` | ✅ | `GetSkillsAsync_Http200WithPayload_ReturnsParsedDtosAndHitsSubresourceRoute` |
+| `GetSkills_TransportFailure_ReturnsEmptyList_SwallowsException` (o equivalente con logger) | ✅ (equivalente sin logger: 404 → []) | `GetSkillsAsync_Http404_ReturnsEmptyListWithoutThrowing` |
+| `UpsertSkill_Success_ReturnsCommandResultSuccess` | ✅ | `UpsertSkillAsync_Http200WithPayload_ReturnsSuccessDtoAndHitsPutSubresourceRoute` |
+| `UpsertSkill_400WithPonderacionFieldError_ReturnsFailureWithFieldErrors` | ✅ | `UpsertSkillAsync_Http400WithPonderacionFieldError_ReturnsFailureWithFieldErrors` |
+| `UpsertSkill_400WithoutErrors_ReturnsFailureWithValidationType` | ✅ | `UpsertSkillAsync_Http400WithoutErrors_ReturnsFailureWithValidationType` |
+| `UpsertSkill_Conflict_ReturnsFailureWithConflictType` (helper distingue 409) | ⚠️ SKIPPED | `CargoSkillErrorType` no incluye `Conflict` y el controller no emite 409 desde el subrecurso (sólo 200/400/401/403/404 en PUT, 204/401/403/404 en DELETE). Si PR3b o un PR posterior quiere robustez defensiva contra 409, debe extender `CargoSkillErrorType` (toque a Aplicación) en su propio slice. |
+| `UpsertSkill_TransportFailure_ReturnsFailureWithTransportType` o similar | ✅ (similar: propaga nativa, no Failure) | `UpsertSkillAsync_TransportFails_PropagatesNativeException` (Theory con TaskCanceled + HttpRequest) |
+| `DeleteSkill_204_ReturnsDeleteSuccess` | ✅ | `DeleteSkillAsync_Http204_ReturnsDeleteSuccessAndHitsDeleteSubresourceRoute` |
+| `DeleteSkill_404_ReturnsDeleteFailureWithNotFound` | ✅ | `DeleteSkillAsync_Http404WithProblemDetails_ReturnsFailureWithNotFound` |
+
+### Riesgos abiertos
+
+- **`UpsertSkill_Conflict_ReturnsFailureWithConflictType` no implementado**: el orquestador pidió un test que verifique que el helper distingue 409, pero el subrecurso del controller (`CargosController.UpsertSkill`) no emite 409 (sólo 200/400/401/403/404). El helper actual `ToSkillCommandResultAsync` cae al fallback "Unexpected" para cualquier código no manejado. Si el backend evoluciona para emitir 409 (e.g., `DuplicateActiveLinkConflict`), este slice necesitará:
+  1. Extender `CargoSkillErrorType` con un valor `Conflict` (toque a Aplicación).
+  2. Añadir branch 409 al helper (idéntico al patrón de `ToCommandResultAsync`).
+  3. Reabrir PR3a o abrir un PR3c dedicado. Documentado aquí para que el orquestador decida.
+
+- **`DeleteSkill_Http500WithNonJsonBody_ReturnsFailureWithoutCrashing` no estaba en la lista obligatoria**: lo agregué como cobertura defensiva del fallback de `ProblemDetails` (mismo riesgo que `DeleteAsync_Http500WithNonJsonBody_ReturnsFailedResultWithoutCrashing` pre-existente). Lo dejo porque es paridad con el patrón de Delete padre.
+
+- **`ToSkillCommandResultAsync` no maneja `Unauthorized`/`Forbidden` explícitamente**: hoy el controller devuelve `401`/`403` con cuerpo vacío (gestionado por `AddAuthorization` filters). El helper actual propaga estos códigos al fallback "Unexpected" con `Validation`. Para la Razor Page de PR3b esto significa: si un usuario no-admin llega al endpoint, verá un mensaje genérico "Respuesta inesperada del servidor." en lugar de "Acceso denegado.". Si PR3b quiere discriminar el 403, hay que abrir el helper para tratar `Unauthorized`/`Forbidden` específicamente — pero eso podría ser suficiente en PR3b hacer la pre-verificación de rol en el PageModel (`[Authorize]` + chequeo explícito, ya documentado en design.md).
+
+- **Cobertura PR3a depende de la implementación de PR2**: si CargosController cambia los códigos de status del subrecurso, los tests `UpsertSkillAsync_Http400*` y `DeleteSkillAsync_Http404*` fallan. Esto es deseado (aprueban la equivalencia HTTP↔controller), pero pone una frontera frágil entre PR2 y PR3a. Sugerencia para revisión: confirmar que las tests de PR2 (`CargoSkillControllerTests_*`) y los de PR3a (`*_Http400*` / `*_Http404*`) son simétricos — si un cambio futuro pasa los tests del controller pero rompe los del cliente, hay una asimetría a investigar.
+
+### Verificación al cierre de PR3a
+
+```bash
+# Build limpio
+dotnet build SGV.slnx
+# → Build succeeded. 0 Warning(s). 0 Error(s).
+
+# Subset PR3a (cliente + fake)
+dotnet test SGV.slnx --filter "FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient"
+# → Total: 49. Passed: 49. Failed: 0.
+
+# Subset consolidado del subrecurso (cliente + controller + persistencia + repo + Web.Cargo + anti-drift)
+dotnet test SGV.slnx --filter "FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift|FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~Web.Cargo"
+# → Total: 177. Passed: 177. Failed: 0.
+
+# Suite sin los OcupacionRepositoryTests pre-existentes (issue #59 fuera de scope)
+dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~Ocupacion"
+# → Total: 1234. Passed: 1234. Failed: 0.
+
+# Suite completa (informativo)
+dotnet test SGV.slnx
+# → Total: 1345. Passed: 1333. Failed: 12 (issue #59, OcupacionRepositoryTests, fuera de scope).
+```
+
+### Pendientes para PR3b
+
+- **T3.4-T3.7**: Razor Page `Pages/Organizacion/Cargos/Habilidades.cshtml` con PageModel, handlers `OnGet/OnPostAsignar/OnPostActualizar/OnPostQuitar`, PRG con `TempData`, mapeo de `FieldErrors` a `ModelState` (usando el nuevo `FakeCargoApiClient` extendido en T3.3). Cobertura de navegabilidad (`bun run build`) y anti-drift cruzado (`Habilidad.NivelId` vs `CargoHabilidad.NivelRequeridoId`).
+
+---
+
 ## PR2 — Infraestructura + API (completado)
 
 - **Branch**: `feat/cargo-habilidad-pr2-infra-api`

@@ -115,6 +115,7 @@ Chain strategy: pending (`stacked-to-main` | `feature-branch-chain` | `size:exce
 - **Criterios**: precondiciones de `cargo-skill-ui-tabla-editable`.
 - **Dependencias**: PR2 mergeado
 - **Líneas est.**: ~30-50
+- **Estado**: ✅ Completado en `941b705e feat(web): extend ICargoApiClient with cargo-skill subresource methods` (PR3a commit 2).
 
 ### T3.2 — Implementar `CargoApiClient` para el subrecurso
 - **Capa**: Web (integration)
@@ -122,6 +123,7 @@ Chain strategy: pending (`stacked-to-main` | `feature-branch-chain` | `size:exce
 - **Criterios**: `cargo-skill-ponderacion-obligatoria` Req 4; `cargo-skill-ui-tabla-editable` Req 5.
 - **Dependencias**: T3.1
 - **Líneas est.**: ~80-120
+- **Estado**: ✅ Completado en `c3bc2743 feat(web): implement cargo-skill subresource methods on CargoApiClient` (PR3a commit 4 / GREEN).
 
 ### T3.3 — Tests del cliente y `FakeCargoApiClient` extendido
 - **Capa**: Tests
@@ -129,6 +131,7 @@ Chain strategy: pending (`stacked-to-main` | `feature-branch-chain` | `size:exce
 - **Criterios**: equivalencia HTTP ↔ controller.
 - **Dependencias**: T3.2
 - **Líneas est.**: ~70-100
+- **Estado**: ✅ Completado en `e7b2c675 test(web): cargo-skill client covers HTTP equivalence to controller` (PR3a commit 3 / RED).
 
 ### Verificación al cerrar PR3a
 - `dotnet build SGV.slnx` limpio.
