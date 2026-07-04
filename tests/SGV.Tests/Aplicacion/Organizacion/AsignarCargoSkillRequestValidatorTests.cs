@@ -96,9 +96,9 @@ public sealed class AsignarCargoSkillRequestValidatorTests
 
     [Theory]
     [InlineData(0.01)]
-    [InlineData(1)]
     [InlineData(1.00)]
     [InlineData(2.50)]
+    [InlineData(50.75)]
     [InlineData(100.00)]
     public void Should_Not_Have_Error_When_Ponderacion_Is_In_Range(decimal ponderacion)
     {
