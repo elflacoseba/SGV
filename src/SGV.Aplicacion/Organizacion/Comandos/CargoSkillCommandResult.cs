@@ -22,11 +22,14 @@ public sealed record CargoSkillError(
 
 /// <summary>
 /// Result of a CargoSkill write operation: either a success DTO or a typed error.
+/// When <see cref="FieldErrors"/> is populated the caller MUST surface the
+/// per-field errors via a <c>ValidationProblemDetails</c> response (HTTP 400).
 /// </summary>
 public sealed record CargoSkillCommandResult(
     bool IsSuccess,
     CargoSkillDto? Value,
-    CargoSkillError? Error
+    CargoSkillError? Error,
+    IReadOnlyDictionary<string, string[]>? FieldErrors = null
 )
 {
     public static CargoSkillCommandResult Success(CargoSkillDto value)
@@ -34,4 +37,9 @@ public sealed record CargoSkillCommandResult(
 
     public static CargoSkillCommandResult Failure(CargoSkillError error)
         => new(false, null, error);
+
+    public static CargoSkillCommandResult Failure(
+        CargoSkillError error,
+        IReadOnlyDictionary<string, string[]> fieldErrors)
+        => new(false, null, error, fieldErrors);
 }
