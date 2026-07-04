@@ -25,7 +25,8 @@ public sealed class HabilidadServicioComandos(
     /// <summary>
     /// Nombre del índice activo de <c>Codigo</c> detectado en la
     /// <see cref="DbUpdateException"/> para mapear a <c>CodigoDuplicado</c>.
-    /// Single source of truth compartido entre pre-check e IsActive*Violation.
+    /// Única fuente de verdad compartida entre el pre-check y la detección
+    /// de la violación en <see cref="IsActiveCodigoUniqueViolation"/>.
     /// </summary>
     private const string ActiveCodigoUniqueIndex = "IX_Habilidades_ActiveCodigoUnique";
 
@@ -229,11 +230,11 @@ public sealed class HabilidadServicioComandos(
     }
 
     /// <summary>
-    /// Single factory for the <c>CodigoDuplicado</c> failure result, used by
-    /// both the pre-check (<see cref="EnsureCodigoNoDuplicadoAsync"/>),
-    /// the post-check safety net on <see cref="DbUpdateException"/> en
-    /// <c>CrearAsync</c>/<c>ActualizarAsync</c>, and the reactivar path.
-    /// Centraliza el mensaje y el código HTTP-contract.
+    /// Factoría única del resultado de fallo <c>CodigoDuplicado</c>, usada
+    /// tanto por el pre-check (<see cref="EnsureCodigoNoDuplicadoAsync"/>)
+    /// como por la red de seguridad sobre <see cref="DbUpdateException"/> en
+    /// <c>CrearAsync</c>/<c>ActualizarAsync</c>, y también en la ruta de
+    /// reactivación. Centraliza el mensaje y el código de contrato HTTP.
     /// </summary>
     private static HabilidadCommandResult FailureCodigoDuplicado()
         => HabilidadCommandResult.Failure(

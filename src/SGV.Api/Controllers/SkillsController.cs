@@ -154,7 +154,7 @@ public class SkillsController : ControllerBase
     /// </para>
     /// <para>
     /// El backend re-valida la unicidad activa del <c>Codigo</c> contra
-    /// otras habilidades y la viola del índice
+    /// otras habilidades y la violación del índice único
     /// <c>IX_Habilidades_ActiveCodigoUnique</c> se traduce a
     /// <c>409 Conflict</c> con <c>CodigoDuplicado</c>.
     /// </para>
