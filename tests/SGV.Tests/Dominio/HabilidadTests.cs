@@ -165,7 +165,7 @@ public sealed class HabilidadTests
     public void Actualizar_ConCodigoMayorA50_ThrowsArgumentException()
     {
         var habilidad = new Habilidad("COM01", "Comunicación");
-        var codigoLargo = new string('A', 51);
+        var codigoLargo = new string('A', HabilidadRules.CodigoMaxLength + 1);
 
         var ex = Assert.Throws<ArgumentException>(
             () => habilidad.Actualizar(codigoLargo, "Comunicación", null, null));
