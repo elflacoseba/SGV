@@ -69,7 +69,8 @@ Bloque de 2 commits + fix de docs al HEAD del slice PR3b, sin reordenar commits 
 ### Métricas
 
 - **Tests al inicio de PR3b**: **215/215 PASS** (subset consolidado).
-- **Tests al cierre de PR3b**: **225/225 PASS** en el subset consolidado (+9 página + 1 anti-drift - 1 cancelado: la versión final del test de "no admin POST" se descartó a favor del test GET `Get_AuthenticatedWithoutAdminRole_RedirectsToAccessDenied` que es el que el orquestador listó como obligatorio). Total absoluto: **1363/1375 PASS** en suite completa (los 12 fallos son pre-existentes de `OcupacionRepositoryTests` issue #59, fuera de scope).
+- **Tests al cierre de PR3b (intermediate, pre-CRITICAL-fix)**: **225/225 PASS** en el subset consolidado (+9 página + 1 anti-drift - 1 cancelado: la versión final del test de "no admin POST" se descartó a favor del test GET `Get_AuthenticatedWithoutAdminRole_RedirectsToAccessDenied` que es el que el orquestador listó como obligatorio). Total absoluto: **1363/1375 PASS** en suite completa (los 12 fallos son pre-existentes de `OcupacionRepositoryTests` issue #59, fuera de scope).
+- **Tests al cierre FINAL de PR3b (post-CRITICAL-fix)**: **226/226 PASS** en el subset consolidado (+1 nuevo test `Get_Admin_QuitarButton_RendersConfirmPromptWithSkillName` agregado por el cierre del CRITICAL en el bloque de arriba). Total absoluto: **1364/1376 PASS** en suite completa (los 12 fallos siguen siendo pre-existentes de `OcupacionRepositoryTests` issue #59, fuera de scope). **El 226/226 es la cifra vigente al cierre del slice** — refleja el estado capturado por la salida de `dotnet test` registrada al finalizar el commit `21c9239b` (interim verify follow-up).
 - **Diff total**: +813 / −22 líneas en 5 archivos. Ningún commit individual > 360 líneas (el más grande es `522ea4d3` con 720 líneas, mayormente markup Razor).
 - **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
 - **`bun run build`**: ✅ exit 0, sin errores de pipeline.
@@ -105,6 +106,8 @@ Bloque de 2 commits + fix de docs al HEAD del slice PR3b, sin reordenar commits 
 
 ### Verificación al cierre de PR3b
 
+> **Nota sobre el snapshot**: los números de esta sección (225/225 en el subset, 1264/1264 en la suite sin pre-existentes) corresponden al estado capturado al cierre de la **implementación inicial de PR3b** (después del commit `947014aa` y antes del bloque de Cierre de findings). El estado **post-CRITICAL-fix** capturado por el commit `21c9239b` del interim verify es **226/226** en el subset consolidado y **1265/1265** en la suite sin pre-existentes. Ver la subsección **"Cierre de findings — interim verify follow-up"** arriba para la referencia vigente y el detalle del CRITICAL cerrado (commit `433d82dc` test RED → `acf0a97d` feat GREEN), que es lo que el orquestador reporta al cierre del slice.
+
 ```bash
 # Build limpio
 dotnet build SGV.slnx
@@ -112,15 +115,16 @@ dotnet build SGV.slnx
 
 # Subset PR3b (página + anti-drift + cliente + controller + seam)
 dotnet test SGV.slnx --filter "FullyQualifiedName~CargoHabilidadesPage|FullyQualifiedName~CargoHabilidadesAntiDrift|FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift|FullyQualifiedName~CargoEditPage|FullyQualifiedName~CargoCreatePage|FullyQualifiedName~CargoIndexPage|FullyQualifiedName~HabilidadEditPage|FullyQualifiedName~HabilidadCreatePage|FullyQualifiedName~Web.Cargo|FullyQualifiedName~ICargoApiClient"
-# → Total: 225. Passed: 225. Failed: 0.
+# → Total: 225. Passed: 225. Failed: 0.   # (post-CRITICAL-fix: 226/226 — ver nota arriba)
 
 # Suite sin pre-existentes fuera de scope
 dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~Ocupacion"
-# → Total: 1264. Passed: 1264. Failed: 0.
+# → Total: 1264. Passed: 1264. Failed: 0.   # (post-CRITICAL-fix: 1265/1265 — ver nota arriba)
 
 # Suite completa (informativo, los 12 fallos son issue #59 pre-existente)
 dotnet test SGV.slnx
 # → Total: 1375. Passed: 1363. Failed: 12 (OcupacionRepositoryTests, issue #59).
+#   # (post-CRITICAL-fix: 1376/1376 total, 1364/1376 PASS — ver nota arriba)
 
 # Frontend pipeline (Inspinia/Gulp)
 bun run build
@@ -133,6 +137,16 @@ bun run build
 - **Paginación de la grilla**: si un cargo tiene >50 habilidades, la grilla actual las muestra todas. La spec no requiere paginación (es un caso raro), pero si crece, agregar paginación client-side o server-side.
 - **Errores de validación anclados a la fila editada (WARNING 1 del verify interim)**: hoy `ApplySkillFailureToModelState` prefija siempre `AsignarInput.` y la grilla re-renderiza el form de asignación visiblemente tras un fallo de Actualizar; los errores quedan visibles pero confusos porque no están junto a la fila que falló. Mejora futura: introducir un prefijo contextual por fila (`Skills[i].NivelRequeridoId` con índice) o un panel de errores por fila. Requiere refactor de la markup para exponer `asp-validation-for` por celda.
 - **Modal de confirmación para Quitar (slice visual aparte)**: si en el futuro se quiere reemplazar el `confirm()` JavaScript nativo por un modal de Inspinia más rico, queda como PR dedicado. El sub-slice actual usa el patrón nativo por simplicidad y zero-dependency.
+
+### Estado final del slice PR3b (post-CRITICAL-fix, vigente)
+
+- **Subset consolidado**: **226/226 PASS** (post-CRITICAL-fix, capturado por el interim verify finalization commit `21c9239b`).
+- **Suite sin pre-existentes fuera de scope** (`FullyQualifiedName!~Ocupacion`): **1265/1265 PASS**.
+- **Suite completa**: **1364/1376 PASS** (los 12 fallos restantes son `OcupacionRepositoryTests` issue #59, fuera de scope).
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s).
+- **Frontend**: `bun run build` → exit 0.
+- **Detail del flujo strict-TDD**: ver la subsección **"Cierre de findings — interim verify follow-up"** arriba (CRITICAL cerrado con `433d82dc` test RED → `acf0a97d` feat GREEN; WARNING 2 subsanado en docs).
+- **Diff total del slice PR3b (al cierre de la implementación inicial)**: 7 commits — 5 de implementación (`9b20975f` test RED inicial, `522ea4d3` feat GREEN inicial, `947014aa` test anti-drift, `433d82dc` test RED Quitar confirm, `acf0a97d` feat GREEN Quitar confirm) + 2 docs (`090db257` interim apply-progress, `7af7c435` rectificación W2). El commit `21c9239b` (interim verify follow-up docs) agrega el cierre del CRITICAL que dispara el conteo 226/226 final.
 
 ---
 
