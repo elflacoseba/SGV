@@ -1,67 +1,72 @@
-# Cargo Skill Query Contract Specification
+# Delta de contrato de consulta de habilidades por cargo
 
 ## Purpose
 
-Define the GET-only response contract for `/api/v1/cargos/{cargoId}/skills` without changing parent Cargo payloads or Cargo skill write contracts introduced by the prior assignment change.
+Actualizar el contrato de lectura de `GET /api/v1/cargos/{cargoId}/skills` para alinearlo con la edición web del vínculo `CargoHabilidad`, manteniendo el subrecurso acotado al GET y sin reinyectar habilidades dentro del payload padre de `Cargo`.
 
 ## Requirements
 
-### Requirement: Enriched cargo skill collection response
+### Requirement 1: Respuesta enriquecida y editable del vínculo
 
-The system MUST return each Cargo skill association with required `skillId` and `nivelId`, and MUST also return nested `skill` and `nivel` objects in the same GET response. `skill` MUST expose `{ id, codigo, nombre, descripcion, categoria }`. `nivel` MUST expose `{ id, codigo, nombre, valorNumerico, orden }`.
+El sistema MUST devolver cada asociación de habilidad de un cargo con `skillId`, `nivelRequeridoId`, `ponderacion`, `esObligatoria`, `skill` y `nivel`. `skill` MUST exponer `{ id, codigo, nombre, descripcion, categoria }`. `nivel` MUST exponer `{ id, codigo, nombre, valorNumerico, orden }`.
 
-#### Scenario: Return identifiers and nested catalog data
+#### Scenario: Devolver ids, flags y catálogos anidados
 
-- GIVEN a Cargo has one or more associated skills
-- WHEN a client requests `/api/v1/cargos/{cargoId}/skills`
-- THEN each response item MUST include `skillId`, `nivelId`, `skill`, and `nivel`
-- AND `skillId` and `nivelId` MUST remain populated even when the nested objects are present.
+- GIVEN un `Cargo` con una o más habilidades asociadas
+- WHEN un cliente solicita `GET /api/v1/cargos/{cargoId}/skills`
+- THEN cada item MUST incluir `skillId`, `nivelRequeridoId`, `ponderacion`, `esObligatoria`, `skill` y `nivel`
+- AND los identificadores MUST seguir poblados aun cuando existan objetos anidados.
 
-#### Scenario: Return an empty collection without shape changes
+#### Scenario: Colección vacía sin cambiar el shape
 
-- GIVEN a Cargo exists and has no associated skills
-- WHEN a client requests `/api/v1/cargos/{cargoId}/skills`
-- THEN the API MUST return a successful empty collection.
+- GIVEN un `Cargo` existente sin habilidades asociadas
+- WHEN un cliente solicita el subrecurso
+- THEN la API MUST responder éxito con una colección vacía.
 
-### Requirement: Query-only contract scope
+### Requirement 2: Alineación con los campos editables del vínculo
 
-The system MUST apply this enrichment only to the GET Cargo skill collection contract. Cargo parent payloads and Cargo skill write contracts MUST remain unchanged in this change.
+El contrato GET MUST exponer exactamente los datos que la UI necesita para rehidratar la tabla editable sin deducciones locales sobre `Ponderacion`, `EsObligatoria` ni `NivelRequeridoId`.
 
-#### Scenario: Keep non-GET contracts unchanged
+#### Scenario: Rehidratar una fila editable desde lectura
 
-- GIVEN a client uses the existing Cargo skill write endpoints
-- WHEN the response contract is evaluated for this change
-- THEN the change MUST NOT require nested `skill` or `nivel` objects outside the GET collection response.
+- GIVEN una asociación persistida con valores explícitos del vínculo
+- WHEN `SGV.Web` consulta el subrecurso para mostrar la tabla
+- THEN la respuesta MUST contener el valor real de `Ponderacion` y `EsObligatoria`
+- AND MUST contener `NivelRequeridoId` junto con el objeto `nivel` mostrado al usuario.
 
-### Requirement: Bounded query execution for nested skill data
+### Requirement 3: Alcance acotado del contrato
 
-The system MUST resolve the nested `skill` and `nivel` data for one Cargo skill collection request with data-access work that stays bounded per request and MUST NOT grow linearly with the number of returned associations.
+El sistema MUST aplicar este enriquecimiento solo al GET del subrecurso de skills del cargo. Los payloads padres de `Cargo` MUST permanecer sin habilidades embebidas.
 
-#### Scenario: Reject row-by-row catalog loading
+#### Scenario: No contaminar el contrato padre de `Cargo`
 
-- GIVEN a Cargo skill query returns multiple associations
-- WHEN the request is verified against its data-access behavior
-- THEN the nested `skill` and `nivel` data MUST NOT be loaded through one follow-up lookup per returned row.
+- GIVEN un cliente consume `GET /api/v1/cargos` o `GET /api/v1/cargos/{id}`
+- WHEN se evalúa este cambio contractual
+- THEN esos endpoints MUST conservar su shape actual
+- AND MUST NOT empezar a devolver colecciones embebidas de skills por este cambio.
 
-### Requirement: Autorización del subrecurso de skills de cargos
+### Requirement 4: Ejecución acotada y autorización vigente
 
-`GET /api/v1/cargos/{cargoId}/skills` MUST requerir autenticación y MUST conservar el contrato enriquecido vigente. Las mutaciones del subrecurso `/skills` MUST requerir rol `Administrador` y, con payload válido y rol correcto, MUST conservar sus respuestas `2xx` vigentes.
+`GET /api/v1/cargos/{cargoId}/skills` MUST seguir requiriendo autenticación y MUST resolver la colección enriquecida sin caer en carga fila-por-fila de catálogos relacionados.
 
-#### Scenario: Consulta autenticada exitosa
+#### Scenario: Consulta autenticada y acotada
 
-- GIVEN un usuario autenticado
-- WHEN solicita `GET /api/v1/cargos/{cargoId}/skills`
-- THEN la API MUST responder `2xx` con el contrato enriquecido vigente.
+- GIVEN un usuario autenticado y múltiples asociaciones para un mismo `Cargo`
+- WHEN solicita el subrecurso
+- THEN la API MUST responder `2xx` con el contrato enriquecido
+- AND la obtención de `skill` y `nivel` MUST permanecer acotada por request.
 
 #### Scenario: Acceso anónimo rechazado
 
 - GIVEN un cliente sin credenciales
-- WHEN solicita el GET o una mutación de `/api/v1/cargos/{cargoId}/skills`
+- WHEN solicita `GET /api/v1/cargos/{cargoId}/skills`
 - THEN la API MUST responder `401 Unauthorized`.
 
-#### Scenario: Mutación protegida por rol administrador
+## Modificaciones
 
-- GIVEN una solicitud válida de alta, cambio o baja del subrecurso
-- WHEN la ejecuta un usuario autenticado sin rol `Administrador`
-- THEN la API MUST responder `403 Forbidden`
-- AND, si la ejecuta un `Administrador`, MUST responder `2xx`.
+- Se agrega `ponderacion` al DTO de lectura del subrecurso.
+- Se agrega `esObligatoria` al DTO de lectura del subrecurso.
+- El identificador del nivel requerido pasa a ser parte explícita del contrato como `nivelRequeridoId`.
+- Se mantiene la presencia de `skill` y `nivel` anidados y se preserva el alcance GET-only del contrato.
+
+> **Nota**: el contrato de lectura del subrecurso expone exclusivamente `nivelRequeridoId`. NO se mantiene un alias legado `nivelId`: este delta rompe compatibilidad con cualquier cliente que esperase ese nombre y reemplaza el campo por su versión explícita.
