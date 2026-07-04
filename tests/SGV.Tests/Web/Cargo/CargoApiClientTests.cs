@@ -916,10 +916,12 @@ public class CargoApiClientTests
     public async Task DeleteSkillAsync_Http500WithNonJsonBody_ReturnsFailureWithoutCrashing()
     {
         // AC de cargo-skill-ui-tabla-editable Req 5: errores 5xx deben
-        // traducirse en un Failure con StatusCode pero sincrash, sin filtrar
-        // stack traces al usuario. La Razor Page usa StatusCode + Code/Message
-        // nulos para mostrar un mensaje genérico "No se pudo completar la
-        // operación".
+        // traducirse en un Failure con StatusCode preservado, sin filtrar
+        // stack traces al usuario. Tras el fix de PR3a R3, el helper
+        // bifurca 5xx al default "TransportError"/"Servicio no disponible."
+        // cuando el body no es parseable; este test sigue asegurando que
+        // no se propaga JsonException sin capturar, ahora con asserts
+        // ajustados al nuevo contrato.
         var cargoId = Guid.NewGuid();
         var skillId = Guid.NewGuid();
         var response = new HttpResponseMessage(HttpStatusCode.InternalServerError)
@@ -933,8 +935,8 @@ public class CargoApiClientTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
-        Assert.Null(result.Code);
-        Assert.Null(result.Message);
+        Assert.Equal("TransportError", result.Code);
+        Assert.Equal("Servicio no disponible.", result.Message);
     }
 
     [Theory]

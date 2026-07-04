@@ -214,6 +214,66 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
             return new CargoSkillDeleteResult(true, response.StatusCode, null, null);
         }
 
+        // PR3a review follow-up (R3): el helper previo colapsaba 401/403/409/4xx
+        // en un Failure genérico con Code=null/Message=null cuando el body no
+        // traía ProblemDetails parseable. Bifurcamos por status, reutilizando
+        // <see cref="ReadSkillProblemAsync"/> que comparte la lógica de
+        // parseo + try/catch con <see cref="UpsertSkillAsync"/>. Así la
+        // Razor Page de PR3b puede decidir entre "redirigir a login"
+        // (401), "mostrar Acceso denegado" (403), "mostrar conflicto"
+        // (409) o "Servicio no disponible" (5xx) sin depender de
+        // StatusCode parsing manual.
+        var defaults = MapSkillProblemDefaults(response.StatusCode);
+        var (code, message) = await ReadSkillProblemAsync(response, defaults, cancellationToken)
+            .ConfigureAwait(false);
+
+        return new CargoSkillDeleteResult(
+            false,
+            response.StatusCode,
+            code,
+            message);
+    }
+
+    /// <summary>
+    /// Defaults tipados por status para la respuesta de error del subrecurso
+    /// <c>PUT/DELETE /api/v1/cargos/{cargoId}/skills/{skillId}</c>. Cuando el
+    /// backend no entrega un <see cref="ProblemDetails"/> parseable (e.g. un
+    /// 401 con body vacío, un 5xx con HTML), usamos estos valores para
+    /// poblar <c>Code</c>/<c>Message</c> del resultado. El mapping refleja
+    /// los códigos que efectivamente emite el controller de PR2 (200/400/401/403/404
+    /// para PUT, 204/401/403/404 para DELETE) más un fallback 5xx preparado
+    /// para evoluciones futuras del backend.
+    /// </summary>
+    private static (string Code, string Message) MapSkillProblemDefaults(HttpStatusCode status) =>
+        status switch
+        {
+            HttpStatusCode.Unauthorized => ("Unauthorized", "Acceso no autorizado."),
+            HttpStatusCode.Forbidden => ("Forbidden", "Acceso denegado."),
+            HttpStatusCode.NotFound => ("NotFound", "Recurso no encontrado."),
+            HttpStatusCode.Conflict => ("Conflict", "Conflicto."),
+            HttpStatusCode.BadRequest => ("BadRequest", "Solicitud inválida."),
+            _ when (int)status >= 500 => ("TransportError", "Servicio no disponible."),
+            _ => ("Unexpected", "Respuesta inesperada del servidor.")
+        };
+
+    /// <summary>
+    /// Lee el body de una respuesta como <see cref="ProblemDetails"/>,
+    /// absorbiendo <see cref="NotSupportedException"/>,
+    /// <see cref="HttpRequestException"/> y
+    /// <see cref="System.Text.Json.JsonException"/> para no propagar
+    /// excepciones nativas al consumidor del cliente. Si el parseo
+    /// devuelve <c>null</c> (body vacío o literal <c>null</c>), devuelve
+    /// los <paramref name="defaults"/> provistos; si devuelve un
+    /// <see cref="ProblemDetails"/> válido, devuelve <c>Title</c>/<c>Detail</c>
+    /// cuando estén poblados y los <paramref name="defaults"/> cuando
+    /// alguno esté vacío. Es la base compartida por
+    /// <see cref="UpsertSkillAsync"/> y <see cref="DeleteSkillAsync"/>.
+    /// </summary>
+    private static async Task<(string Code, string Message)> ReadSkillProblemAsync(
+        HttpResponseMessage response,
+        (string Code, string Message) defaults,
+        CancellationToken cancellationToken)
+    {
         ProblemDetails? problem = null;
         try
         {
@@ -231,11 +291,9 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         {
         }
 
-        return new CargoSkillDeleteResult(
-            false,
-            response.StatusCode,
-            problem?.Title,
-            problem?.Detail);
+        var code = string.IsNullOrEmpty(problem?.Title) ? defaults.Code : problem.Title;
+        var message = string.IsNullOrEmpty(problem?.Detail) ? defaults.Message : problem.Detail;
+        return (code, message);
     }
 
     private static string BuildQueryUri(int page, int pageSize, string? search, string? sort = null, string? status = null)
