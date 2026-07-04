@@ -134,6 +134,35 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         return await ToCommandResultAsync(response, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public Task<IReadOnlyList<CargoSkillDetailDto>> GetSkillsAsync(Guid cargoId, CancellationToken cancellationToken = default)
+    {
+        // Stub temporal durante el ciclo RED del strict TDD: T3.2 reemplaza este
+        // cuerpo por la implementación real (mirroring del patrón GetByIdAsync:
+        // 2xx → lista parseada, 404 → lista vacía, otros status → throw vía
+        // EnsureSuccessStatusCode).
+        throw new NotImplementedException("T3.2 placeholder: get skills subresource");
+    }
+
+    /// <inheritdoc />
+    public Task<CargoSkillCommandResult> UpsertSkillAsync(Guid cargoId, Guid skillId, AsignarCargoSkillRequest request, CancellationToken cancellationToken = default)
+    {
+        // Stub temporal durante el ciclo RED del strict TDD: T3.2 reemplaza este
+        // cuerpo por la implementación real, incluyendo el helper dedicado
+        // ToSkillCommandResultAsync que bifurca ValidationProblemDetails y
+        // ProblemDetails manteniendo el contrato de CargoSkillCommandResult.
+        throw new NotImplementedException("T3.2 placeholder: upsert skill subresource");
+    }
+
+    /// <inheritdoc />
+    public Task<CargoSkillDeleteResult> DeleteSkillAsync(Guid cargoId, Guid skillId, CancellationToken cancellationToken = default)
+    {
+        // Stub temporal durante el ciclo RED del strict TDD: T3.2 reemplaza este
+        // cuerpo por la implementación real, traduciendo 204 → Success y los
+        // no-success a un Failure con ProblemDetails cuando esté disponible.
+        throw new NotImplementedException("T3.2 placeholder: delete skill subresource");
+    }
+
     private static string BuildQueryUri(int page, int pageSize, string? search, string? sort = null, string? status = null)
     {
         var builder = new StringBuilder($"{BaseRoute}/consulta?page={page}&pageSize={pageSize}");
