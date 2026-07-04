@@ -629,6 +629,36 @@ public class CargoApiClientTests
     }
 
     [Fact]
+    public async Task UpsertSkillAsync_Http200WithEmptyBody_ReturnsFailureWithEmptyBodyCode()
+    {
+        // PR3a review follow-up (R1): si el backend responde 200 con body
+        // vacío, ReadFromJsonAsync devuelve null y el código actual cae con
+        // NRE al aplicar `dto!`. El helper debe capturar el caso y devolver
+        // un Failure tipado Validation/EmptyBody para que la Razor Page de
+        // PR3b pueda mostrar "El servidor respondió 200 sin payload." en
+        // vez de propagar una NullReferenceException.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var emptyResponse = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(string.Empty, System.Text.Encoding.UTF8, "application/json")
+        };
+        var handler = new RecordingHandler(_ => emptyResponse);
+        var client = new CargoApiClient(NewHttpClient(handler));
+        var request = new AsignarCargoSkillRequest(Guid.NewGuid());
+
+        var result = await client.UpsertSkillAsync(cargoId, skillId, request);
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(result.Value);
+        Assert.NotNull(result.Error);
+        Assert.Equal(CargoSkillErrorType.Validation, result.Error!.Type);
+        Assert.Equal("EmptyBody", result.Error.Code);
+        Assert.Equal("El servidor respondió 200 sin payload.", result.Error.Message);
+        Assert.Null(result.FieldErrors);
+    }
+
+    [Fact]
     public async Task UpsertSkillAsync_Http404_ReturnsFailureWithNotFound()
     {
         // AC de cargo-skill-asignar-editar Req 3 escenario "Nivel requerido
