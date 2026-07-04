@@ -349,12 +349,18 @@ public sealed class FakeCargoApiClient : ICargoApiClient
 
     /// <summary>
     /// Resultado fijo que devolverá <see cref="UpsertSkillAsync"/>. Por defecto,
-    /// éxito con un DTO neutro para que los tests que no quieren asserts de
-    /// contenido no tengan que setearlo; los tests que sí validan contenido lo
-    /// reconfiguran explícitamente.
+    /// un Failure de Validation con código <c>FakeNotConfigured</c> para que
+    /// cualquier test que olvide cablear explícitamente el resultado falle
+    /// de forma ruidosa en vez de devolver silenciosamente
+    /// <c>Success(Guid.Empty, Guid.Empty)</c> (default anterior que creaba
+    /// la ilusión de cobertura). Los tests que sí quieren un Success lo
+    /// reconfiguran explícitamente vía setter.
     /// </summary>
-    public CargoSkillCommandResult SkillUpsertResult { get; set; } = CargoSkillCommandResult.Success(
-        new CargoSkillDto(Guid.Empty, Guid.Empty));
+    public CargoSkillCommandResult SkillUpsertResult { get; set; } = CargoSkillCommandResult.Failure(
+        new CargoSkillError(
+            CargoSkillErrorType.Validation,
+            "FakeNotConfigured",
+            "SkillUpsertResult no fue cableado en el fake."));
 
     /// <summary>
     /// Solicitudes recibidas por <see cref="UpsertSkillAsync"/>. Permite
