@@ -1,7 +1,9 @@
+using FluentValidation;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
+using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
@@ -142,6 +144,122 @@ public sealed class CargoSkillServicioTests
         Assert.False(resultado.Value.EsObligatoria);
     }
 
+    [Fact]
+    public async Task UpsertAsync_RequestConPonderacionYEsObligatoria_PersisteYDevuelveValoresDelRequest()
+    {
+        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var skillRepo = new FakeCargoSkillRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.UpsertAsync(
+            CargoIdValido,
+            SkillIdValido,
+            CrearRequest(ponderacion: 2.50m, esObligatoria: true),
+            default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(2.50m, resultado.Value!.Ponderacion);
+        Assert.True(resultado.Value.EsObligatoria);
+        Assert.Equal(NivelIdValido, resultado.Value.NivelRequeridoId);
+        var persistido = Assert.Single(skillRepo.Datos);
+        Assert.Equal(2.50m, persistido.Ponderacion);
+        Assert.True(persistido.EsObligatoria);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(100.01)]
+    [InlineData(1.257)]
+    public async Task UpsertAsync_PonderacionInvalida_RetornaFieldErrorsSinGuardar(decimal ponderacionInvalida)
+    {
+        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var skillRepo = new FakeCargoSkillRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.UpsertAsync(
+            CargoIdValido,
+            SkillIdValido,
+            CrearRequest(ponderacion: ponderacionInvalida),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoSkillErrorType.Validation, resultado.Error!.Type);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.NotEmpty(resultado.FieldErrors!);
+        Assert.True(resultado.FieldErrors!.ContainsKey("ponderacion"));
+        Assert.Empty(skillRepo.Datos);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_NivelRequeridoIdVacio_RetornaFieldErrorsSinConsultarRepos()
+    {
+        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var skillRepo = new FakeCargoSkillRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.UpsertAsync(
+            CargoIdValido,
+            SkillIdValido,
+            new AsignarCargoSkillRequest(NivelRequeridoId: Guid.Empty),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoSkillErrorType.Validation, resultado.Error!.Type);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.True(resultado.FieldErrors!.ContainsKey("nivelRequeridoId"));
+        Assert.Equal(0, cargoRepo.GetByIdForUpdateCallCount);
+        Assert.Empty(skillRepo.Datos);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_AsociacionExistente_ReemplazaConValoresPersistidos()
+    {
+        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var existing = new CargoHabilidad(CargoIdValido, SkillIdValido, NivelIdValido, 1.0m, false)
+        {
+            Id = Guid.NewGuid()
+        };
+        var skillRepo = new FakeCargoSkillRepository(existing);
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.UpsertAsync(
+            CargoIdValido,
+            SkillIdValido,
+            CrearRequest(ponderacion: 3.75m, esObligatoria: true),
+            default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(3.75m, resultado.Value!.Ponderacion);
+        Assert.True(resultado.Value.EsObligatoria);
+        Assert.Equal(NivelIdValido, resultado.Value.NivelRequeridoId);
+        Assert.Single(skillRepo.Datos);
+        var persistido = skillRepo.Datos[0];
+        Assert.Equal(3.75m, persistido.Ponderacion);
+        Assert.True(persistido.EsObligatoria);
+        Assert.NotEqual(existing.Id, persistido.Id);
+        Assert.Equal(1, skillRepo.DeleteCallCount);
+        Assert.Equal(1, skillRepo.AddCallCount);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
     // ── DeleteAsync ─────────────────────────────────────────────
 
     [Fact]
@@ -240,7 +358,14 @@ public sealed class CargoSkillServicioTests
         ICargoSkillRepository skillRepo,
         IUnitOfWork uow)
     {
-        return new CargoSkillServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+        var validator = new AsignarCargoSkillRequestValidator();
+        return new CargoSkillServicio(
+            cargoRepo,
+            habilidadRepo,
+            nivelRepo,
+            skillRepo,
+            uow,
+            validator);
     }
 }
 
