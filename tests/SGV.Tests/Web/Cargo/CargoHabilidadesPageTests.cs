@@ -282,6 +282,70 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
         Assert.Contains("quit", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Get_Admin_QuitarButton_RendersConfirmPromptWithSkillName()
+    {
+        // Req 4 de cargo-skill-ui-tabla-editable exige que la interfaz MUST
+        // confirmar la baja antes de quitar una asociación. El handler
+        // nativo confirm() es la opción más simple y compatible con todos
+        // los navegadores modernos, y mantiene el flujo HTML5 formaction
+        // sin requerir un harness JS dedicado.
+        var cargoId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+
+        var nivel = new NivelHabilidadDto(Guid.NewGuid(), "BAS", "Básico", 1, 1);
+        var skillId = Guid.NewGuid();
+        const string skillNombre = "Liderazgo";
+        var habilidad = new HabilidadDto(skillId, "H-001", skillNombre, "Desc", "Conductual");
+
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.GetSkillsResult = new[]
+        {
+            new CargoSkillDetailDto(habilidad, nivel)
+            {
+                SkillId = skillId,
+                NivelRequeridoId = nivel.Id,
+                Ponderacion = 1.00m,
+                EsObligatoria = false
+            }
+        };
+
+        var habilidadApiClient = new FakeHabilidadApiClient
+        {
+            NivelesResult = new[] { nivel }
+        };
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient,
+            habilidadApiClient,
+            adminRole: true);
+
+        var response = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // El botón Quitar debe invocar confirm() con return para cancelar
+        // el submit cuando el usuario rechaza. El mensaje MUST identificar
+        // la habilidad concreta (interpolando el nombre vía Razor) para que
+        // el admin no quite una asociación por accidente.
+        var quitarButtonMatch = Regex.Match(
+            content,
+            @"<button[^>]*formaction=""\?handler=Quitar[^>]*>[^<]*Quitar</button>",
+            RegexOptions.IgnoreCase);
+        Assert.True(quitarButtonMatch.Success, "Quitar button was not rendered.");
+        var quitarButton = quitarButtonMatch.Value;
+        var onclickMatch = Regex.Match(
+            quitarButton,
+            @"onclick\s*=\s*""([^""]*)""",
+            RegexOptions.IgnoreCase);
+        Assert.True(
+            onclickMatch.Success,
+            "Quitar button must declare an onclick attribute.");
+        var onclickValue = onclickMatch.Groups[1].Value;
+        Assert.Contains("return confirm(", onclickValue, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(skillNombre, onclickValue, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ──────────────────────────────────────────────
     // T3.5 — Errores recuperables (Req 5)
     // ──────────────────────────────────────────────
