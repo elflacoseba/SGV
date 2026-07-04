@@ -73,7 +73,7 @@ public sealed class CargoSkillControllerTests
             Guid cargoId, Guid skillId, AsignarCargoSkillRequest request, CancellationToken cancellationToken = default)
         {
             if (UpsertHandler is not null) return UpsertHandler(cargoId, skillId, request, cancellationToken);
-            return Task.FromResult(CargoSkillCommandResult.Success(new CargoSkillDto(skillId, request.NivelId)));
+            return Task.FromResult(CargoSkillCommandResult.Success(new CargoSkillDto(skillId, request.NivelRequeridoId)));
         }
 
         public Task<CargoSkillCommandResult> DeleteAsync(
@@ -217,7 +217,7 @@ public sealed class CargoSkillControllerTests
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nivelId = ExistingNivelId });
+        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelId });
 
         var response = await client.PutAsync(
             $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
@@ -225,7 +225,7 @@ public sealed class CargoSkillControllerTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var dto = await ReadAsAsync<CargoSkillDto>(response);
         Assert.Equal(ExistingSkillId, dto.SkillId);
-        Assert.Equal(ExistingNivelId, dto.NivelId);
+        Assert.Equal(ExistingNivelId, dto.NivelRequeridoId);
     }
 
     [Fact]

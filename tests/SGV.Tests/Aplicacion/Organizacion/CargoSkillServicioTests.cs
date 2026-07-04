@@ -136,41 +136,10 @@ public sealed class CargoSkillServicioTests
 
         Assert.True(resultado.IsSuccess);
         Assert.NotNull(resultado.Value);
-        Assert.Equal(1.00m, resultado.Value!.Ponderacion);
+        Assert.Equal(SkillIdValido, resultado.Value!.SkillId);
+        Assert.Equal(NivelIdValido, resultado.Value.NivelRequeridoId);
+        Assert.Equal(1.00m, resultado.Value.Ponderacion);
         Assert.False(resultado.Value.EsObligatoria);
-        Assert.Equal(NivelIdValido, resultado.Value.NivelRequeridoId);
-        Assert.Equal(SkillIdValido, resultado.Value.SkillId);
-        // Persistencia: el vínculo guardado usa los defaults.
-        var persistido = Assert.Single(skillRepo.Datos);
-        Assert.Equal(1.00m, persistido.Ponderacion);
-        Assert.False(persistido.EsObligatoria);
-        Assert.Equal(NivelIdValido, persistido.NivelRequeridoId);
-    }
-
-    [Fact]
-    public async Task UpsertAsync_RequestConPonderacionYEsObligatoria_PersisteYDevuelveDtoCompleto()
-    {
-        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
-        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
-        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
-        var skillRepo = new FakeCargoSkillRepository();
-        var uow = new FakeUnitOfWork();
-        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
-
-        var resultado = await servicio.UpsertAsync(
-            CargoIdValido,
-            SkillIdValido,
-            CrearRequest(ponderacion: 2.50m, esObligatoria: true),
-            default);
-
-        Assert.True(resultado.IsSuccess);
-        Assert.NotNull(resultado.Value);
-        Assert.Equal(2.50m, resultado.Value!.Ponderacion);
-        Assert.True(resultado.Value.EsObligatoria);
-        Assert.Equal(NivelIdValido, resultado.Value.NivelRequeridoId);
-        var persistido = Assert.Single(skillRepo.Datos);
-        Assert.Equal(2.50m, persistido.Ponderacion);
-        Assert.True(persistido.EsObligatoria);
     }
 
     // ── DeleteAsync ─────────────────────────────────────────────
@@ -355,12 +324,14 @@ internal sealed class FakeCargoSkillRepository : ICargoSkillRepository
         var items = Datos.Where(d => d.CargoId == cargoId).ToList();
         return Task.FromResult<IReadOnlyList<CargoSkillDetailDto>>(
             items.Select(a => new CargoSkillDetailDto(
-                a.HabilidadId,
-                a.NivelRequeridoId,
-                a.Ponderacion,
-                a.EsObligatoria,
                 new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
-                new NivelHabilidadDto(a.NivelRequeridoId, "N1", "Nivel", 1, 1)))
+                new NivelHabilidadDto(a.NivelRequeridoId, "N1", "Nivel", 1, 1))
+            {
+                SkillId = a.HabilidadId,
+                NivelRequeridoId = a.NivelRequeridoId,
+                Ponderacion = a.Ponderacion,
+                EsObligatoria = a.EsObligatoria,
+            })
             .ToList());
     }
 

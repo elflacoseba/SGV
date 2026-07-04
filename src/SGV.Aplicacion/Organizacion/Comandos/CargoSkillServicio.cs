@@ -53,7 +53,7 @@ public sealed class CargoSkillServicio(
         }
 
         var nivel = await nivelHabilidadRepository
-            .GetByIdAsync(request.NivelId, cancellationToken)
+            .GetByIdAsync(request.NivelRequeridoId, cancellationToken)
             .ConfigureAwait(false);
 
         if (nivel is null)
@@ -79,7 +79,7 @@ public sealed class CargoSkillServicio(
                 await skillRepository.DeleteAsync(existente, cancellationToken).ConfigureAwait(false);
             }
 
-            var nueva = new CargoHabilidad(cargoId, skillId, request.NivelId, 1.0m, false)
+            var nueva = new CargoHabilidad(cargoId, skillId, request.NivelRequeridoId, 1.0m, false)
             {
                 Id = Guid.NewGuid()
             };
@@ -87,7 +87,14 @@ public sealed class CargoSkillServicio(
             await skillRepository.AddAsync(nueva, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return CargoSkillCommandResult.Success(new CargoSkillDto(skillId, request.NivelId));
+            return CargoSkillCommandResult.Success(new CargoSkillDto(
+                skillId,
+                request.NivelRequeridoId)
+            {
+                NivelRequeridoId = request.NivelRequeridoId,
+                Ponderacion = nueva.Ponderacion,
+                EsObligatoria = nueva.EsObligatoria,
+            });
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -117,7 +124,14 @@ public sealed class CargoSkillServicio(
             await skillRepository.DeleteAsync(existente, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return CargoSkillCommandResult.Success(new CargoSkillDto(skillId, existente.NivelRequeridoId));
+            return CargoSkillCommandResult.Success(new CargoSkillDto(
+                skillId,
+                existente.NivelRequeridoId)
+            {
+                NivelRequeridoId = existente.NivelRequeridoId,
+                Ponderacion = existente.Ponderacion,
+                EsObligatoria = existente.EsObligatoria,
+            });
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
