@@ -272,3 +272,63 @@
 - Re-pr-review 4R sobre los commits de este batch: las 6 WARNING + 5 SUGGESTION deberían quedar todas en RESOLVED.
 - Si la review aprueba: el slice queda listo para merge a `develop`.
 - Pendientes fuera de scope (no atendidos): warnings preexistentes de tooling frontend (`baseline-browser-mapping`/`browserslist`), issue #59 `OcupacionRepositoryTests`.
+
+## Batch de cierre final 4R (post-re-review)
+
+> Cierra los 4 hallazgos residuales que la re-review 4R dejó pendientes del batch anterior. Cambios chicos y bien definidos, sin tocar contrato HTTP, sin migraciones, sin tests nuevos más allá del assert del mensaje.
+
+### Findings atendidos
+
+- **R2-S1 (parcial)** — `tests/SGV.Tests/Dominio/HabilidadTests.cs` línea 168: el literal `51` en `new string('A', 51)` se reemplaza por `HabilidadRules.CodigoMaxLength + 1`. Mantiene la consistencia con la constante introducida en el batch anterior y elimina el último magic number del test de dominio. El test sigue verde con la nueva expresión.
+- **R3 (parcial)** — `tests/SGV.Tests/Aplicacion/Habilidades/HabilidadServicioComandosTests.cs`: se agrega `Assert.Equal("Ya existe una habilidad activa con el mismo código.", resultado.Error!.Message)` al test `ActualizarAsync_DbUpdateExceptionPorIndiceUnicoEnSaveChanges_TraduceACodigoDuplicado`. El assert es coherente con el estilo existente del test (Type/Code también se assertan con `Equal`) y con el mensaje producido por el helper `FailureCodigoDuplicado()`. Estilo "patrón equivalente" al `Assert.Contains` sugerido por el reviewer.
+- **R4 (parcial)** — `src/SGV.Web/Pages/Organizacion/Habilidades/Edit.cshtml.cs` método `OnGetAsync`: el `catch` ahora respeta la cancelación cooperativa con la misma regla aplicada en `OnPostAsync`. Si `cancellationToken.IsCancellationRequested`, deja propagar la excepción antes de capturarla; sólo `HttpRequestException`/`JsonException` y timeouts de upstream caen al fallback de "La habilidad solicitada no está disponible.". Se incluye un comentario breve que referencia a `OnPostAsync` para que el patrón quede documentado.
+- **R2 (sugerencia nueva)** — Comentarios en español consistente y sin typos:
+  - `src/SGV.Api/Controllers/SkillsController.cs` línea 157: typo "la viola del índice" → "la violación del índice único" en el XML doc del `PUT /api/v1/skills/{id}`.
+  - `src/SGV.Aplicacion/Habilidades/Comandos/HabilidadServicioComandos.cs` línea 28: "Single source of truth compartido entre pre-check e IsActive\*Violation." → "Única fuente de verdad compartida entre el pre-check y la detección de la violación en `IsActiveCodigoUniqueViolation()`."
+  - `src/SGV.Aplicacion/Habilidades/Comandos/HabilidadServicioComandos.cs` líneas 232-236: el bloque XML doc de `FailureCodigoDuplicado()` se traduce a español (Factoría única, red de seguridad, ruta de reactivación, código de contrato HTTP).
+
+### Validación post-batch
+
+| Comando | Resultado | Notas |
+|---|---|---|
+| `dotnet build SGV.slnx --configuration Release` | ✅ | `0 Warning(s), 0 Error(s)`. |
+| `dotnet test --filter "FullyQualifiedName~Habilidad"` | ✅ | `221/221` verdes (216 previos + 0 nuevos — el assert del mensaje es un cambio de cobertura dentro de un test existente, no un test nuevo). |
+| `dotnet test SGV.slnx --no-build --configuration Release` (suite completa) | 🔶 | `1280` pass / `12` rojos preexistentes de `OcupacionRepositoryTests` (issue #59, fuera de scope). **0 nuevos rojos**. Conteo total: 1292 = 1280 + 12 fallidos preexistentes. |
+| `bun install && bun run build` (en `src/SGV.Web`) | ✅ | Mismos warnings preexistentes de tooling, no bloqueantes. |
+
+### TDD Cycle Evidence (post-cierre-final)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | REFACTOR |
+|------|-----------|-------|------------|-----|-------|----------|
+| A — magic number → constant | `tests/SGV.Tests/Dominio/HabilidadTests.cs` | Unit | ✅ 28/28 | n/a (refactor) | n/a | ✅ Compila y verde |
+| B — assert mensaje | `tests/SGV.Tests/Aplicacion/Habilidades/HabilidadServicioComandosTests.cs` | Unit | ✅ 17/17 | ✅ Asertado (mensaje ya correcto) | ✅ Passed (mensaje ya coincide) | ➖ None needed |
+| C — cooperative cancel OnGet | `src/SGV.Web/Pages/Organizacion/Habilidades/Edit.cshtml.cs` | n/a (fix de comportamiento) | ✅ 10/10 | n/a (sin test nuevo) | ✅ Comportamiento alineado con OnPostAsync | ➖ None needed |
+| D — comentarios español | `src/SGV.Api/Controllers/SkillsController.cs` + `HabilidadServicioComandos.cs` | n/a (docs) | n/a | n/a (no afecta runtime) | n/a | ✅ Idioma y typo corregidos |
+
+### Test Summary (post-cierre-final)
+
+- **Tests añadidos**: 0 (todos los cambios son refactors de cobertura existente, fix de comportamiento o docs).
+- **Tests modificados**: 1 (`HabilidadTests.Actualizar_ConCodigoMayorA50_ThrowsArgumentException` ahora usa la constante; semántica idéntica).
+- **Tests con assert ampliado**: 1 (`HabilidadServicioComandosTests.ActualizarAsync_DbUpdateExceptionPorIndiceUnicoEnSaveChanges_TraduceACodigoDuplicado` ahora verifica también el mensaje).
+- **Total tests passing**: 221 en la suite `Habilidad`, 1280 en la suite completa (0 regresiones nuevas).
+
+### Commits del batch
+
+| Hash | Mensaje | Área |
+|---|---|---|
+| `2559fc81` | `refactor(tests): use CodigoMaxLength constant in HabilidadTests` | Tests Dominio (R2-S1) |
+| `1f291c25` | `test: assert duplicate message in DbUpdateException test` | Tests Aplicación (R3) |
+| `acf920b7` | `fix(web): respect cooperative cancellation in Edit OnGetAsync` | Web production (R4) |
+| `b335a89d` | `docs: homogenize comments to spanish in skills controller and service` | Docs (R2 sugerencia nueva) |
+
+### Diff summary post-cierre-final
+
+- 5 archivos modificados: 3 código (`HabilidadServicioComandos.cs`, `Edit.cshtml.cs`, `SkillsController.cs`) + 2 tests (`HabilidadTests.cs`, `HabilidadServicioComandosTests.cs`).
+- Líneas netas: ~+12 / -9 (todos chicos, todos dentro del scope del finding).
+- `apply-progress.md` actualizado in-place agregando la sección "## Batch de cierre final 4R (post-re-review)" sin tocar las secciones previas.
+
+### Próximos pasos
+
+- Push de los 4 commits a `origin/develop`.
+- Abrir PR (o actualizar el PR existente) con título que refleje el cierre de los hallazgos 4R residuales.
+- Pendientes fuera de scope (no atendidos): warnings preexistentes de tooling frontend (`baseline-browser-mapping`/`browserslist`), issue #59 `OcupacionRepositoryTests`.
