@@ -35,7 +35,7 @@ public sealed class Habilidad : EntidadAuditable
     /// </summary>
     public void CambiarDatos(string codigo, string nombre, string? categoria = null, string? descripcion = null)
     {
-        Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
+        Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), HabilidadRules.CodigoMaxLength);
         Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
         Categoria = ValidacionesDominio.Opcional(categoria, nameof(Categoria), 100);
         Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
@@ -45,19 +45,16 @@ public sealed class Habilidad : EntidadAuditable
     /// Actualiza los campos editables de la habilidad, incluido <see cref="Codigo"/>.
     /// La unicidad activa del código se valida en el servicio de aplicación
     /// antes de invocar este método; este solo aplica reglas de shape
-    /// (requerido, longitud máxima).
+    /// (requerido, longitud máxima). Delega en <see cref="CambiarDatos"/>
+    /// para evitar duplicación de invariantes entre el constructor y la
+    /// actualización.
     /// </summary>
-    /// <param name="codigo">Nuevo código de la habilidad. Requerido, máximo 50 caracteres.</param>
+    /// <param name="codigo">Nuevo código de la habilidad. Requerido, máximo <see cref="HabilidadRules.CodigoMaxLength"/> caracteres.</param>
     /// <param name="nombre">Nuevo nombre de la habilidad. Requerido, máximo 200 caracteres.</param>
     /// <param name="categoria">Categoría opcional, máximo 100 caracteres.</param>
     /// <param name="descripcion">Descripción opcional, máximo 1000 caracteres.</param>
     public void Actualizar(string codigo, string nombre, string? categoria = null, string? descripcion = null)
-    {
-        Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
-        Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
-        Categoria = ValidacionesDominio.Opcional(categoria, nameof(Categoria), 100);
-        Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
-    }
+        => CambiarDatos(codigo, nombre, categoria, descripcion);
 
     /// <summary>
     /// Desactiva la habilidad (baja lógica). No elimina el registro y no

@@ -1,6 +1,7 @@
 using FluentValidation.TestHelper;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Comandos.Validaciones;
+using SGV.Dominio.Habilidades;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Habilidades;
@@ -32,11 +33,22 @@ public sealed class ActualizarHabilidadRequestValidatorTests
     [Fact]
     public void Should_Have_Error_When_Codigo_Exceeds_Max_Length()
     {
-        var request = RequestValido() with { Codigo = new string('X', 51) };
+        var request = RequestValido() with { Codigo = new string('X', HabilidadRules.CodigoMaxLength + 1) };
 
         var result = _validator.TestValidate(request);
 
         result.ShouldHaveValidationErrorFor(r => r.Codigo);
+    }
+
+    [Fact]
+    public void Should_Not_Have_Error_When_Codigo_Is_Exactly_Max_Length()
+    {
+        // Boundary: exactamente CodigoMaxLength caracteres es válido.
+        var request = RequestValido() with { Codigo = new string('X', HabilidadRules.CodigoMaxLength) };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldNotHaveValidationErrorFor(r => r.Codigo);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using FluentValidation;
+using SGV.Dominio.Habilidades;
 
 namespace SGV.Aplicacion.Habilidades.Comandos.Validaciones;
 
@@ -13,7 +14,7 @@ public class ActualizarHabilidadRequestValidator : AbstractValidator<ActualizarH
     {
         RuleFor(x => x.Codigo)
             .NotEmpty()
-            .MaximumLength(50);
+            .MaximumLength(HabilidadRules.CodigoMaxLength);
 
         RuleFor(x => x.Nombre)
             .NotEmpty()
