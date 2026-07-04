@@ -351,6 +351,73 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
     // ──────────────────────────────────────────────
 
     [Fact]
+    public async Task PostActualizar_Admin_PonderacionOutOfRange_ReloadsAndRendersRangeError()
+    {
+        // El validador local [Range(0.01, 100.00)] del input model del
+        // Actualizar corta antes de invocar al cliente API: la página
+        // re-renderiza con un mensaje accionable y NUNCA sale al backend.
+        // Esta cobertura blinda el comportamiento de "validación local
+        // corta corto-circuito" — contraparte del test
+        // Post_Asignar_BackendPonderacionFieldError que prueba el camino
+        // inverso (validación local pasa, backend rechaza).
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual");
+        var nivel = new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3);
+
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.GetSkillsResult = new[]
+        {
+            new CargoSkillDetailDto(habilidad, nivel)
+            {
+                SkillId = skillId,
+                NivelRequeridoId = nivelId,
+                Ponderacion = 1.00m,
+                EsObligatoria = false
+            }
+        };
+        // Si la validación local NO cortara, este Success sería el
+        // resultado que vería la página — útil para distinguir un
+        // fallo de la aserción Empty(SkillUpsertCalls) abajo.
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
+            new CargoSkillDto(skillId, nivelId) { Ponderacion = 1.00m, EsObligatoria = false });
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["NivelRequeridoId"] = nivelId.ToString(),
+                ["Ponderacion"] = "999", // 999 > 100 → fuera del [Range].
+                ["EsObligatoria"] = "true"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Blindaje: el validador [Range] corta antes de invocar al
+        // cliente API. Sin esta cobertura, un refactor futuro podría
+        // mover la validación al backend y romper la promesa "no round
+        // trip si la entrada es inválida localmente".
+        Assert.Empty(apiClient.SkillUpsertCalls);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El mensaje localizado del [Range] debe aparecer en el form
+        // re-renderizado para que el usuario entienda por qué la
+        // actualización no salió. La aserción es por substring — basta
+        // con que el mensaje llegue a algún punto del HTML renderizado.
+        Assert.Contains("La ponderación debe estar entre", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Post_TransportFailure_ShowsRecoverableMessage_NoStackTrace()
     {
         var cargoId = Guid.NewGuid();
