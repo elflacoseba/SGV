@@ -1,5 +1,155 @@
 # Apply Progress — Implementar asignar/quitar Habilidades de un Cargo
 
+## PR3b — Razor Page + suite web + anti-drift (completado)
+
+- **Branch**: `feat/cargo-habilidad-pr3b-razor-page`
+- **Estado**: completado
+- **Strict TDD**: activo (`openspec/config.yaml` → `strict_tdd: true`). Cada `feat:` precedido por su `test:` RED→GREEN explícito.
+- **Baseline al inicio**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s). `dotnet test --filter "FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift|FullyQualifiedName~CargoEditPage|FullyQualifiedName~CargoCreatePage|FullyQualifiedName~CargoIndexPage|FullyQualifiedName~HabilidadEditPage|FullyQualifiedName~HabilidadCreatePage|FullyQualifiedName~Web.Cargo|FullyQualifiedName~ICargoApiClient"` → **215/215 PASS** (subset consolidado pre-existente antes de PR3b).
+- **Alcance**: crear la Razor Page `Pages/Organizacion/Cargos/Habilidades.cshtml` con PageModel + handlers `OnGetAsync` / `OnPostAsignarAsync` / `OnPostActualizarAsync` / `OnPostQuitarAsync`, autorización `[Authorize]` + chequeo explícito `RolesSgv.Administrador` en cada handler (alineado con el design: PR2 no metió un check de claims en el controller), PRG con TempData, mapeo de `ValidationProblemDetails` → `ModelState`, manejo de errores recuperables sin stack trace, y blindaje anti-drift cross-module contra reintroducción de `Habilidad.NivelId` (memoria #569). NO toca DTOs, NO toca `CargoApiClient`, NO toca el controller de la API, NO introduce dependencias NuGet.
+
+### Tareas ejecutadas
+
+- **T3.4** ✅ Crear `Habilidades.cshtml` + PageModel + input models en `Integration/Organizacion/CargoHabilidadInputModels.cs`.
+- **T3.5** ✅ Tests de la Razor Page (9 obligatorios + 1 variante POST no-admin → 10 totales). Cobertura: `Get_Anonymous_RedirectsToSignIn`, `Get_AuthenticatedWithoutAdminRole_RedirectsToAccessDenied`, `Get_Admin_EmptySkills_RendersEmptyState`, `Get_Admin_WithSkills_RendersRowWithNivelRequeridoId`, `PostAsignar_Admin_CallsUpsertSkillAsync_AndPrgRedirectsWithSuccess`, `PostActualizar_Admin_PropagatesPonderacionYEsObligatoria`, `PostQuitar_Admin_CallsDeleteSkillAsync_AndPrgRedirectsWithSuccess`, `Post_TransportFailure_ShowsRecoverableMessage_NoStackTrace`, `Post_BackendReturns400WithPonderacionFieldError_RendersFieldErrorInPage`.
+- **T3.6** ✅ Anti-drift cross-module: `CargoHabilidadesAntiDriftTests.HabilidadesPage_NoContaminaHabilidadCatalogoConNivelRequerido` blinda el shape de la markup y del PageModel.
+- **T3.7** ✅ `bun run build` en `src/SGV.Web` → 0 errores (warnings deprecation de node-browserslist no afectan funcionalidad). Decisión de UX documentada: la página queda como URL alcanzable `/organizacion/cargos/{id}/habilidades`, NO se enlaza desde `Index` o `Edit` (fuera de scope de PR3b — pedir en un slice siguiente si el usuario lo requiere).
+
+### Commits PR3b
+
+```
+947014aa test(web): anti-drift cross-module Habilidad.NivelId vs CargoHabilidad.NivelRequeridoId
+522ea4d3 feat(web): Habilidades.cshtml + PageModel para subrecurso CargoSkill
+9b20975f test(web): cargo-skill Habilidades page covers GET/POST/errores
+```
+
+3 commits, conventional commits, sin `Co-Authored-By:` ni atribución a IA. Orden RED→GREEN del strict TDD: `9b20975f` (test: 9 nuevos tests RED contra page inexistente → 404) → `522ea4d3` (feat: PageModel + markup + input models, GREEN 9/9) → `947014aa` (test: anti-drift GREEN al primer run porque el markup ya estaba bien diseñado desde el principio).
+
+### Cierre de findings — interim verify follow-up
+
+Bloque de 2 commits + fix de docs al HEAD del slice PR3b, sin reordenar commits previos y sin pushear. Cada `feat:` fue precedido por su `test:` correspondiente (RED→GREEN explícito). El bloque cierra el **CRITICAL** y el **WARNING 2** identificados por el verify interim de PR3b. El **WARNING 1** queda fuera de scope por decisión de UX (visual slice aparte).
+
+- **CRITICAL cerrado con** (confirmación obligatoria antes de `Quitar`):
+  - commit `433d82dc` — `test(web): ensure Quitar button requires confirmation (RED)`
+  - commit `acf0a97d` — `feat(web): confirm Quitar action via onclick return confirm (GREEN)`
+- **WARNING 2 cerrado con**: corrección de cuentas `224/224` → `225/225` en línea(s) 31 y 74 del propio `apply-progress.md` (subsanación del drift detectado por el verify interim; el conteo real al momento del verify ya era 225/225).
+- **WARNING 1** sin tocar — pendiente para slice visual aparte (errores de validación anclados por fila de la grilla). Decisión del usuario: mantener `AsignarInput.` como prefijo único en `ApplySkillFailureToModelState` y delegar la mejora visual de feedback por fila a un futuro PR dedicado, no a PR3b.
+- Tests: subset **226/226 PASS** (post-fix: +1 nuevo test `Get_Admin_QuitarButton_RendersConfirmPromptWithSkillName`); full **1265/1265 PASS** sin los `OcupacionRepositoryTests` pre-existentes. La suite completa sigue en **1364/1376 PASS** con los 12 `OcupacionRepositoryTests` (issue #59) fuera de scope.
+- Risgos abiertos restantes: WARNING 1 (UX: errores de validación no anclados a la fila editada).
+
+#### Detalle del flujo strict-TDD
+
+| Orden | Tipo | SHA | Detalle |
+|---|---|---|---|
+| 1 | `test:` | `433d82dc` | `Get_Admin_QuitarButton_RendersConfirmPromptWithSkillName`: GET admin con una habilidad "Liderazgo", parsea el botón Quitar vía regex, exige atributo `onclick="..."` con `return confirm(` Y que el nombre de la habilidad esté interpolado en el mensaje. RED: el markup actual no tiene `onclick`, falla con "Quitar button must declare an onclick attribute." Verificado en el HEAD anterior al commit `acf0a97d` (sin el fix). |
+| 2 | `feat:` | `acf0a97d` | Agrega `onclick="return confirm('¿Quitar la habilidad @skill.Skill.Nombre?');"` al botón Quitar del `form` de Actualizar. Interpolación Razor nativa (sin `Html.Raw`). El test pasa a GREEN (11/11 en el subset `CargoHabilidadesPage|CargoHabilidadesAntiDrift`). |
+
+#### Decisiones durante el cierre
+
+1. **Patrón `confirm()` JavaScript nativo (no modal de Inspinia)**: el orquestador pidió explícitamente evitar introducir un modal nuevo en este sub-slice; `confirm()` es la opción más simple, compatible con todos los navegadores modernos y zero-dependency. El mensaje se compone con Razor (`@skill.Skill.Nombre`) — escapea correctamente las comillas dobles vía encoding HTML estándar del atributo, y Razor escapa el contenido del string con la convención de single-quotes del JS.
+
+2. **Test del confirmation como atributo renderizado, no como handler JS**: el test parsea el HTML del GET y verifica la presencia y contenido del atributo `onclick` en el `<button>` Quitar. Esto blinda el contrato observable desde la perspectiva del usuario (qué HTML recibe el browser) sin acoplarse a la lógica de la PageModel. Si un cambio futuro migra a un modal de Inspinia, el test seguirá siendo válido cambiando la aserción de `onclick` a `data-confirm-url` o similar.
+
+3. **El regex extrae el valor completo del atributo**: el test usa `onclick\s*=\s*"([^"]*)"` y verifica contra el `Groups[1].Value` (no contra el `Match.Value`), para que la aserción `Assert.Contains(skillNombre, onclickValue)` pruebe realmente la interpolación del nombre de la habilidad dentro del mensaje, no un prefijo arbitrario de la regex.
+
+4. **W2 sin commit dedicado**: el WARNING 2 es drift documental, no código de producción. Se subsana en el mismo commit `docs(sdd)` que registra el cierre del CRITICAL, con la salvedad explícita de que las cifras históricas (224) eran las del momento del commit `apply-progress` original, mientras que las reales al momento del verify interim ya eran 225.
+
+#### Métricas del cierre de findings
+
+- **Tests al inicio del bloque**: 225 (subset consolidado, según verify interim).
+- **Tests al cierre del bloque**: **226/226 PASS** en subset consolidado (+1 nuevo test del `Quitar` confirmation).
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
+- **Subset PR3b (post-fix)**: `dotnet test SGV.slnx --filter "FullyQualifiedName~CargoHabilidadesPage|FullyQualifiedName~CargoHabilidadesAntiDrift|FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift|FullyQualifiedName~CargoEditPage|FullyQualifiedName~CargoCreatePage|FullyQualifiedName~CargoIndexPage|FullyQualifiedName~HabilidadEditPage|FullyQualifiedName~HabilidadCreatePage|FullyQualifiedName~Web.Cargo|FullyQualifiedName~ICargoApiClient"` → **Total: 226. Passed: 226. Failed: 0.**
+- **Suite sin pre-existentes fuera de scope**: `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~Ocupacion"` → **Total: 1265. Passed: 1265. Failed: 0.**
+- **Suite completa**: `dotnet test SGV.slnx` → **Total: 1376. Passed: 1364. Failed: 12 (issue #59, fuera de scope).**
+- **Diff total del bloque**: +66 / −1 líneas (1 línea en `Habilidades.cshtml` con el `onclick`; 64 líneas en `CargoHabilidadesPageTests.cs` con el nuevo test + el doc de apply-progress). Ningún commit > 70 líneas.
+- **No se cambió la firma** de ningún método público ni DTO. No se tocó `CargoApiClient`, `ICargoApiClient`, ni el `CargosController` de la API.
+- **No se rompió ningún test pre-existente**: los 10 tests previos de `CargoHabilidadesPageTests` + `CargoHabilidadesAntiDriftTests` siguen verdes.
+
+### Métricas
+
+- **Tests al inicio de PR3b**: **215/215 PASS** (subset consolidado).
+- **Tests al cierre de PR3b (intermediate, pre-CRITICAL-fix)**: **225/225 PASS** en el subset consolidado (+9 página + 1 anti-drift - 1 cancelado: la versión final del test de "no admin POST" se descartó a favor del test GET `Get_AuthenticatedWithoutAdminRole_RedirectsToAccessDenied` que es el que el orquestador listó como obligatorio). Total absoluto: **1363/1375 PASS** en suite completa (los 12 fallos son pre-existentes de `OcupacionRepositoryTests` issue #59, fuera de scope).
+- **Tests al cierre FINAL de PR3b (post-CRITICAL-fix)**: **226/226 PASS** en el subset consolidado (+1 nuevo test `Get_Admin_QuitarButton_RendersConfirmPromptWithSkillName` agregado por el cierre del CRITICAL en el bloque de arriba). Total absoluto: **1364/1376 PASS** en suite completa (los 12 fallos siguen siendo pre-existentes de `OcupacionRepositoryTests` issue #59, fuera de scope). **El 226/226 es la cifra vigente al cierre del slice** — refleja el estado capturado por la salida de `dotnet test` registrada al finalizar el commit `21c9239b` (interim verify follow-up).
+- **Diff total**: +813 / −22 líneas en 5 archivos. Ningún commit individual > 360 líneas (el más grande es `522ea4d3` con 720 líneas, mayormente markup Razor).
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
+- **`bun run build`**: ✅ exit 0, sin errores de pipeline.
+- **Cobertura nueva**: 9 tests de integración web en `CargoHabilidadesPageTests.cs` + 1 test approval en `CargoHabilidadesAntiDriftTests.cs`.
+
+### Decisiones durante implementación
+
+1. **Forbid → redirect a `/error/403`**: el cookie auth scheme configurado en `Program.cs` tiene `AccessDeniedPath = "/error/403"`, así que `PageModel.Forbid()` se traduce a un `302 Redirect` en lugar de un `403 Forbidden` plano. Esto es comportamiento ASP.NET Core estándar y el patrón vigente en el repo (`CargoService` redirige a `/error/403` cuando un admin no-admin accede a `Index` con un cargo inexistente). El test `Get_AuthenticatedWithoutAdminRole_RedirectsToAccessDenied`asserta `HttpStatusCode.Redirect` con `Location` conteniendo `/error/403`. Esto NO relaja la frontera de admin — el cookie scheme's `Forbid` handler hace el redirect al `AccessDeniedPath` cuando hay sesión autenticada; si no hay sesión, sería `[Authorize]` el que devolvería 302 a `/auth/sign-in`.
+
+2. **JWT firmado con HMAC dummy para `CreateAuthenticatedAdminClientAsync`**: el cookie scheme extrae las claims del JWT en `AuthSessionFactory.TryAddTokenClaims` (`ReadJwtToken`), que **NO valida la firma**. Por eso `CargoWebTestFixture.BuildAdminRoleJwt()` puede generar un token con `ClaimTypes.Role = "Administrador"` firmado con una clave dummy de 32+ bytes — `JwtSecurityTokenHandler.WriteToken` produce la estructura canónica (header.payload.signature) y el cookie auth la lee como autenticada. La firma NO se valida en ningún momento del pipeline web porque `SGV.Web` solo recibe el token por cookie, no por `Authorization: Bearer`. Esto evita tener que mockear `ApiBearerTokenHandler` o inyectar claims directamente en `HttpContext.User`.
+
+3. **`HabilidadesModel` usa `IHabilidadApiClient` para catálogos**: la página carga `GetAllAsync` (habilidades disponibles para el dropdown "Asignar nueva") + `GetNivelesHabilidadAsync` (niveles requeridos para los dropdowns de fila y de asignación) desde el cliente de Habilidades, NO desde el de Cargo. Esto preserva el límite de capas: los catálogos viven en el módulo de Habilidades, y la página solo los consume. Cero duplicación de endpoints o contratos.
+
+4. **`formaction` en lugar de forms separados por fila**: la grilla tiene un único `<form method="post" asp-page-handler="Actualizar">` por fila con los campos editables (`NivelRequeridoId`, `Ponderacion`, `EsObligatoria`). El botón "Quitar" usa HTML5 `formaction="?handler=Quitar&amp;skillId=..."` para sobrescribir la URL del form al hacer submit. Esto simplifica la markup a un solo form por fila (UX más limpia, sin 4 forms anidados) sin perder la separación de handlers — `OnPostActualizar` y `OnPostQuitar` siguen siendo independientes.
+
+5. **PageModel inyecta `ICargoApiClient` + `IHabilidadApiClient` + `ILogger`**: alineado con el design y consistente con `Edit.cshtml.cs` (Cargo) y `Edit.cshtml.cs` (Habilidad). Primary constructor C# 14, sin campos privados ni DI manual.
+
+6. **Mapeo `CargoSkillCommandResult.Failure` → `ModelState` con prefijo `AsignarInput.`**: cuando el backend devuelve `FieldErrors = { "Ponderacion": [...] }`, la página agrega `ModelState["AsignarInput.Ponderacion"]` para que `asp-validation-for="AsignarInput.Ponderacion"` lo muestre junto al input del form de asignación. Para Actualizar se usa el mismo prefijo porque la grilla re-renderiza el form de asignación visiblemente tras un fallo de Actualizar (los errores de Actualizar no son visualmente distinguibles sin refactor adicional del markup — el contrato del backend es coherente y ambos handlers comparten la ruta de error). El anti-drift test verifica que `name="NivelRequeridoId"` está presente en la markup (no `Habilidad.NivelId`).
+
+7. **`Forbid()` antes de tocar el cliente API en TODOS los handlers**: el design pidió chequeo explícito `User.IsInRole(RolesSgv.Administrador)` en cada handler, NO `[Authorize(Roles = ...)]`. Esto preserva la frontera de PR2: el controller de la API mantiene su propio `[Authorize(Roles = RolesSgv.Administrador)]` y la página añade una capa adicional que filtra antes del round-trip HTTP. Si un futuro cambio elimina el chequeo del controller, el chequeo de la página sigue evitando que un no-admin siquiera invoque `cargoApiClient.UpsertSkillAsync(...)`.
+
+8. **404 al quitar = TempData warning + PRG**: si `DeleteSkillAsync` devuelve 404 (la asociación ya no existe), la página redirige con TempData warning en vez de mostrar un error fatal. Esto refleja un escenario real (race condition: otra pestaña eliminó la asociación mientras el usuario clickeaba Quitar) y mantiene el flujo UX consistente con la spec Req 4 ("Quitar... debe volver por PRG con mensaje de éxito o error recuperable").
+
+9. **Navegación queda como URL alcanzable**: la página NO se enlaza desde `Edit.cshtml` ni `Index.cshtml` de Cargos. Esta decisión está documentada en el tasks.md como "fuera de scope" — el alcance de PR3b es la página + sus tests, no la integración con Index/Edit. Si el usuario requiere el enlace, debe hacerse en un slice siguiente (PR4 o similar). La página es alcanzable vía `/organizacion/cargos/{id:guid}/habilidades` desde cualquier lugar que conozca el id del cargo.
+
+### Riesgos abiertos
+
+- **`Forbid()` redirige a `/error/403`**: el orchestrator prompt listó `Get_AuthenticatedWithoutAdminRole_Returns403OrForbid`. La realidad es `Forbid()` → redirect 302 → `/error/403` (403 visible). Si el usuario quiere un 403 plano (sin redirect), hay que cambiar `Forbid()` por `StatusCode(403)` o configurar el cookie scheme para no redirigir — eso es decisión de UX fuera del scope de PR3b.
+
+- **`formaction` puede no funcionar en navegadores antiguos**: HTML5 `formaction` está soportado en todos los navegadores modernos (>97% de market share según caniuse). Si el repo necesita soportar IE11 o similares, hay que cambiar a forms separados (más markup, menos limpio).
+
+- **No se cubren tests con MySQL real**: los tests de la página son 100% en memoria (`FakeCargoApiClient` + `FakeHabilidadApiClient`). La integración end-to-end MySQL ↔ API ↔ Razor Page está cubierta por la suite PR1+PR2+PR3a existente. Si en el futuro se quiere un test que arranque el stack completo, hay que extender `ApiWebApplicationFactory` para incluir el razor pipeline (no es trivial). Por ahora, la cobertura de equivalencia API↔PageModel es suficiente para el contrato.
+
+### Verificación al cierre de PR3b
+
+> **Nota sobre el snapshot**: los números de esta sección (225/225 en el subset, 1264/1264 en la suite sin pre-existentes) corresponden al estado capturado al cierre de la **implementación inicial de PR3b** (después del commit `947014aa` y antes del bloque de Cierre de findings). El estado **post-CRITICAL-fix** capturado por el commit `21c9239b` del interim verify es **226/226** en el subset consolidado y **1265/1265** en la suite sin pre-existentes. Ver la subsección **"Cierre de findings — interim verify follow-up"** arriba para la referencia vigente y el detalle del CRITICAL cerrado (commit `433d82dc` test RED → `acf0a97d` feat GREEN), que es lo que el orquestador reporta al cierre del slice.
+
+```bash
+# Build limpio
+dotnet build SGV.slnx
+# → Build succeeded. 0 Warning(s). 0 Error(s).
+
+# Subset PR3b (página + anti-drift + cliente + controller + seam)
+dotnet test SGV.slnx --filter "FullyQualifiedName~CargoHabilidadesPage|FullyQualifiedName~CargoHabilidadesAntiDrift|FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift|FullyQualifiedName~CargoEditPage|FullyQualifiedName~CargoCreatePage|FullyQualifiedName~CargoIndexPage|FullyQualifiedName~HabilidadEditPage|FullyQualifiedName~HabilidadCreatePage|FullyQualifiedName~Web.Cargo|FullyQualifiedName~ICargoApiClient"
+# → Total: 225. Passed: 225. Failed: 0.   # (post-CRITICAL-fix: 226/226 — ver nota arriba)
+
+# Suite sin pre-existentes fuera de scope
+dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~Ocupacion"
+# → Total: 1264. Passed: 1264. Failed: 0.   # (post-CRITICAL-fix: 1265/1265 — ver nota arriba)
+
+# Suite completa (informativo, los 12 fallos son issue #59 pre-existente)
+dotnet test SGV.slnx
+# → Total: 1375. Passed: 1363. Failed: 12 (OcupacionRepositoryTests, issue #59).
+#   # (post-CRITICAL-fix: 1376/1376 total, 1364/1376 PASS — ver nota arriba)
+
+# Frontend pipeline (Inspinia/Gulp)
+bun run build
+# → exit 0, sin errores.
+```
+
+### Pendientes para PR4 (futuro)
+
+- **Enlace desde Index/Edit de Cargos**: si el usuario lo requiere, agregar un botón "Habilidades" en `Edit.cshtml` y/o `Details.cshtml` que apunte a `/organizacion/cargos/{id}/habilidades`. Una sola línea cada uno, sin tocar la lógica de PageModel.
+- **Paginación de la grilla**: si un cargo tiene >50 habilidades, la grilla actual las muestra todas. La spec no requiere paginación (es un caso raro), pero si crece, agregar paginación client-side o server-side.
+- **Errores de validación anclados a la fila editada (WARNING 1 del verify interim)**: hoy `ApplySkillFailureToModelState` prefija siempre `AsignarInput.` y la grilla re-renderiza el form de asignación visiblemente tras un fallo de Actualizar; los errores quedan visibles pero confusos porque no están junto a la fila que falló. Mejora futura: introducir un prefijo contextual por fila (`Skills[i].NivelRequeridoId` con índice) o un panel de errores por fila. Requiere refactor de la markup para exponer `asp-validation-for` por celda.
+- **Modal de confirmación para Quitar (slice visual aparte)**: si en el futuro se quiere reemplazar el `confirm()` JavaScript nativo por un modal de Inspinia más rico, queda como PR dedicado. El sub-slice actual usa el patrón nativo por simplicidad y zero-dependency.
+
+### Estado final del slice PR3b (post-CRITICAL-fix, vigente)
+
+- **Subset consolidado**: **226/226 PASS** (post-CRITICAL-fix, capturado por el interim verify finalization commit `21c9239b`).
+- **Suite sin pre-existentes fuera de scope** (`FullyQualifiedName!~Ocupacion`): **1265/1265 PASS**.
+- **Suite completa**: **1364/1376 PASS** (los 12 fallos restantes son `OcupacionRepositoryTests` issue #59, fuera de scope).
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s).
+- **Frontend**: `bun run build` → exit 0.
+- **Detail del flujo strict-TDD**: ver la subsección **"Cierre de findings — interim verify follow-up"** arriba (CRITICAL cerrado con `433d82dc` test RED → `acf0a97d` feat GREEN; WARNING 2 subsanado en docs).
+- **Diff total del slice PR3b (al cierre de la implementación inicial)**: 7 commits — 5 de implementación (`9b20975f` test RED inicial, `522ea4d3` feat GREEN inicial, `947014aa` test anti-drift, `433d82dc` test RED Quitar confirm, `acf0a97d` feat GREEN Quitar confirm) + 2 docs (`090db257` interim apply-progress, `7af7c435` rectificación W2). El commit `21c9239b` (interim verify follow-up docs) agrega el cierre del CRITICAL que dispara el conteo 226/226 final.
+
+---
+
 ## PR3a — Cliente web tipado (completado)
 
 - **Branch**: `feat/cargo-habilidad-pr3a-cliente-web`

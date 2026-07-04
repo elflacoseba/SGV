@@ -1,12 +1,19 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Seguridad;
 using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Tests.Web.Habilidad;
 using SGV.Web.Integration.Auth;
+using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -65,19 +72,40 @@ public sealed class CargoWebTestFixture : IDisposable
     /// Returns an authenticated <see cref="HttpClient"/> whose
     /// <see cref="ICargoApiClient"/> resolves to <paramref name="apiClient"/>.
     /// The auth API is stubbed to return a fixed bearer token.
+    /// Mantiene la firma pre-existente: el usuario autenticado NO tiene
+    /// claims de rol, por lo que <c>User.IsInRole(RolesSgv.Administrador)</c>
+    /// devuelve <c>false</c> en tests que la usen para chequeos explícitos.
     /// </summary>
-    public async Task<HttpClient> CreateAuthenticatedClientAsync(FakeCargoApiClient apiClient)
+    public Task<HttpClient> CreateAuthenticatedClientAsync(FakeCargoApiClient apiClient)
+        => CreateAuthenticatedClientAsync(apiClient, new FakeHabilidadApiClient(), adminRole: false);
+
+    /// <summary>
+    /// Variante sobrecargada que también inyecta un
+    /// <see cref="FakeHabilidadApiClient"/> en el contenedor y permite
+    /// optar por autenticar con rol <see cref="RolesSgv.Administrador"/>.
+    /// El "admin" se modela firmando un JWT con <c>ClaimTypes.Role</c>:
+    /// <see cref="AuthSessionFactory.TryAddTokenClaims"/> lo lee y lo
+    /// agrega a la identidad de la cookie, así <c>User.IsInRole(...)</c>
+    /// devuelve <c>true</c> dentro del pipeline de Razor Pages.
+    /// </summary>
+    public async Task<HttpClient> CreateAuthenticatedClientAsync(
+        FakeCargoApiClient apiClient,
+        FakeHabilidadApiClient habilidadApiClient,
+        bool adminRole)
     {
+        var accessToken = adminRole ? BuildAdminRoleJwt() : "token-123";
+
         var authHandler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
+                Content = JsonContent.Create(new LoginResponse(accessToken, DateTimeOffset.UtcNow.AddHours(1)))
             });
 
         var factory = _baseFactory.WithOverrides(
             configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
             authApiHandler: authHandler,
-            cargoApiClient: apiClient);
+            cargoApiClient: apiClient,
+            habilidadApiClient: habilidadApiClient);
 
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -97,6 +125,37 @@ public sealed class CargoWebTestFixture : IDisposable
 
         Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
         return client;
+    }
+
+    /// <summary>
+    /// Genera un JWT firmado con un HMAC dummy que incluye el claim
+    /// <see cref="ClaimTypes.Role"/> con valor <see cref="RolesSgv.Administrador"/>.
+    /// No usamos la clave real de <c>JwtOptions</c> porque
+    /// <see cref="AuthSessionFactory.TryAddTokenClaims"/> NO valida la
+    /// firma — sólo lee los claims. El HMAC es suficiente para que
+    /// <c>JwtSecurityTokenHandler.WriteToken</c> produzca un token con
+    /// la estructura canónica (header.payload.signature).
+    /// </summary>
+    private static string BuildAdminRoleJwt()
+    {
+        var key = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes("sgv-tests-fixture-admin-jwt-signing-key-32bytes-long-enough"));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            issuer: "sgv-tests",
+            audience: "sgv-web",
+            claims: new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, "admin-test"),
+                new Claim(ClaimTypes.NameIdentifier, "admin-test"),
+                new Claim(ClaimTypes.Name, "admin"),
+                new Claim(ClaimTypes.Role, RolesSgv.Administrador)
+            },
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: creds);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     /// <summary>
