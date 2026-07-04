@@ -501,7 +501,7 @@ public sealed class CargoSkillControllerTests
         Assert.True(doc.RootElement.TryGetProperty("errors", out var errors),
             "ValidationProblemDetails MUST expose 'errors' when FieldErrors present");
         Assert.True(errors.TryGetProperty("ponderacion", out _),
-            "errors MUST contain the 'ponderacion' key for超出-rango failures");
+            "errors MUST contain the 'ponderacion' key for out-of-range failures");
     }
 
     [Fact]
