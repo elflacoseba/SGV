@@ -2,7 +2,7 @@
 
 ## Resumen rápido
 
-SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pages para `SGV.Web`, EF Core 9 y MySQL 8 mediante Pomelo. El flujo del repo combina desarrollo tradicional con OpenSpec/SDD y `strict_tdd: true`.
+SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pages para `SGV.Web`, EF Core 9 y MySQL 8 mediante Pomelo. `SGV.Web` hoy funciona como shell autenticada que consume `SGV.Api` mediante clientes tipados `HttpClient`, con cookie auth en web y JWT bearer en API. El flujo del repo combina desarrollo tradicional con OpenSpec/SDD y `strict_tdd: true`.
 
 ## Ruta rápida para trabajar
 
@@ -22,6 +22,9 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - `src/SGV.Infraestructura/`: EF Core, Identity, repositorios, interceptor de auditoría y migraciones.
 - `src/SGV.Api/`: controladores HTTP, autenticación y composición de la aplicación.
 - `src/SGV.Web/`: frontend Razor Pages y shell web basado en Inspinia Starterkit.
+- `src/SGV.Web/Integration/`: clientes tipados hacia `SGV.Api`, bridge de JWT (`ApiBearerTokenHandler`) y contratos de integración web.
+- `src/SGV.Web/Pages/Organizacion/`: módulos web vigentes de unidades organizativas, cargos y habilidades.
+- `src/SGV.Web/Pages/Error/`: páginas de error HTTP de la shell web (`401`, `403`, `404`, `408`, `500`, `Maintenance`).
 - `tests/SGV.Tests/`: pruebas unitarias, de persistencia, integración API, compatibilidad y smoke tests web.
 - `docs/decisiones-implementacion.md`: decisiones técnicas vigentes del proyecto.
 - `docs/migracion-inicial-sgv.sql`: script SQL idempotente generado.
@@ -49,12 +52,14 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - Clean Architecture: `Dominio -> Aplicacion -> Infraestructura`, con `Api` como composition root.
 - ASP.NET Core API + Swagger (`Swashbuckle.AspNetCore`).
 - ASP.NET Core Razor Pages en `SGV.Web` para la shell/frontend.
+- `SGV.Api` autentica con JWT bearer; `SGV.Web` autentica con cookies y reenvía el token a la API vía `ApiBearerTokenHandler`.
 - EF Core 9.x.
 - `Pomelo.EntityFrameworkCore.MySql 9.0.0` como proveedor único soportado.
 - MySQL 8 requerido para escenarios reales de persistencia e integración.
 - ASP.NET Core Identity con clave string.
 - FluentValidation en capa de aplicación.
 - Bun + Gulp para assets del frontend en `src/SGV.Web`.
+- Google Charts OrgChart para la vista de organigrama de unidades organizativas.
 - xUnit 2.9.2 + `Microsoft.NET.Test.Sdk` + `coverlet.collector`.
 
 ## Convenciones de Código y Diseño
@@ -64,6 +69,7 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - Métodos asíncronos terminan en `Async`.
 - Respetá separaciones de capa: dominio no depende de infraestructura; aplicación no conoce detalles HTTP.
 - `SGV.Web` actúa como capa web/composition layer; no mover lógica de dominio o persistencia al frontend.
+- Aunque `SGV.Web` referencia `SGV.Api` para reutilizar contratos, la integración runtime con backend debe seguir pasando por clientes tipados en `src/SGV.Web/Integration/`.
 - Los cambios OpenSpec se nombran en kebab-case.
 - Conservá nombres técnicos, código, comentarios e identificadores en inglés salvo que el contexto existente del archivo exija otra cosa.
 - Los documentos generados por SDD deben escribirse en español: `proposal.md`, `design.md`, `tasks.md`, `exploration.md`, `apply-progress.md`, `verify-report.md`, `archive-report.md` y `specs/**/spec.md`.
@@ -74,6 +80,7 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - La suite incluye pruebas de dominio, aplicación, persistencia, API, compatibilidad y web.
 - Los tests de API usan `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs`.
 - Los tests web usan `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs`.
+- La suite web/API ya cubre auth bridge web->API, listados segmentados `activas|eliminadas`, reactivación por PRG y fallos de transporte recuperables en clientes tipados.
 - La CI levanta MySQL 8 y ejecuta `dotnet test --no-build --configuration Release`.
 - Si cambiás persistencia, índices únicos, soft delete, Identity o migraciones, no alcanza con pruebas puramente unitarias.
 - Si tocás `SGV.Web` o assets frontend, validá al menos `bun run build` además de la suite .NET relevante.
@@ -179,6 +186,10 @@ Ante la duda, generar **menos** tests, pero que sean significativos, mantenibles
 - La unicidad sobre registros activos usa columnas generadas para convivir con soft delete.
 - Identity mantiene `IdentityUser` con clave string.
 - La auditoría centraliza eventos en una tabla `Auditorias` mediante interceptor de EF Core.
+- `SGV.Api` valida autenticación solo con bearer token; `SGV.Web` depende del bridge por cookie + `ApiBearerTokenHandler` para hablar con la API autenticada.
+- Los listados segmentados de cargos, habilidades y unidades organizativas usan `status=activas|eliminadas`; no volver a mezclar ambos conjuntos en un mismo contrato de consulta.
+- El organigrama de unidades organizativas usa Google OrgChart como vista oficial de jerarquía en web.
+- Las operaciones write de cargos, habilidades y usuarios están protegidas por rol `Administrador`; no relajar esa frontera sin cambio explícito de negocio.
 - `SGV.Web` es una shell Razor Pages apoyada en Inspinia; preservar esa responsabilidad y no mezclarla con reglas de negocio.
 - Revisá `docs/decisiones-implementacion.md` antes de modificar persistencia, auditoría, ocupaciones o seguridad.
 
