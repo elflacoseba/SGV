@@ -9,7 +9,13 @@ public enum HabilidadErrorType
 {
     NotFound,
     Conflict,
-    Validation
+    Validation,
+    /// <summary>
+    /// Falla de transporte / servidor (5xx, timeouts de upstream, etc.).
+    /// La página web la muestra como error de servidor sin asociarla a un
+    /// campo del formulario.
+    /// </summary>
+    Infrastructure
 }
 
 /// <summary>
@@ -18,7 +24,8 @@ public enum HabilidadErrorType
 public sealed record HabilidadError(
     HabilidadErrorType Type,
     string Code,
-    string Message
+    string Message,
+    int? StatusCode = null
 );
 
 /// <summary>

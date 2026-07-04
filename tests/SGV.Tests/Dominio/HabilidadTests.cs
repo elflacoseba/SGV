@@ -111,18 +111,6 @@ public sealed class HabilidadTests
         Assert.Contains("Descripcion", ex.Message);
     }
 
-    // ── Codigo inmutable tras creación ──────────────────────────
-
-    [Fact]
-    public void Codigo_EsInmutableTrasCreacion()
-    {
-        var habilidad = new Habilidad("COM01", "Comunicación");
-
-        var codigoProperty = typeof(Habilidad).GetProperty(nameof(Habilidad.Codigo));
-        Assert.NotNull(codigoProperty);
-        Assert.Null(codigoProperty!.GetSetMethod());
-    }
-
     // ── Actualizar ──────────────────────────────────────────────
 
     [Fact]
@@ -130,12 +118,25 @@ public sealed class HabilidadTests
     {
         var habilidad = new Habilidad("COM01", "Comunicación", "Blandas", "Original");
 
-        habilidad.Actualizar("Comunicación Efectiva", "Blandas/Avanzadas", "Nueva descripción");
+        habilidad.Actualizar("COM02", "Comunicación Efectiva", "Blandas/Avanzadas", "Nueva descripción");
 
-        Assert.Equal("COM01", habilidad.Codigo); // Inmutable
+        Assert.Equal("COM02", habilidad.Codigo);
         Assert.Equal("Comunicación Efectiva", habilidad.Nombre);
         Assert.Equal("Blandas/Avanzadas", habilidad.Categoria);
         Assert.Equal("Nueva descripción", habilidad.Descripcion);
+    }
+
+    [Fact]
+    public void Actualizar_CambiaCodigoSiNoDuplica()
+    {
+        // La unicidad activa contra otras Habilidades es responsabilidad del
+        // servicio de aplicación; aquí sólo verificamos que la entidad aplica
+        // el nuevo código cuando la regla de shape es válida.
+        var habilidad = new Habilidad("COM01", "Comunicación");
+
+        habilidad.Actualizar("COM02", "Comunicación");
+
+        Assert.Equal("COM02", habilidad.Codigo);
     }
 
     [Fact]
@@ -143,20 +144,33 @@ public sealed class HabilidadTests
     {
         var habilidad = new Habilidad("COM01", "Comunicación", "Blandas", "Original");
 
-        habilidad.Actualizar("Comunicación", null, null);
+        habilidad.Actualizar("COM01", "Comunicación", null, null);
 
         Assert.Null(habilidad.Categoria);
         Assert.Null(habilidad.Descripcion);
     }
 
     [Fact]
-    public void Actualizar_CodigoNoCambia()
+    public void Actualizar_ConCodigoVacio_ThrowsArgumentException()
     {
         var habilidad = new Habilidad("COM01", "Comunicación");
 
-        habilidad.Actualizar("Comunicación Actualizada", null, null);
+        var ex = Assert.Throws<ArgumentException>(
+            () => habilidad.Actualizar("", "Comunicación", null, null));
 
-        Assert.Equal("COM01", habilidad.Codigo);
+        Assert.Contains("Codigo", ex.Message);
+    }
+
+    [Fact]
+    public void Actualizar_ConCodigoMayorA50_ThrowsArgumentException()
+    {
+        var habilidad = new Habilidad("COM01", "Comunicación");
+        var codigoLargo = new string('A', HabilidadRules.CodigoMaxLength + 1);
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => habilidad.Actualizar(codigoLargo, "Comunicación", null, null));
+
+        Assert.Contains("Codigo", ex.Message);
     }
 
     [Fact]
@@ -165,7 +179,7 @@ public sealed class HabilidadTests
         var habilidad = new Habilidad("COM01", "Comunicación");
 
         var ex = Assert.Throws<ArgumentException>(
-            () => habilidad.Actualizar("", null, null));
+            () => habilidad.Actualizar("COM01", "", null, null));
 
         Assert.Contains("Nombre", ex.Message);
     }
@@ -177,7 +191,7 @@ public sealed class HabilidadTests
         var nombreLargo = new string('A', 201);
 
         var ex = Assert.Throws<ArgumentException>(
-            () => habilidad.Actualizar(nombreLargo, null, null));
+            () => habilidad.Actualizar("COM01", nombreLargo, null, null));
 
         Assert.Contains("Nombre", ex.Message);
     }
@@ -189,7 +203,7 @@ public sealed class HabilidadTests
         var categoriaLarga = new string('A', 101);
 
         var ex = Assert.Throws<ArgumentException>(
-            () => habilidad.Actualizar("Comunicación", categoriaLarga, null));
+            () => habilidad.Actualizar("COM01", "Comunicación", categoriaLarga, null));
 
         Assert.Contains("Categoria", ex.Message);
     }
@@ -201,7 +215,7 @@ public sealed class HabilidadTests
         var descripcionLarga = new string('A', 1001);
 
         var ex = Assert.Throws<ArgumentException>(
-            () => habilidad.Actualizar("Comunicación", null, descripcionLarga));
+            () => habilidad.Actualizar("COM01", "Comunicación", null, descripcionLarga));
 
         Assert.Contains("Descripcion", ex.Message);
     }

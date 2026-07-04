@@ -138,16 +138,35 @@ public class SkillsController : ControllerBase
     }
 
     /// <summary>
-    /// Actualiza los campos editables de una habilidad existente.
+    /// Actualiza los campos editables de una habilidad existente, incluido el
+    /// <c>Codigo</c>. La regla de unicidad activa del código es la misma que
+    /// aplica el alta y se traduce a <c>409 Conflict</c> cuando colisiona con
+    /// otra habilidad activa.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Breaking change contractual:</b> el campo <c>Codigo</c> es ahora
+    /// OBLIGATORIO en el cuerpo del PUT. Consumidores que en versiones
+    /// anteriores omitían <c>Codigo</c> (o no lo proveían) deben actualizar
+    /// el contrato para incluirlo en cada request; de lo contrario la
+    /// validación FluentValidation devuelve <c>400 Bad Request</c> con
+    /// <c>ValidationProblemDetails</c> sobre <c>codigo</c>.
+    /// </para>
+    /// <para>
+    /// El backend re-valida la unicidad activa del <c>Codigo</c> contra
+    /// otras habilidades y la violación del índice único
+    /// <c>IX_Habilidades_ActiveCodigoUnique</c> se traduce a
+    /// <c>409 Conflict</c> con <c>CodigoDuplicado</c>.
+    /// </para>
+    /// </remarks>
     /// <param name="id">Identificador único de la habilidad a actualizar.</param>
-    /// <param name="request">Datos actualizados de la habilidad.</param>
+    /// <param name="request">Datos actualizados de la habilidad, incluyendo el nuevo <c>Codigo</c> (obligatorio).</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Habilidad actualizada.</returns>
     /// <response code="200">Habilidad actualizada correctamente.</response>
-    /// <response code="400">Datos inválidos o error de validación.</response>
+    /// <response code="400">Datos inválidos o error de validación. Típicamente cuando <c>Codigo</c> falta, está vacío o supera los 50 caracteres.</response>
     /// <response code="404">No se encontró una habilidad con el ID especificado.</response>
-    /// <response code="409">Conflicto — el código ya está en uso por otra habilidad.</response>
+    /// <response code="409">Conflicto — el código ya está en uso por otra habilidad activa.</response>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(HabilidadDto), StatusCodes.Status200OK)]

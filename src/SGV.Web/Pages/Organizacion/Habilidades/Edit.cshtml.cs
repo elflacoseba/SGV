@@ -10,8 +10,8 @@ namespace SGV.Web.Pages.Organizacion.Habilidades;
 /// <summary>
 /// PageModel for the Edit page of a Habilidad. Carga la habilidad por id
 /// en GET y la persiste vía <see cref="IHabilidadApiClient.UpdateAsync"/> en
-/// POST. El campo <c>Codigo</c> es readonly en el form (regla de
-/// inmutabilidad del dominio) y NO se envía al backend.
+/// POST. El campo <c>Codigo</c> es editable y se envía al backend para
+/// que la unicidad activa se evalúe contra otras Habilidades activas.
 /// </summary>
 [Authorize]
 public sealed class EditModel(
@@ -79,10 +79,16 @@ public sealed class EditModel(
 
             return Page();
         }
+        // Cancelación cooperativa: misma regla que OnPostAsync. Si el cliente
+        // cerró el navegador / navegó a otra página, HttpContext.RequestAborted
+        // se cancela y el cliente API propaga OperationCanceledException. NO la
+        // capturamos: renderizar en un request cancelado desperdicia trabajo y
+        // puede generar logs ruidosos.
         catch (Exception ex) when (
             ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException)
+            ex is JsonException ||
+            ((ex is TaskCanceledException || ex is OperationCanceledException)
+                && !cancellationToken.IsCancellationRequested))
         {
             logger.LogError(ex, "Habilidad edit GET transport failure.");
             IsRecoverable = true;
@@ -101,6 +107,7 @@ public sealed class EditModel(
         }
 
         var request = new ActualizarHabilidadRequest(
+            Input.Codigo,
             Input.Nombre,
             string.IsNullOrWhiteSpace(Input.Categoria) ? null : Input.Categoria.Trim(),
             string.IsNullOrWhiteSpace(Input.Descripcion) ? null : Input.Descripcion.Trim());
@@ -110,11 +117,17 @@ public sealed class EditModel(
         {
             result = await habilidadApiClient.UpdateAsync(id, request, cancellationToken);
         }
+        // Cancelación cooperativa: si el cliente cerró el navegador / navegó
+        // a otra página, el HttpContext.RequestAborted se cancela y el
+        // cliente API propaga OperationCanceledException. NO la capturamos:
+        // intentar renderizar una página en un request cancelado desperdicia
+        // trabajo y puede generar logs ruidosos. Dejamos que la excepción
+        // suba para que el pipeline la traduzca a ClientDisconnectedException.
         catch (Exception ex) when (
             ex is HttpRequestException ||
-            ex is TaskCanceledException ||
             ex is JsonException ||
-            ex is OperationCanceledException)
+            ((ex is TaskCanceledException || ex is OperationCanceledException)
+                && !cancellationToken.IsCancellationRequested))
         {
             logger.LogError(ex, "Habilidad update transport failure.");
             ErrorMessage = "No se pudo contactar al servicio de habilidades. Intentá nuevamente.";

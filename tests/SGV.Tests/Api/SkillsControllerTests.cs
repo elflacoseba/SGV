@@ -275,21 +275,28 @@ public sealed class SkillsControllerTests
         Assert.Equal(409, problem.Status);
     }
 
-    // ---- PUT (update) ----
+// ---- PUT (update) ----
 
-[Fact]
-    public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
+    [Fact]
+    public async Task Put_ValidRequest_WithCodigo_Returns200OkWithUpdatedDto()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nombre = "Habilidad Actualizada", categoria = "Nueva Categoría" });
+        var body = ToJsonBody(new
+        {
+            codigo = "PROG-V2",
+            nombre = "Habilidad Actualizada",
+            categoria = "Nueva Categoría"
+        });
 
         var response = await client.PutAsync(
             $"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}", body);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var dto = await ReadAsAsync<HabilidadDto>(response);
+        Assert.Equal("PROG-V2", dto.Codigo);
         Assert.Equal("Habilidad Actualizada", dto.Nombre);
+        Assert.Equal("Nueva Categoría", dto.Categoria);
     }
 
     [Fact]
@@ -307,7 +314,7 @@ public sealed class SkillsControllerTests
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nombre = "No existe" });
+        var body = ToJsonBody(new { codigo = "COM01", nombre = "No existe" });
 
         var response = await client.PutAsync($"/api/v1/skills/{Guid.NewGuid()}", body);
 
@@ -336,7 +343,7 @@ public sealed class SkillsControllerTests
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
         });
         var client = factory.CreateAdminClient();
-        var body = ToJsonBody(new { nombre = "" });
+        var body = ToJsonBody(new { codigo = "COM01", nombre = "" });
 
         var response = await client.PutAsync($"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}", body);
 
@@ -344,6 +351,86 @@ public sealed class SkillsControllerTests
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(400, problem.Status);
         await AssertErrorFieldExists(response, "nombre");
+    }
+
+    [Fact]
+    public async Task Put_EmptyCodigo_Returns400WithFieldErrors()
+    {
+        var fakeComandos = new FakeHabilidadServicioComandos
+        {
+            ActualizarHandler = (id, _, _) => Task.FromResult(
+                HabilidadCommandResult.Failure(
+                    new HabilidadError(HabilidadErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                    new Dictionary<string, string[]>
+                    {
+                        ["codigo"] = ["'Codigo' no debe estar vacío."]
+                    }))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioComandos>();
+            services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new { codigo = "", nombre = "Cualquiera" });
+
+        var response = await client.PutAsync($"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorFieldExists(response, "codigo");
+    }
+
+    [Fact]
+    public async Task Put_CodigoExceedsMaxLength_Returns400WithFieldErrors()
+    {
+        var fakeComandos = new FakeHabilidadServicioComandos
+        {
+            ActualizarHandler = (id, _, _) => Task.FromResult(
+                HabilidadCommandResult.Failure(
+                    new HabilidadError(HabilidadErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                    new Dictionary<string, string[]>
+                    {
+                        ["codigo"] = ["'Codigo' debe tener 50 caracteres o menos."]
+                    }))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioComandos>();
+            services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new { codigo = new string('X', 51), nombre = "Cualquiera" });
+
+        var response = await client.PutAsync($"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorFieldExists(response, "codigo");
+    }
+
+    [Fact]
+    public async Task Put_DuplicateActiveCodigo_Returns409WithProblemDetails()
+    {
+        var fakeComandos = new FakeHabilidadServicioComandos
+        {
+            ActualizarHandler = (id, _, _) => Task.FromResult(
+                HabilidadCommandResult.Failure(
+                    new HabilidadError(HabilidadErrorType.Conflict, "CodigoDuplicado",
+                        "Ya existe una habilidad activa con el mismo código.")))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IHabilidadServicioComandos>();
+            services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new { codigo = "PROG-OTRO", nombre = "Duplicado" });
+
+        var response = await client.PutAsync($"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}", body);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(409, problem.Status);
+        Assert.Equal("CodigoDuplicado", problem.Title);
     }
 
     // ---- DELETE (soft-delete) ----
