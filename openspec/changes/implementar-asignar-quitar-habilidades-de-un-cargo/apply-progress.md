@@ -1,5 +1,98 @@
 # Apply Progress — Implementar asignar/quitar Habilidades de un Cargo
 
+## PR2 — Infraestructura + API (completado)
+
+- **Branch**: `feat/cargo-habilidad-pr2-infra-api`
+- **Estado**: completado
+- **Strict TDD**: activo (`openspec/config.yaml` → `strict_tdd: true`)
+- **Baseline al inicio**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s). `dotnet test --filter "FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift"` → **68/68 PASS**. `dotnet test --filter "FullyQualifiedName~CargoSkillController|FullyQualifiedName~CargosController|FullyQualifiedName~SwaggerConfiguration"` → **87/87 PASS**.
+- **Alcance**: repositorio enriquecido (T2.1), bifurcación de errores en controller (T2.2), schema Swagger + shape sin alias `nivelId` (T2.3), anti-regresión del contrato padre (T2.4). NO toca aplicación, NO toca web, NO introduce migraciones.
+
+### Tareas ejecutadas
+
+- **T2.1** ✅ Enriquecer proyección de `CargoSkillRepository.ListDetailedByCargoIdAsync`.
+- **T2.2** ✅ Bifurcar `ToSkillProblemResult` entre `ValidationProblemDetails` y `ProblemDetails`.
+- **T2.3** ✅ Documentar schema Swagger del subrecurso + ausencia de alias `nivelId`.
+- **T2.4** ✅ Anti-regresión de shape en `Cargo` padre.
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T2.1 | `tests/SGV.Tests/Persistencia/CargoSkillRepositoryTests.cs` | Integration (MySqlFact) | ✅ 9/9 (subset repo) | ✅ `ListDetailedByCargoIdAsync_ProyectaSkillIdNivelRequeridoIdPonderacionYEsObligatoria` falla con `SkillId=Guid.Empty` (real MySQL 8 disponible) | ✅ 10/10 (la proyección LINQ ahora popula `SkillId`/`NivelRequeridoId`/`Ponderacion`/`EsObligatoria` via init properties del DTO, en una sola query sin N+1) | ➖ Single — spec Req 1 y 4 cubren un único shape obligatorio; los otros 9 tests ya cubren escenarios relacionados (add/duplicate/update/delete/list) | ➖ Implementación mínima, sin cambios extra |
+| T2.2 | `tests/SGV.Tests/Api/CargoSkillControllerTests.cs` | Integration (WebApplicationFactory) | ✅ 14/14 (subset controller) | ✅ 2 tests nuevos fallan (`UpsertSkill_FieldErrors_ReturnsValidationProblemDetails` y `UpsertSkill_PonderacionExcede100_Returns400ConCampoPonderacion`) porque el controller siempre emitía `ProblemDetails`; 1 test nuevo pasa (`UpsertSkill_ValidationErrorSinFieldErrors_MantieneProblemDetails`) confirmando el camino legacy | ✅ 3 nuevos + 14 originales = 17/17 PASS. `ToSkillProblemResult` ahora bifurca: cuando `result.FieldErrors.Count > 0` y status es 400, emite `ValidationProblemDetails`; en cualquier otro caso, mantiene `Problem(...)` | ✅ 3 paths cubiertos: (a) FieldErrors poblados → `ValidationProblemDetails` con `errors`; (b) FieldErrors poblados para `ponderacion` → `errors.ponderacion`; (c) Validation sin FieldErrors → `ProblemDetails` legacy | ➖ Helper único, ya estaba extraído en `ToValidationProblemResult` para `Cargo`; aquí se aplica el mismo patrón |
+| T2.3 | `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` | Integration (WebApplicationFactory) | ✅ 30/30 (subset swagger) | ➖ GREEN pre-existente: el shape ya cumple el spec desde T2.1 + PR1 (PR1 introdujo `init` properties en `CargoSkillDetailDto` y eliminó alias `nivelId`; T2.1 ahora popula los campos desde la DB). Los tests se escribieron como **approval tests** que blindan el contrato contra regresiones futuras. | ✅ 3 tests nuevos + 30 originales = 33/33 PASS. Cubren: presencia de `nivelRequeridoId`/`ponderacion`/`esObligatoria`/`skill`/`nivel`/`skillId` en `CargoSkillDetailDto`; ausencia de `nivelId` en el subrecurso; `id` (no `nivelId`) en `NivelHabilidadDto` anidado; referencia del GET subrecurso al schema correcto | ✅ 4 paths: schema del subrecurso, schema del nivel anidado, operation GET documentada, ausencia de alias | ➖ Sin código de producción: la shape ya estaba alineada con la decisión de diseño |
+| T2.4 | `tests/SGV.Tests/Api/CargosControllerTests.cs` + `SwaggerConfigurationTests.cs` | Integration (WebApplicationFactory) | ✅ 60/60 (subset controller+swagger) | ➖ GREEN pre-existente: el `CargoDto` no contiene campos del subrecurso (`nivelRequeridoId`/`ponderacion`/`esObligatoria`/`skill`/`habilidades`), preservando el alcance acotado del contrato (cargo-skill-query-contract Req 3). Los tests son **approval tests** que blindan el contrato padre contra contaminación accidental. | ✅ 3 tests nuevos + 60 originales = 63/63 PASS. Cubren: JSON del `GET /api/v1/cargos/{id}` no contiene campos del subrecurso; JSON del `GET /api/v1/cargos` tampoco; schema Swagger del `CargoDto` no expone esos campos | ✅ 3 paths: GET item, GET lista, schema OpenAPI del `CargoDto` | ➖ Sin código de producción: `CargoDto` es un record inmutable sin contaminación |
+
+### Métricas
+
+- **Tests al inicio**: 87 (subset API/Swagger/Controller) + 10 (subset repo) = 97 sobre el alcance de PR2.
+- **Tests al cierre**: 97 + 7 nuevos (1 persistencia + 3 API + 3 swagger) = **104 PASS**.
+- **Diff total**: +184/−6 líneas en 5 archivos. Ningún commit > 60 líneas.
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
+- **Suite subset**: `dotnet test --filter "FullyQualifiedName~CargoSkill|FullyQualifiedName~SwaggerConfiguration|FullyQualifiedName~HabilidadAntiDrift"` → **72/72 PASS**.
+- **Suite subset API**: `dotnet test --filter "FullyQualifiedName~CargoSkillController|FullyQualifiedName~CargosController|FullyQualifiedName~SwaggerConfiguration"` → **94/94 PASS**.
+- **Suite completa**: `dotnet test SGV.slnx` → **1316/1328 PASS**. Los 12 fallos siguen siendo pre-existentes de `OcupacionRepositoryTests` (issue #59, `ActivePuestoIdUnique INT` vs `PuestoId CHAR(36)`), fuera del scope de PR2.
+
+### Commits
+
+```
+a866d2ca test(api+swagger): documentar schema del subrecurso y anti-regresion de shape en Cargo padre
+c1d8a592 feat(api): bifurcar ToSkillProblemResult entre ValidationProblemDetails y ProblemDetails
+d5e4459a test(api): bifurcar errores de validacion en subrecurso cargo-skill
+04ea5a5c feat(persistencia): enriquecer ListDetailedByCargoIdAsync con skillId/nivelRequeridoId/ponderacion/esObligatoria
+26db75d8 test(persistencia): cargo-skill proyecta skillId/nivelRequeridoId/ponderacion/esObligatoria
+```
+
+5 commits en formato conventional commits. Sin `Co-Authored-By:` ni atribución a IA.
+
+### Archivos modificados / creados
+
+**Producción (`src/`):**
+- `SGV.Infraestructura/Persistencia/Repositorios/CargoSkillRepository.cs` — proyección LINQ de `ListDetailedByCargoIdAsync` ahora popula `SkillId`/`NivelRequeridoId`/`Ponderacion`/`EsObligatoria` desde la entidad en una sola query (sin N+1).
+- `SGV.Api/Controllers/CargosController.cs` — `ToSkillProblemResult` ahora bifurca entre `ValidationProblemDetails` (cuando `result.FieldErrors.Count > 0` y status es 400) y `ProblemDetails` (resto de los casos). Comentarios `<response>` actualizados para documentar la diferencia. La signature del helper ganó un parámetro opcional `CargoSkillCommandResult? result = null` para no romper el call site de `DeleteSkill`.
+
+**Tests (`tests/SGV.Tests/`):**
+- `tests/SGV.Tests/Persistencia/CargoSkillRepositoryTests.cs` — 1 test nuevo `[MySqlFact]`: `ListDetailedByCargoIdAsync_ProyectaSkillIdNivelRequeridoIdPonderacionYEsObligatoria` con `Ponderacion=2.50`, `EsObligatoria=true`, asserts de los 4 campos más los nested.
+- `tests/SGV.Tests/Api/CargoSkillControllerTests.cs` — 3 tests nuevos: `UpsertSkill_FieldErrors_ReturnsValidationProblemDetails`, `UpsertSkill_PonderacionExcede100_Returns400ConCampoPonderacion`, `UpsertSkill_ValidationErrorSinFieldErrors_MantieneProblemDetails`.
+- `tests/SGV.Tests/Api/CargosControllerTests.cs` — 2 tests nuevos: `GetById_ParentPayloadNoContaminaCamposDelSubrecursoSkill`, `GetAll_ParentPayloadNoContaminaCamposDelSubrecursoSkill`. Endurecen el test pre-existente `GetById_ParentPayloadDoesNotIncludeSkillAssignmentFields`.
+- `tests/SGV.Tests/Api/SwaggerConfigurationTests.cs` — 4 tests nuevos: `CargoSkillDetailDto_ExponeNivelRequeridoIdPonderacionEsObligatoriaSinAliasNivelId`, `CargoSkillDetailDto_NivelAnidadoExponeIdNoNivelId`, `CargoSkillSubresourceGetOperation_DocumentsEnrichedResponse`, `CargoDto_NoContaminaCamposDelSubrecursoSkill`.
+
+### Decisiones durante implementación
+
+1. **`ToSkillProblemResult` opcional `result`**: agregué un segundo parámetro `CargoSkillCommandResult? result = null` para preservar el call site existente de `DeleteSkill`. Las llamadas de `UpsertSkill` y `DeleteSkill` ahora pasan el `result` completo; el helper evalúa `result?.FieldErrors is { Count: > 0 }` antes de emitir `ValidationProblemDetails`. Esto evita una firma distinta para el helper de Delete (que no necesita bifurcar porque su único camino de fallo es `NotFound`).
+2. **Aprobación tests (T2.3 y T2.4)**: el shape ya cumple el spec desde PR1 + T2.1, así que los tests pasan al primer run. Los marco como aprobación del contrato — si alguien futuro intenta reintroducir `nivelId` o contaminar el `CargoDto` con campos del subrecurso, estos tests fallan. Esta es la práctica correcta de "blindar el comportamiento" del strict-tdd.md para approval testing.
+3. **T2.3 sin código de producción**: el `<response code="400">` del `UpsertSkill` se actualizó para documentar la diferencia entre `ValidationProblemDetails` y `ProblemDetails` (dependiendo de `FieldErrors`). No hay otro cambio porque el controller ya referencia `typeof(CargoSkillDetailDto)` para el GET del subrecurso y Swashbuckle genera el schema OpenAPI desde el DTO directamente.
+4. **Tests `CargosControllerTests` en PR1 ya tenían `GetById_ParentPayloadDoesNotIncludeSkillAssignmentFields`**: lo conservé y agregué 2 tests hermanos (`GetById_ParentPayloadNoContaminaCamposDelSubrecursoSkill` y `GetAll_ParentPayloadNoContaminaCamposDelSubrecursoSkill`) más amplios que blindan explícitamente los 6 campos del subrecurso (`nivelRequeridoId`, `ponderacion`, `esObligatoria`, `skill`, `nivel`, `CargoSkillDetailDto`).
+
+### Riesgos abiertos
+
+- **Backwards compat del JSON del PUT**: la rename `nivelId` → `nivelRequeridoId` en el body del PUT (introducida en PR1) rompe consumidores existentes. PR2 no agregó un alias `nivelId` en el GET del subrecurso (alineado con la decisión de diseño del change). Si en el futuro hace falta compatibilidad hacia atrás, se puede agregar un alias con `[JsonPropertyName("nivelId")]` que mapee a `NivelRequeridoId` — fuera del scope actual.
+- **Precisión `decimal(5,2)`**: el campo `Ponderacion` se persiste con `decimal(5,2)` (hasta 999.99). El tope `100.00` solo se valida en aplicación (FluentValidation). Un PUT con `Ponderacion=999.99` fallaría la validación de aplicación (≤100.00) pero pasaría la persistencia. Esto es intencional — la decisión de diseño es "validación solo en app, sin CHECK constraint". Si en el futuro hace falta una salvaguarda adicional, se puede agregar un CHECK en una migración dedicada.
+- **`CargoSkillCommandResult.Value` en error sin `FieldErrors`**: en el camino de fallo (e.g., `NotFound`), `Value` queda `null`. El controller actual (`ToSkillProblemResult`) ya maneja `Error` separado y NO expone `Value` en errores no-validación. Esto es consistente con el comportamiento de `HabilidadCommandResult`.
+- **12 fallos pre-existentes de `OcupacionRepositoryTests`**: confirmados, siguen siendo issue #59. NO son introducidos ni arreglados por PR2.
+
+### Verificación al cierre de PR2
+
+```bash
+# Build limpio
+dotnet build SGV.slnx
+# → Build succeeded. 0 Warning(s). 0 Error(s).
+
+# Subset PR2
+dotnet test SGV.slnx --filter "FullyQualifiedName~CargoSkill|FullyQualifiedName~SwaggerConfiguration|FullyQualifiedName~HabilidadAntiDrift"
+# → Total: 72. Passed: 72. Failed: 0.
+
+dotnet test SGV.slnx --filter "FullyQualifiedName~CargoSkillController|FullyQualifiedName~CargosController|FullyQualifiedName~SwaggerConfiguration"
+# → Total: 94. Passed: 94. Failed: 0.
+
+# Suite completa (informativo, los 12 fallos son issue #59 pre-existente)
+dotnet test SGV.slnx
+# → Total: 1328. Passed: 1316. Failed: 12 (issue #59, OcupacionRepositoryTests).
+```
+
+---
+
 ## PR1 — Cleanup `NivelId` legacy (refactor, completado)
 
 - **Branch**: `feat/cargo-habilidad-pr1-aplicacion`

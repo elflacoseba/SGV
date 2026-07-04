@@ -36,6 +36,11 @@ public sealed class CargoSkillRepository(SgvDbContext context)
         Guid cargoId,
         CancellationToken cancellationToken = default)
     {
+        // PR2-T2.1: la proyección del subrecurso pobla explícitamente los
+        // identificadores del vínculo y los flags del mismo (SkillId,
+        // NivelRequeridoId, Ponderacion, EsObligatoria) además de los
+        // catálogos anidados (skill, nivel), en una única query sin N+1
+        // (cargo-skill-query-contract Req 1 y 4).
         return await _context
             .Set<CargoHabilidadEntity>()
             .AsNoTracking()
@@ -52,7 +57,13 @@ public sealed class CargoSkillRepository(SgvDbContext context)
                     e.NivelRequerido.Codigo,
                     e.NivelRequerido.Nombre,
                     e.NivelRequerido.ValorNumerico,
-                    e.NivelRequerido.Orden)))
+                    e.NivelRequerido.Orden))
+            {
+                SkillId = e.HabilidadId,
+                NivelRequeridoId = e.NivelRequeridoId,
+                Ponderacion = e.Ponderacion,
+                EsObligatoria = e.EsObligatoria
+            })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
     }

@@ -499,6 +499,121 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
+    public async Task CargoSkillDetailDto_ExponeNivelRequeridoIdPonderacionEsObligatoriaSinAliasNivelId()
+    {
+        // PR2-T2.3: el contrato de lectura del subrecurso debe exponer
+        // explícitamente nivelRequeridoId, ponderacion y esObligatoria,
+        // y NO debe mantener el alias legado 'nivelId' (cargo-skill-query-contract Req 1 y 3).
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var schema = doc.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("CargoSkillDetailDto");
+        var props = schema.GetProperty("properties");
+
+        Assert.True(props.TryGetProperty("nivelRequeridoId", out var nivelRequeridoIdProp),
+            "CargoSkillDetailDto MUST expose 'nivelRequeridoId'");
+        Assert.Equal("string", nivelRequeridoIdProp.GetProperty("type").GetString());
+        Assert.Equal("uuid", nivelRequeridoIdProp.GetProperty("format").GetString());
+
+        Assert.True(props.TryGetProperty("ponderacion", out var ponderacionProp),
+            "CargoSkillDetailDto MUST expose 'ponderacion'");
+        Assert.Equal("number", ponderacionProp.GetProperty("type").GetString());
+
+        Assert.True(props.TryGetProperty("esObligatoria", out var esObligatoriaProp),
+            "CargoSkillDetailDto MUST expose 'esObligatoria'");
+        Assert.Equal("boolean", esObligatoriaProp.GetProperty("type").GetString());
+
+        Assert.True(props.TryGetProperty("skillId", out _),
+            "CargoSkillDetailDto MUST also expose 'skillId' for editable table binding");
+
+        // El alias legado 'nivelId' NO debe existir en el contrato de lectura
+        // del subrecurso de skills — solo 'nivelRequeridoId' (cargo-skill-query-contract nota final).
+        Assert.False(props.TryGetProperty("nivelId", out _),
+            "CargoSkillDetailDto MUST NOT expose the legacy 'nivelId' alias");
+    }
+
+    [Fact]
+    public async Task CargoSkillDetailDto_NivelAnidadoExponeIdNoNivelId()
+    {
+        // PR2-T2.3: el schema del objeto 'nivel' anidado usa el campo
+        // canónico 'id' (proveniente de NivelHabilidadDto.Id), no 'nivelId'.
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var schema = doc.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("CargoSkillDetailDto");
+        var nivelRef = schema.GetProperty("properties").GetProperty("nivel");
+        Assert.Equal("#/components/schemas/NivelHabilidadDto", nivelRef.GetProperty("$ref").GetString());
+
+        var nivelSchema = doc.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("NivelHabilidadDto");
+        var nivelProps = nivelSchema.GetProperty("properties");
+        Assert.True(nivelProps.TryGetProperty("id", out _),
+            "NivelHabilidadDto MUST expose 'id'");
+        Assert.False(nivelProps.TryGetProperty("nivelId", out _),
+            "NivelHabilidadDto MUST NOT expose a legacy 'nivelId' property");
+    }
+
+    [Fact]
+    public async Task CargoSkillSubresourceGetOperation_DocumentsEnrichedResponse()
+    {
+        // PR2-T2.3: el operation GET /api/v1/cargos/{cargoId}/skills
+        // referencia explícitamente el schema CargoSkillDetailDto (no
+        // un payload distinto que omita los nuevos campos).
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+        var getOp = paths.GetProperty("/api/v1/cargos/{cargoId}/skills").GetProperty("get");
+        var okResponse = getOp.GetProperty("responses").GetProperty("200");
+        var schemaRef = okResponse.GetProperty("content").GetProperty("application/json")
+            .GetProperty("schema").GetProperty("items").GetProperty("$ref").GetString();
+        Assert.Equal("#/components/schemas/CargoSkillDetailDto", schemaRef);
+    }
+
+    [Fact]
+    public async Task CargoDto_NoContaminaCamposDelSubrecursoSkill()
+    {
+        // PR2-T2.4: el schema del padre CargoDto no debe contener los
+        // campos introducidos por el subrecurso /skills
+        // (cargo-skill-query-contract Req 3 escenario "No contaminar el
+        // contrato padre de Cargo").
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var schema = doc.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("CargoDto");
+        var props = schema.GetProperty("properties");
+
+        // Campos propios del padre que SÍ deben existir.
+        Assert.True(props.TryGetProperty("id", out _), "CargoDto MUST expose 'id'");
+        Assert.True(props.TryGetProperty("codigo", out _), "CargoDto MUST expose 'codigo'");
+        Assert.True(props.TryGetProperty("nombre", out _), "CargoDto MUST expose 'nombre'");
+        Assert.True(props.TryGetProperty("nivelId", out _), "CargoDto MUST expose 'nivelId' (NivelCargo FK)");
+
+        // Campos del subrecurso que NO deben contaminar al padre.
+        Assert.False(props.TryGetProperty("nivelRequeridoId", out _),
+            "CargoDto MUST NOT expose 'nivelRequeridoId' (lives in CargoSkillDetailDto)");
+        Assert.False(props.TryGetProperty("ponderacion", out _),
+            "CargoDto MUST NOT expose 'ponderacion' (lives in CargoSkillDetailDto)");
+        Assert.False(props.TryGetProperty("esObligatoria", out _),
+            "CargoDto MUST NOT expose 'esObligatoria' (lives in CargoSkillDetailDto)");
+        Assert.False(props.TryGetProperty("skillId", out _),
+            "CargoDto MUST NOT expose 'skillId' (lives in CargoSkillDetailDto)");
+        Assert.False(props.TryGetProperty("habilidades", out _),
+            "CargoDto MUST NOT expose 'habilidades' array");
+    }
+
+    [Fact]
     public async Task SwaggerDocument_NoCargoHabilidadOrPersonaHabilidadPaths()
     {
         var client = _factory.CreateClient();
