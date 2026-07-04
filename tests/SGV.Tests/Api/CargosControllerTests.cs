@@ -147,6 +147,56 @@ public sealed class CargosControllerTests
     }
 
     [Fact]
+    public async Task GetById_ParentPayloadNoContaminaCamposDelSubrecursoSkill()
+    {
+        // PR2-T2.4: el contrato padre GET /api/v1/cargos/{id} NO debe
+        // empezar a exponer los campos del subrecurso /skills por este
+        // cambio contractual (cargo-skill-query-contract Req 3 escenario
+        // "No contaminar el contrato padre de Cargo").
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+
+        // Campos del subrecurso que NO deben filtrarse al padre.
+        Assert.DoesNotContain("nivelRequeridoId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ponderacion", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("esObligatoria", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"skill\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"nivel\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("CargoSkillDetailDto", json, StringComparison.OrdinalIgnoreCase);
+
+        // Pero los campos propios del padre deben seguir presentes.
+        Assert.Contains("\"id\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"codigo\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"nombre\"", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"nivelId\"", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetAll_ParentPayloadNoContaminaCamposDelSubrecursoSkill()
+    {
+        // PR2-T2.4 (endurecido): GET /api/v1/cargos (lista) tampoco debe
+        // empezar a exponer los campos del subrecurso /skills.
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/cargos");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain("nivelRequeridoId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ponderacion", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("esObligatoria", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"habilidades\"", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Controller_HasAuthorizeAttribute()
     {
         var controllerType = typeof(SGV.Api.Controllers.CargosController);
