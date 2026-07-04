@@ -704,4 +704,146 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
         Assert.Contains("ya no existe", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("class=\"alert alert-warning\"", refreshedContent, StringComparison.Ordinal);
     }
+
+    // ──────────────────────────────────────────────
+    // Hallazgo #5 — ApplySkillFailureToModelState branches
+    // (result.Error.Type con FieldErrors == null)
+    // ──────────────────────────────────────────────
+
+    private static FormUrlEncodedContent BuildAsignarForm(string antiforgeryToken, Guid skillId, Guid nivelId) =>
+        new(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["AsignarInput.SkillId"] = skillId.ToString(),
+            ["AsignarInput.NivelRequeridoId"] = nivelId.ToString(),
+            ["AsignarInput.Ponderacion"] = "50.00"
+        });
+
+    [Fact]
+    public async Task PostAsignar_BackendReturnsConflict_RendersConflictMessage()
+    {
+        // Conflict (409) se propaga tal cual desde el backend:
+        // ApplySkillFailureToModelState mapea el type a un ModelState
+        // error con key vacía que aparece en el validation summary.
+        var cargoId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
+            new CargoSkillError(CargoSkillErrorType.Conflict, "Conflicto", "Conflicto de versión."));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
+            BuildAsignarForm(antiforgeryToken, skillId, nivelId));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        // Mensaje propagado tal cual desde el mensaje del error.
+        Assert.Contains("Conflicto", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PostAsignar_BackendReturnsUnauthorized_RendersSessionExpiredMessage()
+    {
+        // Unauthorized (401) — la página mapea a un mensaje
+        // hardcoded local: "Su sesión expiró. Vuelva a iniciar
+        // sesión." (independiente del mensaje del backend para evitar
+        // filtrar detalles del upstream).
+        var cargoId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
+            new CargoSkillError(CargoSkillErrorType.Unauthorized, "Unauthorized", "Token expirado."));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
+            BuildAsignarForm(antiforgeryToken, skillId, nivelId));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("Su sesión expiró", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PostAsignar_BackendReturnsForbidden_RendersAccessDeniedMessage()
+    {
+        // Forbidden (403) — la página mapea a un mensaje hardcoded
+        // local: "No tiene permisos para modificar las habilidades del
+        // cargo." (evita propagar el mensaje upstream porque podría
+        // contener detalles de la autorización interna).
+        var cargoId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
+            new CargoSkillError(CargoSkillErrorType.Forbidden, "Forbidden", "Acceso denegado."));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
+            BuildAsignarForm(antiforgeryToken, skillId, nivelId));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("No tiene permisos para modificar las habilidades", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PostAsignar_BackendReturnsTransport_RendersServiceUnavailableMessage()
+    {
+        // Transport (>=500 sin RFC ProblemDetails) — la página
+        // traduce a un mensaje accionable hardcoded: "El servicio no
+        // respondió correctamente. Intentá nuevamente." Coherente con
+        // el camino IsTransportFailure(Exception) que también usa
+        // error recuperable (no stack trace) para el caso de
+        // excepción HTTP, pero este branch cubre el equivalente
+        // cuando el cliente API devuelve un 5xx con un
+        // CargoSkillErrorType.Transport en lugar de tirar excepción.
+        var cargoId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
+            new CargoSkillError(CargoSkillErrorType.Transport, "ServiceUnavailable", "Servicio caído."));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
+            BuildAsignarForm(antiforgeryToken, skillId, nivelId));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("El servicio no respondió correctamente", content, StringComparison.OrdinalIgnoreCase);
+    }
 }
