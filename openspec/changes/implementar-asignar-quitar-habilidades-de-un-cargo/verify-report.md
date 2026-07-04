@@ -54,9 +54,70 @@ Sin findings en SUGGESTION.
 ### Limitaciones de esta verificación
 Interina. Cubre sólo **PR3a**. No evalúa `Habilidades.cshtml`, PageModel, suite web, anti-drift cruzado ni `bun run build`, porque eso pertenece a **PR3b** y quedaría fuera de scope de esta verify.
 
-## Pendiente para cierre del change
-- [ ] PR3b — Razor Page, PageModel, suite web con `SgvWebApplicationFactory` o `HabilidadWebTestFixture`, anti-drift cross-module `HabilidadesPage_NoContaminaHabilidadCatalogoConNivelRequerido`
-- [ ] `bun run build` en `src/SGV.Web`
-- [ ] Decisión UX sobre si `Habilidades.cshtml` se enlaza desde `Index` o `Edit`
-- [ ] Re-correr verify completo del change una vez mergeado PR3b
-- [ ] `sdd-archive` para sincronizar delta specs y cerrar el change
+## PR3b — verify interim
+
+- **Rama**: `feat/cargo-habilidad-pr3b-razor-page`
+- **Base**: `develop` (merge commit `914a93d3`)
+- **Diff**: +1316/−4 en 7 archivos
+- **Tests nuevos**: 10 (9 página + 1 anti-drift)
+- **Strict TDD**: parcial — el par RED→GREEN principal sí está probado en `9b20975f` → `522ea4d3`, pero `T3.6` entró como test guardia GREEN-first y `apply-progress.md` no dejó una tabla dedicada de TDD evidence para este slice
+- **Resultado subset**: 10/10 PASS
+- **Resultado subset consolidado**: 225/225 PASS
+- **Resultado full**: 1363/1375 PASS (12 pre-existentes `OcupacionRepositoryTests` sin cambios)
+
+### Specs cubiertas por este PR
+| Spec | Req cubiertos | Evidencia |
+|---|---|---|
+| `cargo-skill-ui-tabla-editable` | Req 1, 2, 3 y 5 cubiertos; Req 4 parcial | `Habilidades.cshtml` + `Habilidades.cshtml.cs` + 9 tests web + 1 anti-drift; falta confirmación previa al `Quitar` |
+| `cargo-skill-asignar-editar` | Req 1, 2, 3, 4, 5 | `OnPostAsignar/Actualizar/Quitar` + equivalencia `ICargoApiClient` ↔ `CargosController` verificada en runtime |
+| `cargo-skill-ponderacion-obligatoria` | Req 1, 2, 3, 4 | `CargoHabilidadInputModels`, mapping de `FieldErrors`, defaults/shape consumidos por la página y el cliente |
+| `cargo-skill-query-contract` | Req 1, 2, 3 | `OnGetAsync` consume `GET /api/v1/cargos/{cargoId}/skills` con `CargoSkillDetailDto` enriquecido y preserva el shape del cargo padre |
+
+### Hallazgos
+#### CRITICAL
+1. **La acción `Quitar` no pide confirmación antes del POST**  
+   - **Ubicación**: `src/SGV.Web/Pages/Organizacion/Cargos/Habilidades.cshtml:136-140`  
+   - **Evidencia**: el botón sólo define `type="submit"` + `formaction="?handler=Quitar..."`; no hay `confirm(...)`, `data-*` para harness JS ni diálogo/modal asociado.  
+   - **Por qué importa**: incumple `cargo-skill-ui-tabla-editable` Req 4 (“La interfaz MUST confirmar la baja antes de quitar una asociación”), así que el slice NO está listo para merge tal como está.
+
+#### WARNING
+1. **Los errores de validación de `Actualizar` no quedan anclados a la fila editada**  
+   - **Ubicación**: `src/SGV.Web/Pages/Organizacion/Cargos/Habilidades.cshtml.cs:357-379` + `src/SGV.Web/Pages/Organizacion/Cargos/Habilidades.cshtml:96-141`  
+   - **Evidencia**: `ApplySkillFailureToModelState(...)` prefija siempre `AsignarInput.`; la grilla editable no tiene `asp-validation-for` ni summary por fila para `NivelRequeridoId`/`Ponderacion`/`EsObligatoria`.  
+   - **Por qué importa**: si el backend devuelve `FieldErrors` al editar una fila, el mensaje aparece —como mucho— en el formulario de asignación, no junto a la fila que falló; el feedback existe pero queda confuso.
+
+2. **`apply-progress.md` reporta 224/224 PASS, pero el conteo real del subset consolidado hoy es 225/225**  
+   - **Ubicación**: `openspec/changes/implementar-asignar-quitar-habilidades-de-un-cargo/apply-progress.md:31`  
+   - **Evidencia**: `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~CargoHabilidadesPage|FullyQualifiedName~CargoHabilidadesAntiDrift|FullyQualifiedName~CargoApiClient|FullyQualifiedName~FakeCargoApiClient|FullyQualifiedName~CargoSkill|FullyQualifiedName~HabilidadAntiDrift|FullyQualifiedName~CargoEditPage|FullyQualifiedName~CargoCreatePage|FullyQualifiedName~CargoIndexPage|FullyQualifiedName~HabilidadEditPage|FullyQualifiedName~HabilidadCreatePage|FullyQualifiedName~Web.Cargo|FullyQualifiedName~ICargoApiClient"` → `Passed: 225, Total: 225`.  
+   - **Por qué importa**: la evidencia documental del apply slice quedó desfasada y puede confundir la trazabilidad de verify contra el conteo real.
+
+#### SUGGESTION
+Sin findings en SUGGESTION.
+
+### Verificaciones ejecutadas
+- [x] 4 commits del slice (`test/feat/test/docs`)
+- [x] 0 `Co-Authored-By`
+- [x] `dotnet build SGV.slnx` limpio
+- [x] Subset PR3b: 10/10 PASS
+- [x] Subset consolidado: 225/225 PASS
+- [x] Full: 1363/1375 PASS (12 `OcupacionRepositoryTests` pre-existentes)
+- [x] `bun run build` verde
+- [x] Equivalencia PageModel↔Client↔Controller para los 4 handlers
+- [x] `[Authorize]` + chequeo explícito `RolesSgv.Administrador` en cada handler
+- [x] PRG + `TempData["StatusMessage"|"StatusKind"]`
+- [x] ModelState mapping desde `FieldErrors`
+- [x] Sin `Html.Raw` con datos del usuario
+- [x] Strict TDD ordering principal: RED precede GREEN en `9b20975f` → `522ea4d3`
+- [x] Anti-drift cross-module cubre las 4 aserciones (memoria #569)
+
+### Limitaciones
+Interina. Cubre sólo **PR3b**. El change tiene 3 PRs verificados (PR1/PR2 ya cerradas, PR3a y PR3b interim). El **verify final del change completo** debe correr después del merge de PR3b, antes de `sdd-archive`.
+
+## Pendiente para cierre del change (actualizado)
+- [x] PR1 — Aplicación ✅ mergeado (#82)
+- [x] PR2 — Infraestructura + API ✅ mergeado (#83)
+- [x] PR3a — Cliente web tipado ✅ mergeado (#84) + interim verify + cierre W1/W2
+- [ ] PR3b — Razor Page + suite web + anti-drift (este PR, pendiente merge)
+- [ ] Corregir la confirmación obligatoria de `Quitar` antes del merge de PR3b
+- [ ] Re-correr **verify final del change completo** una vez mergeado PR3b
+- [ ] `sdd-archive` para sincronizar delta specs y cerrar el change formalmente
