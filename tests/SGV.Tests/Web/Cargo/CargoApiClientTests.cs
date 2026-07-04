@@ -786,6 +786,133 @@ public class CargoApiClientTests
     }
 
     [Fact]
+    public async Task DeleteSkillAsync_Http401_ReturnsFailureWithUnauthorized()
+    {
+        // PR3a review follow-up (R3): DeleteSkillAsync asimétrico con el PUT.
+        // Para que la Razor Page de PR3b pueda redirigir a login ante una
+        // sesión expirada, la rama 401 debe quedar bifurcada con un Code
+        // por defecto ("Unauthorized") cuando el backend no entrega un
+        // ProblemDetails parseable. Sin esta rama, el cliente devuelve
+        // Code=null, Message=null y la página no tiene cómo decidir
+        // entre "redirigir a login" y "error genérico".
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var response = new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        };
+        var handler = new RecordingHandler(_ => response);
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteSkillAsync(cargoId, skillId);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.Unauthorized, result.StatusCode);
+        Assert.Equal("Unauthorized", result.Code);
+        Assert.Equal("Acceso no autorizado.", result.Message);
+    }
+
+    [Fact]
+    public async Task DeleteSkillAsync_Http403_ReturnsFailureWithForbidden()
+    {
+        // PR3a review follow-up (R3): 403 Forbidden distingue "usuario
+        // autenticado sin rol" de un error genérico de servidor. La rama
+        // del helper debe poblar Code="Forbidden" cuando el body no es
+        // ProblemDetails, en vez de devolver Code=null.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        };
+        var handler = new RecordingHandler(_ => response);
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteSkillAsync(cargoId, skillId);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.Forbidden, result.StatusCode);
+        Assert.Equal("Forbidden", result.Code);
+        Assert.Equal("Acceso denegado.", result.Message);
+    }
+
+    [Fact]
+    public async Task DeleteSkillAsync_Http409_ReturnsFailureWithConflict()
+    {
+        // PR3a review follow-up (R3): aunque el controller actual no emita
+        // 409 desde este subrecurso, mantener la rama deja al cliente
+        // simétrico con el PUT y preparado para una futura evolución del
+        // backend (e.g. "asociación duplicada"). El helper debe poblar
+        // Code="Conflict" cuando el body no trae un ProblemDetails.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var response = new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        };
+        var handler = new RecordingHandler(_ => response);
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteSkillAsync(cargoId, skillId);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal("Conflict", result.Code);
+        Assert.Equal("Conflicto.", result.Message);
+    }
+
+    [Fact]
+    public async Task DeleteSkillAsync_Http500WithJsonProblem_ReturnsFailureWithTransport()
+    {
+        // PR3a review follow-up (R3): 5xx debe traducirse a StatusCode
+        // preservado más Code/Message tipados como "TransportError" cuando
+        // el body no es parseable. Antes del fix, code=message=null;
+        // después, code="TransportError" + message "Servicio no
+        // disponible." (alineado con la rama equivalente de PUT).
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var response = new HttpResponseMessage(HttpStatusCode.InternalServerError)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        };
+        var handler = new RecordingHandler(_ => response);
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteSkillAsync(cargoId, skillId);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
+        Assert.Equal("TransportError", result.Code);
+        Assert.Equal("Servicio no disponible.", result.Message);
+    }
+
+    [Fact]
+    public async Task DeleteSkillAsync_Http400WithNonJsonBody_ReturnsFailureWithoutCrashing()
+    {
+        // PR3a review follow-up (R3): un 4xx con body no-JSON NO debe
+        // tirar JsonException sin capturar. Además, el Code/Message por
+        // defecto ("BadRequest" / "Solicitud inválida.") debe poblar el
+        // resultado para que la Razor Page tenga un fallback legible
+        // aunque el backend entregue HTML de error en vez de un
+        // ProblemDetails.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        };
+        var handler = new RecordingHandler(_ => response);
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteSkillAsync(cargoId, skillId);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
+        Assert.Equal("BadRequest", result.Code);
+        Assert.Equal("Solicitud inválida.", result.Message);
+    }
+
+    [Fact]
     public async Task DeleteSkillAsync_Http500WithNonJsonBody_ReturnsFailureWithoutCrashing()
     {
         // AC de cargo-skill-ui-tabla-editable Req 5: errores 5xx deben
