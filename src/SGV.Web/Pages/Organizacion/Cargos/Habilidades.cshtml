@@ -137,6 +137,7 @@ else
                                                         <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
                                                         <button type="submit"
                                                                 formaction="?handler=Quitar&amp;skillId=@skill.SkillId"
+                                                                onclick="return confirm('¿Quitar la habilidad @skill.Skill.Nombre?');"
                                                                 class="btn btn-sm btn-outline-danger">Quitar</button>
                                                     </div>
                                                 </form>
