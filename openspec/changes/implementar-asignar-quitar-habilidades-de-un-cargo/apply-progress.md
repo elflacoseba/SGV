@@ -25,6 +25,54 @@ e7b2c675 test(web): cargo-skill client covers HTTP equivalence to controller
 
 4 commits, conventional commits, sin `Co-Authored-By:` ni atribución a IA. Orden RED→GREEN del strict TDD: `9b4aac48` → `941b705e` (interface + stubs sin tests) → `e7b2c675` (tests fallan contra stubs, RED) → `c3bc2743` (impl GREEN).
 
+### Cierre de WARNING (W1 + W2) — interim verify follow-up
+
+Bloque de 5 commits adicionales al HEAD del slice PR3a, sin reordenar commits previos y sin pushear. Cada `feat:` fue precedido por su `test:` correspondiente (RED→GREEN).
+
+- **W1 cerrado con** (approval tests del contrato público):
+  - commit `cc17115a` — `test: ship contract shape of CargoSkillDeleteResult`
+  - commit `8b104b93` — `test: contract shape of cargo-skill methods on ICargoApiClient`
+- **W2 cerrado con** (bifurcación real del helper):
+  - commit `6d7be66f` — `feat(web): extend CargoSkillErrorType with Conflict/Unauthorized/Forbidden/Transport` (precedido por el RED, ver siguiente)
+  - commit `fe3b3036` — `test: ToSkillCommandResultAsync distinguishes 401/403/409/5xx` (RED; fallaba en compile-time porque los nuevos miembros del enum no existían)
+  - commit `1cfcddb7` — `feat(web): bifurcate ToSkillCommandResultAsync for 401/403/409/5xx` (GREEN)
+
+#### Detalle del flujo strict-TDD
+
+| Orden | Tipo | SHA | Detalle |
+|---|---|---|---|
+| 1 | `test:` | `cc17115a` | Approval test para `CargoSkillDeleteResult`: 4 propiedades posicionales, tipos CLR exactos (`bool`, `HttpStatusCode?`, `string?`, `string?`), construcción con `Succeeded=true`. Pasa al primer run (guard contra refactor futuro). |
+| 2 | `test:` | `8b104b93` | Approval test reflection-based sobre `ICargoApiClient`: confirma `GetSkillsAsync`/`UpsertSkillAsync`/`DeleteSkillAsync` con parámetros exactos (`cargoId`, `skillId`, `request`, `cancellationToken`), tipos de retorno, y división entre sufijos `SkillAsync` (mutaciones) y `SkillsAsync` (queries). Pasa al primer run. |
+| 3 | `test:` | `fe3b3036` | Theory RED con 6 InlineData (401/403/409/500/502/503 → Unauthorized/Forbidden/Conflict/Transport). **No compilaba** porque `CargoSkillErrorType.Transport` y `.Conflict` no existían aún — el RED más estricto del strict-TDD. |
+| 4 | `feat:` | `6d7be66f` | Agrega `Conflict`, `Unauthorized`, `Forbidden`, `Transport` al final del enum (preserva ordinales: `NotFound=0`, `Validation=1`, `Conflict=2`, etc.). Restaura el build pero la Theory sigue RED en runtime. |
+| 5 | `feat:` | `1cfcddb7` | Bifurca `ToSkillCommandResultAsync` con cinco ramas explícitas: 400 (FieldErrors/no-FieldErrors), 404, 401, 403, 409, `>=500`, fallback. La Theory pasa a 6/6 verde. |
+
+#### Justificación de W1 con tests pequeños y útiles
+
+W1 en el verify-report decía que el commit history no demostraba strict TDD para dos commits anteriores (`9b4aac48` y `941b705e`). No es posible reescribir el pasado, así que la solución es agregar **tests guardia** al HEAD que blinden el contrato introducido por esos commits:
+
+- Si alguien futuro borra una propiedad de `CargoSkillDeleteResult` o le cambia el tipo, `CargoSkillDeleteResultContractTests` falla.
+- Si alguien futuro cambia la firma de `GetSkillsAsync`/`UpsertSkillAsync`/`DeleteSkillAsync`, `ICargoApiClientContractTests` falla por reflection.
+
+Estos son **approval tests** del comportamiento actual del contrato — capturan la forma del type y de la interface sin tocar producción. El strict-TDD documenta esta práctica en su sección "Approval Testing (for refactoring existing code)": capturas la forma actual con assertions concretos y el test queda como guardia contra regresiones futuras.
+
+#### Métricas del cierre de WARNING
+
+- **Tests al inicio de este bloque**: 120 (subset `CargoApiClient|FakeCargoApiClient|CargoSkill`).
+- **Tests al cierre**: **134/134 PASS** en subset; +4 contract shape `CargoSkillDeleteResult` + 4 contract shape `ICargoApiClient` + 6 teoría `UpsertSkillAsync_NonSuccessStatus_ReturnsCorrectCargoSkillErrorType` (6 InlineData rows).
+- **Build**: `dotnet build SGV.slnx` → 0 Warning(s), 0 Error(s) en cada commit.
+- **No se rompió ningún test existente**: el test `UpsertSkill_400ConPonderacion_Returns400ConCampoPonderacion` (PR3a, ya verde) sigue verde después del cambio.
+- **No se cambió la firma** de ningún método público de `ICargoApiClient` ni de `CargoApiClient`. Sólo se agregaron valores al enum `CargoSkillErrorType` y se ramificó la lógica interna del helper privado.
+
+#### Riesgos abiertos
+
+- **PR3b debe usar los nuevos tipos al renderizar**: ahora `CargoSkillErrorType.Unauthorized/Forbidden/Conflict/Transport` están disponibles; la Razor Page de PR3b puede consumir `result.Error!.Type` y elegir:
+  - `Unauthorized` → redirigir a login / mostrar mensaje "Sesión expirada".
+  - `Forbidden` → mostrar "Acceso denegado" en vez de un error genérico.
+  - `Conflict` → mensaje de conflicto con detalle del `ProblemDetails`.
+  - `Transport` → mensaje "Servicio no disponible" con CTA de reintento (sin filtrar stack trace).
+  - Los tipos previos `NotFound` y `Validation` siguen funcionando idénticamente.
+
 ### TDD Cycle Evidence
 
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
