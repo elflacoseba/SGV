@@ -343,7 +343,7 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     }
 
     [Fact]
-    public async Task Get_Index_DeletedRow_HidesCargosLink()
+    public async Task Get_Index_DeletedRow_DoesNotRenderCargosLink()
     {
         // Req de habilidad-web-listado-detalle-baja MODIFIED escenario
         // "Vista eliminadas muestra solo reactivación": la fila eliminada

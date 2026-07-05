@@ -343,6 +343,78 @@ public sealed class HabilidadesCargosModelTests
         Assert.DoesNotContain("network down", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    // PR #88 (review 🟠1 / 🟡3): el catch de GetCargosAsync debe
+    // traducir fallas de transporte a estado recuperable (paridad con
+    // GetByIdAsync). Antes del fix, la vista mostraba el banner de error
+    // Y el empty state "no hay cargos" simultáneamente.
+    [Fact]
+    public async Task Get_CargosPage_GetCargosTransportFailure_RendersRecoverableState()
+    {
+        var skillId = Guid.NewGuid();
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
+        apiClient.GetCargosException = new HttpRequestException("subresource down");
+
+        using var factory = new SgvWebApplicationFactory();
+        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+
+        var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Estado recuperable: la grilla NO se renderiza.
+        Assert.DoesNotContain("Cargos asociados a la habilidad", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Volver al listado", content, StringComparison.OrdinalIgnoreCase);
+        // Mensaje accionable sin filtrar el stack trace.
+        Assert.Contains("Intentá nuevamente", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("HttpRequestException", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("subresource down", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_CargosPage_GetCargosJsonException_RendersRecoverableState()
+    {
+        // Cuerpo de respuesta malformado: el cliente lanza JsonException al
+        // deserializar, que entra en IsTransportFailure y debe traducirse a
+        // estado recuperable (paridad con HttpRequestException/TaskCanceled).
+        var skillId = Guid.NewGuid();
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
+        apiClient.GetCargosException = new System.Text.Json.JsonException("unexpected token");
+
+        using var factory = new SgvWebApplicationFactory();
+        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+
+        var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Cargos asociados a la habilidad", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Intentá nuevamente", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("JsonException", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_CargosPage_GetByIdTaskCanceled_RendersRecoverableState()
+    {
+        // Timeout del subrecurso padre (GetByIdAsync) se traduce al mismo
+        // estado recuperable que HttpRequestException.
+        var skillId = Guid.NewGuid();
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList();
+        apiClient.GetByIdException = new TaskCanceledException("timeout");
+
+        using var factory = new SgvWebApplicationFactory();
+        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+
+        var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Cargos asociados a la habilidad", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Intentá nuevamente", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("TaskCanceledException", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ──────────────────────────────────────────────
     // Helpers
     // ──────────────────────────────────────────────

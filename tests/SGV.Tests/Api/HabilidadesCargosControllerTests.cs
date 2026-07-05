@@ -331,4 +331,39 @@ public sealed class HabilidadesCargosControllerTests
             Assert.True(item.CargoEliminado);
         });
     }
+
+    // PR #88 (review 🟡2): boundary cases de normalización. SkillsController
+    // normaliza page<1→1, pageSize<1→20, pageSize>100→100, status≠eliminadas→Activas
+    // (case-insensitive). sort desconocido cae a codigo_asc en el repo
+    // (SkillCargoRepository.ApplySort). Cubrir estos casos evita drift si
+    // alguien refactoriza la normalización.
+    [Theory]
+    [InlineData("page=0", 1, 20)]                   // page<1 → 1
+    [InlineData("page=-5", 1, 20)]                  // page negativo → 1
+    [InlineData("pageSize=0", 1, 20)]               // pageSize<1 → default 20
+    [InlineData("pageSize=-1", 1, 20)]              // pageSize negativo → default
+    [InlineData("pageSize=999999", 1, 100)]         // pageSize fuera de rango → cap 100
+    [InlineData("pageSize=101&page=1", 1, 100)]     // pageSize=101 → cap 100
+    [InlineData("status=ARCHIVO", 1, 20)]           // status inválido mayúsculas → Activas
+    [InlineData("status=ElImInAdAs", 1, 20)]        // status mixto → Eliminadas (case-insensitive)
+    [InlineData("page=3&pageSize=10&sort=injection", 3, 10)] // sort inválido no rompe (cae a codigo_asc)
+    public async Task Get_NormalizationBoundaries_Returns200WithNormalizedQuery(
+        string queryString, int expectedPage, int expectedPageSize)
+    {
+        var fake = new FakeSkillCargoServicioConsulta();
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<ISkillCargoServicioConsulta>();
+            services.AddSingleton<ISkillCargoServicioConsulta>(fake);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/skills/{FakeHabilidadServicio.HabilidadId1}/cargos?{queryString}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(fake.LastQuery);
+        Assert.Equal(expectedPage, fake.LastQuery!.Page);
+        Assert.Equal(expectedPageSize, fake.LastQuery.PageSize);
+    }
 }

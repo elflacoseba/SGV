@@ -126,6 +126,20 @@ public sealed class HabilidadesCargosModel(
     /// </summary>
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
+        // PR #88 (review 🟡5): fail-fast explícito para Guid.Empty. El route
+        // constraint {id:guid} acepta Guid.Empty como Guid válido; el
+        // comportamiento implícito (GetByIdAsync retorna null → estado
+        // recuperable con copy "no está disponible") es correcto pero
+        // ambiguo. Validar acá permite un mensaje específico y evita
+        // un round-trip innecesario al cliente HTTP.
+        if (Id == Guid.Empty)
+        {
+            IsRecoverable = true;
+            ErrorMessage = "El identificador de la habilidad es inválido.";
+            logger.LogWarning("Cargos page invoked with Guid.Empty.");
+            return Page();
+        }
+
         HabilidadDto? habilidad;
         try
         {
@@ -172,8 +186,15 @@ public sealed class HabilidadesCargosModel(
         }
         catch (Exception ex) when (IsTransportFailure(ex))
         {
+            // Mismo patrón que la falla de GetByIdAsync arriba: una falla de
+            // transporte del subrecurso se traduce a estado recuperable con
+            // mensaje accionable. Sin IsRecoverable = true la vista
+            // renderizaría simultáneamente el banner de error y el empty
+            // state "no hay cargos" — UX contradictoria.
             logger.LogError(ex, "Failed to load cargos for habilidad {HabilidadId}.", Id);
+            IsRecoverable = true;
             ErrorMessage = "No se pudo cargar el listado de cargos asociados. Intentá nuevamente.";
+            return Page();
         }
 
         return Page();
@@ -256,22 +277,22 @@ public sealed class HabilidadesCargosModel(
             item.CargoId,
             item.Cargo.Codigo,
             item.Cargo.Nombre,
-            item.Nivel.Nombre,
-            item.NivelRequeridoId,
-            item.Ponderacion,
-            item.EsObligatoria);
+            item.Nivel.Nombre);
 }
 
 /// <summary>
 /// ViewModel plano para una fila de la grilla de cargos asociados a una
-/// habilidad. Conserva los datos del vínculo que la página nueva necesita
-/// para la UI (código, nombre del cargo, nivel, ponderación, obligatoriedad).
+/// habilidad. Conserva sólo los campos que la vista renderiza
+/// (Código, Nombre, Nivel del cargo y su id para construir el route
+/// value del botón "Detalle del cargo"). Los datos del vínculo
+/// (<c>NivelRequeridoId</c>, <c>Ponderacion</c>, <c>EsObligatoria</c>)
+/// viajan en el DTO <see cref="SkillCargoDetailDto"/> por contrato del
+/// subrecurso (skill-cargo-query-contract Req 1) pero la página readonly
+/// no los consume en UI; se omiten acá para no propagar
+/// sobre-exposición al view.
 /// </summary>
 public sealed record HabilidadCargoListItemViewModel(
     Guid CargoId,
     string Codigo,
     string Nombre,
-    string NivelNombre,
-    Guid NivelRequeridoId,
-    decimal Ponderacion,
-    bool EsObligatoria);
+    string NivelNombre);

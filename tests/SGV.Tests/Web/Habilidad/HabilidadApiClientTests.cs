@@ -258,6 +258,84 @@ public class HabilidadApiClientTests
     }
 
     // ──────────────────────────────────────────────
+    // PR #88 (habilidades-navegacion-cargos WU-B): cobertura directa
+    // del cliente real del subrecurso GET /api/v1/skills/{id}/cargos.
+    // Cubre URI building (orden de query params, escape de search, mapeo
+    // de segmento) y propagación de HttpRequestException ante 5xx —
+    // complementa los tests del PageModel que ejercitan el flujo end-to-end
+    // contra el fake.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetCargosAsync_Http200_BuildsExpectedUriAndReturnsPagedResult()
+    {
+        var skillId = Guid.NewGuid();
+        var nivel = new NivelHabilidadDto(Guid.NewGuid(), "AVZ", "Avanzado", 3, 3);
+        var cargo = new CargoDto(Guid.NewGuid(), "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var item = new SkillCargoDetailDto(cargo, nivel)
+        {
+            CargoId = cargo.Id,
+            NivelRequeridoId = nivel.Id,
+            Ponderacion = 1.00m,
+            EsObligatoria = false,
+            CargoEliminado = false,
+        };
+        var payload = new PagedResult<SkillCargoDetailDto>(new[] { item }, 1, 1, 20);
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        var result = await client.GetCargosAsync(
+            skillId,
+            new HabilidadCargosListQuery(1, 20, null, null, HabilidadSegmentoListado.Activas));
+
+        Assert.Single(result.Items);
+        Assert.Equal($"/api/v1/skills/{skillId}/cargos", handler.LastRequest?.RequestUri?.AbsolutePath);
+        Assert.Equal(HttpMethod.Get, handler.LastRequest?.Method);
+        // Defaults normalizados: page=1&pageSize=20 sin status (activas se omite).
+        Assert.Equal("page=1&pageSize=20", handler.LastRequest?.RequestUri?.Query.TrimStart('?'));
+    }
+
+    [Fact]
+    public async Task GetCargosAsync_WithSearchSortAndStatus_AppendsAllQueryParamsInExpectedOrder()
+    {
+        // El URI building es StringBuilder con append en orden
+        // page → pageSize → search → sort → status. Validar ese orden y el
+        // escape de search/sort es crítico porque un cambio en el orden
+        // podría romper contratos de cache downstream o WAFs.
+        var skillId = Guid.NewGuid();
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, new PagedResult<SkillCargoDetailDto>(Array.Empty<SkillCargoDetailDto>(), 0, 1, 20)));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        await client.GetCargosAsync(
+            skillId,
+            new HabilidadCargosListQuery(2, 5, "lid & co", "codigo_desc", HabilidadSegmentoListado.Eliminadas));
+
+        var query = handler.LastRequest?.RequestUri?.Query.TrimStart('?');
+        Assert.Equal(
+            "page=2&pageSize=5&search=lid%20%26%20co&sort=codigo_desc&status=eliminadas",
+            query);
+    }
+
+    [Fact]
+    public async Task GetCargosAsync_Http500_PropagatesHttpRequestException()
+    {
+        // EnsureSuccessStatusCode → cualquier 4xx/5xx no manejado
+        // explícitamente se traduce a HttpRequestException. El PageModel
+        // traduce esa excepción al estado recuperable.
+        var skillId = Guid.NewGuid();
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
+        {
+            Content = new StringContent("down", System.Text.Encoding.UTF8, "text/plain"),
+        });
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            client.GetCargosAsync(
+                skillId,
+                new HabilidadCargosListQuery(1, 20, null, null, HabilidadSegmentoListado.Activas)));
+    }
+
+    // ──────────────────────────────────────────────
     // Cobertura de contrato de transporte (issue #78):
     // fija que QueryAsync propaga excepciones nativas del pipeline HTTP
     // y respeta un CancellationToken pre-cancelado sin iniciar el envío.

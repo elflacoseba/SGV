@@ -256,6 +256,16 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
     /// NOT exponer este enlace (espejo del comportamiento ya fijado por
     /// <c>Cargos/Index</c> con su botón "Habilidades").
     /// </summary>
+    /// <remarks>
+    /// PR #88 (review 🟡6): este helper retorna <see cref="RouteValueDictionary"/>
+    /// explícitamente (en lugar de un anonymous object como hacen los
+    /// demás helpers de este archivo) para fijar el orden de las claves
+    /// y, sobre todo, para que <c>Segmento</c> pueda ser <c>null</c> y
+    /// ASP.NET Core OMITA la query string <c>?status=</c> en vista
+    /// activas. Con un anonymous object, un valor <c>null</c> se
+    /// serializa como <c>?status=</c> en algunas rutas, rompiendo la
+    /// convención del módulo (en activas el status NO viaja en la URL).
+    /// </remarks>
     public RouteValueDictionary BuildCargosRouteValues(Guid id) => new()
     {
         ["id"] = id,
