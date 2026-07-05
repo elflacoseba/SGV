@@ -19,13 +19,16 @@ public class SkillsController : ControllerBase
 {
     private readonly IHabilidadServicioConsulta _servicio;
     private readonly IHabilidadServicioComandos _comandos;
+    private readonly ISkillCargoServicioConsulta _skillCargoServicio;
 
     public SkillsController(
         IHabilidadServicioConsulta servicio,
-        IHabilidadServicioComandos comandos)
+        IHabilidadServicioComandos comandos,
+        ISkillCargoServicioConsulta skillCargoServicio)
     {
         _servicio = servicio;
         _comandos = comandos;
+        _skillCargoServicio = skillCargoServicio;
     }
 
     /// <summary>
@@ -104,6 +107,62 @@ public class SkillsController : ControllerBase
 
         var query = new HabilidadListQuery(normalizedPage, normalizedPageSize, search, sort, segmento);
         var result = await _servicio.QueryAsync(query, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Lista paginada y filtrada de cargos asociados a una habilidad.
+    /// Subrecurso GET-only de <c>SkillsController</c>; cualquier usuario
+    /// autenticado puede consumirlo. El parámetro <c>status</c> acepta
+    /// <c>activas</c> (por defecto, también usado cuando el valor es
+    /// desconocido o se omite) o <c>eliminadas</c>; <c>status</c> inválido
+    /// NO produce 400, sino que resuelve a <c>activas</c>.
+    /// </summary>
+    /// <param name="skillId">Identificador único de la habilidad padre.</param>
+    /// <param name="page">Número de página (1-based). Si <c>page &lt; 1</c> se normaliza a <c>1</c> en el controller.</param>
+    /// <param name="pageSize">Tamaño de página. Si <c>pageSize &lt; 1</c> se normaliza a <c>20</c> (defecto). Si <c>pageSize &gt; 100</c> se limita a <c>100</c>.</param>
+    /// <param name="search">Búsqueda por código o nombre del cargo.</param>
+    /// <param name="sort">Expresión de orden server-side. Valores soportados: <c>codigo_asc</c>, <c>codigo_desc</c>, <c>nombre_asc</c>, <c>nombre_desc</c>. Cualquier otro valor cae a <c>codigo_asc</c> en el repositorio.</param>
+    /// <param name="status">Filtro de estado: <c>activas</c> (por defecto) o <c>eliminadas</c>.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Resultado paginado de cargos asociados a la habilidad.</returns>
+    /// <response code="200">Resultado paginado devuelto correctamente. Colección vacía si la habilidad existe pero no tiene cargos en el segmento.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    /// <response code="404">La habilidad padre no existe.</response>
+    [HttpGet("{skillId:guid}/cargos")]
+    [ProducesResponseType(typeof(PagedResult<SkillCargoDetailDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PagedResult<SkillCargoDetailDto>>> GetCargos(
+        Guid skillId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        // PR-WU-A: la normalización de page/pageSize/status vive en el
+        // controller para no contaminar el record de dominio. Mantiene el
+        // record HabilidadCargosListQuery plano (POJO-like) y fija el
+        // contrato HTTP documentado en el proposal/design/tasks. El 404
+        // se distingue de la colección vacía mediante el chequeo previo
+        // contra _servicio.GetByIdAsync (skill-cargo-query-contract Req 3).
+        var habilidad = await _servicio.GetByIdAsync(skillId, cancellationToken);
+        if (habilidad is null)
+        {
+            return NotFound();
+        }
+
+        var normalizedPage = page < 1 ? 1 : page;
+        var normalizedPageSize = pageSize < 1 ? 20 : Math.Min(100, pageSize);
+
+        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? HabilidadSegmentoListado.Eliminadas
+            : HabilidadSegmentoListado.Activas;
+
+        var query = new HabilidadCargosListQuery(normalizedPage, normalizedPageSize, search, sort, segmento);
+        var result = await _skillCargoServicio.ListarCargosAsync(skillId, query, cancellationToken);
         return Ok(result);
     }
 

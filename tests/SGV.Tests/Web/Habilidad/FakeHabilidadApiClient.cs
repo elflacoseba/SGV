@@ -59,12 +59,38 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
 
     public Exception? QueryException { get; set; }
 
+    /// <summary>
+    /// Handler opcional para <see cref="GetByIdAsync"/>. Si está seteado,
+    /// tiene prioridad sobre el comportamiento seed-default.
+    /// </summary>
+    public Func<Guid, HabilidadDto?>? GetByIdHandler { get; set; }
+
+    /// <summary>
+    /// Excepción opcional que <see cref="GetByIdAsync"/> debe lanzar
+    /// (simula una falla de transporte contra el subrecurso).
+    /// </summary>
+    public Exception? GetByIdException { get; set; }
+
     public HabilidadCommandResult ReactivateResult { get; set; } = HabilidadCommandResult.Success(
         new HabilidadDto(Guid.NewGuid(), "PROG", "Programación", null, "Técnica"));
 
     public List<Guid> ReactivateCalls { get; } = new();
 
     public Exception? ReactivateException { get; set; }
+
+    /// <summary>
+    /// Resultado configurable del subrecurso <c>GET /api/v1/skills/{skillId}/cargos</c>.
+    /// Si no se setea, devuelve una página vacía (paridad con
+    /// <see cref="QueryAsync"/>).
+    /// </summary>
+    public Func<Guid, HabilidadCargosListQuery, PagedResult<SkillCargoDetailDto>>? GetCargosHandler { get; set; }
+
+    public List<(Guid SkillId, HabilidadCargosListQuery Query)> GetCargosCalls { get; } = new();
+
+    public Exception? GetCargosException { get; set; }
+
+    public PagedResult<SkillCargoDetailDto> GetCargosResult { get; set; } =
+        new(Array.Empty<SkillCargoDetailDto>(), 0, 1, 20);
 
     public static FakeHabilidadApiClient WithHabilidadList(params HabilidadDto[] habilidades)
         => new(habilidades.Length == 0 ? null : habilidades);
@@ -84,6 +110,16 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
 
     public Task<HabilidadDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        if (GetByIdException is not null)
+        {
+            throw GetByIdException;
+        }
+
+        if (GetByIdHandler is not null)
+        {
+            return Task.FromResult(GetByIdHandler(id));
+        }
+
         if (_getAllResult is null)
             return Task.FromResult<HabilidadDto?>(null);
 
@@ -224,5 +260,25 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
         }
 
         return Task.FromResult(ReactivateResult);
+    }
+
+    public Task<PagedResult<SkillCargoDetailDto>> GetCargosAsync(
+        Guid skillId,
+        HabilidadCargosListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        GetCargosCalls.Add((skillId, query));
+
+        if (GetCargosException is not null)
+        {
+            throw GetCargosException;
+        }
+
+        if (GetCargosHandler is not null)
+        {
+            return Task.FromResult(GetCargosHandler(skillId, query));
+        }
+
+        return Task.FromResult(GetCargosResult);
     }
 }

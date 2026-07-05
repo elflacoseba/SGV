@@ -49,20 +49,27 @@ La página `Index` MUST consumir `GET /api/v1/skills/consulta`, MUST mostrar `ac
 
 ### Requirement: Acciones contextuales por segmento
 
-La vista `activas` MUST mostrar `Detalle`, `Editar` y `Eliminar`; la vista `eliminadas` MUST ocultar esas acciones y MUST mostrar solo `Reactivar` por fila.
+La vista `activas` MUST mostrar `Detalle`, `Cargos`, `Editar` y `Eliminar`. La acción `Cargos` MUST renderizarse solo para filas activas y MUST navegar a `/organizacion/habilidades/{habilidadId}/cargos` preservando `p`, `search`, `sort` y `status` del listado de origen. La vista `eliminadas` MUST ocultar `Detalle`, `Cargos`, `Editar` y `Eliminar` y MUST mostrar solo `Reactivar` por fila.
 
-#### Scenario: Vista activas muestra acciones de catálogo activo
+#### Scenario: Vista activas muestra acciones del catálogo activo
 
 - GIVEN una habilidad activa visible en la grilla
 - WHEN se renderiza la vista `activas`
-- THEN la fila MUST exponer `Detalle`, `Editar` y `Eliminar`.
+- THEN la fila MUST exponer `Detalle`, `Cargos`, `Editar` y `Eliminar`.
+
+#### Scenario: Navegación a cargos preserva contexto del listado
+
+- GIVEN un usuario está en `Habilidades/Index` con `p`, `search`, `sort` y `status` vigentes
+- WHEN hace click en `Cargos` sobre una fila activa
+- THEN la solicitud MUST llegar a `/organizacion/habilidades/{habilidadId}/cargos` con el `habilidadId` correcto
+- AND MUST preservar en la URL los valores de `p`, `search`, `sort` y `status`.
 
 #### Scenario: Vista eliminadas muestra solo reactivación
 
 - GIVEN una habilidad eliminada visible en la grilla
 - WHEN se renderiza la vista `eliminadas`
 - THEN la fila MUST mostrar solo `Reactivar`
-- AND MUST ocultar `Detalle`, `Editar` y `Eliminar`.
+- AND MUST ocultar `Detalle`, `Cargos`, `Editar` y `Eliminar`.
 
 ### Requirement: Detalle readonly y baja/reactivación con feedback claro
 

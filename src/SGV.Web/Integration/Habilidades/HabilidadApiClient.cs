@@ -146,6 +146,52 @@ public sealed class HabilidadApiClient(
         return await ToCommandResultAsync(response, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<PagedResult<SkillCargoDetailDto>> GetCargosAsync(
+        Guid skillId,
+        HabilidadCargosListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var segmentoText = query.Segmento == HabilidadSegmentoListado.Eliminadas ? "eliminadas" : null;
+        var requestUri = BuildCargosUri(skillId, query.Page, query.PageSize, query.Search, query.Sort, segmentoText);
+        var response = await httpClient.GetAsync(requestUri, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<PagedResult<SkillCargoDetailDto>>(cancellationToken: cancellationToken)
+            ?? new PagedResult<SkillCargoDetailDto>([], 0, query.Page, query.PageSize);
+    }
+
+    private static string BuildCargosUri(
+        Guid skillId,
+        int page,
+        int pageSize,
+        string? search,
+        string? sort,
+        string? status)
+    {
+        var builder = new StringBuilder($"{BaseRoute}/{skillId}/cargos?page={page}&pageSize={pageSize}");
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            builder.Append("&search=");
+            builder.Append(Uri.EscapeDataString(search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort))
+        {
+            builder.Append("&sort=");
+            builder.Append(Uri.EscapeDataString(sort));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            builder.Append("&status=");
+            builder.Append(Uri.EscapeDataString(status));
+        }
+
+        return builder.ToString();
+    }
+
     private static string BuildQueryUri(int page, int pageSize, string? search, string? sort = null, string? status = null)
     {
         var builder = new StringBuilder($"{BaseRoute}/consulta?page={page}&pageSize={pageSize}");

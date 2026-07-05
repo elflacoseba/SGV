@@ -27,6 +27,30 @@ El sistema MUST permitir crear una Habilidad activa proporcionando `Codigo`, `No
 
 El sistema MUST mantener `GET /api/v1/skills` y `GET /api/v1/skills/{id:guid}` como contrato legacy de lectura de habilidades activas para usuarios autenticados y MUST agregar `GET /api/v1/skills/consulta` como consulta paginada y filtrada. `status` MUST aceptar `activas|eliminadas`; si se omite o es inválido MUST caer a `activas`. `page < 1` MUST normalizarse a `1`; `pageSize < 1` MUST caer a `20`; `pageSize > 100` MUST limitarse a `100`; `sort` desconocido MUST caer a `codigo_asc`.
 
+### Requirement: Consultar cargos asociados a una habilidad
+
+El sistema MUST exponer `GET /api/v1/skills/{skillId}/cargos` como subrecurso readonly para cualquier usuario autenticado. La consulta MUST aceptar `page`, `pageSize`, `search`, `sort` y `status`; `status` MUST aceptar `activas|eliminadas` y MUST caer a `activas` si se omite o es inválido. La respuesta MUST usar `PagedResult<T>` y cada item MUST provenir de un DTO dedicado que exponga `CargoId`, `Codigo`, `Nombre`, `NivelId`, `NivelNombre`, `CargoEliminado`, `NivelRequeridoId`, `Ponderacion` y `EsObligatoria`.
+
+#### Scenario: Habilidad existente devuelve colección paginada
+
+- **DADO** una habilidad existente con uno o más cargos asociados en el segmento consultado
+- **CUANDO** un usuario autenticado solicita `GET /api/v1/skills/{skillId}/cargos`
+- **ENTONCES** la API MUST responder `200 OK` con `Items`, `TotalCount`, `Page` y `PageSize`
+- **Y** cada item MUST usar el DTO dedicado del subrecurso.
+
+#### Scenario: Habilidad existente sin cargos devuelve vacío
+
+- **DADO** una habilidad existente sin cargos en el segmento consultado
+- **CUANDO** un usuario autenticado solicita el subrecurso
+- **ENTONCES** la API MUST responder `200 OK` con `Items` vacíos
+- **Y** MUST NOT responder `404` por colección vacía.
+
+#### Scenario: Habilidad inexistente devuelve no encontrado
+
+- **DADO** un `skillId` que no corresponde a una habilidad existente
+- **CUANDO** un usuario autenticado solicita `GET /api/v1/skills/{skillId}/cargos`
+- **ENTONCES** la API MUST responder `404 Not Found`.
+
 #### Scenario: Listar habilidades activas legacy
 
 - **DADO** que existen habilidades activas e inactivas
@@ -142,14 +166,14 @@ El sistema MUST permitir baja lógica y reactivación de Habilidades sin elimina
 
 ### Requirement: Excluir Asignaciones Iniciales
 
-El sistema MUST NOT incluir en esta porción endpoints ni comandos para asignar Habilidades a cargos o personas.
+El sistema MUST NOT incluir en esta porción endpoints ni comandos de escritura para asignar Habilidades a cargos o personas. El sistema MAY incluir lecturas readonly del subrecurso `GET /api/v1/skills/{skillId}/cargos` sin extender ese alcance a creación, edición o baja del vínculo.
 
 #### Scenario: Operaciones de asignación no disponibles
 
-- **DADO** que el módulo inicial de Habilidades está publicado
+- **DADO** que el módulo de Habilidades está publicado con el subrecurso readonly
 - **CUANDO** un cliente revisa el contrato de `/api/v1/skills`
-- **ENTONCES** solo MUST encontrar operaciones del catálogo maestro
-- **Y** MUST NOT encontrar operaciones de `CargoHabilidad` ni `PersonaHabilidad`.
+- **ENTONCES** MAY encontrar `GET /api/v1/skills/{skillId}/cargos`
+- **Y** MUST NOT encontrar operaciones write de `CargoHabilidad` ni `PersonaHabilidad`.
 
 ### Requirement: Publicar catálogo HTTP de niveles de habilidad
 
@@ -170,18 +194,18 @@ El sistema MUST exponer `GET /api/v1/niveles-habilidad` como catálogo consumer-
 
 ### Requirement: Autorización de endpoints de habilidades
 
-`SkillsController` MUST requerir autenticación a nivel de controller. `GET /api/v1/skills`, `GET /api/v1/skills/{id}` y `GET /api/v1/skills/consulta` MUST permitir cualquier usuario autenticado. `POST`, `PUT`, `DELETE` y `PATCH /reactivar` MUST requerir rol `Administrador`.
+`SkillsController` MUST requerir autenticación a nivel de controller. `GET /api/v1/skills`, `GET /api/v1/skills/{id}`, `GET /api/v1/skills/consulta` y `GET /api/v1/skills/{skillId}/cargos` MUST permitir cualquier usuario autenticado. `POST`, `PUT`, `DELETE` y `PATCH /reactivar` MUST requerir rol `Administrador`.
 
 #### Scenario: Lecturas autenticadas exitosas
 
 - **DADO** un usuario autenticado
-- **CUANDO** solicita una lectura de `SkillsController`
+- **CUANDO** solicita una lectura de `SkillsController`, incluido `GET /api/v1/skills/{skillId}/cargos`
 - **ENTONCES** la API MUST responder `2xx` con el contrato documentado.
 
 #### Scenario: Acceso anónimo rechazado
 
 - **DADO** un cliente sin credenciales
-- **CUANDO** solicita una lectura o mutación de `SkillsController`
+- **CUANDO** solicita una lectura o mutación de `SkillsController`, incluido el subrecurso de cargos por habilidad
 - **ENTONCES** la API MUST responder `401 Unauthorized`.
 
 #### Scenario: Mutación protegida por rol administrador

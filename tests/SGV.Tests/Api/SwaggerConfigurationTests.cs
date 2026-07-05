@@ -456,6 +456,12 @@ public sealed class SwaggerConfigurationTests
 
         // No other paths should live under /api/v1/skills (e.g. assignment endpoints).
         // /consulta es la ruta segmentada y es esperada para este módulo.
+        // /{skillId}/cargos es el subrecurso readonly skill→cargos del change
+        // `habilidades-navegacion-cargos` (skill-cargo-query-contract).
+        // Adicionalmente, el subrecurso MUST exponer solo operaciones GET
+        // (skill-cargo-query-contract Req 4 — contrato readonly); bloquear
+        // aquí evita que un POST/PUT/DELETE silencioso quede en el catálogo
+        // sin enforcement de tests.
         foreach (var path in paths.EnumerateObject())
         {
             if (path.Name.StartsWith("/api/v1/skills", StringComparison.OrdinalIgnoreCase))
@@ -464,8 +470,23 @@ public sealed class SwaggerConfigurationTests
                     path.Name is "/api/v1/skills"
                         or "/api/v1/skills/{id}"
                         or "/api/v1/skills/{id}/reactivar"
-                        or "/api/v1/skills/consulta",
+                        or "/api/v1/skills/consulta"
+                        or "/api/v1/skills/{skillId}/cargos",
                     $"Unexpected skill catalog sub-path documented: {path.Name}");
+
+                if (string.Equals(path.Name, "/api/v1/skills/{skillId}/cargos", StringComparison.OrdinalIgnoreCase))
+                {
+                    var ops = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var op in path.Value.EnumerateObject())
+                    {
+                        ops.Add(op.Name);
+                    }
+
+                    Assert.Equal(
+                        new[] { "get" },
+                        ops.ToArray(),
+                        StringComparer.OrdinalIgnoreCase);
+                }
             }
         }
     }

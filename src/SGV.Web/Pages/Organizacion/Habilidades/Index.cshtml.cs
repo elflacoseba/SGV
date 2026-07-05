@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Routing;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Web.Integration.Habilidades;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;
@@ -243,6 +244,35 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
         search = Search,
         sort = Sort,
         status = string.Equals(targetSegmento, DeletedView, StringComparison.OrdinalIgnoreCase) ? DeletedView : null
+    };
+
+    /// <summary>
+    /// Construye los route values para el botón "Cargos" que navega a
+    /// <c>Pages/Organizacion/Habilidades/Cargos.cshtml</c>. Preserva
+    /// <c>p</c>, <c>search</c>, <c>sort</c> y <c>status</c> para que el
+    /// usuario pueda volver al listado con el mismo contexto que tenía al
+    /// hacer click. El botón solo se renderiza en filas activas (ver
+    /// <see cref="IsDeletedView"/>), así que la "vista eliminadas" MUST
+    /// NOT exponer este enlace (espejo del comportamiento ya fijado por
+    /// <c>Cargos/Index</c> con su botón "Habilidades").
+    /// </summary>
+    /// <remarks>
+    /// PR #88 (review 🟡6): este helper retorna <see cref="RouteValueDictionary"/>
+    /// explícitamente (en lugar de un anonymous object como hacen los
+    /// demás helpers de este archivo) para fijar el orden de las claves
+    /// y, sobre todo, para que <c>Segmento</c> pueda ser <c>null</c> y
+    /// ASP.NET Core OMITA la query string <c>?status=</c> en vista
+    /// activas. Con un anonymous object, un valor <c>null</c> se
+    /// serializa como <c>?status=</c> en algunas rutas, rompiendo la
+    /// convención del módulo (en activas el status NO viaja en la URL).
+    /// </remarks>
+    public RouteValueDictionary BuildCargosRouteValues(Guid id) => new()
+    {
+        ["id"] = id,
+        ["p"] = CurrentPage,
+        ["search"] = Search,
+        ["sort"] = Sort,
+        ["status"] = Segmento,
     };
 
     private async Task LoadAsync(CancellationToken cancellationToken)

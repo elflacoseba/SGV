@@ -299,6 +299,84 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
         Assert.DoesNotContain("name=\"nivelId\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ──────────────────────────────────────────────
+    // T7 (habilidades-navegacion-cargos WU-B): CTA Cargos en Index activo
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Index_ActiveRow_ExposesCargosLinkWithPreservedContext()
+    {
+        // Req de habilidad-web-listado-detalle-baja MODIFIED escenario
+        // "Vista activas muestra acciones del catálogo activo": la fila
+        // activa MUST exponer un enlace "Cargos" hacia
+        // /organizacion/habilidades/{id}/cargos preservando p/search/sort/status.
+        var habilidad = HabilidadWebTestFixture.BuildHabilidadDto("HAB-001", "Liderazgo", "Desc", "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync(
+            "/organizacion/habilidades?p=1&search=lid&sort=nombre_desc&status=activas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El <a> debe tener aria-label específico y href al subrecurso del skill.
+        Assert.Contains(
+            $"aria-label=\"Cargos de {habilidad.Nombre}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"href=\"/organizacion/habilidades/{habilidad.Id}/cargos",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+
+        // El href debe preservar p/search/sort del listado de origen.
+        // Nota: en vista activas Segmento == null (es la convención del módulo,
+        // idéntica a Detalle/Editar), así que status no viaja en la URL.
+        Assert.Contains("p=1", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=lid", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_desc", content, StringComparison.OrdinalIgnoreCase);
+
+        // El ícono debe ser el icono "briefcase" del design (ti-briefcase).
+        Assert.Contains("ti ti-briefcase", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_DeletedRow_DoesNotRenderCargosLink()
+    {
+        // Req de habilidad-web-listado-detalle-baja MODIFIED escenario
+        // "Vista eliminadas muestra solo reactivación": la fila eliminada
+        // MUST NOT exponer el CTA "Cargos" (sólo Reactivar).
+        var habilidadEliminada = HabilidadWebTestFixture.BuildHabilidadDto("HAB-DEL", "Habilidad Eliminada", null, "Conductual");
+        var apiClient = FakeHabilidadApiClient.WithHabilidadList();
+        apiClient.QueryHandler = query =>
+            string.Equals(query?.Status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+                ? new PagedResult<HabilidadDto>([habilidadEliminada], 1, 1, 20)
+                : new PagedResult<HabilidadDto>([], 0, query!.Page, query.PageSize);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/habilidades?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Listado de habilidades eliminadas", content, StringComparison.OrdinalIgnoreCase);
+
+        // El CTA "Cargos" no debe aparecer en ninguna fila del segmento eliminado.
+        // Nota: el icono "ti ti-briefcase" aparece en el sidenav (menu lateral),
+        // así que verificamos la presencia/ausencia del <a> específico con su
+        // aria-label y href, no el icono aislado.
+        Assert.DoesNotContain(
+            $"aria-label=\"Cargos de {habilidadEliminada.Nombre}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            $"href=\"/organizacion/habilidades/{habilidadEliminada.Id}/cargos\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task<HttpResponseMessage> PostDeleteAsync(
         HttpClient client,
         string antiforgeryToken,
