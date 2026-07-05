@@ -134,8 +134,11 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
             $"href=\"/organizacion/cargos/{cargo.Id}/habilidades\"",
             content,
             StringComparison.OrdinalIgnoreCase);
+        // El texto "Habilidades" debe aparecer dentro del <a> del footer de
+        // acciones. Whitespace entre el texto y el </a> es tolerado por el
+        // markup Razor que indenta la línea siguiente.
         Assert.Contains(
-            ">Habilidades</a>",
+            "<i class=\"ti ti-stars me-1\"></i>Habilidades",
             content,
             StringComparison.OrdinalIgnoreCase);
         Assert.Contains("ti ti-stars", content, StringComparison.OrdinalIgnoreCase);
@@ -158,13 +161,8 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("no está disponible", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(
-            ">Habilidades</a>",
+            "<i class=\"ti ti-stars me-1\"></i>Habilidades",
             content,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(
-            "/organizacion/cargos/",
-            content.Replace("/organizacion/cargos", string.Empty, StringComparison.OrdinalIgnoreCase)
-                    .Replace("/organizacion/cargos/detalles", string.Empty, StringComparison.OrdinalIgnoreCase),
             StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(
             $"/organizacion/cargos/{missingId}/habilidades",
