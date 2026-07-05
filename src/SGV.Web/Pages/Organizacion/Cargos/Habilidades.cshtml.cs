@@ -185,7 +185,7 @@ public sealed class HabilidadesModel(
             return RedirectToPage(new { id });
         }
 
-        ApplySkillFailureToModelState(result);
+        ApplyAsignarFailureToModelState(result);
         await ReloadForFailureAsync(id, cancellationToken);
         return Page();
     }
@@ -237,7 +237,7 @@ public sealed class HabilidadesModel(
             return RedirectToPage(new { id });
         }
 
-        ApplySkillFailureToModelState(result);
+        ApplyActualizarFailureToModelState(skillId, result);
         await ReloadForFailureAsync(id, cancellationToken);
         return Page();
     }
@@ -355,16 +355,15 @@ public sealed class HabilidadesModel(
     }
 
     /// <summary>
-    /// Traduce un <see cref="CargoSkillCommandResult"/> de fallo a
-    /// <see cref="ModelState"/>. Los errores por campo se prefijan con
-    /// <c>AsignarInput.</c> para que el <c>asp-validation-for</c> del
-    /// form de asignación los muestre junto al input correcto. La
-    /// variante para Actualizar usa el mismo prefijo porque la grilla
-    /// re-renderiza el form de asignación visiblemente; los errores de
-    /// Actualizar no son distinguibles visualmente sin refactor
-    /// adicional y el contrato del backend es coherente.
+    /// Traduce un <see cref="CargoSkillCommandResult"/> de fallo del handler
+    /// <c>OnPostAsignarAsync</c> a <see cref="ModelState"/>. Los errores por
+    /// campo se prefijan con <c>AsignarInput.</c> para que el
+    /// <c>asp-validation-for</c> del form de asignación los muestre junto
+    /// al input correcto. Esta variante NO se usa desde
+    /// <c>OnPostActualizarAsync</c>: para esa ruta usamos
+    /// <see cref="ApplyActualizarFailureToModelState"/>.
     /// </summary>
-    private void ApplySkillFailureToModelState(CargoSkillCommandResult result)
+    private void ApplyAsignarFailureToModelState(CargoSkillCommandResult result)
     {
         if (result.FieldErrors is { Count: > 0 })
         {
@@ -376,6 +375,84 @@ public sealed class HabilidadesModel(
                 foreach (var fieldMessage in kvp.Value)
                 {
                     ModelState.AddModelError(key, fieldMessage);
+                }
+            }
+            return;
+        }
+
+        if (result.Error is null)
+        {
+            return;
+        }
+
+        var message = result.Error.Message;
+        switch (result.Error.Type)
+        {
+            case CargoSkillErrorType.NotFound:
+                ModelState.AddModelError(string.Empty, "El cargo o la habilidad solicitada no existe.");
+                break;
+            case CargoSkillErrorType.Conflict:
+                ModelState.AddModelError(string.Empty, message);
+                break;
+            case CargoSkillErrorType.Forbidden:
+                ErrorMessage = "No tiene permisos para modificar las habilidades del cargo.";
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                break;
+            case CargoSkillErrorType.Unauthorized:
+                ErrorMessage = "Su sesión expiró. Vuelva a iniciar sesión.";
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                break;
+            case CargoSkillErrorType.Transport:
+                ErrorMessage = "El servicio no respondió correctamente. Intentá nuevamente.";
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                break;
+            default:
+                ErrorMessage = message;
+                ModelState.AddModelError(string.Empty, message);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Whitelist de campos del vínculo <c>CargoHabilidad</c> que pueden
+    /// aparecer en <c>FieldErrors</c> del backend y a los que tiene sentido
+    /// anclar el mensaje a una fila específica de la grilla editable. Las
+    /// claves que no pertenezcan a este whitelist caen al summary general
+    /// (caso defensivo) sin anclaje a fila.
+    /// </summary>
+    private static readonly HashSet<string> ActualizarFieldWhitelist =
+        new(StringComparer.OrdinalIgnoreCase) { "NivelRequeridoId", "Ponderacion", "EsObligatoria" };
+
+    /// <summary>
+    /// Traduce un <see cref="CargoSkillCommandResult"/> de fallo del handler
+    /// <c>OnPostActualizarAsync</c> a <see cref="ModelState"/> anclando los
+    /// errores a la fila activa identificada por <paramref name="skillId"/>.
+    /// Para cada <c>FieldErrors["Campo"]</c> con <c>Campo</c> en el whitelist
+    /// <see cref="ActualizarFieldWhitelist"/>, se agrega el mensaje bajo la
+    /// key <c>Actualizar[{skillId}].Campo</c> para que el contenedor de
+    /// error de la fila lo muestre junto al input correspondiente; el mismo
+    /// mensaje también se vuelca a <c>string.Empty</c> para que el
+    /// <c>asp-validation-summary</c> general lo presente. Las claves fuera
+    /// del whitelist caen únicamente a <c>string.Empty</c> para mantener
+    /// visible el error sin anclaje a fila.
+    /// </summary>
+    private void ApplyActualizarFailureToModelState(Guid skillId, CargoSkillCommandResult result)
+    {
+        if (result.FieldErrors is { Count: > 0 })
+        {
+            foreach (var kvp in result.FieldErrors)
+            {
+                var isWhitelisted = ActualizarFieldWhitelist.Contains(kvp.Key);
+                foreach (var fieldMessage in kvp.Value)
+                {
+                    if (isWhitelisted)
+                    {
+                        ModelState.AddModelError($"Actualizar[{skillId}].{kvp.Key}", fieldMessage);
+                    }
+                    // Tanto las claves whitelisted como las defensivas caen al
+                    // summary general (key vacía) para que el
+                    // asp-validation-summary siga mostrando el mensaje.
+                    ModelState.AddModelError(string.Empty, fieldMessage);
                 }
             }
             return;

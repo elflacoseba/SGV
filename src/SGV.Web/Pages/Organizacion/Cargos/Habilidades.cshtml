@@ -87,6 +87,12 @@ else
                                 <tbody>
                                     @foreach (var skill in Model.Skills)
                                     {
+                                        var nivelKey = $"Actualizar[{skill.SkillId}].NivelRequeridoId";
+                                        var ponderacionKey = $"Actualizar[{skill.SkillId}].Ponderacion";
+                                        var obligatoriaKey = $"Actualizar[{skill.SkillId}].EsObligatoria";
+                                        var nivelError = ViewData.ModelState[nivelKey]?.Errors.FirstOrDefault()?.ErrorMessage;
+                                        var ponderacionError = ViewData.ModelState[ponderacionKey]?.Errors.FirstOrDefault()?.ErrorMessage;
+                                        var obligatoriaError = ViewData.ModelState[obligatoriaKey]?.Errors.FirstOrDefault()?.ErrorMessage;
                                         <tr>
                                             <td>
                                                 <div class="fw-semibold">@skill.Skill.Nombre</div>
@@ -110,6 +116,10 @@ else
                                                                 }
                                                             }
                                                         </select>
+                                                        @if (!string.IsNullOrEmpty(nivelError))
+                                                        {
+                                                            <div class="invalid-feedback d-block">@nivelError</div>
+                                                        }
                                                     </div>
                                                     <div class="col-md-3">
                                                         <input type="number"
@@ -119,6 +129,10 @@ else
                                                                min="0.01"
                                                                max="100.00"
                                                                class="form-control form-control-sm" />
+                                                        @if (!string.IsNullOrEmpty(ponderacionError))
+                                                        {
+                                                            <div class="invalid-feedback d-block">@ponderacionError</div>
+                                                        }
                                                     </div>
                                                     <div class="col-md-2">
                                                         <div class="form-check">
@@ -132,6 +146,10 @@ else
                                                             }
                                                             <label class="form-check-label small">Obligatoria</label>
                                                         </div>
+                                                        @if (!string.IsNullOrEmpty(obligatoriaError))
+                                                        {
+                                                            <div class="invalid-feedback d-block">@obligatoriaError</div>
+                                                        }
                                                     </div>
                                                     <div class="col-md-3 d-flex gap-1">
                                                         <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
