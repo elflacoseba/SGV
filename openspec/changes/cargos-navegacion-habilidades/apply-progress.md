@@ -24,24 +24,26 @@
 
 | Tarea | SHA | Mensaje | Tests | Notas |
 |------|-----|---------|-------|-------|
-| T1.1 + T1.2 | (pending) | `test(web): cargo index exposes Habilidades CTA on active rows` | 42/42 | RED — agrega 2 tests en `CargoIndexPageTests` que aún no encuentran el CTA |
-| T1.1 + T1.2 | (pending) | `feat(web): cargo index CTA Habilidades in active Acciones column` | 42/42 | GREEN — markup del `<a>` con `ti ti-stars`, `aria-label`, `href` a Habilidades |
-| T1.3 + T1.4 | (pending) | `test(web): cargo details exposes Habilidades button on footer` | 44/44 | RED — 2 tests en `CargoDetailsPageTests` para botón y `IsNotFound` |
-| T1.3 + T1.4 | (pending) | `feat(web): cargo details Habilidades button on footer` | 44/44 | GREEN — botón textual con `ti ti-stars me-1` y texto Habilidades entre Editar y Volver |
-| T2.1 + T2.3 (caso 1+2) | (pending) | `test(web): Habilidades ApplyActualizar maps FieldErrors per row` | 46/46 | RED — 2 tests: error anclado por fila + fallback defensivo |
-| T2.1 + T2.3 (caso 1+2) | (pending) | `feat(web): split ApplySkillFailureToModelState per handler in Habilidades page model` | 46/46 | GREEN — split helper introduce `ApplyAsignarFailureToModelState` y `ApplyActualizarFailureToModelState(skillId, ...)`, con whitelist y fallback defensivo |
-| T2.2 + T2.3 (caso 3) | (pending) | `test(web): Habilidades Actualizar success preserves PRG flow without row regression` | 47/47 | RED — test de no-regresión: PRG con TempData y recarga con valores nuevos |
-| T2.2 + T2.3 (caso 3) | (pending) | `feat(web): Habilidades grid renders per-row error containers and Actualizar inputs` | 47/47 | GREEN — markup con `Actualizar[{skillId}].Campo`, contenedores de error por fila y property bindeable `Actualizar` |
+| T1.1 + T1.2 | `4ca00d27` | `test(web): cargo index exposes Habilidades CTA on active rows` | 40/40 → 42/42 RED | 2 tests en `CargoIndexPageTests`: activo expone CTA, eliminadas no |
+| T1.1 + T1.2 | `1deb4398` | `feat(web): cargo index CTA Habilidades in active Acciones column` | 42/42 GREEN | Markup del `<a>` con `ti ti-stars`, `aria-label`, `href` a Habilidades entre Detalle y Editar |
+| T1.3 + T1.4 | `40e7de01` | `test(web): cargo details exposes Habilidades button on footer` | 42/42 → 44/44 RED | 2 tests en `CargoDetailsPageTests`: botón presente / ausente cuando IsNotFound |
+| (docs) | `7ecf552b` | `docs(sdd): import change 'cargos-navegacion-habilidades' artifacts` | — | Importación de los artefactos SDD (proposal, design, exploration, tasks, spec) |
+| T1.3 + T1.4 | `93114206` | `feat(web): cargo details Habilidades button on footer` | 44/44 GREEN | Botón textual `btn-primary` con `ti ti-stars me-1` y texto "Habilidades" entre Editar y Volver |
+| T2.1 + T2.2 + T2.3 | `41adc2f2` | `test(web): Habilidades ApplyActualizar maps FieldErrors per row` | 44/44 → 44/44 RED | 3 tests: per-row anchor (case 1), defensive fallback (case 2), no-regression PRG (case 3). Falla porque el helper sigue mapeando a `AsignarInput.*` y el markup no tiene contenedores per-row |
+| T2.1 + T2.2 + T2.3 | `c8668b42` | `feat(web): split ApplySkillFailureToModelState per handler in Habilidades page model` | 44/44 → 47/47 GREEN | Helper split: `ApplyAsignarFailureToModelState` (mantiene `AsignarInput.*`) + `ApplyActualizarFailureToModelState(skillId, ...)` con whitelist `{NivelRequeridoId,Ponderacion,EsObligatoria}` y fallback a `ModelState[string.Empty]`. Markup de la grilla renderiza contenedores `invalid-feedback d-block` por fila consultando `ModelState[$"Actualizar[{skillId}].Campo"]`. |
+
+> Nota sobre la cantidad de commits: el plan original proponía 4 commits para T2 (RED+GREEN para T2.1 y RED+GREEN para T2.2). Sin embargo, T2.1 (helper split) y T2.2 (markup) están fuertemente acoplados: el helper inyecta errores en keys `Actualizar[xxx].Campo` que el markup tiene que renderizar para que los tests pasen. Combinarlos en un único GREEN mantiene la disciplina RED→GREEN sin dejar tests rojos intermedios. Documentado aquí para que el orquestador y la verificación lo tengan presente.
 
 ## Verificaciones ejecutadas
-- `dotnet build SGV.slnx`: PASS (baseline 0 warnings, 0 errors)
-- `dotnet test SGV.slnx`: pendiente verificación completa al cierre
-- `bun run build`: PASS (baseline)
+- `dotnet build SGV.slnx`: PASS (0 warnings, 0 errors) — `2026-07-04 22:25`
+- `dotnet test SGV.slnx`: **1380/1392 PASS, 12 pre-existentes `OcupacionRepositoryTests` (issue #59)** — `2026-07-04 22:28`. Los 12 fallos son todos `SGV.Tests.Persistencia.OcupacionRepositoryTests.*` por el bug conocido de migración `ActivePuestoIdUnique INT` vs `PuestoId CHAR(36)`, **fuera del alcance** de este change (no se modificó persistencia, migraciones ni Dominio).
+- `bun run build`: PASS (3.01 s) — `2026-07-04 22:29`
 
 ## Limitaciones / notas
 - En las pruebas de T2.1 se asume que el markup actual de la grilla editable no usa ya `name="Actualizar[...]"` y por tanto el RED inicial es genuino. Confirmado al inspeccionar `Habilidades.cshtml` líneas 100-133.
 - El helper `ApplyAsignarFailureToModelState` mantiene exactamente el comportamiento actual del `ApplySkillFailureToModelState` original (prefijo `AsignarInput.*`), para no introducir drift en pruebas que ya cubren `Asignar`.
 - No se modificaron `Edit.cshtml`, el cliente API ni la API/Aplicación/Dominio/Infraestructura (alineado con el contrato del change).
+- La propiedad bindeable `Actualizar` (dictionary) propuesta en `design.md` sección 4 NO se incorporó: el binding ASP.NET Core con keys tipo `[guid]` introducía validación fantasma de `AsignarInput.*` cuando coexistía con la `[BindProperty] AsignarInput`. Se optó por mantener el binding simple del parámetro `CargoHabilidadActualizarInputModel input` en `OnPostActualizarAsync` y delegar el mapeo de keys `Actualizar[xxx].Campo` al helper `ApplyActualizarFailureToModelState`. Esto preserva la firma del handler, evita regresiones en los tests existentes y cumple el requisito de "feedback por fila + summary" sin añadir complejidad de binding.
 
 ## Result Contract
 - **status**: success
