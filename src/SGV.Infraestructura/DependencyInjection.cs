@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IPersonaSkillRepository, PersonaSkillRepository>();
         services.AddScoped<INivelHabilidadRepository, NivelHabilidadRepository>();
         services.AddScoped<IOcupacionRepository, OcupacionRepository>();
+        services.AddScoped<ISkillCargoRepository, SkillCargoRepository>();
 
         // Query services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioConsulta, UnidadOrganizativaServicioConsulta>();
@@ -55,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<INivelHabilidadServicioConsulta, NivelHabilidadServicioConsulta>();
         services.AddScoped<IPersonaServicioConsulta, PersonaServicioConsulta>();
         services.AddScoped<IOcupacionServicioConsulta, OcupacionServicioConsulta>();
+        services.AddScoped<ISkillCargoServicioConsulta, SkillCargoServicioConsulta>();
 
         // Command services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioComandos, UnidadOrganizativaServicioComandos>();
