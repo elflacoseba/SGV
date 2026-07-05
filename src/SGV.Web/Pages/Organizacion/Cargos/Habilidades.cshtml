@@ -87,6 +87,12 @@ else
                                 <tbody>
                                     @foreach (var skill in Model.Skills)
                                     {
+                                        var nivelKey = $"Actualizar[{skill.SkillId}].NivelRequeridoId";
+                                        var ponderacionKey = $"Actualizar[{skill.SkillId}].Ponderacion";
+                                        var obligatoriaKey = $"Actualizar[{skill.SkillId}].EsObligatoria";
+                                        var nivelError = ViewData.ModelState[nivelKey]?.Errors.FirstOrDefault()?.ErrorMessage;
+                                        var ponderacionError = ViewData.ModelState[ponderacionKey]?.Errors.FirstOrDefault()?.ErrorMessage;
+                                        var obligatoriaError = ViewData.ModelState[obligatoriaKey]?.Errors.FirstOrDefault()?.ErrorMessage;
                                         <tr>
                                             <td>
                                                 <div class="fw-semibold">@skill.Skill.Nombre</div>
@@ -97,7 +103,7 @@ else
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="skillId" value="@skill.SkillId" />
                                                     <div class="col-md-4">
-                                                        <select name="NivelRequeridoId" class="form-select form-select-sm">
+                                                        <select name="Actualizar[@skill.SkillId].NivelRequeridoId" class="form-select form-select-sm">
                                                             @foreach (var nivel in Model.NivelOptions)
                                                             {
                                                                 if (nivel.Id == skill.NivelRequeridoId)
@@ -110,28 +116,40 @@ else
                                                                 }
                                                             }
                                                         </select>
+                                                        @if (!string.IsNullOrEmpty(nivelError))
+                                                        {
+                                                            <div class="invalid-feedback d-block">@nivelError</div>
+                                                        }
                                                     </div>
                                                     <div class="col-md-3">
                                                         <input type="number"
-                                                               name="Ponderacion"
+                                                               name="Actualizar[@skill.SkillId].Ponderacion"
                                                                value="@skill.Ponderacion.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
                                                                step="0.01"
                                                                min="0.01"
                                                                max="100.00"
                                                                class="form-control form-control-sm" />
+                                                        @if (!string.IsNullOrEmpty(ponderacionError))
+                                                        {
+                                                            <div class="invalid-feedback d-block">@ponderacionError</div>
+                                                        }
                                                     </div>
                                                     <div class="col-md-2">
                                                         <div class="form-check">
                                                             @if (skill.EsObligatoria)
                                                             {
-                                                                <input type="checkbox" name="EsObligatoria" value="true" checked="checked" class="form-check-input" />
+                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" checked="checked" class="form-check-input" />
                                                             }
                                                             else
                                                             {
-                                                                <input type="checkbox" name="EsObligatoria" value="true" class="form-check-input" />
+                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" class="form-check-input" />
                                                             }
                                                             <label class="form-check-label small">Obligatoria</label>
                                                         </div>
+                                                        @if (!string.IsNullOrEmpty(obligatoriaError))
+                                                        {
+                                                            <div class="invalid-feedback d-block">@obligatoriaError</div>
+                                                        }
                                                     </div>
                                                     <div class="col-md-3 d-flex gap-1">
                                                         <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>

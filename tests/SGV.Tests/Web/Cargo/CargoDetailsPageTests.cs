@@ -109,4 +109,64 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         Assert.DoesNotContain(">Editar<", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Reactivar", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────
+    // T1.3 + T1.4 (cargos-navegacion-habilidades): botón Habilidades en Details
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Details_WhenCargoExists_FooterExposesHabilidadesButton()
+    {
+        // Req 7 escenario "Detalle existente muestra botón de habilidades":
+        // la barra inferior MUST exponer un botón con texto "Habilidades"
+        // y un href al detalle de Habilidades del cargo, ubicado entre
+        // Editar y Volver al listado.
+        var cargo = CargoWebTestFixture.BuildCargoDto("DET-001", "Cargo Detalle", "Desc", "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync($"/organizacion/cargos/detalles/{cargo.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            $"href=\"/organizacion/cargos/{cargo.Id}/habilidades\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        // El texto "Habilidades" debe aparecer dentro del <a> del footer de
+        // acciones. Whitespace entre el texto y el </a> es tolerado por el
+        // markup Razor que indenta la línea siguiente.
+        Assert.Contains(
+            "<i class=\"ti ti-stars me-1\"></i>Habilidades",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ti ti-stars", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenCargoNotFound_HabilidadesButtonNotRendered()
+    {
+        // Req 7 escenario "Detalle inexistente no muestra botón": el botón
+        // Habilidades sólo aparece cuando el cargo existe; en estado
+        // recuperable MUST NOT renderizarse.
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        var missingId = Guid.NewGuid();
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync($"/organizacion/cargos/detalles/{missingId}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("no está disponible", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "<i class=\"ti ti-stars me-1\"></i>Habilidades",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            $"/organizacion/cargos/{missingId}/habilidades",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
 }

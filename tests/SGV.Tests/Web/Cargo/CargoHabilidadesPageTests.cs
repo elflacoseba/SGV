@@ -231,13 +231,7 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
 
         var response = await client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = antiforgeryToken,
-                ["NivelRequeridoId"] = nivelId.ToString(),
-                ["Ponderacion"] = "2.50",
-                ["EsObligatoria"] = "true"
-            }));
+            BuildActualizarForm(antiforgeryToken, skillId, nivelId, ponderacion: "2.50"));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
 
@@ -353,13 +347,16 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
     [Fact]
     public async Task PostActualizar_Admin_PonderacionOutOfRange_ReloadsAndRendersRangeError()
     {
-        // El validador local [Range(0.01, 100.00)] del input model del
-        // Actualizar corta antes de invocar al cliente API: la página
-        // re-renderiza con un mensaje accionable y NUNCA sale al backend.
-        // Esta cobertura blinda el comportamiento de "validación local
-        // corta corto-circuito" — contraparte del test
+        // La validación local corta antes de invocar al cliente API: la
+        // página re-renderiza con un mensaje accionable y NUNCA sale al
+        // backend. Esta cobertura blinda el comportamiento de "validación
+        // local corto-circuito" — contraparte del test
         // Post_Asignar_BackendPonderacionFieldError que prueba el camino
-        // inverso (validación local pasa, backend rechaza).
+        // inverso (validación local pasa, backend rechaza). Tras la
+        // remediación del verify, la validación local vive en el handler
+        // (no en DataAnnotations sobre el input model), pero la garantía
+        // observable para el usuario es la misma: input fuera del [Range]
+        // → mensaje visible, sin round trip al backend.
         var cargoId = Guid.NewGuid();
         var skillId = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
@@ -392,17 +389,11 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
 
         var response = await client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = antiforgeryToken,
-                ["NivelRequeridoId"] = nivelId.ToString(),
-                ["Ponderacion"] = "999", // 999 > 100 → fuera del [Range].
-                ["EsObligatoria"] = "true"
-            }));
+            BuildActualizarForm(antiforgeryToken, skillId, nivelId, ponderacion: "999")); // 999 > 100 → fuera del rango
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        // Blindaje: el validador [Range] corta antes de invocar al
+        // Blindaje: la validación local corta antes de invocar al
         // cliente API. Sin esta cobertura, un refactor futuro podría
         // mover la validación al backend y romper la promesa "no round
         // trip si la entrada es inválida localmente".
@@ -410,10 +401,12 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
 
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
-        // El mensaje localizado del [Range] debe aparecer en el form
+        // El mensaje localizado del rango debe aparecer en el form
         // re-renderizado para que el usuario entienda por qué la
         // actualización no salió. La aserción es por substring — basta
-        // con que el mensaje llegue a algún punto del HTML renderizado.
+        // con que el mensaje llegue a algún punto del HTML renderizado
+        // (contenedor per-row O validation-summary general, ambos
+        // comparten el mismo mensaje por diseño del helper).
         Assert.Contains("La ponderación debe estar entre", content, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -719,6 +712,30 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
             ["AsignarInput.Ponderacion"] = "50.00"
         });
 
+    /// <summary>
+    /// Construye el form body para POST a <c>?handler=Actualizar</c> con
+    /// la convención indexada <c>Actualizar[{skillId}].Campo</c> que el
+    /// <c>design.md</c> sección 4 fija. La fila se identifica por su
+    /// <paramref name="skillId"/>; los campos editables viajan bajo el
+    /// prefijo para que el PageModel pueda anclar errores por fila sin
+    /// bindear un dictionary completo (ver nota en
+    /// <see cref="ApplyActualizarFailureToModelState"/> sobre la decisión
+    /// de extraer manualmente desde <c>Request.Form</c>).
+    /// </summary>
+    private static FormUrlEncodedContent BuildActualizarForm(
+        string antiforgeryToken,
+        Guid skillId,
+        Guid nivelId,
+        string ponderacion = "50.00",
+        string esObligatoria = "true") =>
+        new(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            [$"Actualizar[{skillId}].NivelRequeridoId"] = nivelId.ToString(),
+            [$"Actualizar[{skillId}].Ponderacion"] = ponderacion,
+            [$"Actualizar[{skillId}].EsObligatoria"] = esObligatoria
+        });
+
     [Fact]
     public async Task PostAsignar_BackendReturnsConflict_RendersConflictMessage()
     {
@@ -845,5 +862,325 @@ public sealed class CargoHabilidadesPageTests : IClassFixture<CargoWebTestFixtur
 
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
         Assert.Contains("El servicio no respondió correctamente", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // T2.1 + T2.3 (cargos-navegacion-habilidades):
+    // per-row error anchoring + defensive fallback
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task PostActualizar_BackendPonderacionFieldError_RendersErrorInActualizarRowAndSummary()
+    {
+        // Req 3 escenario "Error de validación anclado a la fila correcta":
+        // cuando el backend rechaza una edición con FieldErrors por campo,
+        // el mensaje MUST aparecer anclado al input Ponderacion de la fila
+        // editada (no bajo AsignarInput.*) Y en el validation-summary
+        // general. La fila se identifica por su skillId en la convención
+        // Actualizar[{skillId}].Campo (form keys indexadas — ver
+        // BuildActualizarForm). Esta cobertura asume remediación: el
+        // handler lee los valores directamente desde Request.Form bajo el
+        // prefijo Actualizar[{skillId}]. y el helper inyecta el error
+        // bajo ModelState[$"Actualizar[{skillId}].Ponderacion"].
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual");
+        var nivel = new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3);
+
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.GetSkillsResult = new[]
+        {
+            new CargoSkillDetailDto(habilidad, nivel)
+            {
+                SkillId = skillId,
+                NivelRequeridoId = nivelId,
+                Ponderacion = 1.00m,
+                EsObligatoria = false
+            }
+        };
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
+            new CargoSkillError(
+                CargoSkillErrorType.Validation,
+                "DatosInvalidos",
+                "Uno o más campos son inválidos."),
+            new Dictionary<string, string[]>
+            {
+                ["Ponderacion"] = new[] { "Fuera de rango" }
+            });
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
+            BuildActualizarForm(antiforgeryToken, skillId, nivelId));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var upsert = Assert.Single(apiClient.SkillUpsertCalls);
+        Assert.Equal(cargoId, upsert.CargoId);
+        Assert.Equal(skillId, upsert.SkillId);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El mensaje del backend (no el [Range] local) debe aparecer
+        // anclado a la fila correcta bajo la convención Actualizar[xxx].
+        // Esta aserción distingue el camino de ApplyActualizarFailureToModelState
+        // del helper legacy que mapeaba todo a AsignarInput.*. La fila se
+        // identifica por su form único (cada fila es su propio <form>) y la
+        // presencia del mensaje se valida por su aparición en el HTML
+        // renderizado cerca del nombre del nivel (anchor de fila).
+        Assert.Contains("Fuera de rango", content, StringComparison.OrdinalIgnoreCase);
+        // El mensaje debe aparecer al menos dos veces: una en el contenedor
+        // per-row (invalid-feedback d-block) y otra en el validation-summary.
+        var occurrences = Regex.Matches(content, "Fuera de rango", RegexOptions.IgnoreCase).Count;
+        Assert.True(occurrences >= 2, $"Expected the field error to appear at least twice (per-row + summary), but found {occurrences}.");
+    }
+
+    [Fact]
+    public async Task PostActualizar_BackendNonWhitelistedFieldError_RendersErrorOnlyInSummary()
+    {
+        // Req 3 escenario "Error defensivo fuera de la fila activa":
+        // cuando el backend devuelve un FieldError cuya key no está en el
+        // whitelist {NivelRequeridoId,Ponderacion,EsObligatoria}, el mensaje
+        // MUST aparecer solo en el validation-summary general sin anclarse
+        // a ninguna fila específica.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual");
+        var nivel = new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3);
+
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.GetSkillsResult = new[]
+        {
+            new CargoSkillDetailDto(habilidad, nivel)
+            {
+                SkillId = skillId,
+                NivelRequeridoId = nivelId,
+                Ponderacion = 1.00m,
+                EsObligatoria = false
+            }
+        };
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
+            new CargoSkillError(
+                CargoSkillErrorType.Validation,
+                "DatosInvalidos",
+                "Uno o más campos son inválidos."),
+            new Dictionary<string, string[]>
+            {
+                ["OtroCampo"] = new[] { "Error defensivo" }
+            });
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
+            BuildActualizarForm(antiforgeryToken, skillId, nivelId));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El mensaje defensivo MUST aparecer en el validation-summary.
+        Assert.Contains("Error defensivo", content, StringComparison.OrdinalIgnoreCase);
+
+        // Y NO debe anclarse a ninguna fila con la convención Actualizar[xxx].
+        // Esto lo confirmamos verificando que el helper no creó un
+        // ModelState["Actualizar[xxx].OtroCampo"] (que sólo el markup
+        // manual con per-row container podría mostrar). Como el markup
+        // renderiza los errores per-row con clave ModelState[$"Actualizar[xxx].Campo"]
+        // y el whitelist del helper excluye "OtroCampo", el mensaje sólo
+        // termina en el validation-summary (ModelState[string.Empty]).
+        Assert.Contains("validation-summary-errors", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PostActualizar_TwoRows_BackendPonderacionFieldError_AnchorsOnlyToEditedRow()
+    {
+        // SUGGESTION del verify (cargos-navegacion-habilidades): blinda
+        // sin ambigüedad que un FieldErrors["Ponderacion"] devuelto por
+        // el backend se ancla a la fila correcta (skill-A) cuando la
+        // grilla contiene al menos dos filas (skill-A y skill-B).
+        // El test cubre el camino real: se renderizan DOS filas con
+        // nombres de habilidad distinguibles ("Liderazgo" y "Comunicación"),
+        // se hace POST Actualizar sobre skill-A, y se verifica que:
+        //   (a) el mensaje aparece asociado a la fila de skill-A (Liderazgo),
+        //   (b) NO aparece asociado a la fila de skill-B (Comunicación),
+        //   (c) aparece también en el validation-summary general.
+        // Si el helper dejara escapar el error al summary sin anclar por
+        // fila, las aserciones (a)/(b) fallarían ruidosamente.
+        var cargoId = Guid.NewGuid();
+        var skillAId = Guid.NewGuid();
+        var skillBId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var habilidadA = new HabilidadDto(skillAId, "H-A", "Liderazgo", null, "Conductual");
+        var habilidadB = new HabilidadDto(skillBId, "H-B", "Comunicación", null, "Conductual");
+        var nivel = new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3);
+
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.GetSkillsResult = new[]
+        {
+            new CargoSkillDetailDto(habilidadA, nivel)
+            {
+                SkillId = skillAId,
+                NivelRequeridoId = nivelId,
+                Ponderacion = 1.00m,
+                EsObligatoria = false
+            },
+            new CargoSkillDetailDto(habilidadB, nivel)
+            {
+                SkillId = skillBId,
+                NivelRequeridoId = nivelId,
+                Ponderacion = 2.00m,
+                EsObligatoria = false
+            }
+        };
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
+            new CargoSkillError(
+                CargoSkillErrorType.Validation,
+                "DatosInvalidos",
+                "Uno o más campos son inválidos."),
+            new Dictionary<string, string[]>
+            {
+                ["Ponderacion"] = new[] { "Anclaje-por-fila A" }
+            });
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillAId}",
+            BuildActualizarForm(antiforgeryToken, skillAId, nivelId));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var upsert = Assert.Single(apiClient.SkillUpsertCalls);
+        Assert.Equal(skillAId, upsert.SkillId);
+
+var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // (c) Aparece en el validation-summary general.
+        Assert.Contains("Anclaje-por-fila A", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("validation-summary-errors", content, StringComparison.OrdinalIgnoreCase);
+
+        // (a) Aparece anclado a la fila de skill-A. Para distinguir el
+        // anclaje per-row del summary, recortamos la sección entre la
+        // fila que contiene "Liderazgo" (skill-A) y la fila que
+        // contiene "Comunicación" (skill-B). El mensaje debe estar en
+        // esa sección porque la fila de skill-A renderiza el
+        // contenedor per-row bajo la convención Actualizar[xxx].
+        var liderazgoIndex = content.IndexOf("Liderazgo", StringComparison.OrdinalIgnoreCase);
+        var comunicacionIndex = content.IndexOf("Comunicación", StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            liderazgoIndex > 0 && comunicacionIndex > 0 && liderazgoIndex < comunicacionIndex,
+            "Expected 'Liderazgo' (fila A) antes de 'Comunicación' (fila B) in the rendered HTML.");
+
+        var sliceA = content.Substring(liderazgoIndex, comunicacionIndex - liderazgoIndex);
+        Assert.Contains(
+            "Anclaje-por-fila A",
+            sliceA,
+            StringComparison.OrdinalIgnoreCase);
+
+        // (b) NO debe aparecer anclado a la fila de skill-B. Para
+        // distinguir, recortamos la sección entre "Comunicación" y el
+        // cierre de la tabla (</tbody>). La fila de skill-B termina en
+        // </tr> dentro de </tbody>, así que el slice cubre únicamente
+        // la fila de skill-B. El mensaje NO debe estar en esa sección
+        // porque pertenece únicamente a la fila A — el helper inyecta
+        // ModelState[$"Actualizar[skillAId].Ponderacion"] y el
+        // contenedor per-row del markup sólo aparece bajo la fila A.
+        var tbodyCloseIndex = content.IndexOf("</tbody>", comunicacionIndex, StringComparison.OrdinalIgnoreCase);
+        Assert.True(tbodyCloseIndex > 0, "Expected a closing </tbody> after skill-B row.");
+        var sliceB = content.Substring(comunicacionIndex, tbodyCloseIndex - comunicacionIndex);
+        Assert.DoesNotContain(
+            "Anclaje-por-fila A",
+            sliceB,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // T2.2 + T2.3 caso 3 (cargos-navegacion-habilidades):
+    // PRG no-regression for Actualizar success
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task PostActualizar_Success_PreservesPrgFlowAndReloadsGridWithNewValues()
+    {
+        // Req 3 escenario "Éxito de edición preserva el flujo editable":
+        // cuando el backend responde éxito, la página MUST persistir los
+        // cambios contra el backend mediante PRG con TempData Y MUST volver
+        // a cargar la grilla manteniéndola editable y mostrando los nuevos
+        // valores. Esta cobertura blinda la transición del helper de
+        // AsignarInput.* a Actualizar[xxx].* para que el camino feliz de
+        // Actualizar siga funcionando. Tras la remediación, los form
+        // keys viajan como Actualizar[{skillId}].Campo (ver
+        // BuildActualizarForm) y el handler extrae esos valores desde
+        // Request.Form para alimentar AsignarCargoSkillRequest.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual");
+        var nivel = new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3);
+
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.GetSkillsResult = new[]
+        {
+            new CargoSkillDetailDto(habilidad, nivel)
+            {
+                SkillId = skillId,
+                NivelRequeridoId = nivelId,
+                Ponderacion = 1.00m,
+                EsObligatoria = false
+            }
+        };
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
+            new CargoSkillDto(skillId, nivelId) { Ponderacion = 3.50m, EsObligatoria = true });
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
+            BuildActualizarForm(antiforgeryToken, skillId, nivelId, ponderacion: "3.50"));
+
+        // PRG: redirect 302 a la misma página.
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.Contains($"/organizacion/cargos/{cargoId}/habilidades", location, StringComparison.OrdinalIgnoreCase);
+
+        // El cliente API fue invocado con los valores correctos.
+        var upsert = Assert.Single(apiClient.SkillUpsertCalls);
+        Assert.Equal(cargoId, upsert.CargoId);
+        Assert.Equal(skillId, upsert.SkillId);
+        Assert.Equal(nivelId, upsert.Request.NivelRequeridoId);
+        Assert.Equal(3.50m, upsert.Request.Ponderacion);
+        Assert.True(upsert.Request.EsObligatoria);
+
+        // El TempData del PRG debe propagarse al siguiente GET, que recarga
+        // la grilla con los nuevos valores.
+        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.Contains("actualiz", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 }

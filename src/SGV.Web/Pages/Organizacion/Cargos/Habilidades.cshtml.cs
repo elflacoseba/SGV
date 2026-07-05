@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Globalization;
 using System.Text.Json;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
@@ -59,9 +60,19 @@ public sealed class HabilidadesModel(
     public IReadOnlyList<NivelHabilidadDto> NivelOptions { get; private set; } = [];
 
     /// <summary>
-    /// Modelo ligado al form "Asignar nueva habilidad".
+    /// Modelo ligado al form "Asignar nueva habilidad". NO lleva
+    /// <c>[BindProperty]</c> a propósito: el binder por defecto de
+    /// Razor Pages intentaría poblarlo desde CUALQUIER form key,
+    /// incluidas las de la grilla con prefijo <c>Actualizar[xxx].</c>,
+    /// generando entradas fantasma en ModelState con claves como
+    /// <c>SkillId</c> y <c>NivelRequeridoId</c> que contaminan el
+    /// handler de Actualizar. En lugar de eso, <see cref="OnPostAsignarAsync"/>
+    /// lo hidrata explícitamente desde <c>Request.Form</c> usando los
+    /// nombres <c>AsignarInput.Campo</c> del form de asignación (que
+    /// sí son propios del flujo Asignar y no entran en conflicto con
+    /// los nombres de la grilla). Ver nota en <see cref="OnPostActualizarAsync"/>
+    /// sobre por qué no usar binding por convención para Actualizar.
     /// </summary>
-    [BindProperty]
     public CargoHabilidadAsignarInputModel AsignarInput { get; set; } = new();
 
     /// <summary>
@@ -150,15 +161,51 @@ public sealed class HabilidadesModel(
             return Forbid();
         }
 
+        // Hidratamos AsignarInput manualmente desde Request.Form (ver
+        // nota en la propiedad sobre por qué no usamos [BindProperty]
+        // a nivel de clase). Esto evita la interferencia con las keys
+        // indexadas Actualizar[xxx].Campo de la grilla editable.
+        var skillIdRaw = Request.Form["AsignarInput.SkillId"].ToString();
+        var nivelRaw = Request.Form["AsignarInput.NivelRequeridoId"].ToString();
+        var ponderacionRaw = Request.Form["AsignarInput.Ponderacion"].ToString();
+        var esObligatoriaRaw = Request.Form["AsignarInput.EsObligatoria"].ToString();
+
+        if (!Guid.TryParse(skillIdRaw, out var skillId) || skillId == Guid.Empty)
+        {
+            ModelState.AddModelError("AsignarInput.SkillId", "Debe seleccionar una habilidad.");
+        }
+
+        if (!Guid.TryParse(nivelRaw, out var nivelId) || nivelId == Guid.Empty)
+        {
+            ModelState.AddModelError("AsignarInput.NivelRequeridoId", "Debe seleccionar un nivel requerido.");
+        }
+
+        if (!decimal.TryParse(ponderacionRaw, NumberStyles.Number, CultureInfo.InvariantCulture, out var ponderacion)
+            || ponderacion < 0.01m
+            || ponderacion > 100.00m)
+        {
+            ModelState.AddModelError("AsignarInput.Ponderacion", "La ponderación debe estar entre 0,01 y 100,00.");
+        }
+
+        var esObligatoria = string.Equals(esObligatoriaRaw, "true", StringComparison.OrdinalIgnoreCase);
+
+        // Sincronizamos la propiedad pública para que el helper
+        // ApplyAsignarFailureToModelState siga encontrando los datos
+        // que ya validamos, y para que el form re-renderizado pueda
+        // mostrar los valores enviados.
+        AsignarInput.SkillId = skillId == Guid.Empty ? null : skillId;
+        AsignarInput.NivelRequeridoId = nivelId == Guid.Empty ? null : nivelId;
+        AsignarInput.Ponderacion = decimal.TryParse(ponderacionRaw, NumberStyles.Number, CultureInfo.InvariantCulture, out var p) ? p : null;
+        AsignarInput.EsObligatoria = esObligatoria;
+
         if (!ModelState.IsValid)
         {
             await ReloadForFailureAsync(id, cancellationToken);
             return Page();
         }
 
-        // ModelState.IsValid garantiza SkillId y NivelRequeridoId no nulos
-        // ([Required] en CargoHabilidadAsignarInputModel). El operador !
-        // es seguro en este punto.
+        // ModelState.IsValid garantiza SkillId y NivelRequeridoId no nulos.
+        // El operador ! es seguro en este punto.
         var request = new AsignarCargoSkillRequest(
             AsignarInput.NivelRequeridoId!.Value,
             AsignarInput.Ponderacion,
@@ -185,7 +232,7 @@ public sealed class HabilidadesModel(
             return RedirectToPage(new { id });
         }
 
-        ApplySkillFailureToModelState(result);
+        ApplyAsignarFailureToModelState(result);
         await ReloadForFailureAsync(id, cancellationToken);
         return Page();
     }
@@ -197,13 +244,51 @@ public sealed class HabilidadesModel(
     public async Task<IActionResult> OnPostActualizarAsync(
         Guid id,
         Guid skillId,
-        CargoHabilidadActualizarInputModel input,
         CancellationToken cancellationToken)
     {
         if (!EsAdministrador)
         {
             return Forbid();
         }
+
+        // El markup de la grilla nombra los inputs con la convención
+        // indexada Actualizar[{skillId}].Campo (alineada con design.md
+        // sección 4). El binder por defecto de Razor Pages no puede
+        // popular un parámetro fuertemente tipado a partir de un prefijo
+        // Guid-indexado: o intenta tratarlo como un Dictionary de la
+        // propiedad AsignarInput (generando entradas fantasma en
+        // ModelState con claves como "SkillId" y "NivelRequeridoId"), o
+        // requiere atributos [Bind] que no aplican a nivel de propiedad
+        // en este PageModel. Por eso extraemos manualmente desde
+        // Request.Form con el prefijo del skill activo, validamos en
+        // línea y construimos el request del cliente API. Los errores
+        // van bajo la MISMA convención indexada para que el contenedor
+        // per-row del markup los muestre.
+        var nivelFormKey = $"Actualizar[{skillId}].NivelRequeridoId";
+        var ponderacionFormKey = $"Actualizar[{skillId}].Ponderacion";
+        var esObligatoriaFormKey = $"Actualizar[{skillId}].EsObligatoria";
+
+        var nivelRaw = Request.Form[nivelFormKey].ToString();
+        var ponderacionRaw = Request.Form[ponderacionFormKey].ToString();
+        var esObligatoriaRaw = Request.Form[esObligatoriaFormKey].ToString();
+
+        if (!Guid.TryParse(nivelRaw, out var nivelId) || nivelId == Guid.Empty)
+        {
+            ModelState.AddModelError(nivelFormKey, "Debe seleccionar un nivel requerido.");
+        }
+
+        if (!decimal.TryParse(ponderacionRaw, NumberStyles.Number, CultureInfo.InvariantCulture, out var ponderacion)
+            || ponderacion < 0.01m
+            || ponderacion > 100.00m)
+        {
+            ModelState.AddModelError(ponderacionFormKey, "La ponderación debe estar entre 0,01 y 100,00.");
+        }
+
+        // El checkbox no es obligatorio desde el punto de vista de
+        // ModelState (default false = "no obligatoria" según
+        // CargoHabilidadActualizarInputModel). Si no llega al form,
+        // interpretamos canónicamente como false.
+        var esObligatoria = string.Equals(esObligatoriaRaw, "true", StringComparison.OrdinalIgnoreCase);
 
         if (!ModelState.IsValid)
         {
@@ -212,14 +297,22 @@ public sealed class HabilidadesModel(
         }
 
         var request = new AsignarCargoSkillRequest(
-            input.NivelRequeridoId!.Value,
-            input.Ponderacion,
-            input.EsObligatoria);
+            nivelId,
+            ponderacion,
+            esObligatoria);
 
         CargoSkillCommandResult result;
         try
         {
             result = await cargoApiClient.UpsertSkillAsync(id, skillId, request, cancellationToken);
+        }
+        catch (Exception ex) when (IsTransportFailure(ex))
+        {
+            logger.LogError(ex, "Cargo skill update transport failure.");
+            ErrorMessage = "No se pudo contactar al servicio de habilidades. Intentá nuevamente.";
+            ModelState.AddModelError(string.Empty, ErrorMessage);
+            await ReloadForFailureAsync(id, cancellationToken);
+            return Page();
         }
         catch (Exception ex) when (IsTransportFailure(ex))
         {
@@ -237,7 +330,7 @@ public sealed class HabilidadesModel(
             return RedirectToPage(new { id });
         }
 
-        ApplySkillFailureToModelState(result);
+        ApplyActualizarFailureToModelState(skillId, result);
         await ReloadForFailureAsync(id, cancellationToken);
         return Page();
     }
@@ -355,16 +448,15 @@ public sealed class HabilidadesModel(
     }
 
     /// <summary>
-    /// Traduce un <see cref="CargoSkillCommandResult"/> de fallo a
-    /// <see cref="ModelState"/>. Los errores por campo se prefijan con
-    /// <c>AsignarInput.</c> para que el <c>asp-validation-for</c> del
-    /// form de asignación los muestre junto al input correcto. La
-    /// variante para Actualizar usa el mismo prefijo porque la grilla
-    /// re-renderiza el form de asignación visiblemente; los errores de
-    /// Actualizar no son distinguibles visualmente sin refactor
-    /// adicional y el contrato del backend es coherente.
+    /// Traduce un <see cref="CargoSkillCommandResult"/> de fallo del handler
+    /// <c>OnPostAsignarAsync</c> a <see cref="ModelState"/>. Los errores por
+    /// campo se prefijan con <c>AsignarInput.</c> para que el
+    /// <c>asp-validation-for</c> del form de asignación los muestre junto
+    /// al input correcto. Esta variante NO se usa desde
+    /// <c>OnPostActualizarAsync</c>: para esa ruta usamos
+    /// <see cref="ApplyActualizarFailureToModelState"/>.
     /// </summary>
-    private void ApplySkillFailureToModelState(CargoSkillCommandResult result)
+    private void ApplyAsignarFailureToModelState(CargoSkillCommandResult result)
     {
         if (result.FieldErrors is { Count: > 0 })
         {
@@ -376,6 +468,84 @@ public sealed class HabilidadesModel(
                 foreach (var fieldMessage in kvp.Value)
                 {
                     ModelState.AddModelError(key, fieldMessage);
+                }
+            }
+            return;
+        }
+
+        if (result.Error is null)
+        {
+            return;
+        }
+
+        var message = result.Error.Message;
+        switch (result.Error.Type)
+        {
+            case CargoSkillErrorType.NotFound:
+                ModelState.AddModelError(string.Empty, "El cargo o la habilidad solicitada no existe.");
+                break;
+            case CargoSkillErrorType.Conflict:
+                ModelState.AddModelError(string.Empty, message);
+                break;
+            case CargoSkillErrorType.Forbidden:
+                ErrorMessage = "No tiene permisos para modificar las habilidades del cargo.";
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                break;
+            case CargoSkillErrorType.Unauthorized:
+                ErrorMessage = "Su sesión expiró. Vuelva a iniciar sesión.";
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                break;
+            case CargoSkillErrorType.Transport:
+                ErrorMessage = "El servicio no respondió correctamente. Intentá nuevamente.";
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                break;
+            default:
+                ErrorMessage = message;
+                ModelState.AddModelError(string.Empty, message);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Whitelist de campos del vínculo <c>CargoHabilidad</c> que pueden
+    /// aparecer en <c>FieldErrors</c> del backend y a los que tiene sentido
+    /// anclar el mensaje a una fila específica de la grilla editable. Las
+    /// claves que no pertenezcan a este whitelist caen al summary general
+    /// (caso defensivo) sin anclaje a fila.
+    /// </summary>
+    private static readonly HashSet<string> ActualizarFieldWhitelist =
+        new(StringComparer.OrdinalIgnoreCase) { "NivelRequeridoId", "Ponderacion", "EsObligatoria" };
+
+    /// <summary>
+    /// Traduce un <see cref="CargoSkillCommandResult"/> de fallo del handler
+    /// <c>OnPostActualizarAsync</c> a <see cref="ModelState"/> anclando los
+    /// errores a la fila activa identificada por <paramref name="skillId"/>.
+    /// Para cada <c>FieldErrors["Campo"]</c> con <c>Campo</c> en el whitelist
+    /// <see cref="ActualizarFieldWhitelist"/>, se agrega el mensaje bajo la
+    /// key <c>Actualizar[{skillId}].Campo</c> para que el contenedor de
+    /// error de la fila lo muestre junto al input correspondiente; el mismo
+    /// mensaje también se vuelca a <c>string.Empty</c> para que el
+    /// <c>asp-validation-summary</c> general lo presente. Las claves fuera
+    /// del whitelist caen únicamente a <c>string.Empty</c> para mantener
+    /// visible el error sin anclaje a fila.
+    /// </summary>
+    private void ApplyActualizarFailureToModelState(Guid skillId, CargoSkillCommandResult result)
+    {
+        if (result.FieldErrors is { Count: > 0 })
+        {
+            foreach (var kvp in result.FieldErrors)
+            {
+                var isWhitelisted = ActualizarFieldWhitelist.Contains(kvp.Key);
+                foreach (var fieldMessage in kvp.Value)
+                {
+                    if (isWhitelisted)
+                    {
+                        ModelState.AddModelError($"Actualizar[{skillId}].{kvp.Key}", fieldMessage);
+                    }
+                    // Tanto las claves whitelisted como las defensivas caen al
+                    // summary general (key vacía) para que el
+                    // asp-validation-summary siga mostrando el mensaje.
+                    ModelState.AddModelError(string.Empty, fieldMessage);
                 }
             }
             return;

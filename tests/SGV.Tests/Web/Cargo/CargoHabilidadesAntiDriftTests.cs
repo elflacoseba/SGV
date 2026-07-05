@@ -16,9 +16,11 @@ namespace SGV.Tests.Web.Cargo;
 ///   <c>&lt;select&gt;</c>.</description></item>
 ///   <item><description>NO exista <c>&lt;select name="Habilidad.Nivel</c>
 ///   con ese prefijo.</description></item>
-///   <item><description>SÍ exista <c>name="NivelRequeridoId"</c> (al
-///   menos una vez) — la grilla debe exponer el id del nivel del
-///   vínculo, nunca uno del catálogo maestro.</description></item>
+///   <item><description>SÍ exista <c>name="Actualizar[{guid}].NivelRequeridoId"</c>
+///   (al menos una vez) — la grilla debe exponer el id del nivel del
+///   vínculo indexado por skillId, nunca uno del catálogo maestro ni en
+///   binding simple. La convención indexada es la que el
+///   <c>design.md</c> sección 4 fija para anclar errores por fila.</description></item>
 ///   <item><description>NO exista <c>Habilidad.NivelId</c> referenciado
 ///   como propiedad en el PageModel (verifica el .cshtml.cs).</description></item>
 /// </list>
@@ -50,13 +52,34 @@ public sealed class CargoHabilidadesAntiDriftTests
         // 2) Ningún <select> debe llevar el prefijo "Habilidad.Nivel".
         Assert.DoesNotContain("<select name=\"Habilidad.Nivel", markup!, StringComparison.OrdinalIgnoreCase);
 
-        // 3) La página DEBE exponer al menos un name="NivelRequeridoId"
-        // en los forms de Actualizar (la grilla editable por fila). Sin
-        // esto, el upsert del subrecurso no podría propagar el id del
-        // nivel del vínculo.
+        // 3) La página DEBE exponer al menos un input con la convención
+        // indexada Actualizar[{guid}].NivelRequeridoId en los forms de
+        // Actualizar (la grilla editable por fila). Sin esto, el upsert
+        // del subrecurso no podría propagar el id del nivel del vínculo
+        // usando la convención que el design fija para anclar errores
+        // por fila y se cae al binding simple antiguo que abandonó la
+        // remediación del verify. Aceptamos tres formas equivalentes en
+        // el markup fuente: literal con GUID, interpolación Razor
+        // (@skill.SkillId) o variable local (@nivelKey) — lo que
+        // importa es que el HTML renderizado termine con
+        // name="Actualizar[<guid>].NivelRequeridoId".
         Assert.True(
-            Regex.IsMatch(markup!, @"name=""NivelRequeridoId""", RegexOptions.IgnoreCase),
-            "Expected at least one form input named 'NivelRequeridoId' in the Habilidades.cshtml markup.");
+            Regex.IsMatch(
+                markup!,
+                @"name=""Actualizar\[(?:[0-9a-fA-F\-]+|@?[A-Za-z_][A-Za-z0-9_\.]*)\]\.NivelRequeridoId""",
+                RegexOptions.IgnoreCase),
+            "Expected at least one form input named 'Actualizar[{guid}].NivelRequeridoId' (literal, Razor-interpolated, or Razor-local-variable) in the Habilidades.cshtml markup.");
+
+        // 3b) Anti-regresión explícita: NO debe quedar binding simple
+        // (sin prefijo Actualizar[xxx].) para los inputs de Actualizar.
+        // La única excepción permitida es el input oculto "skillId" que
+        // sigue viajando como campo plano en la query y en el form.
+        Assert.True(
+            !Regex.IsMatch(
+                markup!,
+                @"<(?:select|input)[^>]*name=""(?:NivelRequeridoId|Ponderacion|EsObligatoria)""[^>]*>",
+                RegexOptions.IgnoreCase),
+            "Detected flat (non-indexed) binding in Actualizar inputs. The remediation requires name=\"Actualizar[{guid}].Campo\".");
 
         // 4) El PageModel NO debe referenciar Habilidad.NivelId como
         // propiedad (memoria #569: Habilidad no tiene NivelId propio;
