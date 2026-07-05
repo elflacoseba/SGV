@@ -160,6 +160,9 @@
                                                 <a class="btn btn-info btn-icon btn-sm rounded-circle" href="/organizacion/habilidades/detalles/@item.Id?p=@Model.CurrentPage&amp;search=@Model.Search&amp;sort=@Model.Sort&amp;returnStatus=@Model.Segmento" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
                                                     <i class="ti ti-eye fs-lg"></i>
                                                 </a>
+                                                <a class="btn btn-primary btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Habilidades/Cargos", Model.BuildCargosRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Cargos" aria-label="Cargos de @item.Nombre">
+                                                    <i class="ti ti-briefcase fs-lg"></i>
+                                                </a>
                                                 <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="/organizacion/habilidades/editar/@item.Id?p=@Model.CurrentPage&amp;search=@Model.Search&amp;sort=@Model.Sort&amp;returnStatus=@Model.Segmento" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
                                                     <i class="ti ti-edit fs-lg"></i>
                                                 </a>

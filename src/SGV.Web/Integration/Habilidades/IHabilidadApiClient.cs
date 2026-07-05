@@ -54,4 +54,19 @@ public interface IHabilidadApiClient
     /// Reactiva una habilidad eliminada lógicamente vía <c>PATCH /api/v1/skills/{id}/reactivar</c>.
     /// </summary>
     Task<HabilidadCommandResult> ReactivarAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lista paginada y segmentada de cargos asociados a una habilidad
+    /// consumiendo <c>GET /api/v1/skills/{skillId}/cargos</c>. El segmento
+    /// (<c>activas|eliminadas</c>) viaja dentro del query y se normaliza del
+    /// lado del backend. El cliente propaga los códigos de error
+    /// inesperados vía <see cref="HttpResponseMessage.EnsureSuccessStatusCode"/>
+    /// (mismo patrón que <see cref="QueryAsync"/>); los call sites que
+    /// necesitan distinguir 404 de "colección vacía" deben llamar primero a
+    /// <see cref="GetByIdAsync"/>.
+    /// </summary>
+    Task<PagedResult<SkillCargoDetailDto>> GetCargosAsync(
+        Guid skillId,
+        HabilidadCargosListQuery query,
+        CancellationToken cancellationToken = default);
 }
