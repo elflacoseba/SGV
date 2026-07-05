@@ -163,6 +163,9 @@
                                                 <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Details", Model.BuildDetailsRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
                                                     <i class="ti ti-eye fs-lg"></i>
                                                 </a>
+                                                <a class="btn btn-primary btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Habilidades", new { id = item.Id })" data-bs-toggle="tooltip" data-bs-title="Habilidades" aria-label="Gestionar habilidades de @item.Nombre">
+                                                    <i class="ti ti-stars fs-lg"></i>
+                                                </a>
                                                 <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
                                                     <i class="ti ti-edit fs-lg"></i>
                                                 </a>
