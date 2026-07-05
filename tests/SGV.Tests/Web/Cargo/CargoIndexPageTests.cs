@@ -114,6 +114,66 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
     }
 
     // ──────────────────────────────────────────────
+    // T1.1 + T1.2 (cargos-navegacion-habilidades): CTA Habilidades en Index activo
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Index_ActiveRow_ExposesHabilidadesCtaWithAriaLabelAndHref()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("HAB-001", "Cargo Con Habilidades", "Desc", "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/cargos");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // La fila activa MUST exponer un <a> con aria-label específico y
+        // href al detalle de Habilidades del cargo. Req 6 escenario
+        // "Fila activa expone enlace a habilidades".
+        Assert.Contains(
+            $"aria-label=\"Gestionar habilidades de {cargo.Nombre}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"href=\"/organizacion/cargos/{cargo.Id}/habilidades\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_EliminadasView_DoesNotExposeHabilidadesCta()
+    {
+        var eliminado = CargoWebTestFixture.BuildCargoDto("HAB-DEL", "Cargo Eliminado", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.QueryHandler = q => new PagedResult<CargoDto>(
+            q.Status == "eliminadas" ? [eliminado] : [],
+            q.Status == "eliminadas" ? 1 : 0,
+            q.Page,
+            q.PageSize);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/cargos?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Req 6 escenario "Vista eliminadas no expone enlace a habilidades":
+        // ninguna fila del segmento eliminado debe enlazar a Habilidades.
+        Assert.DoesNotContain(
+            "Gestionar habilidades de",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            $"/organizacion/cargos/{eliminado.Id}/habilidades",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
     // Task 2.4: harness de cargos-index.js (SweetAlert2)
     // ──────────────────────────────────────────────
 
