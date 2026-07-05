@@ -103,7 +103,7 @@ else
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="skillId" value="@skill.SkillId" />
                                                     <div class="col-md-4">
-                                                        <select name="NivelRequeridoId" class="form-select form-select-sm">
+                                                        <select name="Actualizar[@skill.SkillId].NivelRequeridoId" class="form-select form-select-sm">
                                                             @foreach (var nivel in Model.NivelOptions)
                                                             {
                                                                 if (nivel.Id == skill.NivelRequeridoId)
@@ -123,7 +123,7 @@ else
                                                     </div>
                                                     <div class="col-md-3">
                                                         <input type="number"
-                                                               name="Ponderacion"
+                                                               name="Actualizar[@skill.SkillId].Ponderacion"
                                                                value="@skill.Ponderacion.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
                                                                step="0.01"
                                                                min="0.01"
@@ -138,11 +138,11 @@ else
                                                         <div class="form-check">
                                                             @if (skill.EsObligatoria)
                                                             {
-                                                                <input type="checkbox" name="EsObligatoria" value="true" checked="checked" class="form-check-input" />
+                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" checked="checked" class="form-check-input" />
                                                             }
                                                             else
                                                             {
-                                                                <input type="checkbox" name="EsObligatoria" value="true" class="form-check-input" />
+                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" class="form-check-input" />
                                                             }
                                                             <label class="form-check-label small">Obligatoria</label>
                                                         </div>
