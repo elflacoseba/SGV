@@ -13,6 +13,16 @@
     var habilidadesNuevaActive = string.Equals(currentPath, "/organizacion/habilidades/crear", StringComparison.OrdinalIgnoreCase)
         ? "active"
         : string.Empty;
+    // Puestos: grupo activo en /organizacion/puestos(/...); "Listado" activo
+    // solo en la ruta exacta y "Nuevo" solo en /crear (mismo criterio que
+    // Habilidades). Los destinos resuelven a partir de PR 2/PR 3.
+    var puestosGroupActive = currentPath.StartsWithSegments("/organizacion/puestos") ? "active" : string.Empty;
+    var puestosListadoActive = string.Equals(currentPath, "/organizacion/puestos", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
+    var puestosNuevoActive = string.Equals(currentPath, "/organizacion/puestos/crear", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
 }
 
 <div class="sidenav-menu">
@@ -108,6 +118,27 @@
 <li class="side-nav-item">
 <a class="side-nav-link @habilidadesNuevaActive" href="/organizacion/habilidades/crear">
 <span class="menu-text">Nueva</span>
+</a>
+</li>
+</ul>
+</div>
+</li>
+<li class="side-nav-item">
+<a aria-controls="puestos" aria-expanded="false" class="side-nav-link side-nav-link-toggle @puestosGroupActive" data-bs-toggle="collapse" href="#puestos">
+<span class="menu-icon"><i class="ti ti-hierarchy"></i></span>
+<span class="menu-text">Puestos</span>
+<span class="menu-arrow"></span>
+</a>
+<div class="collapse" id="puestos">
+<ul class="sub-menu">
+<li class="side-nav-item">
+<a class="side-nav-link @puestosListadoActive" href="/organizacion/puestos">
+<span class="menu-text">Listado</span>
+</a>
+</li>
+<li class="side-nav-item">
+<a class="side-nav-link @puestosNuevoActive" href="/organizacion/puestos/crear">
+<span class="menu-text">Nuevo</span>
 </a>
 </li>
 </ul>
