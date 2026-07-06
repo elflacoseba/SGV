@@ -103,12 +103,13 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         // El control Activas|Eliminadas debe estar presente con el link
-        // Activas funcional y el link Eliminadas deshabilitado.
+        // Activas funcional y la opción Eliminadas deshabilitada.
         Assert.Contains(">Activas</a>", content, StringComparison.OrdinalIgnoreCase);
 
-        // Eliminadas está deshabilitado: tooltip declarado por atributo
-        // data-bs-title en el anchor con clase .disabled (espejo del patrón
-        // de Bootstrap para toggles deshabilitados).
+        // Eliminadas está deshabilitada. Se renderiza como <span> (no <a>)
+        // para evitar que los lectores de pantalla la anuncien como enlace
+        // activo: se conserva la clase Bootstrap .disabled, aria-disabled y
+        // el tooltip "Próximamente" en data-bs-title.
         Assert.Contains(
             "data-bs-title=\"",
             content,
@@ -117,10 +118,16 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
             "Próximamente",
             content,
             StringComparison.OrdinalIgnoreCase);
-
-        // El link Eliminadas debe llevar la clase Bootstrap de deshabilitado
-        // (no es un <button disabled> HTML, sino un <a class="... disabled">).
         Assert.Contains("disabled", content, StringComparison.OrdinalIgnoreCase);
+
+        // Invariante de accesibilidad: el label "Eliminadas" cierra un <span>
+        // (no un </a>), garantizando que no hay href detrás de la opción
+        // deshabilitada. Regex ancla el cierre de etiqueta adyacente.
+        Assert.Matches(
+            new System.Text.RegularExpressions.Regex(
+                @"<span[^>]*\bdisabled\b[^>]*>\s*Eliminadas\s*</span>",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+            content);
     }
 
     // ──────────────────────────────────────────────────
