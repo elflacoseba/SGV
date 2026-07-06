@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Tests.Web.Cargo;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
@@ -39,6 +40,29 @@ public sealed class PuestoWebTestFixture : IDisposable
     public SgvWebApplicationFactory WithPuestosApiClient(FakePuestosApiClient fake)
         => _baseFactory.WithOverrides(puestosApiClient: fake);
 
+    /// <summary>Devuelve un factory con <see cref="ICargoApiClient"/> reemplazado por <paramref name="fake"/>.</summary>
+    public SgvWebApplicationFactory WithCargoApiClient(ICargoApiClient fake)
+        => _baseFactory.WithOverrides(cargoApiClient: fake);
+
+    /// <summary>Devuelve un factory con <see cref="IUnidadOrganizativaApiClient"/> reemplazado por <paramref name="fake"/>.</summary>
+    public SgvWebApplicationFactory WithUnidadOrganizativaApiClient(IUnidadOrganizativaApiClient fake)
+        => _baseFactory.WithOverrides(unidadOrganizativaApiClient: fake);
+
+    /// <summary>
+    /// Devuelve un factory con los tres clientes de catálogo (unidades,
+    /// cargos, puestos) reemplazados por los fakes provistos. Usado por
+    /// los tests de la página Create de Puestos (PR 3A), que carga los
+    /// tres catálogos en paralelo vía <c>Task.WhenAll</c>.
+    /// </summary>
+    public SgvWebApplicationFactory WithCatalogFakes(
+        IUnidadOrganizativaApiClient unidadFake,
+        ICargoApiClient cargoFake,
+        FakePuestosApiClient puestosFake)
+        => _baseFactory.WithOverrides(
+            unidadOrganizativaApiClient: unidadFake,
+            cargoApiClient: cargoFake,
+            puestosApiClient: puestosFake);
+
     /// <summary>Construye un <see cref="PuestoDto"/> con ids aleatorios, útil cuando el test sólo se fija en el shape.</summary>
     public static PuestoDto BuildPuestoDto(
         string codigo,
@@ -62,6 +86,22 @@ public sealed class PuestoWebTestFixture : IDisposable
     /// La API de auth se stubea para devolver un bearer token fijo.
     /// </summary>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(FakePuestosApiClient apiClient)
+        => await CreateAuthenticatedClientAsync(
+            new FakeUnidadOrganizativaApiClient(),
+            new FakeCargoApiClient(),
+            apiClient);
+
+    /// <summary>
+    /// Variante sobrecargada que inyecta los tres fakes de catálogo en el
+    /// contenedor. La página Create de Puestos (PR 3A) carga los catálogos
+    /// de unidades, cargos y puestos en paralelo vía <c>Task.WhenAll</c>;
+    /// los tests que sólo ejercitan el render necesitan los tres overrides
+    /// activos (incluso con listas vacías) para evitar fugas al API real.
+    /// </summary>
+    public async Task<HttpClient> CreateAuthenticatedClientAsync(
+        IUnidadOrganizativaApiClient unidadFake,
+        ICargoApiClient cargoFake,
+        FakePuestosApiClient puestosFake)
     {
         var authHandler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
@@ -72,7 +112,9 @@ public sealed class PuestoWebTestFixture : IDisposable
         var factory = _baseFactory.WithOverrides(
             configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
             authApiHandler: authHandler,
-            puestosApiClient: apiClient);
+            unidadOrganizativaApiClient: unidadFake,
+            cargoApiClient: cargoFake,
+            puestosApiClient: puestosFake);
 
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
