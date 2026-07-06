@@ -22,11 +22,19 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
     /// <summary>Filas visibles en la página actual.</summary>
     public IReadOnlyList<PuestoListItemViewModel> Items { get; private set; } = [];
 
-    /// <summary>Página actual (1-based). El backend de Puestos no expone TotalCount; siempre es 1 (lista plana).</summary>
+    /// <summary>
+    /// Página actual (1-based). El backend de Puestos no expone paginación; se
+    /// conserva el parámetro para preservar contexto en PRG (forward-compat
+    /// cuando el backend sume <c>page</c>/<c>pageSize</c>).
+    /// </summary>
     public int CurrentPage { get; private set; } = 1;
 
-    /// <summary>Total de páginas. Para Puestos siempre es 1 porque el slice actual no pagina.</summary>
-    public int TotalPages { get; private set; } = 1;
+    /// <summary>
+    /// <c>true</c> cuando el backend expone paginación. Para Puestos siempre es
+    /// <c>false</c> en el slice actual — la lista se renderiza plana sin
+    /// controles de paginación.
+    /// </summary>
+    public bool IsPaginated => false;
 
     /// <summary>Total de puestos activos en la respuesta del backend.</summary>
     public int TotalCount { get; private set; }
@@ -341,17 +349,39 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
             var materialized = query.Select(MapToViewModel).ToArray();
             Items = materialized;
             TotalCount = materialized.Length;
-            TotalPages = 1;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "Failed to load puestos page.");
-            Items = [];
-            TotalCount = 0;
-            TotalPages = 1;
-            CurrentPage = 1;
-            LoadErrorMessage = "No se pudo cargar el listado de puestos. Intentá nuevamente.";
+            logger.LogError(ex, "Failed to load puestos page: transport error.");
+            SetLoadErrorState();
         }
+        catch (TaskCanceledException ex)
+        {
+            // Cubre timeouts del HttpClient (Cancelación al superar Timeout=10s
+            // configurado en Program.cs para IPuestosApiClient).
+            logger.LogError(ex, "Failed to load puestos page: request timeout.");
+            SetLoadErrorState();
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            // Cuerpo no parseable: el helper DeleteAsync del cliente lo absorbe,
+            // pero GetAllAsync puede propagar al deserializar respuestas malformadas.
+            logger.LogError(ex, "Failed to load puestos page: malformed response.");
+            SetLoadErrorState();
+        }
+    }
+
+    /// <summary>
+    /// Resetea el estado de carga a un fallback vacío tras un fallo controlado
+    /// de carga inicial. Centralizado para mantener consistencia entre los
+    /// tres caminos de error capturados en <see cref="LoadAsync"/>.
+    /// </summary>
+    private void SetLoadErrorState()
+    {
+        Items = [];
+        TotalCount = 0;
+        CurrentPage = 1;
+        LoadErrorMessage = "No se pudo cargar el listado de puestos. Intentá nuevamente.";
     }
 
     private void ClearLastDeleted()
