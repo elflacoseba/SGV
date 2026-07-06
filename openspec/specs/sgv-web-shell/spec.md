@@ -41,23 +41,24 @@ The system MUST NOT expose Inspinia demo pages, sample dashboards, fake data scr
 
 ### Requirement: Minimal technical navigation
 
-El sistema MUST incluir la navegación mínima del shell y, a partir de este cambio, MUST exponer `Unidades Organizativas`, `Cargos` y `Habilidades` como módulos funcionales de negocio habilitados. La navegación autenticada MUST mantener `Home`, `Unidades Organizativas`, `Cargos` y `Habilidades`; `Habilidades` MUST renderizarse debajo de `Cargos` como grupo colapsable con icono `ti ti-star` y submenú `Listado` + `Nueva`; y el shell MUST NOT mostrar placeholders de otros módulos no especificados.
+El sistema MUST incluir la navegación mínima del shell y, a partir de este cambio, MUST exponer `Unidades Organizativas`, `Cargos`, `Habilidades` y `Puestos` como módulos funcionales de negocio habilitados. La navegación autenticada MUST mantener `Home`, `Unidades Organizativas`, `Cargos`, `Habilidades` y `Puestos`; `Puestos` MUST renderizarse dentro del grupo `Organización` como entry colapsable con icono `ti ti-hierarchy` y submenú `Listado` + `Nuevo`; y el shell MUST NOT mostrar placeholders de otros módulos no especificados.
 
-(Previously: la navegación autenticada exponía `Home`, `Unidades Organizativas` y `Cargos` como módulos funcionales habilitados.)
+(Previously: la navegación autenticada exponía `Home`, `Unidades Organizativas`, `Cargos` y `Habilidades` como módulos funcionales habilitados, sin entry colapsable para `Puestos`.)
 
-#### Scenario: Navegación mínima con Habilidades habilitado
+#### Scenario: Navegación mínima con Puestos habilitado
 
 - GIVEN el menú de navegación autenticado renderizado
 - WHEN un usuario inspecciona las entradas disponibles
-- THEN las entradas MUST incluir `Home`, `Unidades Organizativas`, `Cargos` y `Habilidades`
-- AND `Habilidades` MUST ser alcanzable como destino del shell.
+- THEN las entradas MUST incluir `Home`, `Unidades Organizativas`, `Cargos`, `Habilidades` y `Puestos`
+- AND `Puestos` MUST ser alcanzable como destino del shell dentro del grupo `Organización`.
 
-#### Scenario: Submenú de Habilidades visible y activo
+#### Scenario: Submenú de Puestos visible y activo
 
-- GIVEN un usuario autenticado ubicado en una página de Habilidades
-- WHEN se renderiza el grupo `Habilidades`
-- THEN la navegación MUST mostrar `Listado` y `Nueva`
-- AND MUST reflejar el estado `active` del grupo y de la opción correspondiente.
+- GIVEN un usuario autenticado ubicado en `/organizacion/puestos` o cualquier subruta (`crear`, `editar/{id}`, `detalle/{id}`)
+- WHEN se renderiza el grupo `Organización` del sidenav
+- THEN la navegación MUST mostrar `Puestos` expandido
+- AND MUST incluir los sub-items `Listado` y `Nuevo`
+- AND MUST reflejar el estado `active` para el sub-item correspondiente.
 
 #### Scenario: Otros módulos siguen fuera de alcance
 
