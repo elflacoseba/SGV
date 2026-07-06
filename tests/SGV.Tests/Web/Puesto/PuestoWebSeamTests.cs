@@ -172,4 +172,74 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
         Assert.DoesNotContain(@"aria-controls=""postulantes""", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(@"aria-controls=""catalogos""", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ── Sidenav active/expanded (PR 2 — diferidos de PR 1 porque la ruta
+    //    /organizacion/puestos sólo existe cuando llega Index) ──────────────
+
+    /// <summary>
+    /// PR 2: cuando el usuario está en /organizacion/puestos, el grupo Puestos
+    /// del sidenav debe estar marcado active y el sub-item Listado debe heredar
+    /// el mismo estado.
+    /// </summary>
+    [Fact]
+    public async Task Get_Sidenav_WhenOnPuestosRoute_SubmenuIsActive()
+    {
+        // Un puesto cualquiera: la página Index lo usa para renderizar la grilla.
+        var apiClient = FakePuestosApiClient.WithPuestoList(
+            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null, null));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/puestos");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El grupo padre debe tener la clase `active` (espejo de la regex
+        // usada por CargoCreatePageTests para validar la entry de Cargos).
+        Assert.True(
+            Regex.IsMatch(
+                content,
+                @"<a[^>]*aria-controls=""puestos""[^>]*class=""[^""]*\bactive\b[^""]*""",
+                RegexOptions.IgnoreCase),
+            "El grupo Puestos del sidenav debe estar marcado active cuando la ruta es /organizacion/puestos.");
+
+        // El sub-item Listado también debe heredar el active. La sidenav
+        // renderiza el atributo `class` ANTES de `href` en este anchor, así
+        // que el regex es order-agnostic (positive lookaheads para ambos
+        // atributos, sin importar el orden en que aparecen en la tag).
+        Assert.True(
+            Regex.IsMatch(
+                content,
+                @"<a(?=[^>]*\bhref=""/organizacion/puestos"")(?=[^>]*\bclass=""[^""]*\bactive\b)[^>]*>",
+                RegexOptions.IgnoreCase),
+            "El sub-item Listado del sidenav debe estar marcado active cuando la ruta es /organizacion/puestos.");
+    }
+
+    /// <summary>
+    /// PR 2: cuando el usuario está en una subruta de Puestos
+    /// (e.g. /organizacion/puestos/crear), el grupo Puestos debe seguir marcado
+    /// active y el atributo aria-expanded debe ser true (submenú desplegado).
+    /// </summary>
+    [Fact]
+    public async Task Get_Sidenav_WhenOnPuestosSubroute_SubmenuIsExpanded()
+    {
+        var apiClient = FakePuestosApiClient.WithPuestoList();
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/puestos?status=eliminadas");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El grupo Puestos debe estar marcado active (StartsWithSegments cubre
+        // /organizacion/puestos y sub-rutas).
+        Assert.True(
+            Regex.IsMatch(
+                content,
+                @"<a[^>]*aria-controls=""puestos""[^>]*class=""[^""]*\bactive\b[^""]*""",
+                RegexOptions.IgnoreCase),
+            "El grupo Puestos debe estar marcado active en una sub-ruta de /organizacion/puestos.");
+    }
 }

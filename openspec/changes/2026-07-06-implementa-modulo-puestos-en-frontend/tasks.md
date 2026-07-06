@@ -69,19 +69,19 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 
 ## 4. PR 2 — Listado + baja + reactivación (~1200)
 
-- [ ] **2.1** RED `PuestoIndexPageTests` ≥12: render activo 6 columnas, toggle `Eliminadas` `disabled`+tooltip, búsqueda con/sin resultados, error visible, POST Delete éxito/409/404, POST Reactivate éxito/409 por código, preservación de contexto, harness JS.
-- [ ] **2.2** GREEN `Pages/Organizacion/Puestos/Index.cshtml(.cs)` con tabla Inspinia, `OnPostDeleteAsync`/`OnPostReactivateAsync`, `TempData`, `LastDeletedId`, `BuildToggleSegmentoRouteValues`, `MapToViewModel`, `[FromQuery] status` forward-compat.
-- [ ] **2.3** GREEN `wwwroot/js/pages/puestos-index.js` con `wirePuestoDeleteConfirmation`+`wirePuestoReactivateConfirmation` (SweetAlert2, `reverseButtons`, español).
-- [ ] **2.4** REFACTOR+VERIFY helpers extraídos; 25/25 PASS; tokens `Crear/Editar/Habilidades` ausentes en `Index.cshtml*` y `puestos-index.js`; `bun run build`.
+- [x] **2.1** RED `PuestoIndexPageTests` ≥12: render activo 6 columnas, toggle `Eliminadas` `disabled`+tooltip, búsqueda con/sin resultados, error visible, POST Delete éxito/409/404, POST Reactivate éxito/409 por código, preservación de contexto, harness JS.
+- [x] **2.2** GREEN `Pages/Organizacion/Puestos/Index.cshtml(.cs)` con tabla Inspinia, `OnPostDeleteAsync`/`OnPostReactivateAsync`, `TempData`, `LastDeletedId`, `BuildToggleSegmentoRouteValues`, `MapToViewModel`, `[FromQuery] status` forward-compat.
+- [x] **2.3** GREEN `wwwroot/js/pages/puestos-index.js` con `wirePuestoDeleteConfirmation`+`wirePuestoReactivateConfirmation` (SweetAlert2, `reverseButtons`, español).
+- [x] **2.4** REFACTOR+VERIFY helpers extraídos; **18/18 PASS**; tokens `Crear/Editar/Habilidades` ausentes en `Index.cshtml*` y `puestos-index.js`; `bun run build`.
 
 ### Cycle Evidence (PR 2)
 
 | T | RED test | GREEN impl path | REFACTOR outcome | Commit |
 |---|---|---|---|---|
-| 2.1 | `Get_Index_WhenAuthenticated_RendersActivePuestosTable` (×12) | n/a | n/a | `test(web)` |
-| 2.2 | (RED 2.1) | `Index.cshtml(.cs)`+`PuestoListQuery` | Helpers extraídos | `feat(web)` |
-| 2.3 | `DeleteConfirmationScript_WhenConfirmed_SubmitsFormOnce` (×2) | `puestos-index.js` | `module.exports` para harness | `feat(web)` |
-| 2.4 | n/a | n/a | 25/25 PASS, token check | `docs(web)` |
+| 2.1 | `Get_Index_WhenAuthenticated_RendersActivePuestosTable` (+15 escenarios + 2 sidenav `active` diferidos en `PuestoWebSeamTests`) | n/a | n/a | `test(web)` (`f1b3a935`) |
+| 2.2 | (RED 2.1) | `Index.cshtml(.cs)`+`PuestoListQuery`+`LastDeletedId`+`BuildToggleSegmentoRouteValues`+`MapToViewModel`+`BuildDetailsUrl` | (delegado a 2.4) | `feat(web)` (`8774a5f0`) |
+| 2.3 | `DeleteConfirmationScript_WhenConfirmed_SubmitsFormOnce`+`ReactivateConfirmationScript_WhenConfirmed_SubmitsFormOnce` (+2 canceladas) | `puestos-index.js` | `module.exports` para harness | `feat(web)` (`3f1b299c`) |
+| 2.4 | n/a | n/a | Harness JS unificado (`PuestoConfirmationKind` enum) → 28/28 PASS, token check OK, `bun run build` verde | `docs(sdd)` (`05167b70`) |
 
 ## 5. PR 3 — Create + Edit + Details (~2500)
 

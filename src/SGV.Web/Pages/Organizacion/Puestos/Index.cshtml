@@ -1,0 +1,258 @@
+@page "/organizacion/puestos"
+@model SGV.Web.Pages.Organizacion.Puestos.IndexModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+
+@{
+    ViewBag.title = "Puestos";
+    ViewBag.subtitle = "Organización";
+}
+
+@section styles {
+    <link rel="stylesheet" href="/plugins/sweetalert2/sweetalert2.min.css" />
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind d-flex justify-content-between align-items-center" role="alert">
+        <span>@Model.StatusMessage</span>
+        @* PR 2 — Reactivar rápida desde banner: visible solo en Activas
+           con un LastDeletedId persistido en TempData vía deletedId. *@
+        @if (Model.HasLastDeleted && !Model.IsDeletedView)
+        {
+            <form method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input name="id" type="hidden" value="@Model.LastDeletedId" />
+                <input name="page" type="hidden" value="@Model.CurrentPage" />
+                <input name="search" type="hidden" value="@Model.Search" />
+                <input name="sort" type="hidden" value="@Model.Sort" />
+                <input name="status" type="hidden" value="@Model.Segmento" />
+                <button type="submit" class="btn btn-sm btn-outline-primary ms-2" formaction="?handler=Reactivate">Reactivar</button>
+            </form>
+        }
+        @if (TempData["ErrorCode"] is string errorCode && !string.IsNullOrWhiteSpace(errorCode))
+        {
+            <span class="badge bg-secondary ms-2">@errorCode</span>
+        }
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.LoadErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.LoadErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card" data-table>
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h4 class="card-title mb-1">
+                        @(Model.IsDeletedView ? "Listado de puestos eliminados" : "Listado de puestos activos")
+                    </h4>
+                    <p class="text-muted mb-0">
+                        @(Model.IsDeletedView
+                            ? "Visualiza y reactiva puestos dados de baja lógica."
+                            : "Consulta, búsqueda y baja lógica del módulo de Puestos.")
+                    </p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+                    @* PR 2 — Decisión locked #2: toggle Activas|Eliminadas.
+                       Eliminadas deshabilitado (aria-disabled + tooltip) porque
+                       el backend aún no expone /consulta?status=activas|eliminadas
+                       (follow-up puestos-filtro-activos-eliminados). *@
+                    <div class="btn-group" role="group" aria-label="Filtrar por estado">
+                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")"
+                           href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildToggleSegmentoRouteValues(null))">Activas</a>
+                        @* PR 2 — Toggle "Eliminadas" deshabilitado como <span> sin href
+                           para evitar que lectores de pantalla lo anuncien como enlace
+                           activo. Se conserva la clase Bootstrap .disabled y el tooltip
+                           "Próximamente". Cuando llegue el endpoint segmentado (follow-up
+                           puestos-filtro-activos-eliminados) se vuelve a convertir en <a>. *@
+                        <span class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light") disabled"
+                              aria-disabled="true"
+                              tabindex="-1"
+                              data-bs-toggle="tooltip"
+                              data-bs-title="Próximamente">Eliminadas</span>
+                    </div>
+                    <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
+                </div>
+            </div>
+            <div class="card-header border-0">
+                <form class="row g-2 align-items-center w-100" method="get">
+                    <div class="col-md-6 col-xl-4">
+                        <div class="app-search">
+                            <input class="form-control" name="search" placeholder="Buscar..."
+                                   data-bs-toggle="tooltip" data-bs-placement="top"
+                                   data-bs-title="Buscar por código, nombre, descripción, unidad o cargo..."
+                                   type="search" value="@Model.Search" />
+                            <i class="ti ti-search app-search-icon text-muted"></i>
+                        </div>
+                    </div>
+                    <input name="sort" type="hidden" value="@Model.Sort" />
+                    <input name="status" type="hidden" value="@Model.Segmento" />
+                    <div class="col-auto">
+                        <button class="btn btn-primary" type="submit">Buscar</button>
+                    </div>
+                </form>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-custom table-centered table-hover w-100 mb-0">
+                    <thead class="bg-light align-middle bg-opacity-25 thead-sm">
+                        <tr class="text-uppercase fs-xxs">
+                            @{
+                                var codigoIcon = Model.GetSortIcon("codigo");
+                                var nombreIcon = Model.GetSortIcon("nombre");
+                            }
+                            <th>
+                                <a class="link-reset" href="@Url.Page("/Organizacion/Puestos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo"), status = Model.Segmento })">
+                                    Código
+                                    @if (!string.IsNullOrEmpty(codigoIcon))
+                                    {
+                                        <i class="@codigoIcon ms-1"></i>
+                                    }
+                                </a>
+                            </th>
+                            <th>
+                                <a class="link-reset" href="@Url.Page("/Organizacion/Puestos/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre"), status = Model.Segmento })">
+                                    Nombre
+                                    @if (!string.IsNullOrEmpty(nombreIcon))
+                                    {
+                                        <i class="@nombreIcon ms-1"></i>
+                                    }
+                                </a>
+                            </th>
+                            <th>Unidad Organizativa</th>
+                            <th>Cargo</th>
+                            <th>Puesto superior</th>
+                            <th class="text-center" style="width: 1%">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items.Count == 0)
+                        {
+                            <tr>
+                                <td class="text-center text-muted py-4" colspan="6">
+                                    @(Model.IsDeletedView ? "No se encontraron puestos eliminados." : "No se encontraron puestos activos.")
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">@item.Codigo</td>
+                                    <td>
+                                        <div>
+                                            <div class="fw-medium">@item.Nombre</div>
+                                            @if (!string.IsNullOrWhiteSpace(item.Descripcion))
+                                            {
+                                                <div class="text-muted fs-xs">@item.Descripcion</div>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-soft-secondary fs-xs">@item.UnidadOrganizativaNombre</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-soft-info fs-xs">@item.CargoNombre</span>
+                                    </td>
+                                    <td>
+                                        @* Puesto superior como link al detalle preservando contexto.
+                                           PR 2: la página Details llega en PR 3C — usamos el helper
+                                           BuildDetailsUrl del PageModel que hard-codea la ruta
+                                           /organizacion/puestos/detalles/{id} con p/search/sort/returnStatus. *@
+                                        @if (item.PuestoSuperiorId.HasValue)
+                                        {
+                                            <a class="btn btn-soft-secondary btn-icon btn-sm rounded-circle"
+                                               href="@Model.BuildDetailsUrl(item.PuestoSuperiorId.Value)"
+                                               data-bs-toggle="tooltip"
+                                               data-bs-title="Ver puesto superior"
+                                               aria-label="Ver puesto superior">
+                                                <i class="ti ti-hierarchy fs-lg"></i>
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex justify-content-center gap-1">
+                                            @* PR 2 — solo Detalle y Eliminar (Editar y
+                                               Habilidades NO existen en este PR; viven en
+                                               PR 3A/3B). PR 2 también excluye Crear.
+                                               Index recibe su navegación desde el sidenav. *@
+                                            @if (!Model.IsDeletedView)
+                                            {
+                                                <a class="btn btn-info btn-icon btn-sm rounded-circle"
+                                                   href="@Model.BuildDetailsUrl(item.Id)"
+                                                   data-bs-toggle="tooltip" data-bs-title="Ver detalle"
+                                                   aria-label="Detalle de @item.Nombre">
+                                                    <i class="ti ti-eye fs-lg"></i>
+                                                </a>
+                                                <form data-puesto-delete-form method="post">
+                                                    @Html.AntiForgeryToken()
+                                                    <input name="id" type="hidden" value="@item.Id" />
+                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                    <input name="search" type="hidden" value="@Model.Search" />
+                                                    <input name="sort" type="hidden" value="@Model.Sort" />
+                                                    <input name="status" type="hidden" value="@Model.Segmento" />
+                                                    <button aria-label="Eliminar @item.Nombre"
+                                                            class="btn btn-danger btn-icon btn-sm rounded-circle"
+                                                            data-puesto-delete-button
+                                                            data-puesto-item-name="@item.Nombre"
+                                                            data-puesto-item-code="@item.Codigo"
+                                                            data-bs-toggle="tooltip"
+                                                            data-bs-title="Eliminar"
+                                                            formaction="?handler=Delete"
+                                                            type="submit">
+                                                        <i class="ti ti-trash fs-lg"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form data-puesto-reactivate-form method="post">
+                                                    @Html.AntiForgeryToken()
+                                                    <input name="id" type="hidden" value="@item.Id" />
+                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                    <input name="search" type="hidden" value="@Model.Search" />
+                                                    <input name="sort" type="hidden" value="@Model.Sort" />
+                                                    <input name="status" type="hidden" value="@Model.Segmento" />
+                                                    <button aria-label="Reactivar @item.Nombre"
+                                                            class="btn btn-success btn-icon btn-sm rounded-circle"
+                                                            data-puesto-reactivate-button
+                                                            data-puesto-item-name="@item.Nombre"
+                                                            data-puesto-item-code="@item.Codigo"
+                                                            data-bs-toggle="tooltip"
+                                                            data-bs-title="Reactivar"
+                                                            formaction="?handler=Reactivate"
+                                                            type="submit">
+                                                        <i class="ti ti-refresh fs-lg"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // API runs on a different port in development; use appsettings value
+    window.__sgvApiBaseUrl = '@(Configuration["SgvApi:BaseUrl"] ?? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}")';
+</script>
+
+@section scripts {
+    <script src="/plugins/sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="/js/pages/puestos-index.js"></script>
+}
