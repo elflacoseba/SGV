@@ -216,11 +216,11 @@ public sealed class CreateModel(
         // implementa paginación real con pageSize menor, el dropdown de Create
         // se truncará silenciosamente. Seguimiento: exponer GetAllAsync() en el
         // interface o al menos un query con pageSize configurable.
-        var unidadesTask = LaunchSafeAsync(() => unidadOrganizativaApiClient.QueryAsync(
+        var unidadesTask = PuestoFormHelpers.LaunchSafeAsync(() => unidadOrganizativaApiClient.QueryAsync(
             new UnidadOrganizativaListQuery(1, 200, null, null, "activas"),
             cancellationToken));
-        var cargosTask = LaunchSafeAsync(() => cargoApiClient.GetAllAsync(cancellationToken));
-        var puestosTask = LaunchSafeAsync(() => puestosApiClient.GetAllAsync(cancellationToken));
+        var cargosTask = PuestoFormHelpers.LaunchSafeAsync(() => cargoApiClient.GetAllAsync(cancellationToken));
+        var puestosTask = PuestoFormHelpers.LaunchSafeAsync(() => puestosApiClient.GetAllAsync(cancellationToken));
 
         try
         {
@@ -255,7 +255,7 @@ public sealed class CreateModel(
 
         if (puestosTask.Status == TaskStatus.RanToCompletion)
         {
-            PuestoSuperiorOptions = puestosTask.Result.Select(MapToSuperiorViewModel).ToArray();
+            PuestoSuperiorOptions = puestosTask.Result.Select(PuestoFormHelpers.MapToSuperiorViewModel).ToArray();
         }
         else
         {
@@ -268,28 +268,4 @@ public sealed class CreateModel(
             ErrorMessage = "No se pudo cargar el catálogo necesario. Intentá nuevamente.";
         }
     }
-
-    /// <summary>
-    /// Envuelve una factory <c>() =&gt; Task&lt;T&gt;</c> capturando
-    /// excepciones SINCRÓNICAS (las que algunos fakes lanzan antes de
-    /// devolver un <c>Task.FromException</c>) y devolviendo un task
-    /// faulted equivalente. Así <c>Task.WhenAll</c> puede consolidar
-    /// éxitos y fallas de forma uniforme. Excepciones lanzadas dentro
-    /// de la task (después del primer <c>await</c>) siguen propagándose
-    /// como faulted-task nativas — sin cambios.
-    /// </summary>
-    private static Task<T> LaunchSafeAsync<T>(Func<Task<T>> factory)
-    {
-        try
-        {
-            return factory();
-        }
-        catch (Exception ex)
-        {
-            return Task.FromException<T>(ex);
-        }
-    }
-
-    private static PuestoListItemViewModel MapToSuperiorViewModel(PuestoDto dto)
-        => new(dto.Id, dto.Codigo, dto.Nombre, dto.Descripcion, dto.UnidadOrganizativaNombre, dto.CargoNombre, dto.PuestoSuperiorId);
 }
