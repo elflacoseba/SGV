@@ -1,5 +1,7 @@
 # Tasks — cargos-navegacion-habilidades
 
+> **Reconciliación archive-time (2026-07-06)**: todos los checkboxes de implementación marcados a continuación como `[x]` reflejan el estado real al cierre, con `apply-progress.md` como prueba (full TDD evidence con commits `4ca00d27`, `1deb4398`, `40e7de01`, `93114206`, `41adc2f2`, `c8668b42`, `c2fb846d`, `1d64e805`; PR #87 mergeado a `develop`; `dotnet build SGV.slnx` verde; `dotnet test SGV.slnx` 1381/1393 PASS con 12 fallos pre-existentes `OcupacionRepositoryTests` por issue #59 fuera del alcance; `bun run build` verde). Esta reconciliación fue autorizada por el maintainer bajo override explícito porque el `tasks.md` persistido no se sincronizó al cierre del apply slice. Source of truth: `apply-progress.md`.
+
 ## Review Workload Forecast
 
 | PR | Tareas | Líneas est. | Riesgo budget 400 | Chained PRs | Decisión previa |
@@ -30,7 +32,7 @@ Notas sobre el forecast:
 
 ## Phase 1 — Entry points desde Cargos (W-UX)
 
-- [ ] **T1.1 — Agregar CTA "Habilidades" en `Index.cshtml` columna Acciones (vista activa)**
+- [x] **T1.1 — Agregar CTA "Habilidades" en `Index.cshtml` columna Acciones (vista activa)**
   - **Capa**: Web (markup Razor Pages)
   - **Archivos**: `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml`
   - **Descripción**: Insertar un cuarto botón icon-only (`btn btn-primary btn-icon btn-sm rounded-circle`, ícono `ti ti-stars`) entre los existentes **Detalle** y **Editar**, dentro de `div.d-flex.justify-content-center.gap-1` y solo cuando `!Model.IsDeletedView`, con `aria-label="Gestionar habilidades de {Nombre}"`, `data-bs-toggle="tooltip"`, `data-bs-title="Habilidades"` y `href` construido con `@Url.Page("/Organizacion/Cargos/Habilidades", new { id = item.Id })`.
@@ -39,7 +41,7 @@ Notas sobre el forecast:
   - **Líneas est.**: ~8-16 (markup nuevo dentro del bloque activo; sin tocar `Index.cshtml.cs` salvo que se opte por `Build*RouteValues(...)`).
   - **Strict TDD**: RED primero en `CargoIndexPageTests` mediante un test que verifique presencia del enlace en vista activa y `href` correcto por `id` (T1.2). GREEN al agregar el markup.
 
-- [ ] **T1.2 — Tests del CTA en Index activo + ausencia en vista eliminadas**
+- [x] **T1.2 — Tests del CTA en Index activo + ausencia en vista eliminadas**
   - **Capa**: Tests web (xUnit + `SgvWebApplicationFactory`)
   - **Archivos**: `tests/SGV.Tests/Web/Cargo/CargoIndexPageTests.cs`
   - **Descripción**: Cubrir con un test por escenario (activo y eliminadas) que el HTML renderizado por la página contiene o no el `<a>` hacia `Habilidades`. Preferir 1 `[Theory]` o como máximo 2 `[Fact]` aprovechando el setup existente del fixture.
@@ -48,7 +50,7 @@ Notas sobre el forecast:
   - **Líneas est.**: ~12-24.
   - **Strict TDD**: el test es el RED inicial de T1.1; la implementación (markup) cierra el ciclo GREEN.
 
-- [ ] **T1.3 — Agregar botón "Habilidades" en `Details.cshtml` barra inferior**
+- [x] **T1.3 — Agregar botón "Habilidades" en `Details.cshtml` barra inferior**
   - **Capa**: Web (markup Razor Pages)
   - **Archivos**: `src/SGV.Web/Pages/Organizacion/Cargos/Details.cshtml`
   - **Descripción**: Insertar botón textual `btn btn-primary` con `ti ti-stars me-1` y texto `Habilidades`, ubicado entre `Editar` y `Volver al listado`, dentro del bloque condicional `!Model.IsNotFound`, con `href` vía `@Url.Page("/Organizacion/Cargos/Habilidades", new { id = Model.Cargo!.Id })`. No tocar `Details.cshtml.cs`.
@@ -57,7 +59,7 @@ Notas sobre el forecast:
   - **Líneas est.**: ~6-12.
   - **Strict TDD**: RED primero en `CargoDetailsPageTests` (T1.4). GREEN al insertar el markup.
 
-- [ ] **T1.4 — Tests del botón en Details existente + ausencia cuando `IsNotFound`**
+- [x] **T1.4 — Tests del botón en Details existente + ausencia cuando `IsNotFound`**
   - **Capa**: Tests web
   - **Archivos**: `tests/SGV.Tests/Web/Cargo/CargoDetailsPageTests.cs`
   - **Descripción**: Dos casos: (a) detalle existente renderiza el botón y el `href` apunta al `id` del cargo; (b) cuando `IsNotFound == true` el botón no aparece en el HTML. Reutilizar el fixture web existente.
@@ -68,7 +70,7 @@ Notas sobre el forecast:
 
 ## Phase 2 — Feedback de validación por fila (W1)
 
-- [ ] **T2.1 — Split del helper de `ModelState` para distinguir `Asignar` vs `Actualizar`**
+- [x] **T2.1 — Split del helper de `ModelState` para distinguir `Asignar` vs `Actualizar`**
   - **Capa**: Web (PageModel)
   - **Archivos**: `src/SGV.Web/Pages/Organizacion/Cargos/Habilidades.cshtml.cs`
   - **Descripción**: Reemplazar `ApplySkillFailureToModelState(...)` por dos helpers especializados:
@@ -81,7 +83,7 @@ Notas sobre el forecast:
   - **Líneas est.**: ~24-48.
   - **Strict TDD**: RED primero en `CargoHabilidadesPageTests`: un test que, dado un `FieldErrors["Ponderacion"] = ["Fuera de rango"]`, verifica que `OnPostActualizarAsync` con `RequestForm["skillId"] = X` NO inyecta la key bajo `AsignarInput.*`. El assert inicial ya es la luz roja antes del split.
 
-- [ ] **T2.2 — Actualizar markup de la grilla editable con nombres `Actualizar[{skillId}].Campo` y contenedor de error por fila**
+- [x] **T2.2 — Actualizar markup de la grilla editable con nombres `Actualizar[{skillId}].Campo` y contenedor de error por fila**
   - **Capa**: Web (markup Razor Pages)
   - **Archivos**: `src/SGV.Web/Pages/Organizacion/Cargos/Habilidades.cshtml`
   - **Descripción**: En cada fila de la tabla editable, cambiar los nombres de los inputs a `Actualizar[{skillId}].NivelRequeridoId`, `Actualizar[{skillId}].Ponderacion` y `Actualizar[{skillId}].EsObligatoria`. Debajo de cada control agregar contenedor de error visible (clase Bootstrap `invalid-feedback d-block` o `text-danger`) que renderice `ModelState[$"Actualizar[{skillId}].Campo"]`. Mantener el `validation-summary` general arriba de la página (sin cambios).
@@ -92,7 +94,7 @@ Notas sobre el forecast:
   - **Líneas est.**: ~28-55.
   - **Strict TDD**: GREEN consolidado — los tests de T2.3 ya cubren el comportamiento por fila; este cambio de markup los debe dejar verdes sin regresiones.
 
-- [ ] **T2.3 — Tests del feedback por fila + caso defensivo + no regresión de PRG**
+- [x] **T2.3 — Tests del feedback por fila + caso defensivo + no regresión de PRG**
   - **Capa**: Tests web (xUnit + `SgvWebApplicationFactory`)
   - **Archivos**: `tests/SGV.Tests/Web/Cargo/CargoHabilidadesPageTests.cs`
   - **Descripción**: Tres casos como máximo, alineados con `design.md` sección 6:
@@ -106,7 +108,7 @@ Notas sobre el forecast:
 
 ## Phase 3 — Verificación final
 
-- [ ] **T3.1 — Verificación full del build, suite y assets frontend**
+- [x] **T3.1 — Verificación full del build, suite y assets frontend**
   - **Capa**: Web (build + test + assets)
   - **Archivos**: sin cambios de fuente; ejecución de comandos sobre la solución y `src/SGV.Web`.
   - **Descripción**: Ejecutar en este orden:
@@ -160,6 +162,7 @@ Una vez que las tareas T1.1-T3.1 estén todas marcadas `[x]`, correr `sdd-apply`
 - **skill_resolution**: paths-injected — `sdd-tasks`, `work-unit-commits`, `Razor Pages Patterns`
 - **task_summary**:
   - **total**: 8
-  - **completed**: 0
-  - **pending**: 8
-  - **allComplete**: false
+  - **completed**: 8
+  - **pending**: 0
+  - **allComplete**: true
+  - **reconciliation_note**: contadores ajustados en archive-time a partir de `apply-progress.md` bajo override del maintainer.
