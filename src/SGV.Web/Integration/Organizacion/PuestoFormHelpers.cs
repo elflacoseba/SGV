@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -110,4 +111,36 @@ public static class PuestoFormHelpers
             }
         }
     }
+
+    /// <summary>
+    /// Envuelve una factory <c>() =&gt; Task&lt;T&gt;</c> capturando
+    /// excepciones SINCRÓNICAS (las que algunos fakes lanzan antes de
+    /// devolver un <c>Task.FromException</c>) y devolviendo un task
+    /// faulted equivalente. Así <c>Task.WhenAll</c> puede consolidar
+    /// éxitos y fallas de forma uniforme. Excepciones lanzadas dentro
+    /// de la task (después del primer <c>await</c>) siguen propagándose
+    /// como faulted-task nativas — sin cambios. Si la factory ya devuelve
+    /// un Task faulted, no se reenvuelve la excepción.
+    /// </summary>
+    public static Task<T> LaunchSafeAsync<T>(Func<Task<T>> factory)
+    {
+        try
+        {
+            return factory();
+        }
+        catch (Exception ex)
+        {
+            return Task.FromException<T>(ex);
+        }
+    }
+
+    /// <summary>
+    /// Proyecta un <see cref="PuestoDto"/> a <see cref="PuestoListItemViewModel"/>
+    /// descartando los ids internos (UnidadOrganizativaId, CargoId) que el
+    /// dropdown de "Puesto superior" no necesita; los reemplaza por los nombres
+    /// ya materializados en el DTO (<c>UnidadOrganizativaNombre</c>,
+    /// <c>CargoNombre</c>).
+    /// </summary>
+    public static PuestoListItemViewModel MapToSuperiorViewModel(PuestoDto dto)
+        => new(dto.Id, dto.Codigo, dto.Nombre, dto.Descripcion, dto.UnidadOrganizativaNombre, dto.CargoNombre, dto.PuestoSuperiorId);
 }

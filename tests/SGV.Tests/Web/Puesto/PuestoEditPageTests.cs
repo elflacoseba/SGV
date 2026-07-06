@@ -457,4 +457,70 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Equal(puestoId, update.Id);
         Assert.Equal("Puesto Transport Fail", update.Request.Nombre);
     }
+
+    // ──────────────────────────────────────────────
+    // PR review #93 · Corrección #2 — ErrorMessage se preserva a través de
+    // LoadCatalogsAsync cuando el pre-populate de POST falla por transporte
+    // pero los catálogos de soporte responden OK.
+    //
+    // Bug previo: el catch del pre-populate setea ErrorMessage y luego llama
+    // LoadCatalogsAsync, que arranca con ErrorMessage = null y sólo lo
+    // restaura si cualquier catálogo falla (anyFailure = true). Si los tres
+    // catálogos responden OK, el ErrorMessage quedaba en null y el usuario
+    // perdía el feedback del error de pre-populate.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Edit_WhenTransportFailsOnPrepopulateAndCatalogsSucceed_KeepsErrorMessageVisible()
+    {
+        var puestoId = Guid.NewGuid();
+        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
+        var cargoId = PuestoWebTestFixture.SampleCargoId;
+
+        // Catalog seed suficiente para que LoadCatalogsAsync NO marque anyFailure:
+        // los tres catálogos responden OK con datos válidos.
+        var seedPuesto = new PuestoDto(
+            puestoId,
+            "P-EDIT",
+            "Puesto Seed",
+            null,
+            unidadId,
+            "Comercial",
+            cargoId,
+            "Vendedor",
+            null);
+
+        var apiClient = new FakePuestosApiClient
+        {
+            // Pre-populate del POST falla por transporte.
+            GetByIdException = new HttpRequestException("api caída en pre-populate"),
+            // Pero el catálogo de puestos responde OK (LoadCatalogsAsync termina
+            // sin anyFailure y, con el bug, pisa ErrorMessage a null).
+            GetAllResult = new[] { seedPuesto }
+        };
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
+        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Nombre"] = "Puesto con pre-populate fallido",
+            ["Input.Descripcion"] = string.Empty,
+            ["Input.PuestoSuperiorId"] = string.Empty
+        }));
+
+        // El handler debe responder 200 con el form re-renderizado, no propagar como 500.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // El mensaje de ErrorMessage del catch del pre-populate debe ser visible
+        // en el alert-danger, NO pisado por el reset que hace LoadCatalogsAsync
+        // cuando los catálogos responden OK.
+        Assert.Contains("No se pudo cargar el puesto", content, StringComparison.OrdinalIgnoreCase);
+    }
 }

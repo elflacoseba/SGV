@@ -9,18 +9,14 @@ using SGV.Web.Integration.Organizacion;
 namespace SGV.Web.Pages.Organizacion.Puestos;
 
 /// <summary>
-/// PageModel para la página Edit del módulo web de Puestos (PR 3B).
-/// Carga el puesto por id más tres catálogos (unidades, cargos y puestos
-/// para <c>PuestoSuperiorId</c>) en paralelo vía <c>Task.WhenAll</c>,
-/// prepobla <see cref="IPuestoForm.Input"/> con los campos editables y
-/// publica vía <see cref="IPuestosApiClient.UpdateAsync"/>. Tras éxito,
-/// PRG-redirect hard-codeado a <c>/organizacion/puestos/detalles/{id}</c>
-/// (la página Details llega en PR 3C). Sobre 409 mapea el mensaje a un
-/// error general recuperable (no hay campo Codigo editable); sobre
-/// <c>ValidationProblemDetails</c> aplica
-/// <see cref="PuestoFormHelpers.ApplyFieldErrorsToModelState"/>.
-/// Fallos de transporte se traducen a un error general recuperable y
-/// conservan la entrada del usuario.
+/// PageModel de Edit del módulo Puestos (PR 3B). Maneja los cuatro caminos
+/// del POST: <c>Success</c> (PRG a Details), <c>FieldErrors</c> (vía
+/// <see cref="PuestoFormHelpers.ApplyFieldErrorsToModelState"/>),
+/// <c>Conflict</c> (mensaje general recuperable, no hay campo Codigo
+/// editable) y <c>HttpFailure</c> (error general que conserva input + catálogos).
+/// El pre-populate del GET/POST es un workaround para los <c>[Required]</c>
+/// heredados de Create en los campos inmutables (Codigo/UnidadOrganizativaId/
+/// CargoId) que el form de Edit NO renderiza.
 /// </summary>
 [Authorize]
 public sealed class EditModel(
@@ -74,9 +70,8 @@ public sealed class EditModel(
         ReturnStatus);
 
     /// <summary>
-    /// GET handler. Carga el puesto por id y los tres catálogos en paralelo.
-    /// Si el puesto no existe (<see cref="IPuestosApiClient.GetByIdAsync"/>
-    /// devuelve <c>null</c>) o la consulta inicial falla, marca
+    /// GET handler. Si el puesto no existe (<see cref="IPuestosApiClient.GetByIdAsync"/>
+    /// devuelve <c>null</c>) o falla el transporte, marca
     /// <see cref="IsRecoverable"/> y muestra un mensaje recuperable sin
     /// renderizar el formulario. Los parámetros <c>p</c>, <c>search</c>,
     /// <c>sort</c> y <c>status</c> se preservan para los enlaces de retorno.
@@ -133,15 +128,11 @@ public sealed class EditModel(
     }
 
     /// <summary>
-    /// POST handler. Valida ModelState; si pasa, arma un
-    /// <see cref="ActualizarPuestoRequest"/> con los tres campos editables
-    /// y llama <c>PUT /api/v1/puestos/{id}</c>. Sobre éxito, PRG hard-codeado
-    /// a <c>/organizacion/puestos/detalles/{id}</c> (PR 3C refactoriza a
-    /// <c>Url.Page</c>). Sobre 409 (CodigoDuplicado o PuestoSuperiorInvalido)
-    /// mapea el mensaje a error general recuperable vía
-    /// <see cref="PuestoPostResultMapper.TryMap"/>; sobre 400 con FieldErrors
-    /// los aplica al ModelState. Cualquier fallo de transporte muestra error
-    /// general y conserva input + catálogos.
+    /// POST handler. Maneja los 4 caminos: <c>Success</c> (PRG hard-code a
+    /// <c>/organizacion/puestos/detalles/{id}</c> hasta PR 3C),
+    /// <c>FieldErrors</c> (vía <see cref="PuestoPostResultMapper.TryMap"/>),
+    /// <c>Conflict</c> (mensaje general recuperable) y <c>HttpFailure</c>
+    /// (error general que conserva input + catálogos).
     /// </summary>
     public async Task<IActionResult> OnPostAsync(
         Guid id,
@@ -195,7 +186,16 @@ public sealed class EditModel(
         {
             logger.LogError(ex, "Failed to load puesto {Id} during POST prepopulate.", id);
             ErrorMessage = "No se pudo cargar el puesto. Intentá nuevamente.";
+            // LoadCatalogsAsync arranca con ErrorMessage = null y sólo lo
+            // restaura si alguna llamada falla. Si los catálogos responden
+            // OK, pisa nuestro mensaje; preservamos el valor de pre-populate
+            // y lo re-asignamos si quedó vacío.
+            var preservedError = ErrorMessage;
             await LoadCatalogsAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                ErrorMessage = preservedError;
+            }
             return Page();
         }
 
@@ -275,11 +275,11 @@ public sealed class EditModel(
         // Las unidades y cargos se cargan aunque sean inmutables en Edit
         // (paridad con Create: el dropdown de PuestoSuperiorId los referencia
         // vía CodigoYNombre). Si una falla, los demás siguen disponibles.
-        var unidadesTask = LaunchSafeAsync(() => unidadOrganizativaApiClient.QueryAsync(
+        var unidadesTask = PuestoFormHelpers.LaunchSafeAsync(() => unidadOrganizativaApiClient.QueryAsync(
             new UnidadOrganizativaListQuery(1, 200, null, null, "activas"),
             cancellationToken));
-        var cargosTask = LaunchSafeAsync(() => cargoApiClient.GetAllAsync(cancellationToken));
-        var puestosTask = LaunchSafeAsync(() => puestosApiClient.GetAllAsync(cancellationToken));
+        var cargosTask = PuestoFormHelpers.LaunchSafeAsync(() => cargoApiClient.GetAllAsync(cancellationToken));
+        var puestosTask = PuestoFormHelpers.LaunchSafeAsync(() => puestosApiClient.GetAllAsync(cancellationToken));
 
         try
         {
@@ -317,7 +317,7 @@ public sealed class EditModel(
             // Mapea DTO → view model (igual que Create). El puesto actual puede
             // no aparecer en la lista si no está sembrado en GetAllResult; el
             // <option selected> del helper asp-for de Razor lo mantiene visible.
-            PuestoSuperiorOptions = puestosTask.Result.Select(MapToSuperiorViewModel).ToArray();
+            PuestoSuperiorOptions = puestosTask.Result.Select(PuestoFormHelpers.MapToSuperiorViewModel).ToArray();
         }
         else
         {
@@ -330,26 +330,4 @@ public sealed class EditModel(
             ErrorMessage = "No se pudo cargar el catálogo necesario. Intentá nuevamente.";
         }
     }
-
-    /// <summary>
-    /// Envuelve una factory <c>() =&gt; Task&lt;T&gt;</c> capturando
-    /// excepciones SINCRÓNICAS (las que algunos fakes lanzan antes de
-    /// devolver un <c>Task.FromException</c>) y devolviendo un task
-    /// faulted equivalente. Así <c>Task.WhenAll</c> puede consolidar
-    /// éxitos y fallas de forma uniforme.
-    /// </summary>
-    private static Task<T> LaunchSafeAsync<T>(Func<Task<T>> factory)
-    {
-        try
-        {
-            return factory();
-        }
-        catch (Exception ex)
-        {
-            return Task.FromException<T>(ex);
-        }
-    }
-
-    private static PuestoListItemViewModel MapToSuperiorViewModel(PuestoDto dto)
-        => new(dto.Id, dto.Codigo, dto.Nombre, dto.Descripcion, dto.UnidadOrganizativaNombre, dto.CargoNombre, dto.PuestoSuperiorId);
 }
