@@ -131,9 +131,9 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 | 3B.1 | **`Get_Edit_HtmlRenderizado_NoContieneCodigoUnidadOrganizativaNiCargo`** (×8) | n/a | n/a | `6903e564` |
 | 3B.2 | (RED 3B.1) | `Edit.cshtml(.cs)` | n/a | `8c33db13` |
 | 3B.3 | n/a | n/a | ~8/8 PASS, sin `>Crear<` | `6b0a4c6a` |
-| 3C.1 | `Get_Details_WhenAuthenticated_ShowsPuestoReadOnly` (×5) | n/a | n/a | `test(web)` |
-| 3C.2 | (RED 3C.1) | `Details.cshtml(.cs)` | n/a | `feat(web)` |
-| 3C.3 | n/a | n/a | ~5/5 PASS, sin `Crear/Reactivar` | `docs(web)` |
+| 3C.1 | `Get_Details_WhenAuthenticated_ShowsPuestoReadOnly` (×5) | n/a | n/a | `597cf39a` |
+| 3C.2 | (RED 3C.1) | `Details.cshtml(.cs)` (+ refactor `IndexModel.BuildDetailsUrl` y `EditModel.OnPostAsync`) | `Url.Page` aplicado; helpers extraídos | `ad55fee6` |
+| 3C.3 | n/a | n/a | 5/5 PASS, sin `Crear/Reactivar`; 95/95 slice; 406/406 suite web | `3498397f` |
 
 ## 6. Branching strategy
 
