@@ -5,15 +5,15 @@
 - Cambio: `2026-07-06-implementa-modulo-puestos-en-frontend`
 - Modo: Strict TDD (`openspec/config.yaml` → `strict_tdd: true`)
 - Estrategia de entrega: chained PRs — `feature-branch-chain` (`stacked-to-develop`), 5 PRs.
-- PR actual: **PR 2 / 5** — Listado + baja lógica + reactivación.
-- Branch: `feat/puestos-pr2-listado-baja-reactivate` (base `develop@d78cfb95` que incluye PR 1 + commit `aa9affa7`).
+- PR actual: **PR 3A / 5** — Create (UI de alta de Puesto).
+- Branch: `feat/puestos-pr3a-create` (base `develop@b8fcd7d5` que incluye PR 1 + PR 2 + refinamientos a11y del reviewer pre-merge).
 - Estado PR: rama local con 4 commits ready (rama pusheada por orquestador; el orquestador gestiona `gh pr create`).
 - Build: `dotnet build SGV.slnx` → success, **0 warnings, 0 errors**.
 - Frontend: `bun install` + `bun run build` (en `src/SGV.Web`) → success.
-- Tests slice PR 2: `--filter "FullyQualifiedName~PuestoIndexPageTests|FullyQualifiedName~PuestoWebSeamTests|FullyQualifiedName~PuestosApiClientTests|FullyQualifiedName~IPuestosApiClientContractTests"` → **75/75 PASS** (47 de PR 1 + 28 nuevos de PR 2: 16 en `PuestoIndexPageTests` + 2 nuevos `active` en `PuestoWebSeamTests`).
-- Tests completos slice completo por orquestador (≥60/60 PASS esperado): 75/75 PASS.
-- Suite web completa (`FullyQualifiedName~SGV.Tests.Web`): **372/372 PASS** (sin regresión).
-- Suite completa `dotnet test SGV.slnx`: **1482 PASS / 12 FAIL** — las 12 fallas son exclusivamente `OcupacionRepositoryTests` (bug pre-existente #59, MySQL real, tipo `ActivePuestoIdUnique INT` vs `PuestoId CHAR(36)`; documentado en `AGENTS.md`). PR 2 es frontend-only y **no** toca Dominio/Aplicación/Infraestructura/Api; las 12 fallas son baseline, no regresión.
+- Tests slice PR 3A: `--filter "FullyQualifiedName~PuestoCreatePageTests|FullyQualifiedName~PuestoIndexPageTests|FullyQualifiedName~PuestoWebSeamTests|FullyQualifiedName~PuestosApiClientTests|FullyQualifiedName~IPuestosApiClientContractTests|FullyQualifiedName~PuestoPostResultMapperTests"` → **81/81 PASS** (66 baseline de PR 1+2 + 15 nuevos de PR 3A: 9 en `PuestoCreatePageTests` + 6 en `PuestoPostResultMapperTests`).
+- Suite web completa (`FullyQualifiedName~SGV.Tests.Web`): **387/387 PASS** (372 baseline + 15 nuevos PR 3A; sin regresión).
+- Suite completa `dotnet test SGV.slnx` (sin `MySqlFact`/`OcupacionRepositoryTests`): **1494/1494 PASS**. El baseline `OcupacionRepositoryTests` (12 fallos, bug #59) es pre-existente y queda fuera del scope.
+- Token check `git grep ">Editar<" src/SGV.Web/Pages/Organizacion/Puestos/Create{,_Form}.cshtml{,.cs}` → **OK** (no aparece `>Editar<` en Create ni en `_Form`).
 
 ## Resumen ejecutivo
 
@@ -123,36 +123,94 @@ PR 1 dejó los seams (`IPuestosApiClient`/`PuestosApiClient`/`PuestoListItemView
 | `8774a5f0` | feat | `feat(puestos-web): agregar listado web de puestos con baja y reactivacion` |
 | `3f1b299c` | feat | `feat(puestos-web): agregar confirmaciones SweetAlert2 de baja y reactivacion` |
 | `08c0908e` | refactor | `refactor(puestos-web): extraer harness JS compartido para Delete y Reactivate` |
-| _pendiente_ | docs | `docs(sdd): registrar evidencia TDD de PR 2 de Puestos` |
+| `8ab8fd01` | docs | `docs(sdd): registrar SHA real del commit docs de PR 2 de Puestos en cycle evidence` |
 
 ## Branch state (acumulado PR 1 + PR 2)
 
-- Branch actual: `feat/puestos-pr2-listado-baja-reactivate`
-- Base: `develop@d78cfb95`
-- Head SHA: `08c0908e` (cierre refs)
+- Branch actual: `feat/puestos-pr3a-create`
+- Base: `develop@b8fcd7d5` (incluye PR 1 + PR 2 mergeados + `8ab8fd01`)
+- Head SHA: `4c883888` (cierre refs de PR 3A)
 
 ```
 src/SGV.Web/Integration/Organizacion/IPuestosApiClient.cs        |  43 +++   (PR 1)
 src/SGV.Web/Integration/Organizacion/PuestoListItemViewModel.cs  |  47 +++   (PR 1)
 src/SGV.Web/Integration/Organizacion/PuestosApiClient.cs         | 156 +++++  (PR 1)
+src/SGV.Web/Integration/Organizacion/PuestoInputModel.cs        |  39 +++   (PR 3A)
+src/SGV.Web/Integration/Organizacion/IPuestoForm.cs             |  38 +++   (PR 3A)
+src/SGV.Web/Integration/Organizacion/PuestoFormHelpers.cs        |  99 +++   (PR 3A, PuestoFormKeys+Helpers)
+src/SGV.Web/Integration/Organizacion/PuestoPostResultMapper.cs  |  56 +++   (PR 3A.4, refactor extraído)
 src/SGV.Web/Pages/Organizacion/Puestos/Index.cshtml              | 213 +++++  (PR 2)
 src/SGV.Web/Pages/Organizacion/Puestos/Index.cshtml.cs           | 268 +++++  (PR 2)
+src/SGV.Web/Pages/Organizacion/Puestos/Create.cshtml             |  44 +++   (PR 3A)
+src/SGV.Web/Pages/Organizacion/Puestos/Create.cshtml.cs          | 277 ++++   (PR 3A)
+src/SGV.Web/Pages/Organizacion/Puestos/_Form.cshtml              |  60 +++   (PR 3A, partial compartido)
 src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml                |  31 ++   (PR 1)
 src/SGV.Web/Program.cs                                           |  12 +    (PR 1)
 src/SGV.Web/wwwroot/js/pages/puestos-index.js                    |  85 +++   (PR 2)
 tests/SGV.Tests/Web/Puesto/FakePuestosApiClient.cs               | 162 +++++  (PR 1)
+tests/SGV.Tests/Web/Puesto/FakeUnidadOrganizativaApiClient.cs    |  73 +++   (PR 3A, stub para 3 catálogos)
 tests/SGV.Tests/Web/Puesto/IPuestosApiClientContractTests.cs     | 133 +++++  (PR 1)
 tests/SGV.Tests/Web/Puesto/PuestosApiClientTests.cs              | 404 ++++++ (PR 1)
-tests/SGV.Tests/Web/Puesto/PuestoWebSeamTests.cs                 | 245 +++++  (PR 1 + 2 nuevos `active`)
-tests/SGV.Tests/Web/Puesto/PuestoWebTestFixture.cs               | 118 +++++  (PR 1)
+tests/SGV.Tests/Web/Puesto/PuestoWebSeamTests.cs                 | 245 +++++  (PR 1 + 2 nuevos `active` PR 2)
+tests/SGV.Tests/Web/Puesto/PuestoWebTestFixture.cs               | 153 ++++  (PR 1 + extensions PR 3A)
 tests/SGV.Tests/Web/Puesto/PuestoIndexPageTests.cs               | 645 +++++  (PR 2)
+tests/SGV.Tests/Web/Puesto/PuestoCreatePageTests.cs              | 410 +++++  (PR 3A)
+tests/SGV.Tests/Web/Puesto/PuestoPostResultMapperTests.cs        | 132 +++   (PR 3A.4)
 tests/SGV.Tests/Web/SgvWebApplicationFactory.cs                  |  24 ++   (PR 1)
 ```
 
-## Sugerencias para PR 3A
+## PR 3A — Create (UI de alta de Puesto, ~1100, base PR 2)
 
-- **CRÍTICO — agregar `Pages/Organizacion/Puestos/Details.cshtml(.cs)` antes o junto con Create/Edit.** El PR 2 usa `BuildDetailsUrl` que hard-codéa `/organizacion/puestos/detalles/{id}?{queryString}` — cuando se cree la página Details en PR 3C se puede reemplazar por `Url.Page("/Organizacion/Puestos/Details", Model.BuildDetailsRouteValues(id))` y borrar el helper manual.
-- **`PuestoInputModel`/`IPuestoForm`/`PuestoFormKeys`/`PuestoFormHelpers`** llegan en `tasks.md §5 (PR 3A.2)`. `PuestoFormHelpers.BuildReturnToListUrl` debe apuntar a `/Organizacion/Puestos/Index` con `returnStatus` propagado (mismo patrón que `CargoFormHelpers`).
-- **Catalogos de Create vía `Task.WhenAll`** según design §4.4 / D8: las llamadas `IUnidadOrganizativaApiClient.GetAllAsync()`+`ICargoApiClient.GetAllAsync()`+`IPuestosApiClient.GetAllAsync()` en paralelo. `FakePuestosApiClient` ya soporta `GetAllException` para forzar caida del catálogo y verificar el manejo de error recuperable.
-- **Tests del sidenav de Create/Edit** siguen el patrón `Get_Create_WhenAuthenticated_SidenavShowsNuevaEntryWithActiveState` (ya cubierto por la regex de `PuestoWebSeamTests::Get_Sidenav_WhenOnPuestosRoute_SubmenuIsActive` en PR 2).
+### TDD Cycle Evidence (Strict TDD)
+
+| Tarea | RED test class::method | GREEN impl path | REFACTOR outcome | Commit SHA |
+|---|---|---|---|---|
+| 3A.1 | `PuestoCreatePageTests` ×9: `Get_Create_WhenAnonymous_RedirectsToSignIn`, `Get_Create_WhenAuthenticated_FormContainsAllSixFields`, `Get_Create_WhenPuestosCatalogHasResults_SelectContainsNPlusOneOptions`, `Get_Create_WhenPuestosCatalogFails_ShowsRecoverableError`, `Post_Create_WhenSuccessful_RedirectsToListadoWithConfirmation`, `Post_Create_WhenBackendReturnsFieldErrors_RendersFieldValidationOnCodigo`, `Post_Create_WhenCodigoDuplicado_ReturnsFieldErrorAndKeepsForm`, `Post_Create_WhenHttpRequestException_ReloadsCatalogAndShowsGeneralError`, `Get_Create_WhenAuthenticated_SidenavShowsNuevoEntryWithActiveState` | n/a (RED puro) | n/a | `4b016ed6` |
+| 3A.2 | (cubierto por 3A.1) | `src/SGV.Web/Integration/Organizacion/PuestoInputModel.cs` (6 props con `[Required]`/`[StringLength]`) + `IPuestoForm.cs` (contrato compartido) + `PuestoFormHelpers.cs` (`PuestoFormKeys` + `PuestoFormHelpers.ApplyFieldErrorsToModelState` + `BuildReturnToListUrl` con `status` forward-compat) | XML doc en todos los tipos públicos | `53e18d60` |
+| 3A.3 | (cubierto por 3A.1) | `src/SGV.Web/Pages/Organizacion/Puestos/_Form.cshtml` (`@model IPuestoForm`, `if (!Model.IsEdit)` oculta Codigo/UnidadOrganizativaId/CargoId) + `Create.cshtml` (form shell) + `Create.cshtml.cs` ([Authorize], `[BindProperty] PuestoInputModel Input`, `IPuestoForm` con `IsEdit=false`/`ErrorMessage`/`Return*`, `Task.WhenAll` 3 catálogos vía helper `LaunchSafeAsync<T>` que convierte sync-throws en faulted tasks, `OnPostAsync` con `try/catch` transporte + mapeo de `PuestoCommandResult` con 4 caminos: Ok/CodigoDuplicado/Validation/HttpFailure) | PRG a Index preservando `p/search/sort/status`; `BuildListRouteValues` extraído para claridad | `49d0b4e3` |
+| 3A.4 | (ya cubierto por 3A.1 + nueva sección `PuestoPostResultMapperTests` ×6: `TryMapCommandResult_NullResult_*`, `EmptyFailureResult_*`, `SuccessResult_*`, `FieldErrorsWithMultipleKeysAndMessages_*`, `ErrorMessageWithoutFieldErrors_*`, `EmptyFieldErrorsDictionary_*`) | `src/SGV.Web/Integration/Organizacion/PuestoPostResultMapper.cs` con `TryMapCommandResult` (paridad verbatim con `CargoPostResultMapper.TryMap`); `Create.cshtml.cs` ahora delega al mapper tras chequear `PuestoErrorType.Conflict` | Inline mapping de `OnPostAsync` reemplazado por `PuestoPostResultMapper.TryMapCommandResult`; cobertura unitaria dedicada (6 casos) | `4c883888` |
+
+### Test Summary (PR 3A)
+
+- **Total tests nuevos en PR 3A**: 15 (`PuestoCreatePageTests` 9 · `PuestoPostResultMapperTests` 6).
+- **Passing**: 15/15 en el slice; **81/81** en la suma con PR 1+2; **387/387** en toda la suite web; **1494/1494** en la suite completa sin `MySqlFact` (excluyendo los 12 fallos pre-existentes de `OcupacionRepositoryTests` baseline #59).
+- **Layers**: Integration (`WebApplicationFactory` + los 3 fakes de catálogo) + Unit (`PuestoPostResultMapperTests` cubre los 4 outcomes de `TryMapCommandResult` sin levantar host).
+- **Approval tests** (refactor de código existente): 0 — sólo archivos nuevos; **una** modificación aditiva a `PuestoWebTestFixture` (overloads `WithCargoApiClient`/`WithUnidadOrganizativaApiClient`/`WithCatalogFakes` y `CreateAuthenticatedClientAsync(unidad,cargo,puestos)`).
+- **Helpers compartidos extraídos** (REFACTOR 3A.4):
+  - `PuestoPostResultMapper.TryMapCommandResult(PuestoCommandResult?, ModelStateDictionary)` paridad verbatim con `CargoPostResultMapper.TryMap`; manejado por la regla 4 caminos de `OnPostAsync`.
+  - `LaunchSafeAsync<T>(Func<Task<T>>)` local a `CreateModel.LoadCatalogsAsync`: convierte throws sincrónicos en faulted tasks para que `Task.WhenAll` + checks de `Task.Status` vean las fallas de forma uniforme (necesario porque `FakePuestosApiClient.GetAllAsync` lanza `HttpRequestException` de forma sincrónica sin envolverla en `Task.FromException`).
+
+### Desviaciones del diseño
+
+- **`IUnidadOrganizativaApiClient` no expone `GetAllAsync()`** (design §4.4 dice "tres `GetAllAsync`", el interface real sólo expone `QueryAsync(UnidadOrganizativaListQuery)` paginado). Workaround pragmático: `LoadCatalogsAsync` invoca `unidadOrganizativaApiClient.QueryAsync(new UnidadOrganizativaListQuery(1, 200, null, null, "activas"))` con `pageSize=200` para traer todas las unidades activas en una sola llamada. El shape del backend implica que una futura paginación real limitará el dropdown de Create a la primera página, lo que el spec debería documentar como follow-up. **Reportar como design drift.** No introduce cambio de comportamiento funcional (los dropdowns muestran las mismas unidades que la página de UnidadesOrganizativas).
+- **`PuestoFormKeys` y `PuestoFormHelpers` en un único archivo `PuestoFormHelpers.cs`** (en vez de dos archivos separados como sugiere `tasks.md §5 PR 3A`). El precedent Cargos consolida ambas en un archivo; mantener la paridad evita fragmentación artificial. La substantive de cada tipo es exactamente la del tasks.md; sólo cambia el empaque.
+- **`StatusMessage`/`StatusKind` en Create.cshtml.cs son props públicas adicionales** (no listadas en `tasks.md §5 PR 3A` ni en `IPuestoForm`). Razón: la página necesita mostrar el banner de feedback que llega vía `TempData` cuando el POST llega como follow-up de una redirección PRG. Como sólo el Create propio setea TempData hoy, las props no se ejercitan en ningún test del slice, pero la estructura queda lista para cuando Edit (PR 3B) herede la convención.
+- **Helper `BuildReturnToListUrl` acepta `status`** como parámetro (el precedent Cargo no). Espejo del patrón de `UnidadOrganizativaFormHelpers.BuildReturnToListUrl`: serializa `status=eliminadas` sólo cuando es no-default (forward-compat con el toggle que llega en PR futuro `puestos-filtro-activos-eliminados`). El Index actual ya acepta `[FromQuery] status`.
+- **PRG usa `BuildListRouteValues()` interno** (dict solo con keys presentes). El `RedirectToPage` con diccionario omite los nulls automáticamente; equivalente en semántica al precedent Cargos pero más explícito sobre qué se propaga.
+- **NO se creó `Edit.cshtml*` ni `Details.cshtml*`** como placeholders. El partial `_Form.cshtml` ya soporta `IsEdit` via `IPuestoForm.IsEdit` para que PR 3B lo enchufe sin tocar el Razor.
+
+### Hallazgos
+
+- **`FakePuestosApiClient.GetAllAsync` lanza excepciones SINCRÓNICAS** (sin `Task.FromException`). Esto rompe el patrón `try { await Task.WhenAll(...); } catch {}` esperado por el design §4.4 y obliga a un helper `LaunchSafeAsync<T>` que envuelve la factory y convierte el throw en faulted task. Es una decisión pragmática del PR 1 que no se tocó en este slice; PR 3B/3C lo heredará salvo que se rediseñe el fake.
+- **`Assert.Equal(seededPuestos.Length + 1, optionCount)` con overload de xUnit resuelve a `Assert.Equal<T>(IEnumerable<T>?, IEnumerable<T>?)` en lugar de `(T, T)`**. Solución trivial: `Assert.Equal<int>(expected, actual)` explícito. Aplicar en 3 sitios del test file. Ver `PuestoCreatePageTests.Get_Create_WhenPuestosCatalogHasResults_SelectContainsNPlusOneOptions` y los dos `Assert.Equal(2, apiClient.GetAllCalls)` para recarga tras fallo.
+- **`Get_Create_WhenAnonymous_RedirectsToSignIn` requiere `[Authorize]`**. Verificable contra el precedent Cargos (`_PageTitle.cshtml` + `[Authorize]`). El test RED pasa a GREEN después de 3A.3 cuando la página existe.
+- **Cobertura del spec 1:1** — los 9 escenarios del spec `puesto-web-crear-editar` se cubren con tests específicos con el nombre verbatim del design §13 (los 8 escenarios de Req 6 + el sidenav de Req 7). El test de PuestoSuperiorId con `N+1 opciones` (Req 3) es la triangulación clave: cuenta exactamente `<option>` matches dentro del `<select>` con regex.
+
+### Commits del PR 3A
+
+| SHA | Tipo | Mensaje |
+|---|---|---|
+| `4b016ed6` | test | `test(puestos-web): agregar tests RED de Create y fake de IUnidadOrganizativaApiClient para PR 3A` |
+| `53e18d60` | feat | `feat(puestos-web): agregar tipos de input model y helpers del form de Puestos para PR 3A` |
+| `49d0b4e3` | feat | `feat(puestos-web): agregar pagina Create de Puestos con 3 catalogos en paralelo via Task.WhenAll` |
+| `4c883888` | refactor | `refactor(puestos-web): extraer PuestoPostResultMapper.TryMapCommandResult con tests unitarios` |
+| _este commit_ | docs | `docs(sdd): registrar evidencia TDD de PR 3A de Puestos en cycle evidence` |
+
+## Sugerencias para PR 3B
+
+- **REUTILIZAR el partial `_Form.cshtml` introducido en PR 3A** — el flag `IPuestoForm.IsEdit` ya está soportado: cuando es `true`, el partial oculta Codigo/UnidadOrganizativaId/CargoId vía `if (!Model.IsEdit)`. El test RED obligatorio sigue siendo `Get_Edit_HtmlRenderizado_NoContieneCodigoUnidadOrganizativaNiCargo` (design §7, test verbatim en design §13).
+- **REUTILIZAR `IPuestoForm`, `PuestoInputModel`, `PuestoFormKeys`, `PuestoFormHelpers`, `PuestoPostResultMapper`** sin cambios. El EditModel sólo necesita `IsEdit => true`, precargar `Input.Nombre/Descripcion/PuestoSuperiorId` desde `GetByIdAsync`, y armar `ActualizarPuestoRequest` en el POST. Los overrides en `CreateModel` de los 4 caminos del mapper se reducen a 3 en Edit (sin `Conflict → Codigo`, porque `ActualizarPuestoRequest` no incluye `Codigo`).
+- **`PuestoApiClient.UpdateAsync`** ya está cubierto por transport tests de PR 1 (sólo falta el contrato 400/409 → `PuestoCommandResult.Failure` con `FieldErrors`).
+- **`BuildReturnToListUrl` + `StatusMessage`/`StatusKind`** ya soportan PRG a Index preservando filtros (forward-compat); Edit puede usarlos verbatim para redirigir a Details tras éxito.
+- **PR 2 dejó `BuildDetailsUrl(Guid id)` hard-codificando `/organizacion/puestos/detalles/{id}?{...}`**. PR 3C reemplazará este helper por `Url.Page(...)` cuando cree la página Details. Si PR 3B introduce Edit, NO necesita tocar este helper.
 - **El token check de la regla 2.4 sigue aplicando** en `Create.cshtml`, `Edit.cshtml` y sus JS companions (no incluir `>Crear<` en Edit, etc.).
