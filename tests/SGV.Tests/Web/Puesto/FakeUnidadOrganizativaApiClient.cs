@@ -31,7 +31,7 @@ public sealed class FakeUnidadOrganizativaApiClient : IUnidadOrganizativaApiClie
 
         if (QueryException is not null)
         {
-            throw QueryException;
+            return Task.FromException<PagedResult<UnidadOrganizativaDto>>(QueryException);
         }
 
         return Task.FromResult(QueryResult);

@@ -155,7 +155,7 @@ public sealed class CreateModel(
             {
                 ModelState.AddModelError(PuestoFormKeys.CodigoKey, result.Error.Message);
             }
-            else if (!PuestoPostResultMapper.TryMapCommandResult(result, ModelState))
+            else if (!PuestoPostResultMapper.TryMap(result, ModelState))
             {
                 // No FieldErrors y no hay mensaje general (e.g., Error.Message
                 // null en un failure inesperado): fallback defensivo.
@@ -211,6 +211,11 @@ public sealed class CreateModel(
         ErrorMessage = null;
         var anyFailure = false;
 
+        // TODO: IUnidadOrganizativaApiClient no expone GetAllAsync(), por eso
+        // usamos QueryAsync con pageSize=200 como workaround. Si el backend
+        // implementa paginación real con pageSize menor, el dropdown de Create
+        // se truncará silenciosamente. Seguimiento: exponer GetAllAsync() en el
+        // interface o al menos un query con pageSize configurable.
         var unidadesTask = LaunchSafeAsync(() => unidadOrganizativaApiClient.QueryAsync(
             new UnidadOrganizativaListQuery(1, 200, null, null, "activas"),
             cancellationToken));

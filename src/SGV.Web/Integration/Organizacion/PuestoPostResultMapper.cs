@@ -8,7 +8,7 @@ namespace SGV.Web.Integration.Organizacion;
 /// <see cref="ModelStateDictionary"/> so the Razor form can render the
 /// errors next to the right fields. Behavior-preserving extraction of
 /// the inline mapping that <c>Create.cshtml.cs</c> used to perform.
-/// Espejo de <c>CargoPostResultMapper</c>.
+/// Espejo de <see cref="CargoPostResultMapper.TryMap"/>.
 /// </summary>
 public static class PuestoPostResultMapper
 {
@@ -33,7 +33,7 @@ public static class PuestoPostResultMapper
     /// <c>false</c> (null result, success result, or empty failure).</item>
     /// </list>
     /// </remarks>
-    public static bool TryMapCommandResult(PuestoCommandResult? result, ModelStateDictionary modelState)
+    public static bool TryMap(PuestoCommandResult? result, ModelStateDictionary modelState)
     {
         if (result?.FieldErrors is { Count: > 0 } fieldErrors)
         {

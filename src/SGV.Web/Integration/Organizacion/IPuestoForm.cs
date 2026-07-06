@@ -21,7 +21,12 @@ public interface IPuestoForm
     /// <summary>Opciones del catálogo de cargos para popular el dropdown de <c>CargoId</c>.</summary>
     IReadOnlyList<CargoDto> CargoOptions { get; }
 
-    /// <summary>Opciones del catálogo de puestos activos para popular el dropdown de <c>PuestoSuperiorId</c>.</summary>
+    /// <summary>
+    /// Opciones del catálogo de puestos activos para popular el dropdown de
+    /// <c>PuestoSuperiorId</c>. El partial <c>_Form.cshtml</c> lo renderiza
+    /// con <c>new SelectList(..., "Id", "CodigoYNombre")</c>, mostrando el
+    /// formato "<c>P-001 — Director</c>".
+    /// </summary>
     IReadOnlyList<PuestoListItemViewModel> PuestoSuperiorOptions { get; }
 
     /// <summary>Mensaje de error general recuperable (catálogo caído, error de transporte en POST, etc.).</summary>

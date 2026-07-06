@@ -8,7 +8,7 @@ namespace SGV.Tests.Web.Puesto;
 
 /// <summary>
 /// Unit tests for <see cref="PuestoPostResultMapper"/>. Cubre los cuatro
-/// outcomes de <c>TryMapCommandResult</c>: null result, success result,
+/// outcomes de <c>TryMap</c>: null result, success result,
 /// result con field-level errors y result con mensaje general. Espejo de
 /// <c>CargoPostResultMapperTests</c>.
 /// </summary>
@@ -19,7 +19,7 @@ public sealed class PuestoPostResultMapperTests
     {
         var modelState = new ModelStateDictionary();
 
-        var mapped = PuestoPostResultMapper.TryMapCommandResult(null, modelState);
+        var mapped = PuestoPostResultMapper.TryMap(null, modelState);
 
         Assert.False(mapped);
         Assert.Equal(0, modelState.ErrorCount);
@@ -35,7 +35,7 @@ public sealed class PuestoPostResultMapperTests
             Error: null,
             FieldErrors: null);
 
-        var mapped = PuestoPostResultMapper.TryMapCommandResult(result, modelState);
+        var mapped = PuestoPostResultMapper.TryMap(result, modelState);
 
         Assert.False(mapped);
         Assert.Equal(0, modelState.ErrorCount);
@@ -57,7 +57,7 @@ public sealed class PuestoPostResultMapperTests
                 "Vendedor",
                 null));
 
-        var mapped = PuestoPostResultMapper.TryMapCommandResult(result, modelState);
+        var mapped = PuestoPostResultMapper.TryMap(result, modelState);
 
         Assert.False(mapped);
         Assert.Equal(0, modelState.ErrorCount);
@@ -78,7 +78,7 @@ public sealed class PuestoPostResultMapperTests
             Error: new PuestoError(PuestoErrorType.Validation, "Validation", "validation failed"),
             FieldErrors: fieldErrors);
 
-        var mapped = PuestoPostResultMapper.TryMapCommandResult(result, modelState);
+        var mapped = PuestoPostResultMapper.TryMap(result, modelState);
 
         Assert.True(mapped);
         Assert.True(modelState.ContainsKey($"{PuestoFormKeys.InputPrefix}codigo"));
@@ -103,7 +103,7 @@ public sealed class PuestoPostResultMapperTests
             Error: new PuestoError(PuestoErrorType.NotFound, "NotFound", "Recurso no encontrado."),
             FieldErrors: null);
 
-        var mapped = PuestoPostResultMapper.TryMapCommandResult(result, modelState);
+        var mapped = PuestoPostResultMapper.TryMap(result, modelState);
 
         Assert.False(mapped);
         Assert.True(modelState.ContainsKey(string.Empty));
@@ -122,7 +122,7 @@ public sealed class PuestoPostResultMapperTests
             Error: new PuestoError(PuestoErrorType.Conflict, "Conflict", "Conflicto."),
             FieldErrors: new Dictionary<string, string[]>());
 
-        var mapped = PuestoPostResultMapper.TryMapCommandResult(result, modelState);
+        var mapped = PuestoPostResultMapper.TryMap(result, modelState);
 
         Assert.False(mapped);
         Assert.True(modelState.ContainsKey(string.Empty));
