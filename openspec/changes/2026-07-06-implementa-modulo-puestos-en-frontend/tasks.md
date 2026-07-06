@@ -104,7 +104,7 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 ### PR 3A — Create (~1100, base PR 2)
 
 - [x] **3A.1** RED `PuestoCreatePageTests` ≥8: anónimo redirige, render 6 campos, `PuestoSuperiorId` N+1 opciones, catálogo falla recuperable, POST éxito → PRG Index, POST 400 FieldErrors, POST 409 `CodigoDuplicado`, POST `HttpRequestException`/`TaskCanceledException` recuperable.
-- [ ] **3A.2** GREEN `PuestoInputModel.cs`, `IPuestoForm.cs`, `PuestoFormKeys.cs`, `PuestoFormHelpers.cs`.
+- [x] **3A.2** GREEN `PuestoInputModel.cs`, `IPuestoForm.cs`, `PuestoFormKeys.cs`, `PuestoFormHelpers.cs`.
 - [ ] **3A.3** GREEN `_Form.cshtml` (`@model IPuestoForm`, `if (!Model.IsEdit)`) + `Create.cshtml(.cs)` con `Task.WhenAll` 3 catálogos + `OnPostAsync` mapeando `PuestoCommandResult`.
 - [ ] **3A.4** REFACTOR+VERIFY `TryMapCommandResult` extraído (paridad `CargoPostResultMapper`).
 
