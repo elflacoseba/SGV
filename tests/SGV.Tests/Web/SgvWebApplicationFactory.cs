@@ -23,6 +23,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly IUnidadOrganizativaApiClient? _unidadOrganizativaApiClient;
     private readonly ICargoApiClient? _cargoApiClient;
     private readonly IHabilidadApiClient? _habilidadApiClient;
+    private readonly IPuestosApiClient? _puestosApiClient;
 
     public SgvWebApplicationFactory()
     {
@@ -34,7 +35,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         HttpMessageHandler? cargoApiHandler,
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient,
         ICargoApiClient? cargoApiClient,
-        IHabilidadApiClient? habilidadApiClient)
+        IHabilidadApiClient? habilidadApiClient,
+        IPuestosApiClient? puestosApiClient)
     {
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
@@ -42,6 +44,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         _unidadOrganizativaApiClient = unidadOrganizativaApiClient;
         _cargoApiClient = cargoApiClient;
         _habilidadApiClient = habilidadApiClient;
+        _puestosApiClient = puestosApiClient;
     }
 
     public SgvWebApplicationFactory WithOverrides(
@@ -50,7 +53,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         HttpMessageHandler? cargoApiHandler = null,
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient = null,
         ICargoApiClient? cargoApiClient = null,
-        IHabilidadApiClient? habilidadApiClient = null)
+        IHabilidadApiClient? habilidadApiClient = null,
+        IPuestosApiClient? puestosApiClient = null)
     {
         return new SgvWebApplicationFactory(
             configureServices,
@@ -58,7 +62,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             cargoApiHandler,
             unidadOrganizativaApiClient,
             cargoApiClient,
-            habilidadApiClient);
+            habilidadApiClient,
+            puestosApiClient);
     }
 
     /// <summary>
@@ -67,6 +72,13 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     /// </summary>
     public SgvWebApplicationFactory WithHabilidadApiClient(IHabilidadApiClient fake)
         => WithOverrides(habilidadApiClient: fake);
+
+    /// <summary>
+    /// Convenience helper to swap <see cref="IPuestosApiClient"/> for a fake
+    /// without touching the rest of the configuration surface.
+    /// </summary>
+    public SgvWebApplicationFactory WithPuestosApiClient(IPuestosApiClient fake)
+        => WithOverrides(puestosApiClient: fake);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -122,6 +134,12 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<IHabilidadApiClient>();
                 services.AddSingleton(_habilidadApiClient);
+            }
+
+            if (_puestosApiClient is not null)
+            {
+                services.RemoveAll<IPuestosApiClient>();
+                services.AddSingleton(_puestosApiClient);
             }
         });
     }

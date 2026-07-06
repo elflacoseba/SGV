@@ -67,6 +67,18 @@ builder.Services.AddHttpClient<ICargoApiClient, CargoApiClient>((serviceProvider
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
+builder.Services.AddHttpClient<IPuestosApiClient, PuestosApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // 10s budget, paralelo a CargoApiClient y HabilidadApiClient: el usuario
+    // espera ver el form/listado cargado y un timeout prolongado se confunde
+    // con un crash de servidor. TaskCanceledException se traduce en error
+    // recuperable en IndexModel/CreateModel/EditModel.
+    client.Timeout = TimeSpan.FromSeconds(10);
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
 builder.Services.AddHttpClient<IHabilidadApiClient, HabilidadApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
