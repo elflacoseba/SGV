@@ -100,6 +100,12 @@ public sealed class DetailsModel(IPuestosApiClient puestosApiClient, ILogger<Det
                 logger.LogWarning("Puesto with Id {PuestoId} was not found or is no longer available.", id);
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Si el cliente canceló el request, relanzamos para que el
+            // framework cortel el pipeline sin loguear un falso positivo.
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to load puesto with Id {PuestoId}.", id);
@@ -145,7 +151,7 @@ public sealed class DetailsModel(IPuestosApiClient puestosApiClient, ILogger<Det
     /// </summary>
     public string BuildSuperiorUrl(Guid superiorId)
     {
-        var parameters = new List<string> { $"id={superiorId:D}" };
+        var parameters = new List<string>();
         if (CurrentPage > 1)
         {
             parameters.Add($"p={CurrentPage}");
@@ -163,7 +169,7 @@ public sealed class DetailsModel(IPuestosApiClient puestosApiClient, ILogger<Det
             parameters.Add($"returnStatus={Uri.EscapeDataString(Segmento!)}");
         }
 
-        return parameters.Count == 1
+        return parameters.Count == 0
             ? $"/organizacion/puestos/detalles/{superiorId:D}"
             : $"/organizacion/puestos/detalles/{superiorId:D}?{string.Join("&", parameters)}";
     }

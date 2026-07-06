@@ -200,15 +200,20 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
 
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
-        // Entramos con p=3, search=back, sort=codigo_desc, status=eliminadas
-        // (forward-compat con puestos-filtro-activos-eliminados).
+        // Entramos con p=3, search=back, sort=codigo_desc, returnStatus=eliminadas
+        // (forward-compat con puestos-filtro-activos-eliminados). Usamos
+        // returnStatus porque es el nombre del parámetro que espera
+        // DetailsModel.OnGetAsync (status se usa en Index como filtro activo,
+        // no en Details). El link de retorno al Index mapea returnStatus a
+        // status automáticamente (BuildIndexRouteValuesForReturn).
         var response = await client.GetAsync(
-            $"/organizacion/puestos/detalles/{puestoId}?p=3&search=back&sort=codigo_desc&status=eliminadas");
+            $"/organizacion/puestos/detalles/{puestoId}?p=3&search=back&sort=codigo_desc&returnStatus=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        // El href de "Volver al listado" debe ir a Index preservando contexto.
+        // El href de "Volver al listado" debe ir a Index preservando contexto,
+        // con el segmento mapeado a status (lo que Index espera).
         Assert.Contains(
             "href=\"/organizacion/puestos?",
             content,
@@ -216,6 +221,7 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Contains("p=3", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("search=back", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("sort=codigo_desc", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("status=eliminadas", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────
@@ -263,9 +269,12 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
 
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
-        // Entramos con search/sort/status para verificar que se preservan en el link al superior.
+        // Entramos con search/sort/returnStatus para verificar que se preservan en el link al superior.
+        // Usamos returnStatus (no status) porque es el nombre del parámetro que espera
+        // DetailsModel.OnGetAsync. El link al superior usa returnStatus para preservar
+        // el contexto del segmento (BuildSuperiorUrl).
         var response = await client.GetAsync(
-            $"/organizacion/puestos/detalles/{puestoId}?p=1&search=dep&sort=nombre_asc&status=eliminadas");
+            $"/organizacion/puestos/detalles/{puestoId}?p=1&search=dep&sort=nombre_asc&returnStatus=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -276,8 +285,9 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
             content,
             StringComparison.OrdinalIgnoreCase);
 
-        // El contexto search/sort/status debe preservarse en el link.
+        // El contexto search/sort/returnStatus debe preservarse en el link.
         Assert.Contains("search=dep", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("sort=nombre_asc", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("returnStatus=eliminadas", content, StringComparison.OrdinalIgnoreCase);
     }
 }
