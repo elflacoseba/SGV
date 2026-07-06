@@ -124,10 +124,10 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 
 | T | RED test | GREEN impl path | REFACTOR outcome | Commit |
 |---|---|---|---|---|
-| 3A.1 | `Get_Create_WhenAuthenticated_RendersAllSixFields` (×8) | n/a | n/a | `test(web)` |
-| 3A.2 | (cubierto 3A.1) | `PuestoInputModel.cs`+helpers | n/a | `feat(web)` |
-| 3A.3 | `Get_Create_WhenAuthenticated_FormContainsCodigoInput` | `_Form.cshtml`+`Create.cshtml(.cs)` | `TryMap` extraído | `feat(web)` |
-| 3A.4 | n/a | n/a | ~10/10 PASS | `docs(web)` |
+| 3A.1 | `Get_Create_WhenAuthenticated_RendersAllSixFields` (×9) | n/a | n/a | `4b016ed6` |
+| 3A.2 | (cubierto 3A.1) | `PuestoInputModel.cs`+helpers | n/a | `53e18d60` |
+| 3A.3 | `Get_Create_WhenAuthenticated_FormContainsCodigoInput` | `_Form.cshtml`+`Create.cshtml(.cs)` | `TryMap` extraído | `49d0b4e3` |
+| 3A.4 | `PuestoPostResultMapperTests` ×6 | `PuestoPostResultMapper.cs` | 81/81 PASS del slice; extraer mapper | `4c883888` |
 | 3B.1 | **`Get_Edit_HtmlRenderizado_NoContieneCodigoUnidadOrganizativaNiCargo`** (×8) | n/a | n/a | `test(web)` |
 | 3B.2 | (RED 3B.1) | `Edit.cshtml(.cs)` | n/a | `feat(web)` |
 | 3B.3 | n/a | n/a | ~8/8 PASS, sin `>Crear<` | `docs(web)` |
