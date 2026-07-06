@@ -266,3 +266,76 @@ tests/SGV.Tests/Web/SgvWebApplicationFactory.cs                  |  24 ++   (PR 
 | `6b0a4c6a` | docs | `docs(sdd): registrar evidencia TDD de PR 3B de Puestos en cycle evidence` |
 | `0666cfe8` | docs | `docs(sdd): registrar SHA real del commit docs de PR 3B en cycle evidence` |
 | `5385c0a6` | refactor | `refactor(puestos-web): aplicar correcciones de PR review #93` (post-review: extraer helpers a `PuestoFormHelpers`, preservar `ErrorMessage` en catch de pre-populate, newline + comprimir XML docs) |
+
+## PR 3C — Details (UI readonly de Puesto, último PR del change, base PR 3B)
+
+### Estado global del PR
+
+- Branch: `feat/puestos-pr3c-details` (base `develop@8fb25552` que incluye PR 1 + PR 2 + PR 3A + PR 3B mergeados + correcciones de review #92 + #93).
+- Estado: 2 commits ready (`597cf39a` + `ad55fee6`) — rama local con el slice completo aplicado.
+- Build: `dotnet build SGV.slnx` → success, **0 warnings, 0 errors**.
+- Frontend: `bun install` + `bun run build` (en `src/SGV.Web`) → success.
+- Tests slice PR 3C: `--filter "FullyQualifiedName~PuestoDetailsPageTests|FullyQualifiedName~PuestoEditPageTests|FullyQualifiedName~PuestoCreatePageTests|FullyQualifiedName~PuestoIndexPageTests|FullyQualifiedName~PuestoWebSeamTests|FullyQualifiedName~PuestosApiClientTests|FullyQualifiedName~IPuestosApiClientContractTests|FullyQualifiedName~PuestoPostResultMapperTests"` → **95/95 PASS** (90 baseline de PR 1+2+3A+3B + 5 nuevos de PR 3C en `PuestoDetailsPageTests`).
+- Suite web completa (`FullyQualifiedName~SGV.Tests.Web`): **406/406 PASS** (401 baseline + 5 nuevos PR 3C; sin regresión).
+- Token check `git grep ">Crear<\|>Reactivar<" src/SGV.Web/Pages/Organizacion/Puestos/Details.cshtml{,.cs}` → **OK** (no aparece ninguno de los tokens prohibidos en Details).
+
+### TDD Cycle Evidence (Strict TDD)
+
+| Tarea | RED test class::method | GREEN impl path | REFACTOR outcome | Commit SHA |
+|---|---|---|---|---|
+| 3C.1 | `PuestoDetailsPageTests` ×5: `Get_Details_WhenAnonymous_RedirectsToSignIn`, `Get_Details_WhenAuthenticated_ShowsPuestoReadOnly` (render `<dl class="row mb-0">` con Codigo, Nombre, Descripcion, UnidadOrganizativaId como `Comercial`, CargoId como `Vendedor`, PuestoSuperiorId como "Sin superior"; verifica token check `>Crear<`/`Reactivar` ausente), `Get_Details_WhenPuestoNotFound_ShowsNotAvailableState` (404 recuperable + tokens ausentes), `Get_Details_WhenAuthenticated_BackLinkPreservesContext` (p/search/sort en el link "Volver al listado"), `Get_Details_WhenPuestoHasSuperior_RendersLinkToSuperior` (link al Details del superior preservando search/sort/status) | n/a (RED puro: 5/5 tests fallan con 404 porque la página no existe todavía) | n/a | `597cf39a` |
+| 3C.2 | (cubierto 3C.1) | `src/SGV.Web/Pages/Organizacion/Puestos/Details.cshtml` (readonly con `<dl class="row mb-0">` estilo Inspinia, link "Editar" con icono `ti ti-pencil`, link "Volver al listado" con icono `ti ti-arrow-left`, sin formularios / sin `<form>` tags / sin POST handlers) + `src/SGV.Web/Pages/Organizacion/Puestos/Details.cshtml.cs` (`[Authorize]`, `OnGetAsync(id, p, search, sort, returnStatus)` con `GetByIdAsync`, helpers `BuildIndexRouteValuesForReturn` / `BuildEditRouteValuesForReturn` / `BuildSuperiorUrl` / `BuildIndexUrl` / `BuildEditUrl` + helper privado `BuildQuery` para serialización query-string con omisión de nulls y `p=1` default). **Refactors obligatorios**: (1) `IndexModel.BuildDetailsUrl(Guid id)` ahora delega a `Url.Page("/Organizacion/Puestos/Details", new { id, p, search, sort, returnStatus })` — antes hard-codificaba `$"/organizacion/puestos/detalles/{id:D}?..."` (PR 2 placeholder). Líneas tocadas: 247-285 (del archivo antes del refactor). (2) `EditModel.OnPostAsync` PRG usa `RedirectToPage("/Organizacion/Puestos/Details", new { id, p, search, sort, returnStatus = status })` en vez de `Redirect($"/organizacion/puestos/detalles/{id:D}")` (PR 3B placeholder). Líneas tocadas: 234-242 (del archivo antes del refactor). | n/a | `ad55fee6` |
+| 3C.3 | (cubierto 3C.1 + nueva sección Cycle Evidence) | n/a | **95/95 PASS** del slice, **406/406 PASS** suite web (sin regresión), token check `>Crear<`/`>Reactivar<` ausente en `Details.cshtml*` OK, `bun run build` verde, `dotnet build SGV.slnx` 0 warn/0 err | _este commit_ |
+
+### Test Summary (PR 3C)
+
+- **Total tests nuevos en PR 3C**: 5 (`PuestoDetailsPageTests`).
+- **Passing**: 5/5 en el slice; **95/95** en la suma con PR 1+2+3A+3B; **406/406** en toda la suite web.
+- **Layers**: Integration (`WebApplicationFactory` + `FakePuestosApiClient` para todos los escenarios server-side).
+- **Approval tests** (refactor de código existente): 2 refactors cubiertos por tests existentes que ya verificaban el shape del URL:
+  - `PuestoIndexPageTests.Get_Index_WhenPuestoHasSuperior_RendersLinkPreservingContext` afirma que el link al Details del superior contiene `href="/organizacion/puestos/detalles/{superiorId}"` + `returnStatus=eliminadas`. Sigue verde tras el refactor porque `Url.Page` produce la misma forma de URL.
+  - `PuestoEditPageTests.Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation` afirma que el Location del PRG contiene `/organizacion/puestos/detalles/{puestoId}`. Sigue verde porque `RedirectToPage("/Organizacion/Puestos/Details", new { id })` también produce esa URL (mismo routing template, mismo path).
+- **Helpers extraídos en `DetailsModel`** (REFACTOR 3C.2):
+  - `BuildIndexRouteValuesForReturn()`: route values para el link "Volver al listado" (preserva p/search/sort/status).
+  - `BuildEditRouteValuesForReturn(Guid id)`: route values para el link "Editar" (preserva contexto + id).
+  - `BuildSuperiorUrl(Guid superiorId)`: URL absoluta al detalle del puesto superior preservando contexto. Helper local al DetailsModel — usa la misma forma de query string que `IndexModel.BuildDetailsUrl` antes del refactor (con `id={id:D}` primero, `p` omitido cuando es 1, `search`/`sort`/`returnStatus` cuando aplican).
+  - `BuildIndexUrl()` / `BuildEditUrl(Guid id)`: URLs absolutas vía helper privado `BuildQuery(basePath, values)` que serializa query string omitiendo nulls y `p=1` default.
+
+### Desviaciones del diseño
+
+- **`PuestoDto` no tiene `PuestoSuperiorNombre` ni `FechaCreacion`**. Decisión: renderizar el link al Puesto superior con un anchor + icono `ti ti-hierarchy` (mismo patrón que el Index, sin nombre porque el DTO no lo expone) y NO renderizar fecha de creación (el campo no existe en el DTO; el spec del orquestador lo marcaba como "si existe"). Ambos recortes son consistentes con el resto del repo (Cargos Details tampoco muestra `FechaCreacion` aunque lo tiene en el DTO como opcional).
+- **`IndexModel.BuildDetailsUrl` se refactoriza a `Url.Page` en este mismo commit** (3C.2) en vez de en un commit aislado. Razón: la página Details es prerequisito del refactor, así que ambos viven juntos en el commit `feat`. El test `PuestoIndexPageTests.Get_Index_WhenPuestoHasSuperior_RendersLinkPreservingContext` actúa como guard de regresión.
+- **`EditModel.OnPostAsync` PRG también se refactoriza en este mismo commit** (3C.2) por la misma razón. El test `PuestoEditPageTests.Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation` actúa como guard.
+- **`DetailsModel.OnGetAsync` acepta `returnStatus`** (no `status`) como nombre del query param del segmento. Razón: el PageModel de Details usa `status` para nada (no hay filtros), por lo que aceptar el nombre `returnStatus` evita colisión semántica y mantiene paridad con `IndexModel` (`BuildDetailsUrl` lo pasaba como `returnStatus`). El helper `BuildIndexUrl` propaga el segmento como `status` (es el nombre que espera `IndexModel.OnGetAsync`).
+- **Helper privado `BuildQuery(string basePath, object values)` en DetailsModel**: serialización query-string genérica vía reflexión sobre propiedades públicas del objeto anónimo. Centraliza la lógica de omisión de nulls y `p=1` default. Aceptable porque el helper es privado y las dependencias son nulas (sólo tipos primitivos). Si en el futuro Details necesita serializar tipos más complejos, se reemplaza por `QueryHelpers.ParseQuery` + `QueryString.Create`.
+- **No se creó `FakePuestosApiClient.GetByIdException` extra**: el fake ya soportaba `GetByIdException` desde PR 1 (paridad con los demás métodos). Cubierto por tests que setean `GetByIdResult = null` (404 nativo) y por el catch genérico de `DetailsModel.OnGetAsync` para excepciones de transporte.
+- **`PuestoWebTestFixture` no se extendió**: la fixture ya soporta el patrón `CreateAuthenticatedClientAsync(FakePuestosApiClient)` desde PR 1. Los 5 tests de Details usan exactamente el mismo overload.
+- **`PuestoDto` no se extendió**: el DTO sigue siendo el contrato del backend archivado en `archive/2026-06-19-implementa-modulo-puestos/`. Si en el futuro se quiere mostrar el nombre del Puesto superior en el Details, será necesario extender el DTO backend y crear un change SDD para tal efecto (out of scope de este PR y de este change).
+
+### Hallazgos
+
+- **`Url.Page("/Organizacion/Puestos/Details", new { id, p = 1, ... })` con `p = 1` genera `/organizacion/puestos/detalles/{id:D}?p=1&...`** (no omite el `p=1` default). El test `Get_Details_WhenAuthenticated_ShowsPuestoReadOnly` no afirma sobre la ausencia de `p=1` (porque el Index link usa `BuildIndexUrl` que sí omite `p=1` vía `BuildQuery`). Por lo tanto ambos helpers tienen comportamiento coherente con sus consumers: el link del Index (Details → Index) omite `p=1`; el link de Details (Index → Details) lo incluye si el PageModel lo recibió. Decisión pragmática documentada en el código (`if (i == 1) null` en `BuildQuery`).
+- **`Url.Page` falla si la página destino no está registrada** — razón por la cual el refactor de `BuildDetailsUrl` tuvo que esperar a este PR. El precedente PR 2 lo documentó correctamente como "el hard-code es temporario hasta que la página exista".
+- **`returnStatus` como nombre del query param** es una convención del módulo Puestos: el Index usa `status` como filtro vigente, y los detalles/edit usan `returnStatus` para indicar "el status del listado desde el que viniste" (forward-compat con el toggle "Eliminadas"). Cargos usa el mismo patrón (ver `CargoIndexModel.BuildDetailsRouteValues` con `returnStatus`).
+- **El test RED del link al superior (`Get_Details_WhenPuestoHasSuperior_RendersLinkToSuperior`) usa `status=eliminadas`** para forzar el camino no-default de Segmento. Espejo del patrón del test `Get_Index_WhenPuestoHasSuperior_RendersLinkPreservingContext` (PR 2). Garantiza que `BuildSuperiorUrl` propaga `returnStatus` correctamente cuando el segmento es no-default.
+- **El test `Get_Details_WhenAuthenticated_BackLinkPreservesContext` verifica `p=3`**, no `p=1`, para forzar la presencia del query param `p` en el link "Volver al listado". Espejo del patrón del precedent Cargos Details.
+- **`Regex` para el `<dl class="row mb-0">`** usa `\brow\b` y `mb-0` separados por `[^"]*` para tolerar orden de clases. Espejo del patrón de regex en `PuestoIndexPageTests.Get_Index_ToggleEliminadas_IsDisabledAndShowsTooltip`.
+
+### Definition of Done
+
+- [x] `dotnet build SGV.slnx` 0 warnings/errors.
+- [x] `dotnet test SGV.slnx --filter "FullyQualifiedName~Puesto"` 100% PASS (95 tests del slice).
+- [x] Suite web completa sin regresión (406/406 PASS).
+- [x] `bun install` + `bun run build` verde.
+- [x] Token check `>Crear<` y `>Reactivar<` ausente en `Details.cshtml*`.
+- [x] Refactors obligatorios aplicados (BuildDetailsUrl + EditModel.OnPostAsync) en commit GREEN.
+- [x] Cycle Evidence Tables completas (RED → GREEN → REFACTOR).
+- [x] `apply-progress.md` actualizado.
+
+### Commits del PR 3C
+
+| SHA | Tipo | Mensaje |
+|---|---|---|
+| `597cf39a` | test | `test(puestos-web): agregar tests RED de Details para PR 3C` |
+| `ad55fee6` | feat | `feat(puestos-web): agregar pagina Details de Puestos readonly con refactors de BuildDetailsUrl y EditModel.OnPostAsync para PR 3C` |
+| _este commit_ | docs | `docs(sdd): registrar evidencia TDD de PR 3C de Puestos en cycle evidence` |

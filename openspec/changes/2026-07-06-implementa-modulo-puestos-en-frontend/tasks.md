@@ -116,9 +116,9 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 
 ### PR 3C — Details (~500, base PR 3B)
 
-- [ ] **3C.1** RED `PuestoDetailsPageTests` ≥5: anónimo redirige, render readonly con `dl.row`, no encontrado recuperable, retorno al listado preservando contexto, link a superior preservando contexto.
-- [ ] **3C.2** GREEN `Details.cshtml(.cs)` readonly, link `Editar` → `Edit`, `Volver al listado` → `Index`.
-- [ ] **3C.3** REFACTOR+VERIFY tokens `Crear/Reactivar` ausentes en `Details.cshtml`.
+- [x] **3C.1** RED `PuestoDetailsPageTests` ≥5: anónimo redirige, render readonly con `dl.row`, no encontrado recuperable, retorno al listado preservando contexto, link a superior preservando contexto.
+- [x] **3C.2** GREEN `Details.cshtml(.cs)` readonly, link `Editar` → `Edit`, `Volver al listado` → `Index`.
+- [x] **3C.3** REFACTOR+VERIFY tokens `Crear/Reactivar` ausentes en `Details.cshtml`.
 
 ### Cycle Evidence (PR 3)
 
