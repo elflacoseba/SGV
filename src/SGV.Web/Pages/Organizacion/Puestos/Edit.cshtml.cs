@@ -236,9 +236,20 @@ public sealed class EditModel(
             TempData[nameof(StatusMessage)] = $"El puesto \"{result.Value.Nombre}\" se actualizó correctamente.";
             TempData[nameof(StatusKind)] = "success";
 
-            // PRG a Details: hard-code del URL hasta que PR 3C introduzca la
-            // página Details y podamos reemplazar por RedirectToPage("/Organizacion/Puestos/Details").
-            return Redirect($"/organizacion/puestos/detalles/{id:D}");
+            // PR 3C — refactor del PRG a Details. Antes la página Details no
+            // existía, por lo que el PRG usaba un hard-code del URL. Ahora que
+            // la página existe (PR 3C), usamos RedirectToPage que resuelve el
+            // URL a través del routing y propaga el contexto de navegación
+            // (p/search/sort/returnStatus) para que el Details pueda mostrar el
+            // link "Volver al listado" preservando el origen.
+            return RedirectToPage("/Organizacion/Puestos/Details", new
+            {
+                id,
+                p,
+                search,
+                sort,
+                returnStatus = status
+            });
         }
 
         if (result.Error is not null)
