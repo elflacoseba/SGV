@@ -254,33 +254,28 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
     };
 
     /// <summary>
-    /// PR 2 — la página <c>Puestos/Details</c> aún no existe (llega en PR 3C),
-    /// por lo que <c>Url.Page</c> no puede resolverla. Este helper construye
-    /// la URL directamente respetando la convención de ruta final
-    /// (<c>/organizacion/puestos/detalles/{id}</c>) y propagando p/search/sort
-    /// como query string (con <c>returnStatus</c> en lugar de <c>status</c>).
+    /// PR 3C — refactor a <c>Url.Page</c>. La página <c>Puestos/Details</c>
+    /// ya existe (introducida en este PR), por lo que el helper ahora delega
+    /// a <see cref="IUrlHelper.Page(string, object?)"/> con
+    /// <c>/Organizacion/Puestos/Details</c> como página destino y
+    /// <c>id</c>, <c>p</c>, <c>search</c>, <c>sort</c>, <c>returnStatus</c>
+    /// como route values. <c>returnStatus</c> (en vez de <c>status</c>) es
+    /// el nombre del parámetro del PageModel de Details (espejo del patrón
+    /// del Index: el PageModel acepta el segmento como <c>returnStatus</c>
+    /// para no colisionar con el filtro del listado).
     /// </summary>
     public string BuildDetailsUrl(Guid id)
     {
-        var parameters = new List<string> { $"id={id:D}" };
-        if (CurrentPage > 1)
-        {
-            parameters.Add($"p={CurrentPage}");
-        }
-        if (!string.IsNullOrEmpty(Search))
-        {
-            parameters.Add($"search={Uri.EscapeDataString(Search!)}");
-        }
-        if (!string.IsNullOrEmpty(Sort))
-        {
-            parameters.Add($"sort={Uri.EscapeDataString(Sort!)}");
-        }
-        if (!string.IsNullOrEmpty(Segmento))
-        {
-            parameters.Add($"returnStatus={Uri.EscapeDataString(Segmento!)}");
-        }
-
-        return $"/organizacion/puestos/detalles/{id:D}?{string.Join("&", parameters)}";
+        return Url.Page(
+            "/Organizacion/Puestos/Details",
+            new
+            {
+                id,
+                p = CurrentPage,
+                search = Search,
+                sort = Sort,
+                returnStatus = Segmento
+            }) ?? $"/organizacion/puestos/detalles/{id:D}";
     }
 
     /// <summary>

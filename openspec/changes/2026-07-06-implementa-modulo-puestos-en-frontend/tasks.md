@@ -116,9 +116,9 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 
 ### PR 3C — Details (~500, base PR 3B)
 
-- [ ] **3C.1** RED `PuestoDetailsPageTests` ≥5: anónimo redirige, render readonly con `dl.row`, no encontrado recuperable, retorno al listado preservando contexto, link a superior preservando contexto.
-- [ ] **3C.2** GREEN `Details.cshtml(.cs)` readonly, link `Editar` → `Edit`, `Volver al listado` → `Index`.
-- [ ] **3C.3** REFACTOR+VERIFY tokens `Crear/Reactivar` ausentes en `Details.cshtml`.
+- [x] **3C.1** RED `PuestoDetailsPageTests` ≥5: anónimo redirige, render readonly con `dl.row`, no encontrado recuperable, retorno al listado preservando contexto, link a superior preservando contexto.
+- [x] **3C.2** GREEN `Details.cshtml(.cs)` readonly, link `Editar` → `Edit`, `Volver al listado` → `Index`.
+- [x] **3C.3** REFACTOR+VERIFY tokens `Crear/Reactivar` ausentes en `Details.cshtml`.
 
 ### Cycle Evidence (PR 3)
 
@@ -131,9 +131,9 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 | 3B.1 | **`Get_Edit_HtmlRenderizado_NoContieneCodigoUnidadOrganizativaNiCargo`** (×8) | n/a | n/a | `6903e564` |
 | 3B.2 | (RED 3B.1) | `Edit.cshtml(.cs)` | n/a | `8c33db13` |
 | 3B.3 | n/a | n/a | ~8/8 PASS, sin `>Crear<` | `6b0a4c6a` |
-| 3C.1 | `Get_Details_WhenAuthenticated_ShowsPuestoReadOnly` (×5) | n/a | n/a | `test(web)` |
-| 3C.2 | (RED 3C.1) | `Details.cshtml(.cs)` | n/a | `feat(web)` |
-| 3C.3 | n/a | n/a | ~5/5 PASS, sin `Crear/Reactivar` | `docs(web)` |
+| 3C.1 | `Get_Details_WhenAuthenticated_ShowsPuestoReadOnly` (×5) | n/a | n/a | `597cf39a` |
+| 3C.2 | (RED 3C.1) | `Details.cshtml(.cs)` (+ refactor `IndexModel.BuildDetailsUrl` y `EditModel.OnPostAsync`) | `Url.Page` aplicado; helpers extraídos | `ad55fee6` |
+| 3C.3 | n/a | n/a | 5/5 PASS, sin `Crear/Reactivar`; 95/95 slice; 406/406 suite web | `3498397f` |
 
 ## 6. Branching strategy
 
