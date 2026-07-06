@@ -1,0 +1,74 @@
+@* Shared field partial for create/edit of Puestos. NOT a complete form. *@
+@* Expects a model that implements IPuestoForm. *@
+@using SGV.Web.Integration.Organizacion
+@model SGV.Web.Integration.Organizacion.IPuestoForm
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="row g-3">
+    @* Codigo ONLY in Create (must NOT appear in Edit — el campo es inmutable
+       en un Puesto existente, decisión locked #3 del change). *@
+    @if (!Model.IsEdit)
+    {
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="Input.Codigo" class="form-control" placeholder="Código" />
+                <label asp-for="Input.Codigo">Código</label>
+                <span asp-validation-for="Input.Codigo" class="text-danger"></span>
+            </div>
+        </div>
+    }
+
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Nombre" class="form-control" placeholder="Nombre" />
+            <label asp-for="Input.Nombre">Nombre</label>
+            <span asp-validation-for="Input.Nombre" class="text-danger"></span>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="form-floating">
+            <textarea asp-for="Input.Descripcion" class="form-control" placeholder="Descripción" style="min-height: 80px"></textarea>
+            <label asp-for="Input.Descripcion">Descripción</label>
+            <span asp-validation-for="Input.Descripcion" class="text-danger"></span>
+        </div>
+    </div>
+
+    @* UnidadOrganizativaId / CargoId ONLY en Create (inmutables en Puesto). *@
+    @if (!Model.IsEdit)
+    {
+        <div class="col-md-6">
+            <div class="form-floating">
+                <select asp-for="Input.UnidadOrganizativaId" class="form-select"
+                        asp-items="@(new SelectList(Model.UnidadOrganizativaOptions, "Id", "Nombre"))">
+                    <option value="">Seleccionar unidad...</option>
+                </select>
+                <label asp-for="Input.UnidadOrganizativaId">Unidad organizativa</label>
+                <span asp-validation-for="Input.UnidadOrganizativaId" class="text-danger"></span>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="form-floating">
+                <select asp-for="Input.CargoId" class="form-select"
+                        asp-items="@(new SelectList(Model.CargoOptions, "Id", "Nombre"))">
+                    <option value="">Seleccionar cargo...</option>
+                </select>
+                <label asp-for="Input.CargoId">Cargo</label>
+                <span asp-validation-for="Input.CargoId" class="text-danger"></span>
+            </div>
+        </div>
+    }
+
+    @* PuestoSuperiorId en Create y Edit. *@
+    <div class="col-md-@(Model.IsEdit ? "12" : "6")">
+        <div class="form-floating">
+            <select asp-for="Input.PuestoSuperiorId" class="form-select"
+                    asp-items="@(new SelectList(Model.PuestoSuperiorOptions, "Id", "CodigoYNombre"))">
+                <option value="">Sin puesto superior</option>
+            </select>
+            <label asp-for="Input.PuestoSuperiorId">Puesto superior</label>
+            <span asp-validation-for="Input.PuestoSuperiorId" class="text-danger"></span>
+        </div>
+    </div>
+</div>
