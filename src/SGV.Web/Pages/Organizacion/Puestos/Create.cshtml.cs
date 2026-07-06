@@ -155,13 +155,10 @@ public sealed class CreateModel(
             {
                 ModelState.AddModelError(PuestoFormKeys.CodigoKey, result.Error.Message);
             }
-            else if (result.FieldErrors is { Count: > 0 })
+            else if (!PuestoPostResultMapper.TryMapCommandResult(result, ModelState))
             {
-                PuestoFormHelpers.ApplyFieldErrorsToModelState(ModelState, result.FieldErrors);
-            }
-            else
-            {
-                // Fallback defensivo para errores sin FieldErrors: error general.
+                // No FieldErrors y no hay mensaje general (e.g., Error.Message
+                // null en un failure inesperado): fallback defensivo.
                 ErrorMessage = result.Error.Message;
                 ModelState.AddModelError(string.Empty, result.Error.Message);
             }
