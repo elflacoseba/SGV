@@ -52,3 +52,13 @@ Por instrucción del orquestador, este cierre preserva `proposal.md`, `design.md
 - `tasks.md` quedó verificado sin tareas de implementación pendientes en el artefacto persistido.
 - `verify-report.md` se conserva como evidencia histórica del verify interim; el cierre post-CRITICAL queda trazado en `apply-progress.md` y en el estado mergeado de `develop`, sin reescribir el reporte histórico.
 - No se movió la carpeta activa del change en esta ejecución porque el orquestador pidió preservar la ruta `openspec/changes/implementar-asignar-quitar-habilidades-de-un-cargo/` para el commit final de cierre.
+
+## Cierre físico del archive (2026-07-06)
+
+En esta sesión, bajo override explícito del maintainer para destrabar el ciclo del change, se completa el cierre físico moviendo la carpeta activa al archive:
+
+- Ruta origen: `openspec/changes/implementar-asignar-quitar-habilidades-de-un-cargo/`
+- Ruta destino: `openspec/changes/archive/2026-07-06-implementar-asignar-quitar-habilidades-de-un-cargo/`
+- Movimiento ejecutado con `git mv` para preservar historial de renombre.
+- Veredicto del verify post-cierre: 0 CRITICAL, 1 WARNING fuera de scope (`Actualizar` no anclado a la fila editada — decisión de UX para slice aparte, registrada en `apply-progress.md`).
+- Type de cierre: `intentional-with-warnings` por la nota WARNING de UX fuera de scope. No se solicitó re-archivado del `verify-report.md` con el veredicto post-cierre porque la evidencia ya quedó consolidada en `apply-progress.md` y en este reporte.
