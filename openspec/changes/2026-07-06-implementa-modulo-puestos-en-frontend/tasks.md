@@ -130,7 +130,7 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 | 3A.4 | `PuestoPostResultMapperTests` ×6 | `PuestoPostResultMapper.cs` | 81/81 PASS del slice; extraer mapper | `4c883888` |
 | 3B.1 | **`Get_Edit_HtmlRenderizado_NoContieneCodigoUnidadOrganizativaNiCargo`** (×8) | n/a | n/a | `6903e564` |
 | 3B.2 | (RED 3B.1) | `Edit.cshtml(.cs)` | n/a | `8c33db13` |
-| 3B.3 | n/a | n/a | ~8/8 PASS, sin `>Crear<` | _este commit_ |
+| 3B.3 | n/a | n/a | ~8/8 PASS, sin `>Crear<` | `6b0a4c6a` |
 | 3C.1 | `Get_Details_WhenAuthenticated_ShowsPuestoReadOnly` (×5) | n/a | n/a | `test(web)` |
 | 3C.2 | (RED 3C.1) | `Details.cshtml(.cs)` | n/a | `feat(web)` |
 | 3C.3 | n/a | n/a | ~5/5 PASS, sin `Crear/Reactivar` | `docs(web)` |
