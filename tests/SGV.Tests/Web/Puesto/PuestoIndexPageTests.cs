@@ -446,7 +446,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task DeleteConfirmationScript_WhenCancelled_DoesNotSubmitForm()
     {
-        var result = await ExecutePuestoDeleteConfirmationScriptAsync(false);
+        var result = await ExecutePuestoConfirmationScriptAsync(PuestoConfirmationKind.Delete, isConfirmed: false);
 
         Assert.Equal(0, result.SubmitCount);
         Assert.True(result.PreventDefaultCalled);
@@ -458,7 +458,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task DeleteConfirmationScript_WhenConfirmed_SubmitsFormOnce()
     {
-        var result = await ExecutePuestoDeleteConfirmationScriptAsync(true);
+        var result = await ExecutePuestoConfirmationScriptAsync(PuestoConfirmationKind.Delete, isConfirmed: true);
 
         Assert.Equal(1, result.SubmitCount);
         Assert.True(result.PreventDefaultCalled);
@@ -469,7 +469,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task ReactivateConfirmationScript_WhenCancelled_DoesNotSubmitForm()
     {
-        var result = await ExecutePuestoReactivateConfirmationScriptAsync(false);
+        var result = await ExecutePuestoConfirmationScriptAsync(PuestoConfirmationKind.Reactivate, isConfirmed: false);
 
         Assert.Equal(0, result.SubmitCount);
         Assert.True(result.PreventDefaultCalled);
@@ -482,7 +482,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task ReactivateConfirmationScript_WhenConfirmed_SubmitsFormOnce()
     {
-        var result = await ExecutePuestoReactivateConfirmationScriptAsync(true);
+        var result = await ExecutePuestoConfirmationScriptAsync(PuestoConfirmationKind.Reactivate, isConfirmed: true);
 
         Assert.Equal(1, result.SubmitCount);
         Assert.True(result.PreventDefaultCalled);
@@ -490,17 +490,55 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Equal("¿Reactivar puesto?", result.Title);
     }
 
-    // ──────────────────────────────────────────────────
-    // Helpers JS harness (espejo del patrón de CargoIndexPageTests)
-    // ──────────────────────────────────────────────────
-
-    private static async Task<PuestoScriptExecutionResult> ExecutePuestoDeleteConfirmationScriptAsync(bool isConfirmed)
+    /// <summary>
+    /// Selector del par form/button JS. Extraído como enum para evitar
+    /// duplicación entre los 4 tests de harness y mantener el contrato
+    /// con los data-attributes declarados en Index.cshtml.
+    /// </summary>
+    private enum PuestoConfirmationKind
     {
-        var scriptPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SGV.Web/wwwroot/js/pages/puestos-index.js"));
-        var harnessPath = Path.Combine(Path.GetTempPath(), $"puesto-delete-confirmation-{Guid.NewGuid():N}.cjs");
+        Delete,
+        Reactivate
+    }
 
-        await File.WriteAllTextAsync(harnessPath, $$"""
-const { wirePuestoDeleteConfirmation } = require({{JsonSerializer.Serialize(scriptPath)}});
+    /// <summary>
+    /// Ejecuta el script JS de Puestos en un subproceso Node y devuelve las
+    /// métricas de captura (handler invocado, configuración de Swal.fire
+    /// emitida, formulario enviado o no). Helper compartido entre los 4
+    /// tests de harness de Delete y Reactivate.
+    /// </summary>
+    private static async Task<PuestoScriptExecutionResult> ExecutePuestoConfirmationScriptAsync(
+        PuestoConfirmationKind kind,
+        bool isConfirmed)
+    {
+        var scriptConfig = kind switch
+        {
+            PuestoConfirmationKind.Delete => new
+            {
+                Export = "wirePuestoDeleteConfirmation",
+                FormSelector = "[data-puesto-delete-form]",
+                ButtonSelector = "[data-puesto-delete-button]",
+                ErrorMessage = "Puesto delete confirmation click handler was not wired.",
+                HarnessPrefix = "puesto-delete-confirmation",
+                ItemName = "Analista"
+            },
+            PuestoConfirmationKind.Reactivate => new
+            {
+                Export = "wirePuestoReactivateConfirmation",
+                FormSelector = "[data-puesto-reactivate-form]",
+                ButtonSelector = "[data-puesto-reactivate-button]",
+                ErrorMessage = "Puesto reactivate confirmation click handler was not wired.",
+                HarnessPrefix = "puesto-reactivate-confirmation",
+                ItemName = "Analista Eliminado"
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+
+        var scriptPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SGV.Web/wwwroot/js/pages/puestos-index.js"));
+        var harnessPath = Path.Combine(Path.GetTempPath(), $"{scriptConfig.HarnessPrefix}-{Guid.NewGuid():N}.cjs");
+
+        var harnessSource = $$"""
+const { {{scriptConfig.Export}} } = require({{JsonSerializer.Serialize(scriptPath)}});
 
 let clickHandler = null;
 let submitCount = 0;
@@ -510,7 +548,7 @@ let swalConfig = null;
 const button = {
   getAttribute(name) {
     if (name === 'data-puesto-item-name') {
-      return 'Analista';
+      return {{JsonSerializer.Serialize(scriptConfig.ItemName)}};
     }
 
     if (name === 'data-puesto-item-code') {
@@ -528,7 +566,7 @@ const button = {
 
 const form = {
   querySelector(selector) {
-    return selector === '[data-puesto-delete-button]' ? button : null;
+    return selector === {{JsonSerializer.Serialize(scriptConfig.ButtonSelector)}} ? button : null;
   },
   submit() {
     submitCount += 1;
@@ -537,7 +575,7 @@ const form = {
 
 const root = {
   querySelectorAll(selector) {
-    return selector === '[data-puesto-delete-form]' ? [form] : [];
+    return selector === {{JsonSerializer.Serialize(scriptConfig.FormSelector)}} ? [form] : [];
   }
 };
 
@@ -549,131 +587,10 @@ const Swal = {
 };
 
 async function main() {
-  wirePuestoDeleteConfirmation(root, Swal);
+  {{scriptConfig.Export}}(root, Swal);
 
   if (!clickHandler) {
-    throw new Error('Puesto delete confirmation click handler was not wired.');
-  }
-
-  clickHandler({
-    preventDefault() {
-      preventDefaultCalled = true;
-    }
-  });
-
-  await Promise.resolve();
-  await Promise.resolve();
-
-  process.stdout.write(JSON.stringify({
-    submitCount,
-    preventDefaultCalled,
-    showCancelButton: Boolean(swalConfig && swalConfig.showCancelButton),
-    reverseButtons: Boolean(swalConfig && swalConfig.reverseButtons),
-    confirmButtonText: swalConfig ? swalConfig.confirmButtonText : null,
-    cancelButtonText: swalConfig ? swalConfig.cancelButtonText : null,
-    title: swalConfig ? swalConfig.title : null
-  }));
-}
-
-main().catch(error => {
-  process.stderr.write(error.stack || String(error));
-  process.exit(1);
-});
-""");
-
-        try
-        {
-            var startInfo = new ProcessStartInfo("node", $"\"{harnessPath}\"")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
-
-            using var process = Process.Start(startInfo);
-            Assert.NotNull(process);
-
-            var standardOutput = await process.StandardOutput.ReadToEndAsync();
-            var standardError = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            Assert.True(process.ExitCode == 0, $"Node harness failed with exit code {process.ExitCode}: {standardError}");
-
-            var result = JsonSerializer.Deserialize<PuestoScriptExecutionResult>(standardOutput, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-            Assert.NotNull(result);
-            return result!;
-        }
-        finally
-        {
-            if (File.Exists(harnessPath))
-            {
-                File.Delete(harnessPath);
-            }
-        }
-    }
-
-    private static async Task<PuestoScriptExecutionResult> ExecutePuestoReactivateConfirmationScriptAsync(bool isConfirmed)
-    {
-        var scriptPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SGV.Web/wwwroot/js/pages/puestos-index.js"));
-        var harnessPath = Path.Combine(Path.GetTempPath(), $"puesto-reactivate-confirmation-{Guid.NewGuid():N}.cjs");
-
-        await File.WriteAllTextAsync(harnessPath, $$"""
-const { wirePuestoReactivateConfirmation } = require({{JsonSerializer.Serialize(scriptPath)}});
-
-let clickHandler = null;
-let submitCount = 0;
-let preventDefaultCalled = false;
-let swalConfig = null;
-
-const button = {
-  getAttribute(name) {
-    if (name === 'data-puesto-item-name') {
-      return 'Analista Eliminado';
-    }
-
-    if (name === 'data-puesto-item-code') {
-      return 'P-001';
-    }
-
-    return null;
-  },
-  addEventListener(type, handler) {
-    if (type === 'click') {
-      clickHandler = handler;
-    }
-  }
-};
-
-const form = {
-  querySelector(selector) {
-    return selector === '[data-puesto-reactivate-button]' ? button : null;
-  },
-  submit() {
-    submitCount += 1;
-  }
-};
-
-const root = {
-  querySelectorAll(selector) {
-    return selector === '[data-puesto-reactivate-form]' ? [form] : [];
-  }
-};
-
-const Swal = {
-  fire(config) {
-    swalConfig = config;
-    return Promise.resolve({ isConfirmed: {{(isConfirmed ? "true" : "false")}} });
-  }
-};
-
-async function main() {
-  wirePuestoReactivateConfirmation(root, Swal);
-
-  if (!clickHandler) {
-    throw new Error('Puesto reactivate confirmation click handler was not wired.');
+    throw new Error({{JsonSerializer.Serialize(scriptConfig.ErrorMessage)}});
   }
 
   clickHandler({
@@ -701,7 +618,9 @@ main().catch(error => {
   process.stderr.write(error.stack || String(error));
   process.exit(1);
 });
-""");
+""";
+
+        await File.WriteAllTextAsync(harnessPath, harnessSource);
 
         try
         {
