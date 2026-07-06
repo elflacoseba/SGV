@@ -45,7 +45,7 @@ public sealed record PuestoListQuery(string? Search, string? Sort, string? Statu
 
 ## 3. PR 1 — Seams + shell + sidenav (~770)
 
-- [x] **1.1** RED `PuestoWebSeamTests` (3 casos: sidenav `>Puestos<`+`ti ti-briefcase`, `active` en `/organizacion/puestos(/...)`, sin placeholders).
+- [x] **1.1** RED `PuestoWebSeamTests` (3 casos: sidenav `>Puestos<`+`ti ti-hierarchy`, `active` en `/organizacion/puestos(/...)`, sin placeholders).
 - [x] **1.2** RED `PuestosApiClientTests` ≥10 casos con `HttpClient` mockeado: 200/404/204/400/409 + `JsonException` + Theory `TransportFails_PropagatesNativeException` + Fact `CancellationAlreadyRequested_ThrowsAndDoesNotSendRequest`.
 - [x] **1.3** RED `IPuestosApiClientContractTests` (6 métodos via reflection).
 - [x] **1.4** GREEN `IPuestosApiClient.cs`, `PuestosApiClient.cs` (+ `ToCommandResultAsync`), `PuestoListItemViewModel.cs`, `PuestoListQuery.cs`, `PuestoDeleteResult`.

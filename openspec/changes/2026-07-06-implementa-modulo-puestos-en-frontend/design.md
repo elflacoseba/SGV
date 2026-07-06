@@ -454,7 +454,7 @@ Insertar entre la entry `Habilidades` y el cierre `</ul>` en `Pages/Shared/Parti
 
 <li class="side-nav-item">
     <a aria-controls="puestos" aria-expanded="false" class="side-nav-link side-nav-link-toggle @puestosActive" data-bs-toggle="collapse" href="#puestos">
-        <span class="menu-icon"><i class="ti ti-briefcase"></i></span>
+        <span class="menu-icon"><i class="ti ti-hierarchy"></i></span>
         <span class="menu-text">Puestos</span>
         <span class="menu-arrow"></span>
     </a>
@@ -475,7 +475,7 @@ Insertar entre la entry `Habilidades` y el cierre `</ul>` en `Pages/Shared/Parti
 </li>
 ```
 
-**Decisión de icono (`D1`):** `ti ti-briefcase`. El delta `sgv-web-shell/spec.md` lo lockea explícitamente. Coincide con `Cargos` pero los grupos se distinguen por su `aria-controls` y por el texto del menú. No introduce SCSS propio (reusa `side-nav-item`/`side-nav-link`).
+**Decisión de icono (`D1`):** `ti ti-hierarchy`. El delta `sgv-web-shell/spec.md` lo lockea explícitamente. Elegido para distinguir visualmente Puestos de Cargos (`ti ti-briefcase`), dado que Puestos representa una jerarquía de dependencia (puesto superior → puesto inferior). Coincidía originalmente con Cargos pero se corrigió post-review PR #89 para reducir ambigüedad visual en el sidenav. No introduce SCSS propio (reusa `side-nav-item`/`side-nav-link`).
 
 ## 6. JavaScript de confirmaciones — `puestos-index.js` (PR 2, ~90 líneas)
 
@@ -572,7 +572,7 @@ Espejo de `CargoWebTestFixture`:
 | Req 6. Guardado con PRG y feedback (4 escenarios) | `CreateModel.OnPostAsync` + `EditModel.OnPostAsync` + `PuestoFormHelpers.ApplyFieldErrorsToModelState` + tests: `Post_Create_WhenSuccessful_RedirectsToListado`, `Post_Edit_WhenSuccessful_RedirectsToDetails`, `Post_Create_WhenBackendReturnsFieldErrors_RendersFieldValidationOnCodigo`, `Post_Create_WhenCodigoDuplicado_ReturnsFieldErrorAndKeepsForm`, `Post_Create_WhenHttpRequestException_ReloadsCatalogsAndShowsGeneralError`, `Post_Create_WhenTaskCanceledException_ReloadsCatalogsAndShowsGeneralError` |
 | Req 7. Submenú de Puestos | `_Sidenav.cshtml` entry + tests: `Get_Create_WhenAuthenticated_SidenavShowsNuevoEntryWithActiveState`, `Get_Edit_WhenAuthenticated_SidenavShowsSubmenuActive` |
 | **SGV-WEB-SHELL (DELTA MODIFIED)** | |
-| Req 1. Minimal technical navigation con Puestos habilitado (3 escenarios) | `_Sidenav.cshtml` entry colapsable + icon `ti ti-briefcase` + test RED: `Get_Sidenav_WhenAuthenticated_ExposesPuestosModule` (afirma presencia `>Puestos<` y `ti ti-briefcase`); `Get_Sidenav_WhenOnPuestosSubroute_SubmenuIsExpanded`; `Get_Sidenav_WhenAuthenticated_DoesNotExposeUnimplementedModules` |
+| Req 1. Minimal technical navigation con Puestos habilitado (3 escenarios) | `_Sidenav.cshtml` entry colapsable + icon `ti ti-hierarchy` + test RED: `Get_Sidenav_WhenAuthenticated_ExposesPuestosModule` (afirma presencia `>Puestos<` y `ti ti-hierarchy`); `Get_Sidenav_WhenOnPuestosSubroute_SubmenuIsExpanded`; `Get_Sidenav_WhenAuthenticated_DoesNotExposeUnimplementedModules` |
 | **WEB-APICLIENT-TRANSPORT-CONTRACT (DELTA ADDED)** | |
 | Req 1. Propaga TaskCanceledException / HttpRequestException (2 escenarios) | `PuestosApiClient` sin try/catch en los métodos públicos + tests: `PuestosApiClientTests.{GetAllAsync,CreateAsync,UpdateAsync,DeleteAsync,ReactivateAsync,GetByIdAsync}_TransportFails_PropagatesNativeException` (Theory con `HttpClientExceptionScenarios.TransportExceptionData`) |
 | Req 2. Respeta CancellationToken pre-cancelado | Sin try/catch + tests: `PuestosApiClientTests.{...}_CancellationAlreadyRequested_ThrowsAndDoesNotSendRequest` (Fact por método, espejo de `CargoApiClientTests.QueryAsync_CancellationAlreadyRequested_ThrowsAndDoesNotSendRequest`) |
@@ -580,7 +580,7 @@ Espejo de `CargoWebTestFixture`:
 
 ## 9. Decisiones técnicas explícitas
 
-- **D1 — Icono del sidenav:** `ti ti-briefcase`. Locked por el delta `sgv-web-shell/spec.md`. Coincide con Cargos pero la entry es independiente (texto "Puestos", `aria-controls="puestos"`). Sin SCSS propio; reusa clases existentes.
+- **D1 — Icono del sidenav:** `ti ti-hierarchy`. Locked por el delta `sgv-web-shell/spec.md`. Elegido para distinguir visualmente Puestos de Cargos (`ti ti-briefcase`). Coincidía originalmente con Cargos pero se corrigió post-review PR #89.
 - **D2 — `FakePuestosApiClient`:** respuestas programadas (propiedades `GetAllResult`, `CreateResult`, etc.) + captura de invocaciones (`GetAllCalls`, `CreateCalls`, etc.) + excepciones inyectables (`CreateException`). No `Func<>` factories excepto donde Cargos las usa (`QueryHandler`). Razón: la mayoría de los tests de página solo configuran "1 → 1" respuesta/payload; las properties son menos ceremoniosas que las factories y más fáciles de leer en cada test individual.
 - **D3 — Helper JS compartido vs duplicado:** **duplicar** `wirePuestoDeleteConfirmation` y `wirePuestoReactivateConfirmation` desde `cargos-index.js`. La duplicación es ~85 líneas, ambos archivos son auto-contenidos (no exportan un módulo compartido) y un refactor a helper compartido no aporta valor hasta que haya un tercer módulo con el mismo patrón.
 - **D4 — Render del toggle deshabilitado:** atributo HTML `disabled` + `data-bs-toggle="tooltip" data-bs-title="Requiere endpoint backend: pendiente de follow-up"` directamente en el Razor (`<a class="btn btn-light btn-sm" ... aria-disabled="true" tabindex="-1" ... data-bs-toggle="tooltip" data-bs-title="..." >Eliminadas</a>`). Razón: el tooltip se inicializa en cliente por el bundle Inspinia existente (no se requiere JS nuevo). Test RED afirma que el anchor tiene `disabled` o `aria-disabled="true"` + el atributo `data-bs-title` específico.

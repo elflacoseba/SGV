@@ -151,7 +151,7 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
         // a la de Cargos): la regex ancla desde aria-controls="puestos" hasta el
         // primer icono, que es el de la propia entry.
         Assert.Matches(
-            new Regex("aria-controls=\"puestos\"[^>]*>\\s*<span class=\"menu-icon\"><i class=\"ti ti-briefcase\""),
+            new Regex("aria-controls=\"puestos\"[^>]*>\\s*<span class=\"menu-icon\"><i class=\"ti ti-hierarchy\""),
             content);
     }
 
@@ -164,12 +164,12 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
         var content = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        // Se afirma sobre el texto de menú (`>Modulo<`) en vez del documento
-        // completo: la app se llama "Sistema de Gestión de Vacantes", así que
-        // "Vacantes" aparece en el meta description y NO es un módulo del nav.
-        Assert.DoesNotContain(">Reclutamiento<", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">Vacantes<", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">Postulantes<", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">Catálogos<", content, StringComparison.OrdinalIgnoreCase);
+        // Se afirma sobre aria-controls (estructural, solo existe en el nav) en
+        // vez de texto entre tags: "Vacantes" aparece en meta description y
+        // footer del layout, lo que haría una aserción textual frágil.
+        Assert.DoesNotContain(@"aria-controls=""reclutamiento""", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(@"aria-controls=""vacantes""", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(@"aria-controls=""postulantes""", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(@"aria-controls=""catalogos""", content, StringComparison.OrdinalIgnoreCase);
     }
 }

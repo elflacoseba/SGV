@@ -24,7 +24,7 @@ public sealed record PuestoListItemViewModel(
 /// <summary>
 /// Resultado de la baja lógica de un puesto traducida desde la API.
 /// </summary>
-public sealed record PuestoDeleteResult(bool Succeeded, HttpStatusCode? StatusCode, string? Code, string? Message);
+public sealed record PuestoDeleteResult(bool Succeeded, HttpStatusCode StatusCode, string? Code, string? Message);
 
 /// <summary>
 /// Contrato de consulta para el listado web de puestos. El backend de Puestos

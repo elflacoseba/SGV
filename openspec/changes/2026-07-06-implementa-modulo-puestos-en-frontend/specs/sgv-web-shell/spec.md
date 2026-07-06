@@ -4,7 +4,7 @@
 
 ### Requirement: Minimal technical navigation
 
-El sistema MUST incluir la navegación mínima del shell y, a partir de este cambio, MUST exponer `Unidades Organizativas`, `Cargos`, `Habilidades` y `Puestos` como módulos funcionales de negocio habilitados. La navegación autenticada MUST mantener `Home`, `Unidades Organizativas`, `Cargos`, `Habilidades` y `Puestos`; `Puestos` MUST renderizarse dentro del grupo `Organización` como entry colapsable con icono `ti ti-briefcase` y submenú `Listado` + `Nuevo`; y el shell MUST NOT mostrar placeholders de otros módulos no especificados.
+El sistema MUST incluir la navegación mínima del shell y, a partir de este cambio, MUST exponer `Unidades Organizativas`, `Cargos`, `Habilidades` y `Puestos` como módulos funcionales de negocio habilitados. La navegación autenticada MUST mantener `Home`, `Unidades Organizativas`, `Cargos`, `Habilidades` y `Puestos`; `Puestos` MUST renderizarse dentro del grupo `Organización` como entry colapsable con icono `ti ti-hierarchy` y submenú `Listado` + `Nuevo`; y el shell MUST NOT mostrar placeholders de otros módulos no especificados.
 
 (Previously: la navegación autenticada exponía `Home`, `Unidades Organizativas`, `Cargos` y `Habilidades` como módulos funcionales habilitados, sin entry colapsable para `Puestos`.)
 

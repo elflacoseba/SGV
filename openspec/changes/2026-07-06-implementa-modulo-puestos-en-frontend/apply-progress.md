@@ -37,7 +37,7 @@ el slice queda acotado exactamente a los archivos de `tasks.md §3`.
 | 1.4 | (cubierto por 1.2/1.3) | `Integration/Organizacion/IPuestosApiClient.cs`, `PuestosApiClient.cs`, `PuestoListItemViewModel.cs` (+ `PuestoDeleteResult` + `PuestoListQuery`) | XML docs en todos los tipos públicos | `5496989c` |
 | 1.5 | `PuestoWebSeamTests::ProductionRegistration_ResolvesPuestosApiClient` | `Program.cs` (+`AddHttpClient<IPuestosApiClient, PuestosApiClient>`) | Timeout=10s + `ApiBearerTokenHandler` (paridad Cargo/Habilidad) | `d0ab465b` |
 | 1.6 | `PuestoWebSeamTests::WithOverrides_PuestosApiClient_SwapsToFakeImplementation` + `::WithPuestosApiClient_ConfiguredConflictDeleteResult_IsReturned` | `SgvWebApplicationFactory.cs`, `FakePuestosApiClient.cs`, `PuestoWebTestFixture.cs` | Respuestas programadas + captura de invocaciones (D2) | `d0ab465b` |
-| 1.7 | `PuestoWebSeamTests::Get_Sidenav_WhenAuthenticated_ExposesPuestosModule` + `::Get_Sidenav_WhenAuthenticated_DoesNotExposeUnimplementedModules` | `_Sidenav.cshtml` (entry `aria-controls="puestos"`, `ti ti-briefcase`, `Listado`/`Nuevo`) | Sin SCSS propio; reusa `side-nav-item`/`side-nav-link` | `d0ab465b` |
+| 1.7 | `PuestoWebSeamTests::Get_Sidenav_WhenAuthenticated_ExposesPuestosModule` + `::Get_Sidenav_WhenAuthenticated_DoesNotExposeUnimplementedModules` | `_Sidenav.cshtml` (entry `aria-controls="puestos"`, `ti ti-hierarchy`, `Listado`/`Nuevo`) | Sin SCSS propio; reusa `side-nav-item`/`side-nav-link` | `d0ab465b` |
 | 1.8 | n/a (refactor + verify) | n/a | Build 0 warn/0 err · slice 47/47 PASS · `bun run build` verde | `<docs>` |
 
 ### Test Summary
