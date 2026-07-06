@@ -65,12 +65,16 @@
                     <div class="btn-group" role="group" aria-label="Filtrar por estado">
                         <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")"
                            href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildToggleSegmentoRouteValues(null))">Activas</a>
-                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light") disabled"
-                           aria-disabled="true"
-                           tabindex="-1"
-                           href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildToggleSegmentoRouteValues("eliminadas"))"
-                           data-bs-toggle="tooltip"
-                           data-bs-title="Próximamente">Eliminadas</a>
+                        @* PR 2 — Toggle "Eliminadas" deshabilitado como <span> sin href
+                           para evitar que lectores de pantalla lo anuncien como enlace
+                           activo. Se conserva la clase Bootstrap .disabled y el tooltip
+                           "Próximamente". Cuando llegue el endpoint segmentado (follow-up
+                           puestos-filtro-activos-eliminados) se vuelve a convertir en <a>. *@
+                        <span class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light") disabled"
+                              aria-disabled="true"
+                              tabindex="-1"
+                              data-bs-toggle="tooltip"
+                              data-bs-title="Próximamente">Eliminadas</span>
                     </div>
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
                 </div>
