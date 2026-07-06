@@ -204,12 +204,14 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
                 RegexOptions.IgnoreCase),
             "El grupo Puestos del sidenav debe estar marcado active cuando la ruta es /organizacion/puestos.");
 
-        // El sub-item Listado también debe heredar el active (mismo criterio
-        // que el grupo padre porque StartsWithSegments incluye la ruta exacta).
+        // El sub-item Listado también debe heredar el active. La sidenav
+        // renderiza el atributo `class` ANTES de `href` en este anchor, así
+        // que el regex es order-agnostic (positive lookaheads para ambos
+        // atributos, sin importar el orden en que aparecen en la tag).
         Assert.True(
             Regex.IsMatch(
                 content,
-                @"<a[^>]*href=""/organizacion/puestos""[^>]*class=""[^""]*\bactive\b[^""]*""",
+                @"<a(?=[^>]*\bhref=""/organizacion/puestos"")(?=[^>]*\bclass=""[^""]*\bactive\b)[^>]*>",
                 RegexOptions.IgnoreCase),
             "El sub-item Listado del sidenav debe estar marcado active cuando la ruta es /organizacion/puestos.");
     }

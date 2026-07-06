@@ -66,7 +66,11 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
 
         using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
 
-        var response = await client.GetAsync($"/organizacion/puestos?search=dep&sort=nombre_asc&status=activas");
+        // status=eliminadas fuerza Segmento="eliminadas" (no-default) y
+        // permite verificar que el link preserva contexto via returnStatus.
+        // PR 2: el toggle Eliminadas está deshabilitado pero la query sigue
+        // siendo válida (forward-compat con puestos-filtro-activos-eliminados).
+        var response = await client.GetAsync($"/organizacion/puestos?search=dep&sort=nombre_asc&status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -78,7 +82,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
             $"href=\"/organizacion/puestos/detalles/{superior.Id}",
             content,
             StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"returnStatus=", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("returnStatus=eliminadas", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────────
