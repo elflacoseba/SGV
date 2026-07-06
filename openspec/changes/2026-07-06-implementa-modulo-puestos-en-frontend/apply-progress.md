@@ -5,15 +5,14 @@
 - Cambio: `2026-07-06-implementa-modulo-puestos-en-frontend`
 - Modo: Strict TDD (`openspec/config.yaml` → `strict_tdd: true`)
 - Estrategia de entrega: chained PRs — `feature-branch-chain` (`stacked-to-develop`), 5 PRs.
-- PR actual: **PR 3A / 5** — Create (UI de alta de Puesto).
-- Branch: `feat/puestos-pr3a-create` (base `develop@b8fcd7d5` que incluye PR 1 + PR 2 + refinamientos a11y del reviewer pre-merge).
-- Estado PR: rama local con 4 commits ready (rama pusheada por orquestador; el orquestador gestiona `gh pr create`).
+- PR actual: **PR 3B / 5** — Edit (UI de edición de Puesto).
+- Branch: `feat/puestos-pr3b-edit` (base `develop@95009b39` que incluye PR 1 + PR 2 + PR 3A mergeado + correcciones de review #92).
+- Estado PR: rama local con 2 commits ready (`6903e564` + `8c33db13`) + el commit docs de cycle evidence. Rama pusheada por orquestador; el orquestador gestiona `gh pr create`.
 - Build: `dotnet build SGV.slnx` → success, **0 warnings, 0 errors**.
 - Frontend: `bun install` + `bun run build` (en `src/SGV.Web`) → success.
-- Tests slice PR 3A: `--filter "FullyQualifiedName~PuestoCreatePageTests|FullyQualifiedName~PuestoIndexPageTests|FullyQualifiedName~PuestoWebSeamTests|FullyQualifiedName~PuestosApiClientTests|FullyQualifiedName~IPuestosApiClientContractTests|FullyQualifiedName~PuestoPostResultMapperTests"` → **81/81 PASS** (66 baseline de PR 1+2 + 15 nuevos de PR 3A: 9 en `PuestoCreatePageTests` + 6 en `PuestoPostResultMapperTests`).
-- Suite web completa (`FullyQualifiedName~SGV.Tests.Web`): **387/387 PASS** (372 baseline + 15 nuevos PR 3A; sin regresión).
-- Suite completa `dotnet test SGV.slnx` (sin `MySqlFact`/`OcupacionRepositoryTests`): **1494/1494 PASS**. El baseline `OcupacionRepositoryTests` (12 fallos, bug #59) es pre-existente y queda fuera del scope.
-- Token check `git grep ">Editar<" src/SGV.Web/Pages/Organizacion/Puestos/Create{,_Form}.cshtml{,.cs}` → **OK** (no aparece `>Editar<` en Create ni en `_Form`).
+- Tests slice PR 3B: `--filter "FullyQualifiedName~PuestoEditPageTests|FullyQualifiedName~PuestoCreatePageTests|FullyQualifiedName~PuestoIndexPageTests|FullyQualifiedName~PuestoWebSeamTests|FullyQualifiedName~PuestosApiClientTests|FullyQualifiedName~IPuestosApiClientContractTests|FullyQualifiedName~PuestoPostResultMapperTests"` → **89/89 PASS** (81 baseline de PR 1+2+3A + 8 nuevos de PR 3B en `PuestoEditPageTests`).
+- Suite web completa (`FullyQualifiedName~SGV.Tests.Web`): **395/395 PASS** (387 baseline + 8 nuevos PR 3B; sin regresión).
+- Token check `git grep ">Crear<" src/SGV.Web/Pages/Organizacion/Puestos/Edit.cshtml{,.cs}` → **OK** (no aparece `>Crear<` en Edit ni en su code-behind).
 
 ## Resumen ejecutivo
 
@@ -214,3 +213,54 @@ tests/SGV.Tests/Web/SgvWebApplicationFactory.cs                  |  24 ++   (PR 
 - **`BuildReturnToListUrl` + `StatusMessage`/`StatusKind`** ya soportan PRG a Index preservando filtros (forward-compat); Edit puede usarlos verbatim para redirigir a Details tras éxito.
 - **PR 2 dejó `BuildDetailsUrl(Guid id)` hard-codificando `/organizacion/puestos/detalles/{id}?{...}`**. PR 3C reemplazará este helper por `Url.Page(...)` cuando cree la página Details. Si PR 3B introduce Edit, NO necesita tocar este helper.
 - **El token check de la regla 2.4 sigue aplicando** en `Create.cshtml`, `Edit.cshtml` y sus JS companions (no incluir `>Crear<` en Edit, etc.).
+
+## PR 3B — Edit (UI de edición de Puesto, base PR 3A)
+
+### TDD Cycle Evidence (Strict TDD)
+
+| Tarea | RED test class::method | GREEN impl path | REFACTOR outcome | Commit SHA |
+|---|---|---|---|---|
+| 3B.1 | `PuestoEditPageTests` ×8: `Get_Edit_WhenAnonymous_RedirectsToSignIn`, `Get_Edit_WhenAuthenticated_PrepopulatesNombreDescripcionPuestoSuperior`, `Get_Edit_WhenPuestoNotFound_ShowsRecoverableState`, **`Get_Edit_HtmlRenderizado_NoContieneCodigoUnidadOrganizativaNiCargo`** (RED obligatorio — design §7, spec Req 4), `Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation`, `Post_Edit_WhenBackendReturnsFieldErrors_RendersFieldValidationOnNombre`, `Post_Edit_WhenCodigoDuplicadoConflict_ShowsSpecificMessageAndKeepsForm`, `Post_Edit_WhenTransportFails_ShowsRecoverableError` | n/a (RED puro) | n/a | `6903e564` |
+| 3B.2 | (cubierto 3B.1) | `src/SGV.Web/Pages/Organizacion/Puestos/Edit.cshtml` (form shell reusando `_Form.cshtml` con `IsEdit=true`; render `IsRecoverable` muestra estado recuperable cuando el puesto no existe o falla el GET) + `src/SGV.Web/Pages/Organizacion/Puestos/Edit.cshtml.cs` (`[Authorize]`, `[BindProperty] PuestoInputModel Input`, `IPuestoForm` con `IsEdit=true`/`ErrorMessage`/`StatusMessage`/`StatusKind`/`IsRecoverable`/`Return*`, `Task.WhenAll` 3 catálogos vía helper `LaunchSafeAsync<T>` que convierte sync-throws en faulted tasks, `OnPostAsync` con **pre-populate desde `GetByIdAsync`** de los campos inmutables + `ModelState.Remove(...)` para los `[Required]` no bindeados, mapeo de `PuestoCommandResult` con los 4 caminos: Success → PRG hard-code a Details, Conflict → `PuestoPostResultMapper.TryMap`, FieldErrors → mapper, HttpFailure → `ErrorMessage` recuperable) | n/a | `8c33db13` |
+| 3B.3 | (cubierto 3B.1 + nueva sección Cycle Evidence) | n/a | 89/89 PASS del slice; 395/395 PASS suite web (sin regresión); token check `>Crear<` ausente en `Edit.cshtml*` OK; `bun run build` verde | _este commit_ |
+
+### Test Summary (PR 3B)
+
+- **Total tests nuevos en PR 3B**: 8 (`PuestoEditPageTests`).
+- **Passing**: 8/8 en el slice; **89/89** en la suma con PR 1+2+3A; **395/395** en toda la suite web; **1502/1502** en la suite completa sin `MySqlFact` (excluyendo los 12 fallos pre-existentes de `OcupacionRepositoryTests` baseline #59).
+- **Layers**: Integration (`WebApplicationFactory` + fakes de catálogo).
+- **Approval tests** (refactor de código existente): 0 — sólo archivos nuevos; **cero** modificaciones a `FakePuestosApiClient`/`PuestoWebTestFixture` (los overloads `UpdateResult`/`UpdateException`/`UpdateCalls` ya existían desde PR 1).
+- **Helpers extraídos** (REFACTOR 3B.2):
+  - `LoadCatalogsAsync(CancellationToken)` privado: `Task.WhenAll` 3 catálogos + `LaunchSafeAsync<T>` + `MapToSuperiorViewModel` (idénticos al precedent `CreateModel`, paridad verbatim).
+  - `LaunchSafeAsync<T>(Func<Task<T>>)` privado: convierte throws sincrónicos del fake en faulted tasks (mismo workaround que Create).
+  - **Pre-populate de campos inmutables en `OnPostAsync`**: dado que `PuestoInputModel` declara `Codigo`/`UnidadOrganizativaId`/`CargoId` con `[Required]` (paridad con Create) pero el form de Edit NO los renderiza, el POST no envía esos campos y `ModelState.IsValid` falla. La solución es recuperar el DTO vía `GetByIdAsync` antes de validar y limpiar los errores del ModelState con `ModelState.Remove(...)` para los 3 keys inmutables. **No introduce cambios de comportamiento**: el `ActualizarPuestoRequest` enviado al backend sigue conteniendo sólo `Nombre`/`Descripcion`/`PuestoSuperiorId` (verificado por `Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation` que afirma el shape exacto del payload vía `update.Request.Nombre == "Nombre actualizado"`).
+
+### Desviaciones del diseño
+
+- **Pre-populate en `OnPostAsync` (workaround para `[Required]` heredado)**: el design §4.5 describe el flujo "POST arma `ActualizarPuestoRequest(Nombre, DescripcionTrimmed, PuestoSuperiorId)` y llama `UpdateAsync`", pero no explicita cómo sortear la validación de los campos inmutables que el form de Edit no renderiza. Tres alternativas evaluadas:
+  1. *Quitar `[Required]` de Codigo/UnidadOrganizativaId/CargoId* — descartado: rompe Create (no detectaría campos faltantes) y los tests de Create que asumen `[Required]` se mantienen.
+  2. *Crear `PuestoEditInputModel` separado con sólo los 3 campos editables* — descartado: duplica el modelo y complica el binding con la firma de `IPuestosApiClient.UpdateAsync(Guid id, ActualizarPuestoRequest request, ...)`.
+  3. *Pre-popular desde `GetByIdAsync` en `OnPostAsync` + `ModelState.Remove(...)`* — **elegido**: preserva el modelo compartido, agrega una llamada extra al API (trivially cacheable en el futuro si hace falta), y mantiene el test RED obligatorio verde (no introduce hidden inputs en el HTML).
+- **PRG a Details hard-code**: `return Redirect($"/organizacion/puestos/detalles/{id:D}")` en vez de `RedirectToPage("/Organizacion/Puestos/Details", new { id })`. Razón: la página Details no existe hasta PR 3C, por lo que `Url.Page` no la resuelve. Constraint del orquestador explícita: "usá el mismo patrón de hard-code". PR 3C refactorizará esto.
+- **`OnPostAsync` no distingue `Conflict → Codigo`**: el precedent Create intercepta `PuestoErrorType.Conflict` para mapear `CodigoDuplicado` al campo `Input.Codigo`. En Edit esto no aplica porque `ActualizarPuestoRequest` no incluye `Codigo` (es inmutable). Se delega al mapper genérico `PuestoPostResultMapper.TryMap` que aplica `FieldErrors` si los hay o el mensaje general bajo `string.Empty`. Cubierto por `Post_Edit_WhenCodigoDuplicadoConflict_ShowsSpecificMessageAndKeepsForm`.
+- **Helper `MapToSuperiorViewModel` duplicado con Create**: ambos `CreateModel` y `EditModel` tienen el mismo helper estático privado que proyecta `PuestoDto` → `PuestoListItemViewModel`. Es candidato a extraerse a `PuestoFormHelpers.MapToSuperiorViewModel` en un refactor posterior, pero NO se hace en este slice para mantener el scope acotado a 3 tareas (`3B.1-3B.3`).
+- **`LaunchSafeAsync<T>` duplicado con Create**: idéntico al caso anterior. Misma justificación.
+- **NO se creó `Details.cshtml*`** como placeholder ni como página real. El PRG a Details retorna 302 a una URL que aún no existe, pero el test `Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation` sólo verifica el status 302 y el Location header (no sigue redirects porque `AllowAutoRedirect=false`). El comportamiento end-to-end de la página de detalle se materializa en PR 3C.
+- **`FakePuestosApiClient` no se extendió**: el fake ya tenía `UpdateResult`/`UpdateException`/`UpdateCalls` desde PR 1 (paridad con `FakeCargoApiClient`), por lo que los 4 outcomes (Success/400 FieldErrors/409 CodigoDuplicado/HttpFailure) ya eran configurables. **Cero modificaciones al fake en este slice.**
+- **`PuestoWebTestFixture` no se extendió**: el helper `CreateAuthenticatedClientAsync(FakePuestosApiClient apiClient)` ya soportaba el override del fake para los tests de Edit sin necesidad de cambios.
+
+### Hallazgos
+
+- **`ModelState.Remove(key)` es esencial después del pre-populate**: si sólo se asigna `Input.Codigo = ...` sin limpiar el ModelState, el handler retorna `Page()` antes de llamar a `UpdateAsync` porque el binder ya marcó el error `[Required]` para `Codigo` durante el binding (cuando el form no envió ese campo). Verificado experimentalmente durante el ciclo GREEN: la primera versión del fix sólo pre-poblaba y los 3 tests POST fallaban con "Expected: Found, Actual: OK" porque `UpdateAsync` nunca se invocaba.
+- **El test `Post_Edit_WhenCodigoDuplicadoConflict_ShowsSpecificMessageAndKeepsForm` afirma `Assert.Contains` del mensaje completo** en vez de buscar el span con `data-valmsg-for`. Razón: como Edit no tiene `Input.Codigo` en el form, no hay `data-valmsg-for="Input.Codigo"`. El conflict se aplica bajo `string.Empty` (vía mapper), lo que aparece en el `asp-validation-summary="ModelOnly"`. La aserción es menos estricta que las de Create (que sí verifican el span exacto) pero más fiel al comportamiento real del mapper. **Reportar como variante menor del spec `puesto-web-crear-editar` Req 6.** Crear tendría `Assert.True(Regex.IsMatch(...))` apuntando al span `Input.Codigo`; Edit tiene `Assert.Contains` del mensaje en cualquier parte del HTML.
+- **`PuestoCommandResult` con `Error.Type == Conflict` ya NO requiere el override `ModelState.AddModelError(PuestoFormKeys.CodigoKey, ...)`** que Create sí necesita. En Edit el mapper genérico cubre los 3 outcomes restantes (Success, FieldErrors, Conflict-con-mensaje-general) sin lógica adicional.
+- **El catálogo de Unidades/Cargos se carga en Edit aunque sean inmutables**: el design §4.5 dice "GET invoca `GetByIdAsync(id)` + dos catálogos" pero el dropdown de `PuestoSuperiorId` referencia los nombres `UnidadOrganizativaNombre` y `CargoNombre` vía `CodigoYNombre` (`"P-001 — Director"`), por lo que tener los catálogos cargados no es estrictamente necesario para renderizar el dropdown. La implementación carga los 3 catálogos en paralelo vía `Task.WhenAll` (paridad verbatim con Create) para mantener simetría y minimizar divergencia. Tradeoff: 2 llamadas extra al API en GET. Si en el futuro se mide que esto pesa, se puede acortar a sólo `GetAllAsync` para `PuestoSuperiorId`. Por ahora: paridad > micro-optimización.
+- **No hay `Assert.True` con mensaje custom en xUnit v2**: el primer intento del test RED usaba `Assert.DoesNotMatch(content, regex, "mensaje")` que NO compila en xUnit v2 (sólo v3 soporta assertion messages). Corregido a `Assert.DoesNotMatch(regex, content)` sin mensaje. **Aplicar en futuras migraciones de tests.**
+
+### Commits del PR 3B
+
+| SHA | Tipo | Mensaje |
+|---|---|---|
+| `6903e564` | test | `test(puestos-web): agregar tests RED de Edit y test de ausencia obligatorio para PR 3B` |
+| `8c33db13` | feat | `feat(puestos-web): agregar pagina Edit de Puestos con prepopulate y mapeo de 4 caminos para PR 3B` |
+| _este commit_ | docs | `docs(sdd): registrar evidencia TDD de PR 3B de Puestos en cycle evidence` |
