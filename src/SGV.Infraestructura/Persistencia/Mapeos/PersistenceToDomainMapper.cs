@@ -67,7 +67,16 @@ internal static class PersistenceToDomainMapper
 
     public static UnidadOrganizativa ToDomain(UnidadOrganizativaEntity entity)
     {
-        var unidad = new UnidadOrganizativa(entity.Codigo, entity.Nombre, entity.TipoUnidadOrganizativaId, entity.UnidadPadreId)
+        // PR1: adaptador minimo a la nueva firma del record (ctor con descripcion
+        // y unidadPadreId, sin CambiarDatos). La eliminacion de SetProperty /
+        // BindingFlags.NonPublic para IsActive, UnidadPadre y TipoUnidadOrganizativa
+        // es responsabilidad de PR2, que reescribira este mapper con `with`.
+        var unidad = new UnidadOrganizativa(
+            entity.Codigo,
+            entity.Nombre,
+            entity.TipoUnidadOrganizativaId,
+            entity.Descripcion,
+            entity.UnidadPadreId)
         {
             Id = entity.Id,
             CreatedAt = entity.CreatedAt,
@@ -79,8 +88,7 @@ internal static class PersistenceToDomainMapper
             DeletedByUserId = entity.DeletedByUserId
         };
 
-        unidad.CambiarDatos(entity.Codigo, entity.Nombre, entity.TipoUnidadOrganizativaId, entity.Descripcion);
-        unidad.DefinirVigencia(entity.VigenteDesde, entity.VigenteHasta);
+        unidad = unidad.DefinirVigencia(entity.VigenteDesde, entity.VigenteHasta);
         SetProperty(unidad, nameof(UnidadOrganizativa.IsActive), entity.IsActive);
 
         if (entity.UnidadPadre is not null)

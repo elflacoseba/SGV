@@ -3,7 +3,7 @@ using SGV.Dominio.Ocupaciones;
 
 namespace SGV.Dominio.Personas;
 
-public sealed class Persona : EntidadAuditable
+public sealed record class Persona : EntidadAuditable
 {
     private readonly List<PersonaHabilidad> _habilidades = [];
     private readonly List<Ocupacion> _ocupaciones = [];

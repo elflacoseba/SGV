@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Seleccion;
 
-public sealed class HistorialEstadoPostulacion : EntidadBase
+public sealed record class HistorialEstadoPostulacion : EntidadBase
 {
     private HistorialEstadoPostulacion()
     {

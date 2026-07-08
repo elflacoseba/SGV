@@ -3,7 +3,7 @@ using SGV.Dominio.Organizacion;
 
 namespace SGV.Dominio.Habilidades;
 
-public sealed class CargoHabilidad : EntidadBase
+public sealed record class CargoHabilidad : EntidadBase
 {
     private CargoHabilidad()
     {

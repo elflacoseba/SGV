@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Habilidades;
 
-public sealed class Habilidad : EntidadAuditable
+public sealed record class Habilidad : EntidadAuditable
 {
     private Habilidad()
     {

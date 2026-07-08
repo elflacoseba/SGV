@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Auditoria;
 
-public sealed class Auditoria : EntidadBase
+public sealed record class Auditoria : EntidadBase
 {
     private Auditoria()
     {

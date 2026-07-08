@@ -491,7 +491,7 @@ internal sealed class FakeUnidadOrganizativaServicioComandos : IUnidadOrganizati
     {
         if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
         return Task.FromResult(UnidadOrganizativaCommandResult.Success(
-            new UnidadOrganizativaDto(id, request.Codigo, request.Nombre,
+            new UnidadOrganizativaDto(id, string.Empty, request.Nombre,
                 request.TipoUnidadOrganizativaId, string.Empty, request.Descripcion, request.VigenteDesde,
                 request.VigenteHasta, null, null, null)));
     }

@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Seleccion;
 
-public sealed class EvaluacionPostulacion : EntidadAuditable
+public sealed record class EvaluacionPostulacion : EntidadAuditable
 {
     private EvaluacionPostulacion()
     {

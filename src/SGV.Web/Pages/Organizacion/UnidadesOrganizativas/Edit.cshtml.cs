@@ -114,13 +114,16 @@ public sealed class EditModel(
             return Page();
         }
 
+        // PR1 fix de compilacion: Input.Codigo ya no pertenece al contrato de
+        // ActualizarUnidadOrganizativaRequest. La ocultacion del input en el
+        // form y la supresion definitiva del submit con Codigo son PR3.
         var request = new ActualizarUnidadOrganizativaRequest(
-            Input.Codigo,
             Input.Nombre,
             Input.TipoUnidadOrganizativaId,
             string.IsNullOrWhiteSpace(Input.Descripcion) ? null : Input.Descripcion.Trim(),
             Input.VigenteDesde,
-            Input.VigenteHasta);
+            Input.VigenteHasta,
+            Input.UnidadPadreId);
 
         var result = await unidadOrganizativaApiClient.UpdateAsync(id, request, cancellationToken);
 

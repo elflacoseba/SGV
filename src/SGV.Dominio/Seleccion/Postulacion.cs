@@ -3,7 +3,7 @@ using SGV.Dominio.Vacantes;
 
 namespace SGV.Dominio.Seleccion;
 
-public sealed class Postulacion : EntidadAuditable
+public sealed record class Postulacion : EntidadAuditable
 {
     private readonly List<HistorialEstadoPostulacion> _historialEstados = [];
     private readonly List<EvaluacionPostulacion> _evaluaciones = [];

@@ -98,11 +98,10 @@ public sealed class UnidadOrganizativaRepositoryTests
     {
         await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new UnidadOrganizativaRepository(context);
-        var unidad = new UnidadOrganizativa("UO-ADD", "Unidad Add Test", TipoUnidadOrganizativaConstantes.AreaId)
+        var unidad = new UnidadOrganizativa("UO-ADD", "Unidad Add Test", TipoUnidadOrganizativaConstantes.AreaId, "Creada en test", null)
         {
             Id = Guid.NewGuid()
         };
-        unidad.CambiarDatos("UO-ADD", "Unidad Add Test", TipoUnidadOrganizativaConstantes.AreaId, "Creada en test");
 
         await repo.AddAsync(unidad, default);
         await context.SaveChangesAsync();
@@ -139,14 +138,27 @@ public sealed class UnidadOrganizativaRepositoryTests
             var unidad = await repo.GetByIdForUpdateAsync(entity.Id, default);
             Assert.NotNull(unidad);
 
-            unidad!.CambiarDatos("UO-UPD-2", "Nombre actualizado", TipoUnidadOrganizativaConstantes.DireccionId, "Actualizado");
-            await repo.UpdateAsync(unidad, default);
+            var codigoOriginal = unidad!.Codigo;
+
+            // PR1 compatibility: Actualizar retorna una nueva instancia via `with`.
+            // El test verifica que el Codigo PERSISTIDO es el ORIGINAL, no el que
+            // se intento setear, porque Actualizar no acepta codigo como parametro.
+            var actualizada = unidad.Actualizar(
+                "Nombre actualizado",
+                "Actualizado",
+                TipoUnidadOrganizativaConstantes.DireccionId,
+                null,
+                null,
+                null);
+            await repo.UpdateAsync(actualizada, default);
             await context.SaveChangesAsync();
 
             var updated = await context.Set<UnidadOrganizativaEntity>()
                 .FirstOrDefaultAsync(e => e.Id == entity.Id);
             Assert.NotNull(updated);
-            Assert.Equal("UO-UPD-2", updated!.Codigo);
+            // El Codigo persistido debe ser el ORIGINAL, no el que el test intento
+            // pasar al Actualizar. Esto valida el invariante en la capa de persistencia.
+            Assert.Equal(codigoOriginal, updated!.Codigo);
             Assert.Equal("Nombre actualizado", updated.Nombre);
         }
         finally

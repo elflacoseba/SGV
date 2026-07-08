@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Vacantes;
 
-public sealed class HistorialEstadoVacante : EntidadBase
+public sealed record class HistorialEstadoVacante : EntidadBase
 {
     private HistorialEstadoVacante()
     {

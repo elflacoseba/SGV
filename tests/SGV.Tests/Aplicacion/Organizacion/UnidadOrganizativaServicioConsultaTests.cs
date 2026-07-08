@@ -15,11 +15,10 @@ public sealed class UnidadOrganizativaServicioConsultaTests
 
     private static UnidadOrganizativa CrearUnidadActiva()
     {
-        var unidad = new UnidadOrganizativa("GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId)
+        var unidad = new UnidadOrganizativa("GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Máxima autoridad ejecutiva", null)
         {
             Id = UnidadId
         };
-        unidad.CambiarDatos("GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, "Máxima autoridad ejecutiva");
 
         // Simulate eager-loaded nav property (EF Core sets this via Include)
         var tipo = new TipoUnidadOrganizativa("Direccion", "Dirección")
@@ -33,11 +32,10 @@ public sealed class UnidadOrganizativaServicioConsultaTests
 
     private static UnidadOrganizativa CrearUnidadActivaHija(Guid id, Guid padreId, string codigo, string nombre)
     {
-        var unidad = new UnidadOrganizativa(codigo, nombre, TipoUnidadOrganizativaConstantes.AreaId, padreId)
+        var unidad = new UnidadOrganizativa(codigo, nombre, TipoUnidadOrganizativaConstantes.AreaId, null, padreId)
         {
             Id = id
         };
-        unidad.CambiarDatos(codigo, nombre, TipoUnidadOrganizativaConstantes.AreaId, null);
 
         var tipo = new TipoUnidadOrganizativa("Area", "Área")
         {

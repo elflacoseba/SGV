@@ -4,15 +4,15 @@ namespace SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 
 /// <summary>
 /// Validates shape and input rules for <see cref="ActualizarUnidadOrganizativaRequest"/>.
+/// <para>
+/// <c>Codigo</c> is NOT validated here because it is not part of the update contract;
+/// the unit's <c>Codigo</c> is set once at create time and is immutable thereafter.
+/// </para>
 /// </summary>
 public class ActualizarUnidadOrganizativaRequestValidator : AbstractValidator<ActualizarUnidadOrganizativaRequest>
 {
     public ActualizarUnidadOrganizativaRequestValidator()
     {
-        RuleFor(x => x.Codigo)
-            .NotEmpty()
-            .MaximumLength(50);
-
         RuleFor(x => x.Nombre)
             .NotEmpty()
             .MaximumLength(200);

@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Organizacion;
 
-public sealed class TipoUnidadOrganizativa : EntidadBase
+public sealed record class TipoUnidadOrganizativa : EntidadBase
 {
     private TipoUnidadOrganizativa()
     {

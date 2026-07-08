@@ -3,7 +3,7 @@ using SGV.Dominio.Habilidades;
 
 namespace SGV.Dominio.Organizacion;
 
-public sealed class Cargo : EntidadAuditable
+public sealed record class Cargo : EntidadAuditable
 {
     private readonly List<CargoHabilidad> _habilidades = [];
     private readonly List<Puesto> _puestos = [];

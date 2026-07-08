@@ -3,7 +3,7 @@ using SGV.Dominio.Habilidades;
 
 namespace SGV.Dominio.Personas;
 
-public sealed class PersonaHabilidad : EntidadBase
+public sealed record class PersonaHabilidad : EntidadBase
 {
     private PersonaHabilidad()
     {

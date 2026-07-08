@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Vacantes;
 
-public sealed class EstadoVacante : EntidadBase
+public sealed record class EstadoVacante : EntidadBase
 {
     private EstadoVacante()
     {

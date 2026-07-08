@@ -145,12 +145,13 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var request = new ActualizarUnidadOrganizativaRequest(
-            "GER-2", "Nueva Gerencia", TipoUnidadOrganizativaConstantes.InstitucionId, "Descripción actualizada", null, null);
+            "Nueva Gerencia", TipoUnidadOrganizativaConstantes.InstitucionId, "Descripción actualizada", null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
         Assert.True(resultado.IsSuccess);
-        Assert.Equal("GER-2", resultado.Value!.Codigo);
+        // Codigo se preserva: el request no acepta codigo y Actualizar no lo expone.
+        Assert.Equal("GER", resultado.Value!.Codigo);
         Assert.Equal("Nueva Gerencia", resultado.Value.Nombre);
         Assert.Equal(1, uow.SaveChangesCount);
     }
@@ -164,31 +165,40 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var request = new ActualizarUnidadOrganizativaRequest(
-            "FAC-2", "Nueva Facultad", TipoUnidadOrganizativaConstantes.FacultadId, "Descripción actualizada", null, null);
+            "Nueva Facultad", TipoUnidadOrganizativaConstantes.FacultadId, "Descripción actualizada", null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
         Assert.True(resultado.IsSuccess);
-        Assert.Equal("FAC-2", resultado.Value!.Codigo);
+        Assert.Equal("FAC", resultado.Value!.Codigo);
         Assert.Equal("Nueva Facultad", resultado.Value.Nombre);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
     [Fact]
-    public async Task ActualizarAsync_CodigoDuplicado_RetornaConflictoYSinGuardar()
+    public async Task ActualizarAsync_PreservaCodigoOriginal()
     {
-        var a = CrearUnidadActiva("GER-A", UnidadId);
-        var b = CrearUnidadActiva("GER-B", PadreId);
-        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [a, b] };
+        // Regresion critica: aunque el request ya no acepta Codigo, garantizamos
+        // que el Codigo persistido es exactamente el original. Si el servicio
+        // recibiera un codigo "HACKED" por contrato previo, debe seguir devolviendo
+        // el codigo original. El test crea la unidad con "RECT" y verifica que el
+        // resultado de ActualizarAsync mantiene "RECT" aunque el resto cambie.
+        var existente = CrearUnidadActiva("RECT");
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("GER-B", "A", TipoUnidadOrganizativaConstantes.AreaId, null, null, null);
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Rectorado Modificado", TipoUnidadOrganizativaConstantes.InstitucionId,
+            "Nueva descripcion", null, null, null);
 
-        var resultado = await servicio.ActualizarAsync(UnidadId, request, default);
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
-        Assert.False(resultado.IsSuccess);
-        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
-        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("RECT", resultado.Value!.Codigo);
+        Assert.Equal("Rectorado Modificado", resultado.Value.Nombre);
+        // La entidad persistida en el repo debe seguir teniendo el Codigo original.
+        var persistida = repo.Datos.Single(u => u.Id == existente.Id);
+        Assert.Equal("RECT", persistida.Codigo);
     }
 
     [Fact]
@@ -198,7 +208,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("GER", "G", Guid.NewGuid(), null, null, null);
+        var request = new ActualizarUnidadOrganizativaRequest("G", Guid.NewGuid(), null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
@@ -214,7 +224,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("GER", "G", TipoUnidadOrganizativaConstantes.AreaId, null, null, null);
+        var request = new ActualizarUnidadOrganizativaRequest("G", TipoUnidadOrganizativaConstantes.AreaId, null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(Guid.NewGuid(), request, default);
 
@@ -360,16 +370,16 @@ public sealed class UnidadOrganizativaServicioComandosTests
     [Fact]
     public async Task ReactivarAsync_PadreInactivo_RetornaConflictoYSinGuardar()
     {
-        var padre = new UnidadOrganizativa("PADRE", "Padre Inactivo", TipoUnidadOrganizativaConstantes.InstitucionId)
+        var padre = new UnidadOrganizativa("PADRE", "Padre Inactivo", TipoUnidadOrganizativaConstantes.InstitucionId, null, null)
         {
             Id = PadreId
         };
-        padre.Desactivar(); // padre inactivo
-        var hijo = new UnidadOrganizativa("HIJO", "Hijo", TipoUnidadOrganizativaConstantes.FacultadId, PadreId)
+        padre = padre.Desactivar(); // padre inactivo
+        var hijo = new UnidadOrganizativa("HIJO", "Hijo", TipoUnidadOrganizativaConstantes.FacultadId, null, PadreId)
         {
             Id = HijoId
         };
-        hijo.Desactivar(); // hijo también inactivo
+        hijo = hijo.Desactivar(); // hijo también inactivo
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
@@ -385,16 +395,16 @@ public sealed class UnidadOrganizativaServicioComandosTests
     [Fact]
     public async Task ReactivarAsync_PadreActivo_RetornaExitoYGuarda()
     {
-        var padre = new UnidadOrganizativa("PADRE", "Padre Activo", TipoUnidadOrganizativaConstantes.InstitucionId)
+        var padre = new UnidadOrganizativa("PADRE", "Padre Activo", TipoUnidadOrganizativaConstantes.InstitucionId, null, null)
         {
             Id = PadreId
         };
         // padre stays active (default)
-        var hijo = new UnidadOrganizativa("HIJO", "Hijo", TipoUnidadOrganizativaConstantes.FacultadId, PadreId)
+        var hijo = new UnidadOrganizativa("HIJO", "Hijo", TipoUnidadOrganizativaConstantes.FacultadId, null, PadreId)
         {
             Id = HijoId
         };
-        hijo.Desactivar();
+        hijo = hijo.Desactivar();
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
@@ -433,7 +443,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var padre = CrearUnidadActiva("PADRE", PadreId);
-        padre.DefinirVigencia(new DateOnly(2025, 1, 1), new DateOnly(2025, 6, 30));
+        padre = padre.DefinirVigencia(new DateOnly(2025, 1, 1), new DateOnly(2025, 6, 30));
         repo.Datos.Add(padre);
         // Hija vigente DESPUÉS del rango del padre
         var request = new CrearUnidadOrganizativaRequest(
@@ -511,19 +521,19 @@ public sealed class UnidadOrganizativaServicioComandosTests
     }
 
     [Fact]
-    public async Task ActualizarAsync_CodigoVacio_RetornaFieldErrorsSinConsultarRepos()
+    public async Task ActualizarAsync_NombreVacio_RetornaFieldErrorsSinConsultarRepos()
     {
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("", "Nombre", TipoUnidadOrganizativaConstantes.AreaId);
+        var request = new ActualizarUnidadOrganizativaRequest("", TipoUnidadOrganizativaConstantes.AreaId, null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.Contains("nombre", resultado.FieldErrors!.Keys);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -533,14 +543,14 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var repo = new FakeUnidadOrganizativaWriteRepository(); // empty — no data
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("", "Nombre", TipoUnidadOrganizativaConstantes.AreaId);
+        var request = new ActualizarUnidadOrganizativaRequest("", TipoUnidadOrganizativaConstantes.AreaId, null, null, null, null);
 
         // Id is irrelevant because shape validation fires before GetByIdForUpdateAsync
         var resultado = await servicio.ActualizarAsync(Guid.NewGuid(), request, default);
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
+        Assert.Contains("nombre", resultado.FieldErrors!.Keys);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -647,37 +657,13 @@ public sealed class UnidadOrganizativaServicioComandosTests
     }
 
     [Fact]
-    public async Task ActualizarAsync_CodigoVacio_EmiteClaveCamelCaseYSinConsultarRepos()
-    {
-        var existente = CrearUnidadActiva("GER");
-        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
-        var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("", "Nombre", TipoUnidadOrganizativaConstantes.AreaId);
-
-        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
-
-        Assert.False(resultado.IsSuccess);
-        Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("codigo", resultado.FieldErrors!.Keys);
-        Assert.DoesNotContain("Codigo", resultado.FieldErrors.Keys);
-        // Update path must not touch the unit nor the duplicate check.
-        Assert.Equal(0, repo.GetByIdForUpdateCallCount);
-        Assert.Equal(0, repo.ExistsActiveCodeCallCount);
-        Assert.Equal(0, repo.GetByIdCallCount);
-        Assert.Equal(0, repo.UpdateCallCount);
-        Assert.Equal(0, repo.IsDescendantCallCount);
-        Assert.Equal(0, uow.SaveChangesCount);
-    }
-
-    [Fact]
     public async Task ActualizarAsync_NombreVacio_EmiteClaveCamelCaseYSinConsultarRepos()
     {
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("GER", "", TipoUnidadOrganizativaConstantes.AreaId);
+        var request = new ActualizarUnidadOrganizativaRequest("", TipoUnidadOrganizativaConstantes.AreaId, null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
@@ -699,7 +685,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
-        var request = new ActualizarUnidadOrganizativaRequest("GER", "Gerencia", Guid.Empty);
+        var request = new ActualizarUnidadOrganizativaRequest("Gerencia", Guid.Empty, null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
 
@@ -715,15 +701,13 @@ public sealed class UnidadOrganizativaServicioComandosTests
     }
 
     private static UnidadOrganizativa CrearUnidadActiva(
-        string codigo, Guid? id = null, Guid? padreId = null, Guid? tipoId = null)
+        string codigo, Guid? id = null, Guid? unidadPadreId = null, Guid? tipoId = null)
     {
         var tipo = tipoId ?? TipoUnidadOrganizativaConstantes.InstitucionId;
-        var unidad = new UnidadOrganizativa(codigo, codigo, tipo, padreId)
+        return new UnidadOrganizativa(codigo, codigo, tipo, null, unidadPadreId)
         {
             Id = id ?? Guid.NewGuid()
         };
-        unidad.CambiarDatos(codigo, codigo, tipo, null);
-        return unidad;
     }
 }
 

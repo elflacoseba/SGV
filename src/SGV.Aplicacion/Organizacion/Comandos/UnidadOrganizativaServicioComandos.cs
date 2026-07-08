@@ -78,12 +78,16 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            var unidad = new UnidadOrganizativa(request.Codigo, request.Nombre, request.TipoUnidadOrganizativaId, request.UnidadPadreId)
+            var unidad = new UnidadOrganizativa(
+                request.Codigo,
+                request.Nombre,
+                request.TipoUnidadOrganizativaId,
+                request.Descripcion,
+                request.UnidadPadreId)
             {
                 Id = Guid.NewGuid()
             };
-            unidad.CambiarDatos(request.Codigo, request.Nombre, request.TipoUnidadOrganizativaId, request.Descripcion);
-            unidad.DefinirVigencia(request.VigenteDesde, request.VigenteHasta);
+            unidad = unidad.DefinirVigencia(request.VigenteDesde, request.VigenteHasta);
 
             await repository.AddAsync(unidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -117,12 +121,6 @@ public sealed class UnidadOrganizativaServicioComandos(
                 new(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad organizativa no existe."));
         }
 
-        if (await repository.ExistsActiveCodeAsync(request.Codigo, id, cancellationToken).ConfigureAwait(false))
-        {
-            return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado", "Ya existe una unidad organizativa activa con el mismo código."));
-        }
-
         var tipo = await tipoUnidadRepository.GetByIdAsync(request.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false);
         if (tipo is null)
         {
@@ -133,8 +131,15 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            unidad.CambiarDatos(request.Codigo, request.Nombre, request.TipoUnidadOrganizativaId, request.Descripcion);
-            unidad.DefinirVigencia(request.VigenteDesde, request.VigenteHasta);
+            // El codigo se preserva por contrato: Actualizar no acepta codigo y el
+            // record se copia via with, manteniendo el Codigo original intacto.
+            unidad = unidad.Actualizar(
+                request.Nombre,
+                request.Descripcion,
+                request.TipoUnidadOrganizativaId,
+                request.UnidadPadreId,
+                request.VigenteDesde,
+                request.VigenteHasta);
 
             await repository.UpdateAsync(unidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -185,7 +190,7 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            unidad.CambiarUnidadPadre(request.UnidadPadreId);
+            unidad = unidad.CambiarUnidadPadre(request.UnidadPadreId);
 
             await repository.UpdateAsync(unidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -224,7 +229,7 @@ public sealed class UnidadOrganizativaServicioComandos(
                     "No se puede eliminar una unidad organizativa que tiene puestos activos asociados."));
         }
 
-        unidad.Desactivar();
+        unidad = unidad.Desactivar();
         await repository.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -261,7 +266,7 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            unidad.Activar();
+            unidad = unidad.Activar();
 
             await repository.ReactivateAsync(id, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Habilidades;
 
-public sealed class NivelHabilidad : EntidadBase
+public sealed record class NivelHabilidad : EntidadBase
 {
     private NivelHabilidad()
     {

@@ -4,7 +4,7 @@ using SGV.Dominio.Vacantes;
 
 namespace SGV.Dominio.Organizacion;
 
-public sealed class Puesto : EntidadAuditable
+public sealed record class Puesto : EntidadAuditable
 {
     private readonly List<Ocupacion> _ocupaciones = [];
     private readonly List<Vacante> _vacantes = [];

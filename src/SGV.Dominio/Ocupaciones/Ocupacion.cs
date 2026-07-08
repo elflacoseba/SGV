@@ -4,7 +4,7 @@ using SGV.Dominio.Personas;
 
 namespace SGV.Dominio.Ocupaciones;
 
-public sealed class Ocupacion : EntidadAuditable
+public sealed record class Ocupacion : EntidadAuditable
 {
     private Ocupacion()
     {

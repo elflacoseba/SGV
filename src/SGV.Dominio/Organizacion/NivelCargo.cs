@@ -2,7 +2,7 @@ using SGV.Dominio.Comun;
 
 namespace SGV.Dominio.Organizacion;
 
-public sealed class NivelCargo : EntidadBase
+public sealed record class NivelCargo : EntidadBase
 {
     private NivelCargo()
     {
