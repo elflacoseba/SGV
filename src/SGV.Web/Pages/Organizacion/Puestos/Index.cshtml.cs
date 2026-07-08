@@ -254,6 +254,21 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
     };
 
     /// <summary>
+    /// Construye los route values del enlace "Editar" preservando el contexto
+    /// del listado (página, búsqueda, orden y segmento vía returnStatus) para
+    /// que la página de edición pueda devolver al usuario a la misma vista
+    /// (espejo de <c>CargoIndexModel.BuildEditRouteValues</c>).
+    /// </summary>
+    public object BuildEditRouteValues(Guid id) => new
+    {
+        id,
+        p = CurrentPage,
+        search = Search,
+        sort = Sort,
+        returnStatus = Segmento
+    };
+
+    /// <summary>
     /// PR 3C — refactor a <c>Url.Page</c>. La página <c>Puestos/Details</c>
     /// ya existe (introducida en este PR), por lo que el helper ahora delega
     /// a <see cref="IUrlHelper.Page(string, object?)"/> con

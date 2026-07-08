@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Seguridad;
 
 namespace SGV.Api.Controllers;
 
@@ -11,6 +13,7 @@ namespace SGV.Api.Controllers;
 [ApiController]
 [Route("api/v1/puestos")]
 [Produces("application/json")]
+[Authorize]
 public class PuestosController : ControllerBase
 {
     private readonly IPuestoServicioConsulta _servicio;
@@ -28,8 +31,10 @@ public class PuestosController : ControllerBase
     /// Obtiene todos los puestos activos.
     /// </summary>
     /// <response code="200">Lista de puestos devuelta correctamente.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<PuestoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<PuestoDto>>> GetAll(
         CancellationToken cancellationToken)
     {
@@ -41,9 +46,11 @@ public class PuestosController : ControllerBase
     /// Obtiene un puesto por su identificador único.
     /// </summary>
     /// <response code="200">Puesto encontrado.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
     /// <response code="404">No se encontró un puesto con el ID especificado.</response>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(PuestoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PuestoDto>> GetById(
         Guid id, CancellationToken cancellationToken)
@@ -59,10 +66,15 @@ public class PuestosController : ControllerBase
     /// </summary>
     /// <response code="201">Puesto creado exitosamente.</response>
     /// <response code="400">Datos inválidos o error de validación.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    /// <response code="403">El consumidor no tiene rol <c>Administrador</c>.</response>
     /// <response code="409">Conflicto — ya existe un puesto activo con el mismo código.</response>
     [HttpPost]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(PuestoDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PuestoDto>> Create(
         CrearPuestoRequest request,
@@ -81,12 +93,18 @@ public class PuestosController : ControllerBase
     /// <summary>
     /// Actualiza los campos editables de un puesto existente.
     /// </summary>
+    /// <remarks><c>409 Conflict</c> no aplica aquí porque <c>Codigo</c> es inmutable en un puesto existente. La unicidad activa sólo se valida en <c>Crear</c> y <c>Reactivar</c>.</remarks>
     /// <response code="200">Puesto actualizado correctamente.</response>
     /// <response code="400">Datos inválidos o error de validación.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    /// <response code="403">El consumidor no tiene rol <c>Administrador</c>.</response>
     /// <response code="404">No se encontró un puesto con el ID especificado.</response>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(PuestoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PuestoDto>> Update(
         Guid id,
@@ -107,9 +125,14 @@ public class PuestosController : ControllerBase
     /// Elimina (soft-delete) un puesto por su identificador.
     /// </summary>
     /// <response code="204">Puesto eliminado correctamente.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    /// <response code="403">El consumidor no tiene rol <c>Administrador</c>.</response>
     /// <response code="404">No se encontró un puesto con el ID especificado.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(
         Guid id,
@@ -125,10 +148,15 @@ public class PuestosController : ControllerBase
     /// Reactiva un puesto previamente eliminado (soft-delete).
     /// </summary>
     /// <response code="200">Puesto reactivado correctamente.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    /// <response code="403">El consumidor no tiene rol <c>Administrador</c>.</response>
     /// <response code="404">No se encontró un puesto con el ID especificado.</response>
     /// <response code="409">Conflicto — ya existe un puesto activo con el mismo código.</response>
     [HttpPatch("{id:guid}/reactivar")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(PuestoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PuestoDto>> Reactivate(

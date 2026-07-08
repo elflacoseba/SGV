@@ -69,27 +69,36 @@ public sealed class EditModel(
         ReturnSort,
         ReturnStatus);
 
+    private void CaptureReturnContext(
+        string? p, string? search, string? sort, string? returnStatus)
+    {
+        ReturnPage = p ?? string.Empty;
+        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
+        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
+        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? "eliminadas"
+            : string.Empty;
+    }
+
     /// <summary>
     /// GET handler. Si el puesto no existe (<see cref="IPuestosApiClient.GetByIdAsync"/>
     /// devuelve <c>null</c>) o falla el transporte, marca
     /// <see cref="IsRecoverable"/> y muestra un mensaje recuperable sin
     /// renderizar el formulario. Los parámetros <c>p</c>, <c>search</c>,
-    /// <c>sort</c> y <c>status</c> se preservan para los enlaces de retorno.
+    /// <c>sort</c> y <c>returnStatus</c> se preservan para los enlaces de
+    /// retorno (paridad con <c>Puestos/Details</c>, que también bindea
+    /// <c>returnStatus</c>; el helper <c>BuildEditRouteValues</c> del Index
+    /// emite este mismo nombre).
     /// </summary>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         [FromQuery(Name = "p")] string? p = null,
         [FromQuery(Name = "search")] string? search = null,
         [FromQuery(Name = "sort")] string? sort = null,
-        [FromQuery(Name = "status")] string? status = null,
+        [FromQuery(Name = "returnStatus")] string? returnStatus = null,
         CancellationToken cancellationToken = default)
     {
-        ReturnPage = p ?? string.Empty;
-        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
-        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
-        ReturnStatus = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? "eliminadas"
-            : string.Empty;
+        CaptureReturnContext(p, search, sort, returnStatus);
 
         try
         {
@@ -139,15 +148,10 @@ public sealed class EditModel(
         [FromQuery(Name = "p")] string? p = null,
         [FromQuery(Name = "search")] string? search = null,
         [FromQuery(Name = "sort")] string? sort = null,
-        [FromQuery(Name = "status")] string? status = null,
+        [FromQuery(Name = "returnStatus")] string? returnStatus = null,
         CancellationToken cancellationToken = default)
     {
-        ReturnPage = p ?? string.Empty;
-        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
-        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
-        ReturnStatus = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? "eliminadas"
-            : string.Empty;
+        CaptureReturnContext(p, search, sort, returnStatus);
 
         // Pre-poblar los campos inmutables (Codigo, UnidadOrganizativaId,
         // CargoId) desde el DTO antes de validar ModelState. Razón: estos
@@ -248,7 +252,7 @@ public sealed class EditModel(
                 p,
                 search,
                 sort,
-                returnStatus = status
+                returnStatus
             });
         }
 
