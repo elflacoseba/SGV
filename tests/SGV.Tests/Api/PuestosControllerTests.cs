@@ -19,7 +19,7 @@ public sealed class PuestosControllerTests
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/puestos");
 
@@ -43,7 +43,7 @@ public sealed class PuestosControllerTests
             services.AddSingleton<IPuestoServicioConsulta>(
                 new FakePuestoServicio(isEmpty: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/puestos");
 
@@ -58,7 +58,7 @@ public sealed class PuestosControllerTests
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}");
@@ -76,7 +76,7 @@ public sealed class PuestosControllerTests
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/puestos/{Guid.NewGuid()}");
 
@@ -84,14 +84,130 @@ public sealed class PuestosControllerTests
     }
 
     [Fact]
-    public void Controller_DoesNotHaveAuthorizeAttribute()
+    public void Controller_HasAuthorizeAttribute()
     {
         var controllerType = typeof(SGV.Api.Controllers.PuestosController);
 
         var hasAuthorize = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Any(a => a is AuthorizeAttribute);
 
-        Assert.False(hasAuthorize, "Controller should not require authorization");
+        Assert.True(hasAuthorize, "Controller MUST require authorization at class level");
+    }
+
+    // ---- Anonymous (no credentials) authorization matrix ----
+
+    [Fact]
+    public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/puestos");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // ---- Authenticated non-admin → 403 Forbidden on writes ----
+
+    [Fact]
+    public async Task Create_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+        var body = ToJsonBody(new
+        {
+            codigo = "NVO",
+            nombre = "Nuevo Puesto",
+            unidadOrganizativaId = FakePuestoServicioComandos.DefaultUnidadId,
+            cargoId = FakePuestoServicioComandos.DefaultCargoId
+        });
+
+        var response = await client.PostAsync("/api/v1/puestos", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+        var body = ToJsonBody(new { nombre = "Sin Permiso" });
+
+        var response = await client.PutAsync(
+            $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
+
+        var response = await client.PatchAsync(
+            $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    // ---- Any mutation without credentials → 401 ----
+
+    [Theory]
+    [InlineData("POST",   "/api/v1/puestos")]
+    [InlineData("PUT",    "/api/v1/puestos/00000000-0000-0000-0000-000000000001")]
+    [InlineData("DELETE", "/api/v1/puestos/00000000-0000-0000-0000-000000000001")]
+    [InlineData("PATCH",  "/api/v1/puestos/00000000-0000-0000-0000-000000000001/reactivar")]
+    public async Task Mutation_WithoutCredentials_ReturnsUnauthorized(string method, string path)
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        HttpResponseMessage response = method switch
+        {
+            "POST"   => await client.PostAsync(path, ToJsonBody(new
+            {
+                codigo = "NVO",
+                nombre = "Nuevo Puesto",
+                unidadOrganizativaId = Guid.NewGuid(),
+                cargoId = Guid.NewGuid()
+            })),
+            "PUT"    => await client.PutAsync(path, ToJsonBody(new { nombre = "Sin creds" })),
+            "DELETE" => await client.DeleteAsync(path),
+            "PATCH"  => await client.PatchAsync(path, null),
+            _        => throw new ArgumentOutOfRangeException(nameof(method), method, "Unsupported HTTP method")
+        };
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     // ---- Write endpoint helpers ----
@@ -137,7 +253,7 @@ public sealed class PuestosControllerTests
     public async Task Post_ValidRequest_Returns201CreatedWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new
         {
             codigo = "NVO",
@@ -175,7 +291,7 @@ public sealed class PuestosControllerTests
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "", nombre = "", unidadOrganizativaId = Guid.NewGuid(), cargoId = Guid.NewGuid() });
 
         var response = await client.PostAsync("/api/v1/puestos", body);
@@ -201,7 +317,7 @@ public sealed class PuestosControllerTests
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new
         {
             codigo = "EXISTENTE",
@@ -223,7 +339,7 @@ public sealed class PuestosControllerTests
     public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nombre = "Puesto Actualizado" });
 
         var response = await client.PutAsync(
@@ -248,7 +364,7 @@ public sealed class PuestosControllerTests
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nombre = "No existe" });
 
         var response = await client.PutAsync($"/api/v1/puestos/{Guid.NewGuid()}", body);
@@ -277,7 +393,7 @@ public sealed class PuestosControllerTests
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nombre = "" });
 
         var response = await client.PutAsync($"/api/v1/puestos/{FakePuestoServicio.PuestoId1}", body);
@@ -294,7 +410,7 @@ public sealed class PuestosControllerTests
     public async Task Delete_ExistingId_Returns204NoContent()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}");
@@ -316,7 +432,7 @@ public sealed class PuestosControllerTests
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/puestos/{Guid.NewGuid()}");
 
@@ -331,7 +447,7 @@ public sealed class PuestosControllerTests
     public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}/reactivar", null);
@@ -355,7 +471,7 @@ public sealed class PuestosControllerTests
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/puestos/{Guid.NewGuid()}/reactivar", null);
@@ -380,7 +496,7 @@ public sealed class PuestosControllerTests
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}/reactivar", null);
