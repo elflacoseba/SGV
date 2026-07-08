@@ -63,6 +63,17 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Contains("data-bs-title=\"Editar\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-puesto-delete-form", content, StringComparison.OrdinalIgnoreCase);
 
+        // spec: "cada fila MUST ofrecer Detalle, Editar y Eliminar"
+        // La segunda fila también debe exponer Editar y Detalle.
+        Assert.Contains(
+            $"href=\"/organizacion/puestos/editar/{second.Id}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"href=\"/organizacion/puestos/detalles/{second.Id}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+
         // El endpoint /api/v1/puestos debe haber sido consultado una vez.
         Assert.NotEmpty(apiClient.GetAllCalls);
     }

@@ -93,6 +93,7 @@ public class PuestosController : ControllerBase
     /// <summary>
     /// Actualiza los campos editables de un puesto existente.
     /// </summary>
+    /// <remarks><c>409 Conflict</c> no aplica aquí porque <c>Codigo</c> es inmutable en un puesto existente. La unicidad activa sólo se valida en <c>Crear</c> y <c>Reactivar</c>.</remarks>
     /// <response code="200">Puesto actualizado correctamente.</response>
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="401">El consumidor no está autenticado.</response>

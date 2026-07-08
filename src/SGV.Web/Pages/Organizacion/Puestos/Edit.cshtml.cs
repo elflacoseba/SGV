@@ -69,6 +69,17 @@ public sealed class EditModel(
         ReturnSort,
         ReturnStatus);
 
+    private void CaptureReturnContext(
+        string? p, string? search, string? sort, string? returnStatus)
+    {
+        ReturnPage = p ?? string.Empty;
+        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
+        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
+        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? "eliminadas"
+            : string.Empty;
+    }
+
     /// <summary>
     /// GET handler. Si el puesto no existe (<see cref="IPuestosApiClient.GetByIdAsync"/>
     /// devuelve <c>null</c>) o falla el transporte, marca
@@ -87,12 +98,7 @@ public sealed class EditModel(
         [FromQuery(Name = "returnStatus")] string? returnStatus = null,
         CancellationToken cancellationToken = default)
     {
-        ReturnPage = p ?? string.Empty;
-        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
-        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
-        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? "eliminadas"
-            : string.Empty;
+        CaptureReturnContext(p, search, sort, returnStatus);
 
         try
         {
@@ -145,12 +151,7 @@ public sealed class EditModel(
         [FromQuery(Name = "returnStatus")] string? returnStatus = null,
         CancellationToken cancellationToken = default)
     {
-        ReturnPage = p ?? string.Empty;
-        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
-        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
-        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? "eliminadas"
-            : string.Empty;
+        CaptureReturnContext(p, search, sort, returnStatus);
 
         // Pre-poblar los campos inmutables (Codigo, UnidadOrganizativaId,
         // CargoId) desde el DTO antes de validar ModelState. Razón: estos

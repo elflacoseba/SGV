@@ -176,3 +176,29 @@ Si aparecen `DatosSemilla.cs` o `Migraciones/20260706221558_*`, abortar — esos
 | 3 (Tests web) | ✅ GREEN | Presencia/ausencia + 4ta positive triangulation. |
 | 4 (Tests API) | ✅ GREEN | 11 tests nuevos + migración + obsolete test removido. |
 | 5 (Validación) | ✅ GREEN | Build limpio, suite 1527 PASS / 12 pre-FAIL (issue #59) / 0 regresiones. |
+
+## Correcciones post-review PR #95 (recomendaciones 🟡)
+
+### #1 — Helper `CaptureReturnContext` en `Puestos/Edit.cshtml.cs`
+
+Extraída la duplicación de normalización `ReturnPage`/`ReturnSearch`/`ReturnSort`/`ReturnStatus` que existía en GET (`:90-95`) y POST (`:148-153`) a un helper privado `CaptureReturnContext(string? p, string? search, string? sort, string? returnStatus)`. Ambos handlers ahora llaman `CaptureReturnContext(p, search, sort, returnStatus)`.
+
+**Cambio**: `src/SGV.Web/Pages/Organizacion/Puestos/Edit.cshtml.cs` — +8 LoC (helper) / −10 LoC (duplicación removida). **−2 LoC neto**.
+
+### #2 — `<remarks>` documental en `PuestosController.Update`
+
+Agregado `<remarks>409 Conflict no aplica aquí porque Codigo es inmutable en un puesto existente. La unicidad activa sólo se valida en Crear y Reactivar.</remarks>` para dejar explícito por qué `Update` no emite 409, manteniendo simetría documental con `CargosController.Update`.
+
+**Cambio**: `src/SGV.Api/Controllers/PuestosController.cs` — +1 línea `<remarks>`.
+
+### #3 — Cobertura "cada fila" en `PuestoIndexPageTests`
+
+Extendido `Get_Index_WhenAuthenticated_RendersActivePuestosTable` con asserts para `second.Id` (Editar + Detalle), cumpliendo el requisito canónico *"cada fila MUST ofrecer Detalle, Editar y Eliminar"*.
+
+**Cambio**: `tests/SGV.Tests/Web/Puesto/PuestoIndexPageTests.cs:65-72` — +4 asserts.
+
+### Validación post-corrección
+
+- `dotnet build SGV.slnx`: **0 errors, 0 warnings**.
+- Suite Puestos (99 tests): **99/99 PASS**.
+- Sin regresiones en los 12 fallos pre-existentes (issue #59).
