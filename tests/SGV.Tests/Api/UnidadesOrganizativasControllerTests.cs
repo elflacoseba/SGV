@@ -279,6 +279,64 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.Equal("GER-UPD", dto.Codigo);
     }
 
+    /// <summary>
+    /// Smoke test PR2/3: el contrato <c>PUT /api/v1/unidades-organizativas/{id}</c>
+    /// no expone <c>Codigo</c> en <c>ActualizarUnidadOrganizativaRequest</c>.
+    /// Un campo <c>codigo</c> adicional en el body queda fuera de contrato y el
+    /// binding JSON lo descarta sin error. La unidad persistida conserva su
+    /// <c>Codigo</c> original, que es lo que decide el servicio (no el cliente).
+    /// </summary>
+    [Fact]
+    public async Task Put_ConCodigoExtraEnJson_NoPropagaCodigoMalicioso()
+    {
+        // El fake handler devuelve SIEMPRE un DTO con Codigo = "ORIGINAL",
+        // independiente del body recibido. Si la pipeline propagara el
+        // "HACKED" del JSON, dto.Codigo seria "HACKED" y la asercion fallaria.
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            ActualizarHandler = (id, request, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Success(
+                    new UnidadOrganizativaDto(
+                        id,
+                        "ORIGINAL",
+                        request.Nombre,
+                        request.TipoUnidadOrganizativaId,
+                        "Dirección",
+                        request.Descripcion,
+                        request.VigenteDesde,
+                        request.VigenteHasta,
+                        null,
+                        null,
+                        null)))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateClient();
+
+        // Body intencionalmente incluye "codigo": "HACKED" fuera de contrato.
+        var body = ToJsonBody(new
+        {
+            codigo = "HACKED",
+            nombre = "Nombre Post Hack",
+            tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId,
+            descripcion = "Desc post hack"
+        });
+
+        var response = await client.PutAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}", body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await ReadAsAsync<UnidadOrganizativaDto>(response);
+
+        // El codigo persistido debe ser el ORIGINAL, NO el "HACKED" del body.
+        Assert.Equal("ORIGINAL", dto.Codigo);
+        // Sanity: los campos editables si se bindearon al request.
+        Assert.Equal("Nombre Post Hack", dto.Nombre);
+    }
+
     [Fact]
     public async Task Put_NonExistent_Returns404WithProblemDetails()
     {

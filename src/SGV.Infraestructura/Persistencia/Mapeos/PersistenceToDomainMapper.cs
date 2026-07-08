@@ -67,10 +67,11 @@ internal static class PersistenceToDomainMapper
 
     public static UnidadOrganizativa ToDomain(UnidadOrganizativaEntity entity)
     {
-        // PR1: adaptador minimo a la nueva firma del record (ctor con descripcion
-        // y unidadPadreId, sin CambiarDatos). La eliminacion de SetProperty /
-        // BindingFlags.NonPublic para IsActive, UnidadPadre y TipoUnidadOrganizativa
-        // es responsabilidad de PR2, que reescribira este mapper con `with`.
+        // PR2: persistencia de la inmutabilidad del record. `Codigo` solo se
+        // asigna en el constructor primario. Toda mutacion posterior se hace
+        // con `with` para que las propiedades `init`-only de UnidadOrganizativa
+        // se respeten sin recurrir a `SetProperty` + `BindingFlags.NonPublic`
+        // (que evitarian el chequeo del modifier `IsExternalInit` en runtime).
         var unidad = new UnidadOrganizativa(
             entity.Codigo,
             entity.Nombre,
@@ -88,20 +89,22 @@ internal static class PersistenceToDomainMapper
             DeletedByUserId = entity.DeletedByUserId
         };
 
-        unidad = unidad.DefinirVigencia(entity.VigenteDesde, entity.VigenteHasta);
-        SetProperty(unidad, nameof(UnidadOrganizativa.IsActive), entity.IsActive);
-
         if (entity.UnidadPadre is not null)
         {
-            SetProperty(unidad, nameof(UnidadOrganizativa.UnidadPadre), ToDomain(entity.UnidadPadre));
+            unidad = unidad with { UnidadPadre = ToDomain(entity.UnidadPadre) };
         }
 
         if (entity.TipoUnidadOrganizativa is not null)
         {
-            SetProperty(unidad, nameof(UnidadOrganizativa.TipoUnidadOrganizativa), ToDomain(entity.TipoUnidadOrganizativa));
+            unidad = unidad with { TipoUnidadOrganizativa = ToDomain(entity.TipoUnidadOrganizativa) };
         }
 
-        return unidad;
+        // DefinirVigencia valida el rango (lanza si VigenteHasta < VigenteDesde)
+        // y devuelve una nueva instancia via `with`. Encadenamos otro `with`
+        // para fijar IsActive segun el flag persistido (puede ser false en
+        // soft-delete) sin salir del contrato del record.
+        return unidad.DefinirVigencia(entity.VigenteDesde, entity.VigenteHasta)
+            with { IsActive = entity.IsActive };
     }
 
     public static Puesto ToDomain(PuestoEntity entity)
