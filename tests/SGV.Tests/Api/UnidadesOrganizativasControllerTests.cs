@@ -265,10 +265,39 @@ public sealed class UnidadesOrganizativasControllerTests
 
     // ---- PUT (update) ----
 
+    /// <summary>
+    /// Verifica que el PUT responde 200 con el DTO producido por el servicio. El
+    /// codigo del body NO se propaga: el binding JSON descarta cualquier propiedad
+    /// que no exista en <c>ActualizarUnidadOrganizativaRequest</c>, y el servicio
+    /// decide el <c>Codigo</c> persistido (que es el de la DB, no el del request).
+    /// El fake inyecta un <c>Codigo</c> conocido para que la aserción verifique
+    /// que la respuesta refleja lo que dice el servicio, no el body.
+    /// </summary>
     [Fact]
     public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var fakeComandos = new FakeUnidadOrganizativaServicioComandos
+        {
+            ActualizarHandler = (id, request, _) => Task.FromResult(
+                UnidadOrganizativaCommandResult.Success(
+                    new UnidadOrganizativaDto(
+                        id,
+                        "ORIGINAL",
+                        request.Nombre,
+                        request.TipoUnidadOrganizativaId,
+                        "Dirección",
+                        request.Descripcion,
+                        request.VigenteDesde,
+                        request.VigenteHasta,
+                        request.UnidadPadreId,
+                        null,
+                        null)))
+        };
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioComandos>();
+            services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
+        });
         var client = factory.CreateClient();
         var body = ToJsonBody(new { codigo = "GER-UPD", nombre = "Actualizada", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId });
 
@@ -276,7 +305,8 @@ public sealed class UnidadesOrganizativasControllerTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var dto = await ReadAsAsync<UnidadOrganizativaDto>(response);
-        Assert.Equal("GER-UPD", dto.Codigo);
+        Assert.Equal("ORIGINAL", dto.Codigo);
+        Assert.Equal("Actualizada", dto.Nombre);
     }
 
     /// <summary>
