@@ -49,8 +49,48 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Contains(second.Codigo, content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(second.Nombre, content, StringComparison.OrdinalIgnoreCase);
 
+        // La fila activa debe ofrecer las acciones Detalle, Editar y Eliminar
+        // (espejo de CargoIndexPageTests.cs:50-55 y spec canónico
+        // puesto-web-listado-detalle-baja/spec.md:27).
+        Assert.Contains(
+            $"href=\"/organizacion/puestos/detalles/{first.Id}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"href=\"/organizacion/puestos/editar/{first.Id}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-title=\"Editar\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-puesto-delete-form", content, StringComparison.OrdinalIgnoreCase);
+
         // El endpoint /api/v1/puestos debe haber sido consultado una vez.
         Assert.NotEmpty(apiClient.GetAllCalls);
+    }
+
+    // ──────────────────────────────────────────────────
+    // Tarea 3.2: la vista status=eliminadas NO debe exponer botón Editar.
+    // Espejo de la rama !Model.IsDeletedView del Index.cshtml.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Index_WhenDeletedView_DoesNotRenderEditButton()
+    {
+        var apiClient = FakePuestosApiClient.WithPuestoList(
+            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/puestos?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // En vista Eliminadas se expone el botón Reactivar pero NO Editar
+        // (espejo del comportamiento backend: solo se pueden editar puestos
+        // activos; reactivá primero si querés editar uno eliminado).
+        Assert.DoesNotContain("data-bs-title=\"Editar\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-puesto-reactivate-form", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("formaction=\"?handler=Reactivate\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────────
