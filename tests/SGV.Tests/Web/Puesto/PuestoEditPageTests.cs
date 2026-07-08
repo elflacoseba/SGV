@@ -523,4 +523,90 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
         // cuando los catálogos responden OK.
         Assert.Contains("No se pudo cargar el puesto", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────
+    // Verify finding S1 — Round-trip Index → Edit → Save → Details preserva
+    // el segmento vigente (activas|eliminadas).
+    //
+    // El helper `Index.BuildEditRouteValues` emite `returnStatus` (no
+    // `status`), por lo que `Edit.OnGetAsync` y `Edit.OnPostAsync` deben
+    // bindear `[FromQuery(Name = "returnStatus")]`. Tras guardar, el PRG a
+    // Details pasa el segmento en el query para que el usuario aterrice en
+    // la misma vista de origen (no en Activas).
+    //
+    // Antes del fix: Edit bindea "status" → llega null → ReturnStatus="" →
+    // PRG a Details sin returnStatus → usuario pierde el segmento.
+    // Después del fix: Edit bindea "returnStatus" → ReturnStatus="eliminadas"
+    // → PRG a Details con returnStatus=eliminadas → segmento preservado.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task RoundTrip_FromEliminadasSegment_PreservesSegmentInPostSaveRedirect()
+    {
+        var puestoId = Guid.NewGuid();
+        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
+        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var puesto = new PuestoDto(
+            puestoId,
+            "P-RT",
+            "Round Trip",
+            null,
+            unidadId,
+            "Comercial",
+            cargoId,
+            "Vendedor",
+            null);
+        var updatedPuesto = new PuestoDto(
+            puestoId,
+            "P-RT",
+            "Round Trip Actualizado",
+            null,
+            unidadId,
+            "Comercial",
+            cargoId,
+            "Vendedor",
+            null);
+
+        var apiClient = new FakePuestosApiClient
+        {
+            GetByIdResult = puesto,
+            GetAllResult = new[] { puesto },
+            UpdateResult = PuestoCommandResult.Success(updatedPuesto)
+        };
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        // 1) GET: el Index emite ?returnStatus=eliminadas cuando el usuario
+        //    hace clic en Editar desde la vista Eliminadas. Edit debe poblar
+        //    el campo oculto ReturnStatus con ese valor (espejo del helper
+        //    BuildEditRouteValues).
+        var getResponse = await client.GetAsync(
+            $"/organizacion/puestos/editar/{puestoId}?p=1&returnStatus=eliminadas");
+        var getContent = HttpUtility.HtmlDecode(await getResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        Assert.Matches(
+            new Regex(
+                @"<input[^>]*name=""ReturnStatus""[^>]*value=""eliminadas""",
+                RegexOptions.IgnoreCase),
+            getContent);
+
+        // 2) POST: enviar el form con éxito. El redirect a Details debe
+        //    propagar el segmento via returnStatus=eliminadas.
+        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var postResponse = await client.PostAsync(
+            $"/organizacion/puestos/editar/{puestoId}?p=1&returnStatus=eliminadas",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Input.Nombre"] = "Round Trip Actualizado",
+                ["Input.Descripcion"] = string.Empty,
+                ["Input.PuestoSuperiorId"] = string.Empty
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+        var location = postResponse.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.Contains("/organizacion/puestos/detalles/", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("returnStatus=eliminadas", location, StringComparison.OrdinalIgnoreCase);
+    }
 }
