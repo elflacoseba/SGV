@@ -21,6 +21,8 @@ public sealed class CreateModel(
 
     public string? ErrorMessage { get; private set; }
 
+    public bool IsEdit => false;
+
     [BindProperty]
     public string? ReturnPage { get; set; }
 

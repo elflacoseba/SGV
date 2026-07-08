@@ -51,12 +51,12 @@ Chain strategy: stacked-to-main
 
 ## Phase 5 (PR3): Web edit UI
 
-- [ ] 5.1 `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs`: agregar `Get_Edit_OcultaInputCodigo` y `Post_Edit_NoEnviaCodigoEnPayload`.
-- [ ] 5.2 `src/SGV.Web/Integration/Organizacion/IUnidadOrganizativaForm.cs`: añadir `bool IsEdit { get; }`.
-- [ ] 5.3 `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml.cs`: añadir `bool IsEdit => false;`.
-- [ ] 5.4 `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml.cs`: añadir `bool IsEdit => true;` y construir `ActualizarUnidadOrganizativaRequest` sin `Input.Codigo`.
-- [ ] 5.5 `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/_Form.cshtml`: envolver el input `asp-for="Input.Codigo"` con `@if (!Model.IsEdit)` (mirror de `Puestos/_Form.cshtml`).
+- [x] 5.1 `tests/SGV.Tests/Web/UnidadOrganizativaWebTests.cs`: agregar `Get_Edit_OcultaInputCodigo` y `Post_Edit_NoEnviaCodigoEnPayload`.
+- [x] 5.2 `src/SGV.Web/Integration/Organizacion/IUnidadOrganizativaForm.cs`: añadir `bool IsEdit { get; }`.
+- [x] 5.3 `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml.cs`: añadir `bool IsEdit => false;`.
+- [x] 5.4 `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml.cs`: añadir `bool IsEdit => true;` y construir `ActualizarUnidadOrganizativaRequest` sin `Input.Codigo`.
+- [x] 5.5 `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/_Form.cshtml`: envolver el input `asp-for="Input.Codigo"` con `@if (!Model.IsEdit)` (mirror de `Puestos/_Form.cshtml`).
 
 ## Phase 6 (PR3): REFACTOR + verify full
 
-- [ ] 6.1 VERIFY: `dotnet build SGV.slnx`, `dotnet test SGV.slnx --no-build`, `bun run build` en `src/SGV.Web`; organigrama + reactivacion verdes; documentar exclusion explicita de los 12 tests del issue #59.
+- [x] 6.1 VERIFY: `dotnet build SGV.slnx`, `dotnet test SGV.slnx --no-build`, `bun run build` en `src/SGV.Web`; organigrama + reactivacion verdes; documentar exclusion explicita de los 12 tests del issue #59.

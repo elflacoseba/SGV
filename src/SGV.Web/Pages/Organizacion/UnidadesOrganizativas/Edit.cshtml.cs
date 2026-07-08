@@ -27,6 +27,8 @@ public sealed class EditModel(
 
     public string? ErrorMessage { get; private set; }
 
+    public bool IsEdit => true;
+
     public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
 
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
@@ -108,15 +110,43 @@ public sealed class EditModel(
         ReturnView = string.IsNullOrWhiteSpace(ReturnView) ? NormalizePostedValue(Request.Form[nameof(ReturnView)]) : ReturnView;
         ReturnStatus = string.IsNullOrWhiteSpace(ReturnStatus) ? NormalizePostedValue(Request.Form[nameof(ReturnStatus)]) : ReturnStatus;
 
+        // PR3: Codigo es inmutable en Edit. El input NO se renderiza en
+        // _Form.cshtml (gateado por IsEdit), pero el modelo de input todavía
+        // declara `[Required]` para Create. Pre-populamos desde el DTO y
+        // removemos el error de ModelState que el binder pudo haber agregado
+        // si la versión del browser trae un cache stale o si un cliente
+        // malicioso intenta inyectar el campo (paridad con Puestos/Edit).
+        try
+        {
+            var current = await unidadOrganizativaApiClient.GetByIdAsync(id, cancellationToken);
+            if (current is null)
+            {
+                IsRecoverable = true;
+                ErrorMessage = "La unidad organizativa solicitada no está disponible.";
+                logger.LogWarning("Unidad organizativa {Id} was not found during POST.", id);
+                return Page();
+            }
+            Input.Codigo = current.Codigo;
+            ModelState.Remove("Input.Codigo");
+        }
+        catch (Exception ex) when (
+            ex is HttpRequestException ||
+            ex is TaskCanceledException ||
+            ex is System.Text.Json.JsonException ||
+            ex is OperationCanceledException)
+        {
+            logger.LogError(ex, "Failed to load unidad {Id} during POST prepopulate.", id);
+            ErrorMessage = "No se pudo cargar la unidad organizativa. Intentá nuevamente.";
+            await LoadCatalogsAsync(id, cancellationToken);
+            return Page();
+        }
+
         if (!ModelState.IsValid)
         {
             await LoadCatalogsAsync(id, cancellationToken);
             return Page();
         }
 
-        // PR1 fix de compilacion: Input.Codigo ya no pertenece al contrato de
-        // ActualizarUnidadOrganizativaRequest. La ocultacion del input en el
-        // form y la supresion definitiva del submit con Codigo son PR3.
         var request = new ActualizarUnidadOrganizativaRequest(
             Input.Nombre,
             Input.TipoUnidadOrganizativaId,

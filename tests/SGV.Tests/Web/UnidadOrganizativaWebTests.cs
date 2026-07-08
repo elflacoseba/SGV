@@ -1237,9 +1237,13 @@ public sealed class UnidadOrganizativaWebTests
         apiClient.GetByIdResult = new UnidadOrganizativaDto(
             unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
             null, null, null, null, null, null);
+        // PR3: Codigo es inmutable en Edit; el backend ya no debería devolver
+        // errores de campo sobre Codigo. Asertamos el camino de field-error
+        // usando un campo editable (nombre) — paridad con
+        // Puestos/Post_Edit_WhenBackendReturnsFieldErrors.
         apiClient.CommandResult = UnidadOrganizativaCommandResult.Failure(
             new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "ValidationError", "One or more fields are invalid."),
-            new Dictionary<string, string[]> { ["Codigo"] = ["El código ya existe."] });
+            new Dictionary<string, string[]> { ["nombre"] = ["El nombre es obligatorio."] });
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
         apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
 
@@ -1260,9 +1264,96 @@ public sealed class UnidadOrganizativaWebTests
         var content = HttpUtility.HtmlDecode(await postResponse.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
-        Assert.Contains("El código ya existe.", content);
+        Assert.Contains("El nombre es obligatorio.", content);
         Assert.Contains("Dirección", content); // catalogs still loaded
         Assert.Contains("Rectorado", content); // tree still loaded
+    }
+
+    // ──────────────────────────────────────────────
+    // Phase 4b: PR3 — Codigo input hidden in Edit (Codigo is immutable)
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Edit_OcultaInputCodigo()
+    {
+        var unitId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
+            null, null, null, null, null, null);
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Triangulación negativa: el input editable de Codigo NO debe aparecer
+        // en el HTML de Edit (campo inmutable post-create).
+        Assert.DoesNotContain("name=\"Input.Codigo\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // Triangulación positiva: el código SÍ se muestra al usuario como
+        // texto de identificación (header read-only), y los demás campos
+        // editables sí renderizan sus inputs.
+        Assert.Contains("DEPT01", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"Input.Nombre\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"Input.TipoUnidadOrganizativaId\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Edit_NoEnviaCodigoEnPayload()
+    {
+        var unitId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        var parentId = Guid.NewGuid();
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.GetByIdResult = new UnidadOrganizativaDto(
+            unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
+            null, null, null, parentId, "RECT", "Rectorado");
+        apiClient.CommandResult = UnidadOrganizativaCommandResult.Success(
+            new UnidadOrganizativaDto(unitId, "DEPT01", "Departamento Test Updated", tipoId, "Departamento",
+                null, null, null, parentId, "RECT", "Rectorado"));
+        apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
+
+        using var client = await CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        // Tampering simulado: cliente malicioso agrega Input.Codigo al form
+        // (e.g., devtools edit). El backend NO debe propagar este campo al
+        // request porque ActualizarUnidadOrganizativaRequest no tiene Codigo.
+        var postResponse = await client.PostAsync($"/organizacion/unidades-organizativas/editar/{unitId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "HACKED",
+            ["Input.Nombre"] = "Departamento Test Updated",
+            ["Input.TipoUnidadOrganizativaId"] = tipoId.ToString(),
+            ["Input.UnidadPadreId"] = parentId.ToString(),
+            ["OriginalUnidadPadreId"] = parentId.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+
+        var update = Assert.Single(apiClient.UpdateCalls);
+        Assert.Equal(unitId, update.Id);
+
+        // Triangulación negativa: la serialización del payload NO contiene
+        // ninguna propiedad "codigo" — sea de Input o del DTO. Esto es un
+        // regression guard: si alguien añade Codigo a
+        // ActualizarUnidadOrganizativaRequest, este test rompe.
+        var json = JsonSerializer.Serialize(update.Request);
+        Assert.DoesNotContain("codigo", json, StringComparison.OrdinalIgnoreCase);
+
+        // Triangulación positiva: los campos editables sí están presentes
+        // y poblados desde el form.
+        Assert.Equal("Departamento Test Updated", update.Request.Nombre);
+        Assert.Equal(tipoId, update.Request.TipoUnidadOrganizativaId);
+        Assert.Equal(parentId, update.Request.UnidadPadreId);
     }
 
     // ──────────────────────────────────────────────
@@ -1561,6 +1652,8 @@ main().catch(error => {
 
         public List<Guid> DeleteCalls { get; } = [];
 
+        public List<(Guid Id, ActualizarUnidadOrganizativaRequest Request)> UpdateCalls { get; } = [];
+
         public UnidadOrganizativaDeleteResult DeleteResult { get; set; } = new(false, HttpStatusCode.Conflict, null, null);
 
         public UnidadOrganizativaCommandResult ReactivateResult { get; set; } = UnidadOrganizativaCommandResult.Failure(
@@ -1624,7 +1717,10 @@ main().catch(error => {
             => Task.FromResult(CommandResult);
 
         public Task<UnidadOrganizativaCommandResult> UpdateAsync(Guid id, ActualizarUnidadOrganizativaRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult(CommandResult);
+        {
+            UpdateCalls.Add((id, request));
+            return Task.FromResult(CommandResult);
+        }
 
         public Task<UnidadOrganizativaCommandResult> ChangeParentAsync(Guid id, CambiarUnidadPadreRequest request, CancellationToken cancellationToken = default)
         {
