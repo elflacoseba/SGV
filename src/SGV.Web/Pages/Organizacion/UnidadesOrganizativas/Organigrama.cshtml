@@ -1,6 +1,13 @@
 @page "/organizacion/unidades-organizativas/organigrama"
 @model SGV.Web.Pages.Organizacion.UnidadesOrganizativas.OrganigramaModel
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@using System.Text.Json
+
+@{
+    var treeJsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+}
 
 @{
     ViewBag.title = "Organigrama";
@@ -45,7 +52,10 @@
 </div>
 
 <script>
-    window.__sgvApiBaseUrl = '@(Configuration["SgvApi:BaseUrl"] ?? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}")';
+    // Datos del organigrama pre-cargados server-side con el JWT bridged.
+    // Se evita el fetch browser-side que rebotaba con 401 porque el JWT
+    // vive en la cookie httpOnly del servidor y no es accesible al browser.
+    window.__sgvTreeData = @Html.Raw(JsonSerializer.Serialize(Model.TreeItems, treeJsonOptions));
 </script>
 
 @section scripts {

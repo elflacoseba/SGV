@@ -40,17 +40,15 @@ async function drawOrgChart() {
     console.log('[OrgChart] drawOrgChart invoked');
 
     try {
-        var apiBase = window.__sgvApiBaseUrl || '';
-        console.log('[OrgChart] API base URL:', apiBase);
-        console.log('[OrgChart] Fetching tree data from ' + apiBase + '/api/v1/unidades-organizativas/arbol');
-        var response = await fetch(apiBase + '/api/v1/unidades-organizativas/arbol');
-        console.log('[OrgChart] Response status:', response.status);
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        var treeData = await response.json();
-        console.log('[OrgChart] Tree data received:', treeData, 'count:', treeData ? treeData.length : 0);
+        // El organigrama se hidrata desde datos pre-cargados server-side
+        // (ver Organigrama.cshtml: window.__sgvTreeData). Pegar a la API
+        // desde el browser daría 401 porque el JWT vive en la cookie
+        // httpOnly y ApiBearerTokenHandler solo aplica del lado servidor.
+        var treeData = window.__sgvTreeData || [];
+        console.log('[OrgChart] Tree data received:', treeData, 'count:', treeData.length);
 
         if (!treeData || treeData.length === 0) {
-            console.warn('[OrgChart] API returned empty tree data');
+            console.warn('[OrgChart] Empty tree data');
             chartDiv.innerHTML = '<div class="text-center text-muted py-5"><p>No hay unidades organizativas para mostrar en el organigrama.</p></div>';
             return;
         }
@@ -65,10 +63,10 @@ async function drawOrgChart() {
                 var node = nodes[i];
                 var nodeId = String(node.id);
                 var displayName = node.codigo + ' \u2014 ' + node.nombre;
-                var tooltip = node.codigo + ' \u00B7 ' + node.tipoUnidadNombre;
+                var tooltip = node.codigo + ' \u00B7 ' + node.tipo;
                 data.addRow([{ v: nodeId, f: displayName }, parentId ? String(parentId) : '', tooltip]);
-                if (node.hijas && node.hijas.length > 0) {
-                    flattenTree(node.hijas, nodeId);
+                if (node.children && node.children.length > 0) {
+                    flattenTree(node.children, nodeId);
                 }
             }
         }

@@ -166,10 +166,16 @@ public sealed class UnidadOrganizativaWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Organigrama", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("id=\"orgchart\"", content, StringComparison.OrdinalIgnoreCase);
-        // Los nombres del árbol los renderiza el JS de Google Charts en el cliente;
-        // el HTML inicial no debe contenerlos porque se inyectan en runtime.
-        Assert.DoesNotContain("Rectorado", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Facultad de Ingeniería", content, StringComparison.OrdinalIgnoreCase);
+        // El árbol se hidrata server-side con el JWT bridged (window.__sgvTreeData),
+        // evitando el fetch browser-side que rebotaba con 401. Se valida por
+        // identificadores ASCII para no depender del encoding de no-ASCII
+        // (los nombres con acentos los serializa el JSON pero la aserción
+        // debe ser estable independiente del transporte).
+        Assert.Contains("window.__sgvTreeData", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(facultyId.ToString(), content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(departmentId.ToString(), content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"codigo\":\"RECT\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"codigo\":\"FI\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, apiClient.TreeCalls);
         Assert.Empty(apiClient.QueryCalls);
     }
