@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -52,13 +53,56 @@ public sealed class PersonasControllerTests
         Assert.True(errors.ContainsKey(fieldName), $"Expected field '{fieldName}' in errors");
     }
 
+    private static CrearPersonaRequest DefaultCreateRequest() => new(
+        Legajo: "LEG-NVO",
+        Nombres: "Maria",
+        Apellidos: "Garcia",
+        Email: "maria@test.com",
+        TipoDocumento: "DNI",
+        NumeroDocumento: "12345678",
+        Telefono: "555-0001");
+
+    private static ActualizarPersonaRequest DefaultUpdateRequest(string legajo) => new(
+        Legajo: legajo,
+        Nombres: "Juan Actualizado",
+        Apellidos: "Perez",
+        Email: "juan@test.com",
+        TipoDocumento: "DNI",
+        NumeroDocumento: "12345678",
+        Telefono: "555-0001");
+
+    private static AsignarPersonaSkillRequest DefaultSkillRequest() => new(
+        NivelId: Guid.NewGuid());
+
     // ---- GET (list) ----
+
+    [Fact]
+    public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/personas");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAll_WithAuthenticatedNonAdmin_ReturnsOk()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 
     [Fact]
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/personas");
 
@@ -79,7 +123,7 @@ public sealed class PersonasControllerTests
             services.AddSingleton<IPersonaServicioConsulta>(
                 new FakePersonaServicioConsulta(isEmpty: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/personas");
 
@@ -92,10 +136,22 @@ public sealed class PersonasControllerTests
     // ---- GET (by id) ----
 
     [Fact]
-    public async Task GetById_ExistingId_ReturnsOkWithDto()
+    public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_ExistingId_ReturnsOkWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}");
@@ -111,7 +167,7 @@ public sealed class PersonasControllerTests
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/personas/{Guid.NewGuid()}");
 
@@ -121,14 +177,14 @@ public sealed class PersonasControllerTests
     // ---- Controller metadata ----
 
     [Fact]
-    public void Controller_DoesNotHaveAuthorizeAttribute()
+    public void Controller_HasAuthorizeAttribute()
     {
         var controllerType = typeof(SGV.Api.Controllers.PersonasController);
 
         var hasAuthorize = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Any(a => a is AuthorizeAttribute);
 
-        Assert.False(hasAuthorize, "Controller should not require authorization");
+        Assert.True(hasAuthorize, "Controller MUST require authorization");
     }
 
     // ---- JSON contract: no relationships ----
@@ -137,7 +193,7 @@ public sealed class PersonasControllerTests
     public async Task GetAll_JsonResponse_MustNotContainExcludedRelationships()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/personas");
         var json = await response.Content.ReadAsStringAsync();
@@ -151,11 +207,35 @@ public sealed class PersonasControllerTests
     // ---- POST (create) ----
 
     [Fact]
-    public async Task Post_ValidRequest_Returns201CreatedWithDto()
+    public async Task Post_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { legajo = "LEG-NVO", nombres = "Maria", apellidos = "Garcia" });
+        var body = ToJsonBody(DefaultCreateRequest());
+
+        var response = await client.PostAsync("/api/v1/personas", body);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var body = ToJsonBody(DefaultCreateRequest());
+
+        var response = await client.PostAsync("/api/v1/personas", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_ValidRequest_Returns201CreatedWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(DefaultCreateRequest());
 
         var response = await client.PostAsync("/api/v1/personas", body);
 
@@ -186,8 +266,17 @@ public sealed class PersonasControllerTests
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-        var body = ToJsonBody(new { legajo = "", nombres = "", apellidos = "" });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new
+        {
+            legajo = "",
+            nombres = "",
+            apellidos = "",
+            email = "",
+            tipoDocumento = "",
+            numeroDocumento = "",
+            telefono = ""
+        });
 
         var response = await client.PostAsync("/api/v1/personas", body);
 
@@ -212,8 +301,8 @@ public sealed class PersonasControllerTests
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-        var body = ToJsonBody(new { legajo = "LEG-001", nombres = "Duplicate", apellidos = "Test" });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(DefaultCreateRequest() with { Legajo = "LEG-001" });
 
         var response = await client.PostAsync("/api/v1/personas", body);
 
@@ -225,11 +314,37 @@ public sealed class PersonasControllerTests
     // ---- PUT (update) ----
 
     [Fact]
-    public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
+    public async Task Put_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
-        var body = ToJsonBody(new { legajo = "LEG-001", nombres = "Juan Actualizado", apellidos = "Perez" });
+        var body = ToJsonBody(DefaultUpdateRequest("LEG-001"));
+
+        var response = await client.PutAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}", body);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var body = ToJsonBody(DefaultUpdateRequest("LEG-001"));
+
+        var response = await client.PutAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(DefaultUpdateRequest("LEG-001"));
 
         var response = await client.PutAsync(
             $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}", body);
@@ -253,8 +368,8 @@ public sealed class PersonasControllerTests
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-        var body = ToJsonBody(new { legajo = "LEG-X", nombres = "No", apellidos = "Existe" });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(DefaultUpdateRequest("LEG-X"));
 
         var response = await client.PutAsync($"/api/v1/personas/{Guid.NewGuid()}", body);
 
@@ -282,8 +397,8 @@ public sealed class PersonasControllerTests
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-        var body = ToJsonBody(new { legajo = "LEG-001", nombres = "", apellidos = "Perez" });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(DefaultUpdateRequest("LEG-001") with { Nombres = "" });
 
         var response = await client.PutAsync($"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}", body);
 
@@ -296,10 +411,34 @@ public sealed class PersonasControllerTests
     // ---- DELETE (soft-delete) ----
 
     [Fact]
-    public async Task Delete_ExistingId_Returns204NoContent()
+    public async Task Delete_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_ExistingId_Returns204NoContent()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}");
@@ -321,7 +460,7 @@ public sealed class PersonasControllerTests
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/personas/{Guid.NewGuid()}");
 
@@ -333,10 +472,34 @@ public sealed class PersonasControllerTests
     // ---- PATCH (reactivar) ----
 
     [Fact]
-    public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
+    public async Task PatchReactivar_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PatchReactivar_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/reactivar", null);
@@ -360,7 +523,7 @@ public sealed class PersonasControllerTests
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/personas/{Guid.NewGuid()}/reactivar", null);
@@ -385,7 +548,7 @@ public sealed class PersonasControllerTests
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/reactivar", null);
@@ -393,5 +556,110 @@ public sealed class PersonasControllerTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(409, problem.Status);
+    }
+
+    // ---- PUT /skills/{skillId} (UpsertSkill) ----
+
+    [Fact]
+    public async Task UpsertSkill_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var body = ToJsonBody(DefaultSkillRequest());
+
+        var response = await client.PutAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/skills/{Guid.NewGuid()}", body);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpsertSkill_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var body = ToJsonBody(DefaultSkillRequest());
+
+        var response = await client.PutAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/skills/{Guid.NewGuid()}", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpsertSkill_WithAdmin_Returns200Ok()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IPersonaSkillServicio>();
+            services.AddSingleton<IPersonaSkillServicio, PersonaSkillTestsFake>();
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(DefaultSkillRequest());
+
+        var response = await client.PutAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/skills/{Guid.NewGuid()}", body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // ---- DELETE /skills/{skillId} (DeleteSkill) ----
+
+    [Fact]
+    public async Task DeleteSkill_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/skills/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteSkill_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/skills/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteSkill_WithAdmin_Returns204NoContent()
+    {
+        using var factory = new ApiWebApplicationFactory(services =>
+        {
+            services.RemoveService<IPersonaSkillServicio>();
+            services.AddSingleton<IPersonaSkillServicio, PersonaSkillTestsFake>();
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}/skills/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Fake en memoria de <see cref="IPersonaSkillServicio"/> que devuelve éxito
+    /// para todo Upsert/Delete de skill. Reusado aquí y en
+    /// PersonaSkillControllerTests — vive en este archivo porque
+    /// ApiWebApplicationFactory no expone un fake global para este servicio.
+    /// </summary>
+    private sealed class PersonaSkillTestsFake : IPersonaSkillServicio
+    {
+        public Task<IReadOnlyList<PersonaSkillDetailDto>> ListAsync(Guid personaId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<PersonaSkillDetailDto>>([]);
+
+        public Task<PersonaSkillCommandResult> UpsertAsync(Guid personaId, Guid skillId, AsignarPersonaSkillRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(PersonaSkillCommandResult.Success(new PersonaSkillDto(skillId, request.NivelId)));
+
+        public Task<PersonaSkillCommandResult> DeleteAsync(Guid personaId, Guid skillId, CancellationToken cancellationToken = default)
+            => Task.FromResult(PersonaSkillCommandResult.Success(new PersonaSkillDto(skillId, Guid.Empty)));
     }
 }
