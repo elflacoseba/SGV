@@ -1,6 +1,6 @@
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 
-namespace SGV.Aplicacion.Organizacion.Consultas.Dtos;
+namespace SGV.Contracts.Organizacion.Consultas.Dtos;
 
 /// <summary>
 /// GET-only detailed DTO for a Cargo-Habilidad association. The primary

@@ -2,9 +2,9 @@ using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Web;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Organizacion.Comandos;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Habilidad;
 using Xunit;
 

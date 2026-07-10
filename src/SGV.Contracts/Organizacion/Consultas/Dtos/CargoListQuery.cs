@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Organizacion.Consultas.Dtos;
+namespace SGV.Contracts.Organizacion.Consultas.Dtos;
 
 /// <summary>
 /// Defines the listing segment for cargo queries: active (non-deleted) cargos

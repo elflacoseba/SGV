@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Tests.Web.Cargo;
 using SGV.Web.Integration.Auth;

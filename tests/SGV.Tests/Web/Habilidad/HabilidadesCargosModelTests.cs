@@ -1,8 +1,9 @@
 using System.Net;
 using System.Web;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Tests.Web.Cargo;
 using SGV.Web.Integration.Auth;

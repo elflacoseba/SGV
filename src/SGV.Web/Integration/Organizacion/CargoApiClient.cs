@@ -2,8 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
-using SGV.Aplicacion.Organizacion.Comandos;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Web.Integration.Organizacion;
 

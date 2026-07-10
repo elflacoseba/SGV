@@ -1,4 +1,4 @@
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 

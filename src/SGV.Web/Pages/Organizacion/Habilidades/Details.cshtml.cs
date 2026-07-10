@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Web.Integration.Habilidades;
 

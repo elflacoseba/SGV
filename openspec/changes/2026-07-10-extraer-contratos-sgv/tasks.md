@@ -37,14 +37,14 @@ Chain strategy: pending
 
 ## Phase 2 — PR2: Organizacion
 
-- [ ] 2.1 Crear `SGV.Contracts/Organizacion/Consultas/Dtos/*.cs` (13 records/enums).
-- [ ] 2.2 Crear `SGV.Contracts/Organizacion/Comandos/*.cs` (~17 Requests/Results/Errors).
-- [ ] 2.3 Sumar referencia a `SGV.Contracts` en `SGV.Aplicacion.csproj`.
-- [ ] 2.4 Reescribir `using` en `Aplicacion/Organizacion/**/*Servicio*.cs`.
-- [ ] 2.5 Cambiar `using` en 5 controllers.
-- [ ] 2.6 Cambiar `using` en ≈22 archivos Web (`Pages/Organizacion` + `Integration/Organizacion`).
-- [ ] 2.7 Cambiar `using` en `ApiWebApplicationFactory` + 6 controller tests.
-- [ ] 2.8 Verificación: build + test verdes; `grep "using SGV.Aplicacion.Organizacion" src/SGV.Web` → 0.
+- [x] 2.1 Crear `SGV.Contracts/Organizacion/Consultas/Dtos/*.cs` (13 records/enums).
+- [x] 2.2 Crear `SGV.Contracts/Organizacion/Comandos/*.cs` (~17 Requests/Results/Errors).
+- [x] 2.3 Sumar referencia a `SGV.Contracts` en `SGV.Aplicacion.csproj`.
+- [x] 2.4 Reescribir `using` en `Aplicacion/Organizacion/**/*Servicio*.cs`.
+- [x] 2.5 Cambiar `using` en 5 controllers.
+- [x] 2.6 Cambiar `using` en ≈22 archivos Web (`Pages/Organizacion` + `Integration/Organizacion`).
+- [x] 2.7 Cambiar `using` en `ApiWebApplicationFactory` + 6 controller tests.
+- [x] 2.8 Verificación: build + test verdes; `grep "using SGV.Aplicacion.Organizacion" src/SGV.Web` → 0.
 
 ## Phase 3 — PR3: Habilidades
 

@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Organizacion.Consultas.Dtos;
+namespace SGV.Contracts.Organizacion.Consultas.Dtos;
 
 /// <summary>
 /// Consumer-safe DTO for UnidadOrganizativa. Excludes audit and internal tracking fields.
@@ -14,5 +14,4 @@ public sealed record UnidadOrganizativaDto(
     DateOnly? VigenteHasta,
     Guid? UnidadPadreId,
     string? UnidadPadreCodigo,
-    string? UnidadPadreNombre
-);
+    string? UnidadPadreNombre);

@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Contracts.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Aplicacion.Organizacion.Consultas;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;

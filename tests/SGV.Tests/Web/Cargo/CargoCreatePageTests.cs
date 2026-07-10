@@ -2,8 +2,8 @@ using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
-using SGV.Aplicacion.Organizacion.Comandos;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 

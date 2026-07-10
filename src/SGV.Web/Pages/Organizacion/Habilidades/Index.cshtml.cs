@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Web.Integration.Habilidades;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;

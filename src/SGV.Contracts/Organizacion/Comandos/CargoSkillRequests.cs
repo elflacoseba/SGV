@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Organizacion.Comandos;
+namespace SGV.Contracts.Organizacion.Comandos;
 
 /// <summary>
 /// Request to assign or update a required skill (Habilidad) for a Cargo.

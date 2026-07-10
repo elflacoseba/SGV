@@ -1,3 +1,5 @@
+using SGV.Contracts.Organizacion.Comandos;
+
 namespace SGV.Aplicacion.Organizacion.Comandos;
 
 /// <summary>

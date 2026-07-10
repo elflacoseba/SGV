@@ -1,4 +1,4 @@
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
 using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
 

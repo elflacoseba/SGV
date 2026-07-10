@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Organizacion.Consultas.Dtos;
+namespace SGV.Contracts.Organizacion.Consultas.Dtos;
 
 /// <summary>
 /// Consumer-safe DTO for a Cargo-Habilidad association returned by write

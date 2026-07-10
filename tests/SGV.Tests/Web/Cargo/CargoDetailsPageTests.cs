@@ -1,6 +1,6 @@
 using System.Net;
 using System.Web;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 

@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Organizacion.Consultas.Dtos;
+namespace SGV.Contracts.Organizacion.Consultas.Dtos;
 
 /// <summary>
 /// Consumer-safe DTO for NivelCargo catalog.
@@ -8,5 +8,4 @@ public sealed record NivelCargoDto(
     string Codigo,
     string Nombre,
     byte ValorNumerico,
-    int Orden
-);
+    int Orden);

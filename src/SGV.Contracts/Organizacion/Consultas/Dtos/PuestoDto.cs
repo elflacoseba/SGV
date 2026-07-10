@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Organizacion.Consultas.Dtos;
+namespace SGV.Contracts.Organizacion.Consultas.Dtos;
 
 /// <summary>
 /// Consumer-safe DTO for Puesto. Includes related entity summaries
@@ -13,5 +13,4 @@ public sealed record PuestoDto(
     string UnidadOrganizativaNombre,
     Guid CargoId,
     string CargoNombre,
-    Guid? PuestoSuperiorId
-);
+    Guid? PuestoSuperiorId);

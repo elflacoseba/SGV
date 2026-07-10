@@ -2,7 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
 
 namespace SGV.Tests.Web.Puesto;

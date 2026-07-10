@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
+using SGV.Contracts.Organizacion.Comandos;
 
 namespace SGV.Aplicacion;
 

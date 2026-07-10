@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Organizacion.Comandos;
+namespace SGV.Contracts.Organizacion.Comandos;
 
 /// <summary>
 /// Request to create a new Cargo.
