@@ -8,7 +8,7 @@ using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Tests.Web.Habilidad;

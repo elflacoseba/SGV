@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Organizacion.Comandos;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Organizacion;
 using Xunit;

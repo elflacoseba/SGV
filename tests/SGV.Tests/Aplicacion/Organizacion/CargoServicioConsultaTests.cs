@@ -1,5 +1,5 @@
 using SGV.Aplicacion.Organizacion.Consultas;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 using Xunit;
 

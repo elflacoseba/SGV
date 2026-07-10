@@ -5,7 +5,7 @@ using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Habilidades.Comandos;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;

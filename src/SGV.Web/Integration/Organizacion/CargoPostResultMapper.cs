@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using SGV.Aplicacion.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Comandos;
 
 namespace SGV.Web.Integration.Organizacion;
 

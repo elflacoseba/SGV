@@ -1,5 +1,5 @@
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;
 

@@ -1,5 +1,5 @@
 using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Aplicacion.Ocupaciones.Consultas;
 

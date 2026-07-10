@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace SGV.Aplicacion.Organizacion.Comandos;
+namespace SGV.Contracts.Organizacion.Comandos;
 
 /// <summary>
 /// Typed result of a CargoSkill delete operation consumed by the web shell.

@@ -1,6 +1,6 @@
 using System.Net;
 using System.Reflection;
-using SGV.Aplicacion.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Comandos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Organizacion;

@@ -1,10 +1,10 @@
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Web.Integration.Organizacion;
 
 /// <summary>
 /// Contrato compartido por los PageModels que renderizan el partial
-/// <c>_Form.cshtml</c> de cargos (Create en PR2A, Edit en PR2B).
+/// <c>_Form.cshtml</c> de cargos, tanto para creación como edición.
 /// </summary>
 public interface ICargoForm
 {
@@ -24,13 +24,11 @@ public interface ICargoForm
     string? ErrorMessage { get; }
 
     /// <summary>
-    /// Indicates whether the page is rendering in edit mode. Unused until
-    /// PR2B (Edit page) sets it to <c>true</c>; it is introduced now so the
-    /// shared partial contract (<c>_Form.cshtml</c>) does not change between
-    /// PR2A and PR2B. The Create implementation always returns
-    /// <c>false</c>; the Edit implementation will return <c>true</c> and may
-    /// use it to adjust the page title, the submit button label, or to
-    /// suppress read-only fields.
+    /// Indicates whether the page is rendering in edit mode. The Edit
+    /// implementation sets it to <c>true</c> so the shared partial contract
+    /// (<c>_Form.cshtml</c>) can adjust the page title, the submit button
+    /// label, or suppress read-only fields. The Create implementation always
+    /// returns <c>false</c>.
     /// </summary>
     bool IsEdit { get; }
 

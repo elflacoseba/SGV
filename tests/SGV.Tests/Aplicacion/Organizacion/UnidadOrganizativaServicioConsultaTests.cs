@@ -1,6 +1,6 @@
 using System.Reflection;
 using SGV.Aplicacion.Organizacion.Consultas;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Comun;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Catalogos;

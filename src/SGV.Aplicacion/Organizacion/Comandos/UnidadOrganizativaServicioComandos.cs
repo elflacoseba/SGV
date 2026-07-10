@@ -1,8 +1,9 @@
 using FluentValidation;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Organizacion.Consultas;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
+using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 
 namespace SGV.Aplicacion.Organizacion.Comandos;

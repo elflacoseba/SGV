@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Organizacion.Consultas.Dtos;
+namespace SGV.Contracts.Organizacion.Consultas.Dtos;
 
 /// <summary>
 /// Consumer-safe DTO for TipoUnidadOrganizativa catalog. Exposes only Id, Codigo, and Nombre.
@@ -6,5 +6,4 @@ namespace SGV.Aplicacion.Organizacion.Consultas.Dtos;
 public sealed record TipoUnidadOrganizativaDto(
     Guid Id,
     string Codigo,
-    string Nombre
-);
+    string Nombre);

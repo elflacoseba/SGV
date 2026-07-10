@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;

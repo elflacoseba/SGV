@@ -1,4 +1,5 @@
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Aplicacion.Organizacion.Comandos;
 

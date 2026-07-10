@@ -1,5 +1,5 @@
 using FluentValidation;
-using SGV.Aplicacion.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Comandos;
 
 namespace SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 

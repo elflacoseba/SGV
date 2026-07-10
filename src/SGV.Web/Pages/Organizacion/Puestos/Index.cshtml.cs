@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
@@ -189,9 +189,9 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
         var errorMessage = result.Error?.Message;
         var message = result.Error?.Type switch
         {
-            SGV.Aplicacion.Organizacion.Comandos.PuestoErrorType.Conflict =>
+            SGV.Contracts.Organizacion.Comandos.PuestoErrorType.Conflict =>
                 $"No se pudo reactivar el puesto. {errorMessage}",
-            SGV.Aplicacion.Organizacion.Comandos.PuestoErrorType.NotFound =>
+            SGV.Contracts.Organizacion.Comandos.PuestoErrorType.NotFound =>
                 "El puesto ya no está disponible para reactivar.",
             _ => "No se pudo reactivar el puesto. Intentá nuevamente."
         };

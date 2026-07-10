@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Habilidades.Consultas.Dtos;
+namespace SGV.Contracts.Habilidades.Consultas.Dtos;
 
 /// <summary>
 /// Consumer-safe DTO for Habilidad. Excludes audit and internal tracking fields.
