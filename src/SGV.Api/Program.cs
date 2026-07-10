@@ -1,7 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using SGV.Aplicacion;
 using SGV.Aplicacion.Seguridad;
@@ -68,8 +68,13 @@ builder.Services.AddDbContext<SgvDbContext>((sp, options) =>
            .AddInterceptors(sp.GetRequiredService<AuditoriaSaveChangesInterceptor>());
 });
 
-var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services
+    .AddOptions<JwtOptions>()
+    .BindConfiguration(JwtOptions.SectionName)
+    .Validate(o => !string.IsNullOrWhiteSpace(o.SigningKey)
+                   && Encoding.UTF8.GetByteCount(o.SigningKey) >= 32,
+        "Jwt:SigningKey must be configured and ≥32 UTF-8 bytes")
+    .ValidateOnStart();
 
 builder.Services
     .AddIdentityCore<SgvIdentityUser>(options =>
@@ -85,19 +90,8 @@ builder.Services
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey))
-        };
-    });
+    .AddJwtBearer(_ => { });
+builder.Services.AddSingleton<IPostConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerFromJwtOptions>();
 builder.Services.AddAuthorization();
 
 // Anonymous / system user for audit trail

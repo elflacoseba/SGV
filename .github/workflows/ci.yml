@@ -41,4 +41,5 @@ jobs:
       - name: Run tests (with MySQL)
         env:
           ConnectionStrings__SgvDatabase: Server=127.0.0.1;Port=3306;Database=sgv_test;User=root;Password=sgv_test_pwd;Allow User Variables=True;Default Command Timeout=60
+          Jwt__SigningKey: ${{ secrets.JWT_SIGNING_KEY }}
         run: dotnet test --no-build --configuration Release --verbosity normal
