@@ -106,3 +106,105 @@ La API adopta una postura **default-deny** desde el change `2026-07-09-agregar-a
 - **No se introducen policies nominales nuevas**: el patrón `RolesSgv.Administrador` literal se mantiene para evitar indirección. Si en el futuro se requieren policies compuestas, se decidirá en un change separado.
 - **Ventana de exposición por JWT**: el sistema valida firma, issuer, audience y lifetime del JWT pero NO reconsulta roles contra la DB por request. Un usuario cuyo rol cambia de `Administrador` a `GestorVacantes` conserva permisos de mutación hasta que su JWT expire. Esta ventana es inherente a JWT y no se aborda en este change.
 - **Sub-recursos**: la decoración `[Authorize]` a nivel clase se hereda a sub-recursos anidados (e.g. `PUT /api/v1/personas/{id}/skills/{skillId}`). El sub-recurso `PersonasController.UpsertSkill`/`DeleteSkill` queda protegido automáticamente; no requiere override adicional porque la mutación ya exige `RolesSgv.Administrador` por la convención adoptada.
+
+## Hardening runtime: cookie y CORS por ambiente
+
+`SGV.Api` y `SGV.Web` aplican una matriz de seguridad que depende del ambiente (`ASPNETCORE_ENVIRONMENT`). La matriz se valida en arranque mediante `ValidateOnStart` y fail-loud, de modo que un deploy mal configurado se surface antes de aceptar tráfico.
+
+### Matriz ambiente ↔ seguridad
+
+| Atributo                                | Development              | Distinto de Development |
+|-----------------------------------------|--------------------------|-------------------------|
+| `SGV.Web` cookie `HttpOnly`             | `true`                   | `true`                  |
+| `SGV.Web` cookie `SameSite`             | `Lax`                    | `Lax`                   |
+| `SGV.Web` cookie `SecurePolicy`         | `SameAsRequest`          | `Always`                |
+| `SGV.Web` HSTS (`app.UseHsts()`)        | no se activa             | 30 días (default)       |
+| `SGV.Web` HTTPS redirection             | `app.UseHttpsRedirection()` activo siempre | `app.UseHttpsRedirection()` activo siempre |
+| `SGV.Api` CORS `AllowedOrigins`         | opcional (fallback dev)  | **obligatorio**, fail-loud si ausente o vacío |
+| `SGV.Api` CORS en Production            | n/a                      | `WithOrigins(<lista>).AllowCredentials()` |
+| `SGV.Api` CORS en Development (sin origins) | `SetIsOriginAllowed(_ => true).AllowAnyHeader().AllowAnyMethod()` (sin credenciales) | n/a |
+| Combinación prohibida en cualquier CORS | `AllowAnyOrigin` + `AllowCredentials` jamás juntos | igual |
+
+### Configuración de `AllowedOrigins` en la API
+
+`SGV.Api` lee la sección de configuración `AllowedOrigins` como arreglo de strings. En **Production / Staging**, una sección ausente o vacía lanza `InvalidOperationException` con un mensaje que orienta al operador. En **Development**, la ausencia es tolerable y cae al fallback documentado arriba.
+
+**Variables de entorno** (convención ASP.NET Core: `__` reemplaza a `:`):
+
+```bash
+AllowedOrigins__0=https://app.example.com
+AllowedOrigins__1=https://admin.example.com
+```
+
+> **Importante**: los origins se matchean literales, sin slash final. Si configurás `https://app.example.com/`, el middleware CORS rechaza los requests reales. La regla es: protocolo + host + puerto opcional, sin path.
+
+**Archivo `appsettings.json`** (alternativa para deploys con config-as-code):
+
+```json
+{
+  "AllowedOrigins": [
+    "https://app.example.com",
+    "https://admin.example.com"
+  ]
+}
+```
+
+El comportamiento fail-loud está protegido por `tests/SGV.Tests/Api/CorsAllowedOriginsValidationTests.cs` (4 tests `[Fact]`):
+- Production sin origins → `InvalidOperationException` con mensaje conteniendo `AllowedOrigins`.
+- Production con origins → host arranca.
+- Development sin origins → host arranca con fallback dev.
+- Búsqueda estática: `src/SGV.Api/Program.cs` no contiene `AllowAnyOrigin` (la combinación prohibida es estructuralmente imposible).
+
+### Cookie de autenticación de `SGV.Web`
+
+El ternario en `src/SGV.Web/Program.cs` aplica la matriz según `builder.Environment.IsDevelopment()`. El chequeo vive dentro del bloque `AddCookie(...)` para que sea trivial de auditar y modificar.
+
+```csharp
+options.Cookie.HttpOnly = true;
+options.Cookie.SameSite = SameSiteMode.Lax;
+options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+    ? CookieSecurePolicy.SameAsRequest
+    : CookieSecurePolicy.Always;
+```
+
+El comportamiento está protegido por `tests/SGV.Tests/Web/WebCookieAuthenticationOptionsTests.cs` (2 tests `[Fact]`): Production→`Always`, Development→`SameAsRequest`.
+
+> **Por qué `SameAsRequest` en Development**: el equipo trabaja con `http://localhost:5266` sin TLS para iterar. `Always` bloquearía ese flujo de sign-in con un browser moderno. La cookie sigue llevando `HttpOnly` y `Lax`, así que el riesgo en dev queda acotado a robo local (no a exfiltración cross-origin).
+
+### Reverse proxy y `UseForwardedHeaders` (pendiente de implementación)
+
+Cuando `SGV.Api` o `SGV.Web` se sirven detrás de un reverse proxy (nginx, Traefik, ALB), el host ve la IP del proxy, no la del cliente. Sin `UseForwardedHeaders`, las redirecciones HTTPS generan URLs con `Host: proxy`, lo que rompe links absolutos y filtraciones de información.
+
+> **Este change documenta pero NO implementa `UseForwardedHeaders`.** El snippet queda como referencia para el próximo SDD que aborde headers de proxy.
+
+```csharp
+// src/SGV.Api/Program.cs (futuro) o src/SGV.Web/Program.cs
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+
+// Restringir a proxies conocidos. NUNCA usar KnownNetworks vacías en producción.
+forwardedHeadersOptions.KnownProxies.Clear();
+forwardedHeadersOptions.KnownProxies.Add(IPAddress.Parse("10.0.0.1"));     // nginx primario
+forwardedHeadersOptions.KnownProxies.Add(IPAddress.Parse("10.0.0.2"));     // nginx secundario
+// Para subredes internas (k8s pods):
+// forwardedHeadersOptions.KnownNetworks.Add(new IPNetwork(IPAddress.Parse("10.244.0.0"), 16));
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeadersOptions.Default.ForwardedHeaders;
+});
+
+var app = builder.Build();
+app.UseForwardedHeaders(forwardedHeadersOptions);
+```
+
+Reglas operativas:
+- **Listar todos los proxies explícitamente**. No aceptar `X-Forwarded-*` de cualquier origen.
+- **No combinar `X-Forwarded-For` con `X-Forwarded-Proto` ciegamente**: si solo te importa el protocolo (para HTTPS redirection), limitá a `XForwardedProto`.
+- En **desarrollo sin proxy real**, NO registrar este middleware: aceptar headers forwarded de cualquier origen es un vector de spoofing.
+
+### HSTS en `SGV.Web`
+
+`app.UseHsts()` ya está activo en `src/SGV.Web/Program.cs` para cualquier ambiente distinto de `Development`. El default de 30 días es suficiente para nuestros deployments internos; si en el futuro se sube a `max-age=31536000`, ese cambio requiere un SDD separado.

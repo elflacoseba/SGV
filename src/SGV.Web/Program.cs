@@ -23,7 +23,11 @@ builder.Services
     {
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        // Always require HTTPS for the auth cookie outside Development. Dev keeps
+        // SameAsRequest so plain-http localhost sign-in still works without TLS.
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
         options.LoginPath = "/auth/sign-in";
         options.LogoutPath = "/auth/logout";
         options.AccessDeniedPath = "/error/403";
