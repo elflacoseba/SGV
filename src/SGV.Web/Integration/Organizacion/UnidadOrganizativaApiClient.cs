@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -125,59 +126,54 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
             return new UnidadOrganizativaDeleteResult(true, response.StatusCode, null, null);
         }
 
-        ProblemDetails? problem = null;
-        try
-        {
-            problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
-        }
-        catch (NotSupportedException)
-        {
-        }
-        catch (HttpRequestException)
-        {
-        }
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
 
         return new UnidadOrganizativaDeleteResult(
             false,
             response.StatusCode,
-            problem?.Title,
-            problem?.Detail);
+            parsed.Title,
+            parsed.Detail);
     }
 
     private static async Task<UnidadOrganizativaCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+
         if (response.StatusCode == HttpStatusCode.BadRequest)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>(cancellationToken: cancellationToken);
-            if (problem?.Errors is { Count: > 0 })
+            if (parsed.FieldErrors is { Count: > 0 })
             {
-                var fieldErrors = problem.Errors.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray());
                 return UnidadOrganizativaCommandResult.Failure(
-                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, problem.Title ?? "ValidationError", problem.Detail ?? "One or more fields are invalid."),
-                    fieldErrors);
+                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, parsed.Title ?? "ValidationError", parsed.Detail ?? "One or more fields are invalid."),
+                    parsed.FieldErrors);
             }
 
             return UnidadOrganizativaCommandResult.Failure(
-                new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, problem?.Title ?? "BadRequest", problem?.Detail ?? "Invalid request."));
+                new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, parsed.Title ?? "BadRequest", parsed.Detail ?? "Invalid request."));
         }
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
             return UnidadOrganizativaCommandResult.Failure(
-                new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, problem?.Title ?? "NotFound", problem?.Detail ?? "Resource not found."));
+                new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, parsed.Title ?? "NotFound", parsed.Detail ?? "Resource not found."));
         }
 
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
             return UnidadOrganizativaCommandResult.Failure(
-                new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, problem?.Title ?? "Conflict", problem?.Detail ?? "Conflict occurred."));
+                new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, parsed.Title ?? "Conflict", parsed.Detail ?? "Conflict occurred."));
         }
 
-        response.EnsureSuccessStatusCode();
+        // Cualquier otro status (401/403/5xx/status no mapeado) degrada de
+        // forma elegante a un resultado tipado en vez de propagar una
+        // excepción vía EnsureSuccessStatusCode. Preserva el título/detalle
+        // del ProblemDetails cuando el backend lo envió; si no, usa un
+        // fallback estable que la UI puede mostrar sin romperse.
         return UnidadOrganizativaCommandResult.Failure(
-            new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "Unexpected", "Unexpected response status."));
+            new UnidadOrganizativaError(
+                UnidadOrganizativaErrorType.Validation,
+                parsed.Title ?? "Unexpected",
+                parsed.Detail ?? "Unexpected response status."));
     }
 
     private static string BuildQueryUri(int page, int pageSize, string? search, string? status = null)

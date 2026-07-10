@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
@@ -127,10 +128,7 @@ public class CargosController : ControllerBase
         if (result.IsSuccess)
             return CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value);
 
-        if (result.FieldErrors is { Count: > 0 })
-            return ToValidationProblemResult(result.Error!, result);
-
-        return ToProblemResult(result.Error!);
+        return ResolveCargoProblemResult(result);
     }
 
     /// <summary>
@@ -162,10 +160,7 @@ public class CargosController : ControllerBase
         if (result.IsSuccess)
             return Ok(result.Value);
 
-        if (result.FieldErrors is { Count: > 0 })
-            return ToValidationProblemResult(result.Error!, result);
-
-        return ToProblemResult(result.Error!);
+        return ResolveCargoProblemResult(result);
     }
 
     /// <summary>
@@ -190,7 +185,7 @@ public class CargosController : ControllerBase
         var result = await _comandos.DesactivarAsync(id, cancellationToken);
         return result.IsSuccess
             ? NoContent()
-            : ToProblemResult(result.Error!);
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     /// <summary>
@@ -216,7 +211,7 @@ public class CargosController : ControllerBase
         var result = await _comandos.ReactivarAsync(id, cancellationToken);
         return result.IsSuccess
             ? Ok(result.Value)
-            : ToProblemResult(result.Error!);
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     // ---- Subrecurso: habilidades del cargo ----
@@ -267,7 +262,7 @@ public class CargosController : ControllerBase
         if (result.IsSuccess)
             return Ok(result.Value);
 
-        return ToSkillProblemResult(result.Error!, result);
+        return ResolveCargoSkillProblemResult(result);
     }
 
     /// <summary>
@@ -292,86 +287,40 @@ public class CargosController : ControllerBase
         var result = await _skillServicio.DeleteAsync(cargoId, skillId, cancellationToken);
         return result.IsSuccess
             ? NoContent()
-            : ToSkillProblemResult(result.Error!, result);
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
-    private ActionResult ToProblemResult(CargoError error)
+    /// <summary>
+    /// Bifurca entre ValidationProblemDetails (con errors) y ProblemDetails
+    /// genérico para errores de Cargo. La rama Validation se toma cuando
+    /// el servicio devuelve FieldErrors — el shape coincide con la versión
+    /// pre-centralización que la spec
+    /// <c>cargo-skill-ponderacion-obligatoria Req 4</c> ya fijó.
+    /// </summary>
+    private ActionResult ResolveCargoProblemResult(CargoCommandResult result)
     {
-        var statusCode = error.Type switch
+        if (result.FieldErrors is { Count: > 0 })
         {
-            CargoErrorType.NotFound => StatusCodes.Status404NotFound,
-            CargoErrorType.Conflict => StatusCodes.Status409Conflict,
-            CargoErrorType.Validation => StatusCodes.Status400BadRequest,
-            _ => StatusCodes.Status400BadRequest
-        };
-
-        return Problem(
-            statusCode: statusCode,
-            title: error.Code,
-            detail: error.Message,
-            type: $"https://httpstatuses.com/{statusCode}");
-    }
-
-    private ActionResult ToValidationProblemResult(CargoError error, CargoCommandResult result)
-    {
-        var modelState = new Dictionary<string, string[]>();
-        if (result.FieldErrors is not null)
-        {
-            foreach (var kvp in result.FieldErrors)
-            {
-                modelState[kvp.Key] = kvp.Value;
-            }
+            return ApiResults.ToValidationProblemResult(result.Error!, result.FieldErrors, HttpContext);
         }
 
-        var details = new ValidationProblemDetails(modelState)
-        {
-            Status = StatusCodes.Status400BadRequest,
-            Title = error.Code,
-            Detail = error.Message,
-            Type = "https://httpstatuses.com/400"
-        };
-
-        return BadRequest(details);
+        return ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
-    private ActionResult ToSkillProblemResult(CargoSkillError error, CargoSkillCommandResult? result = null)
+    /// <summary>
+    /// Bifurca entre ValidationProblemDetails y ProblemDetails para
+    /// errores de CargoSkill. La rama Validation se usa cuando hay
+    /// FieldErrors; en cualquier otro caso (incluyendo 400 plano) se
+    /// devuelve ProblemDetails para preservar el shape histórico del
+    /// subrecurso (verificado por los tests de CargoSkillController).
+    /// </summary>
+    private ActionResult ResolveCargoSkillProblemResult(CargoSkillCommandResult result)
     {
-        var statusCode = error.Type switch
+        if (result.Error!.Type == CargoSkillErrorType.Validation && result.FieldErrors is { Count: > 0 })
         {
-            CargoSkillErrorType.NotFound => StatusCodes.Status404NotFound,
-            CargoSkillErrorType.Validation => StatusCodes.Status400BadRequest,
-            _ => StatusCodes.Status400BadRequest
-        };
-
-        // PR2-T2.2: cuando el servicio devuelve FieldErrors (validación por
-        // campo) emitimos un ValidationProblemDetails para que el cliente
-        // pueda mapear errores por nombre de campo sin ambigüedad. Sin
-        // FieldErrors seguimos usando ProblemDetails para preservar el
-        // shape histórico del subrecurso.
-        if (statusCode == StatusCodes.Status400BadRequest
-            && result?.FieldErrors is { Count: > 0 })
-        {
-            var modelState = new Dictionary<string, string[]>();
-            foreach (var kvp in result.FieldErrors)
-            {
-                modelState[kvp.Key] = kvp.Value;
-            }
-
-            var details = new ValidationProblemDetails(modelState)
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = error.Code,
-                Detail = error.Message,
-                Type = "https://httpstatuses.com/400"
-            };
-
-            return BadRequest(details);
+            return ApiResults.ToValidationProblemResult(result.Error, result.FieldErrors, HttpContext);
         }
 
-        return Problem(
-            statusCode: statusCode,
-            title: error.Code,
-            detail: error.Message,
-            type: $"https://httpstatuses.com/{statusCode}");
+        return ApiResults.ToProblemResult(result.Error, HttpContext);
     }
 }

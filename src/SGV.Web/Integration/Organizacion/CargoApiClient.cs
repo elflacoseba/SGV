@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -49,26 +50,13 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
             return new CargoDeleteResult(true, response.StatusCode, null, null);
         }
 
-        ProblemDetails? problem = null;
-        try
-        {
-            problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
-        }
-        catch (NotSupportedException)
-        {
-        }
-        catch (HttpRequestException)
-        {
-        }
-        catch (System.Text.Json.JsonException)
-        {
-        }
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
 
         return new CargoDeleteResult(
             false,
             response.StatusCode,
-            problem?.Title,
-            problem?.Detail);
+            parsed.Title,
+            parsed.Detail);
     }
 
     /// <inheritdoc />
@@ -277,25 +265,12 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         (string Code, string Message) defaults,
         CancellationToken cancellationToken)
     {
-        ProblemDetails? problem = null;
-        try
-        {
-            problem = await response.Content
-                .ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (NotSupportedException)
-        {
-        }
-        catch (HttpRequestException)
-        {
-        }
-        catch (System.Text.Json.JsonException)
-        {
-        }
+        var parsed = await ApiProblemReader
+            .ReadAsync(response, cancellationToken)
+            .ConfigureAwait(false);
 
-        var code = string.IsNullOrEmpty(problem?.Title) ? defaults.Code : problem.Title;
-        var message = string.IsNullOrEmpty(problem?.Detail) ? defaults.Message : problem.Detail;
+        var code = string.IsNullOrEmpty(parsed.Title) ? defaults.Code : parsed.Title;
+        var message = string.IsNullOrEmpty(parsed.Detail) ? defaults.Message : parsed.Detail;
         return (code, message);
     }
 
@@ -326,33 +301,31 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 
     private static async Task<CargoCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+
         if (response.StatusCode == HttpStatusCode.BadRequest)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>(cancellationToken: cancellationToken);
-            if (problem?.Errors is { Count: > 0 })
+            if (parsed.FieldErrors is { Count: > 0 })
             {
-                var fieldErrors = problem.Errors.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray());
                 return CargoCommandResult.Failure(
-                    new CargoError(CargoErrorType.Validation, problem.Title ?? "ValidationError", problem.Detail ?? "Uno o más campos son inválidos."),
-                    fieldErrors);
+                    new CargoError(CargoErrorType.Validation, parsed.Title ?? "ValidationError", parsed.Detail ?? "Uno o más campos son inválidos."),
+                    parsed.FieldErrors);
             }
 
             return CargoCommandResult.Failure(
-                new CargoError(CargoErrorType.Validation, problem?.Title ?? "BadRequest", problem?.Detail ?? "Solicitud inválida."));
+                new CargoError(CargoErrorType.Validation, parsed.Title ?? "BadRequest", parsed.Detail ?? "Solicitud inválida."));
         }
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
             return CargoCommandResult.Failure(
-                new CargoError(CargoErrorType.NotFound, problem?.Title ?? "NotFound", problem?.Detail ?? "Recurso no encontrado."));
+                new CargoError(CargoErrorType.NotFound, parsed.Title ?? "NotFound", parsed.Detail ?? "Recurso no encontrado."));
         }
 
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
             return CargoCommandResult.Failure(
-                new CargoError(CargoErrorType.Conflict, problem?.Title ?? "Conflict", problem?.Detail ?? "Conflicto."));
+                new CargoError(CargoErrorType.Conflict, parsed.Title ?? "Conflict", parsed.Detail ?? "Conflicto."));
         }
 
         return CargoCommandResult.Failure(
@@ -381,25 +354,24 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
     {
         if (response.StatusCode == HttpStatusCode.BadRequest)
         {
-            var validation = await response.Content
-                .ReadFromJsonAsync<ValidationProblemDetails>(cancellationToken: cancellationToken)
+            var parsed = await ApiProblemReader
+                .ReadAsync(response, cancellationToken)
                 .ConfigureAwait(false);
-            if (validation?.Errors is { Count: > 0 })
+            if (parsed.FieldErrors is { Count: > 0 })
             {
-                var fieldErrors = validation.Errors.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray());
                 return CargoSkillCommandResult.Failure(
                     new CargoSkillError(
                         CargoSkillErrorType.Validation,
-                        validation.Title ?? "DatosInvalidos",
-                        validation.Detail ?? "Uno o más campos del vínculo contienen errores de validación."),
-                    fieldErrors);
+                        parsed.Title ?? "DatosInvalidos",
+                        parsed.Detail ?? "Uno o más campos del vínculo contienen errores de validación."),
+                    parsed.FieldErrors);
             }
 
             return CargoSkillCommandResult.Failure(
                 new CargoSkillError(
                     CargoSkillErrorType.Validation,
-                    validation?.Title ?? "BadRequest",
-                    validation?.Detail ?? "Solicitud inválida."));
+                    parsed.Title ?? "BadRequest",
+                    parsed.Detail ?? "Solicitud inválida."));
         }
 
         var defaults = MapSkillError(response.StatusCode);

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
@@ -41,7 +42,7 @@ public sealed class UsuariosController(
         var result = await comandos.CrearAsync(request, cancellationToken);
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetAll), new { id = result.Value!.Id }, result.Value)
-            : ToProblemResult(result.Error!);
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     [HttpPut("{userId}/roles")]
@@ -54,19 +55,6 @@ public sealed class UsuariosController(
         CancellationToken cancellationToken)
     {
         var result = await comandos.AsignarRolesAsync(userId, request, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : ToProblemResult(result.Error!);
-    }
-
-    private ActionResult ToProblemResult(UsuarioError error)
-    {
-        var statusCode = error.Type switch
-        {
-            UsuarioErrorType.NotFound => StatusCodes.Status404NotFound,
-            UsuarioErrorType.Conflict => StatusCodes.Status409Conflict,
-            UsuarioErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
-            _ => StatusCodes.Status400BadRequest
-        };
-
-        return Problem(statusCode: statusCode, title: error.Code, detail: error.Message, type: $"https://httpstatuses.com/{statusCode}");
+        return result.IsSuccess ? Ok(result.Value) : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 }
