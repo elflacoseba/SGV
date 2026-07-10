@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
     <ProjectReference Include="..\SGV.Aplicacion\SGV.Aplicacion.csproj" />
+    <ProjectReference Include="..\SGV.Contracts\SGV.Contracts.csproj" />
     <ProjectReference Include="..\SGV.Infraestructura\SGV.Infraestructura.csproj" />
   </ItemGroup>
 

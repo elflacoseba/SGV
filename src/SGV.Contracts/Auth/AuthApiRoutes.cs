@@ -1,4 +1,4 @@
-namespace SGV.Api.Contracts;
+namespace SGV.Contracts.Auth;
 
 /// <summary>
 /// Centralized authentication routes shared by SGV.Api and SGV.Web.

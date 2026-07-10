@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Seguridad.Usuarios;
-using SGV.Api.Contracts;
+using SGV.Contracts.Auth;
 using SGV.Web.Integration.Auth;
 using Xunit;
 
