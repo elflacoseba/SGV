@@ -107,19 +107,39 @@ builder.Services.AddAplicacionServicios();
 // Infrastructure services (repositories, UoW, query services)
 builder.Services.AddInfraestructuraServicios();
 
-// CORS: allow web app origin in development
-var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? [];
+// CORS: allow web app origin in development; fail loud if unconfigured outside Development.
+// The AllowedOrigins read happens inside the AddDefaultPolicy callback so it observes the
+// post-Build configuration (including any ConfigureAppConfiguration overrides applied by
+// WebApplicationFactory in tests). The InvalidOperationException surfaces immediately when
+// CorsService resolves IOptions<CorsOptions> at host start, before the first request.
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        if (allowedOrigins.Length > 0)
+        var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
+
+        if (allowedOrigins is null || allowedOrigins.Length == 0)
         {
-            policy.WithOrigins(allowedOrigins).AllowCredentials();
+            if (!builder.Environment.IsDevelopment())
+            {
+                throw new InvalidOperationException(
+                    "SGV.Api: la sección de configuración 'AllowedOrigins' es obligatoria " +
+                    "fuera del ambiente Development. Configure AllowedOrigins__0, " +
+                    "AllowedOrigins__1, ... vía variables de entorno.");
+            }
+
+            // Development-only fallback: any origin is allowed but credentials stay off.
+            // The wildcard origin must never be combined with AllowCredentials (browsers
+            // reject that combination, and ASPIl's behaviour around it is not safe to rely
+            // on). Dev has no real session to exfiltrate, so this fallback is safe.
+            // See spec api-cors-allowed-origins-validation for the constraint.
+            policy.SetIsOriginAllowed(_ => true)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
         }
         else
         {
-            policy.AllowAnyOrigin().AllowCredentials();
+            policy.WithOrigins(allowedOrigins).AllowCredentials();
         }
     });
 });
