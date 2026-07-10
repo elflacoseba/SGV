@@ -19,18 +19,20 @@ namespace SGV.Tests.Persistencia;
 ///   - Inserta un string no catalogado en Nivel
 ///   - Ejecuta el SQL del pre-flight y verifica MySqlException 45000
 ///
-/// Requieren MySQL 8 real en localhost:3306 con root sin password.
+/// Requieren MySQL 8 real. La cadena de conexión se obtiene desde
+/// <see cref="TestSgvDbContextFactory.ResolveConnectionString"/> (env var
+/// <c>ConnectionStrings__SgvDatabase</c> o default local) y se reemplaza el
+/// <c>Database</c> por uno aislado por test.
 /// </summary>
 public sealed class MigracionFailLoudCargosTests : IAsyncLifetime
 {
     private string _testDbName = null!;
     private string _testConnectionString = null!;
-    private string _masterConnectionString = "Server=localhost;Port=3306;Database=SGV;User=root;";
 
     public Task InitializeAsync()
     {
         _testDbName = $"SGV_Test_Migration_Cargos_{Guid.NewGuid():N}";
-        _testConnectionString = $"Server=localhost;Port=3306;Database={_testDbName};User=root;";
+        _testConnectionString = TestSgvDbContextFactory.BuildConnectionStringForDatabase(_testDbName);
         return Task.CompletedTask;
     }
 
@@ -38,7 +40,7 @@ public sealed class MigracionFailLoudCargosTests : IAsyncLifetime
     {
         try
         {
-            await using var masterConn = new MySqlConnection(_masterConnectionString);
+            await using var masterConn = new MySqlConnection(TestSgvDbContextFactory.ResolveConnectionString());
             await masterConn.OpenAsync();
             await using var cmd = masterConn.CreateCommand();
             cmd.CommandText = $"DROP DATABASE IF EXISTS `{_testDbName}`";

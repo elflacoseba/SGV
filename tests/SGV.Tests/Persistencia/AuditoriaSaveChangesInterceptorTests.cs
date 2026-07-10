@@ -182,7 +182,7 @@ public sealed class AuditoriaSaveChangesInterceptorTests
         public static async Task<AuditTestContextScope> CreateAsync()
         {
             var databaseName = $"SGV_AuditTests_{Guid.NewGuid():N}";
-            var connectionString = $"Server=localhost;Port=3306;Database={databaseName};User=root;";
+            var connectionString = TestSgvDbContextFactory.BuildConnectionStringForDatabase(databaseName);
             var interceptor = new AuditoriaSaveChangesInterceptor(new FakeUsuarioActual("audit-user", CorrelationId));
             var options = new DbContextOptionsBuilder<AuditTestDbContext>()
                 .UseMySql(connectionString, ServerVersion)

@@ -67,6 +67,27 @@ public sealed class TestSgvDbContextFactory : IDesignTimeDbContextFactory<SgvDbC
     public static string ResolveConnectionString()
         => ResolveSettings().ConnectionString;
 
+    /// <summary>
+    /// Returns the resolved connection string with the <c>Database</c> segment
+    /// swapped for <paramref name="databaseName"/>. Use this from tests that
+    /// need a per-test isolated database while still inheriting host, port,
+    /// user and password from the test connection string configuration
+    /// (env var or <c>LocalDevConnectionString</c> default).
+    /// </summary>
+    public static string BuildConnectionStringForDatabase(string databaseName)
+    {
+        if (string.IsNullOrWhiteSpace(databaseName))
+        {
+            throw new ArgumentException("Database name must be provided.", nameof(databaseName));
+        }
+
+        var builder = new MySqlConnectionStringBuilder(ResolveConnectionString())
+        {
+            Database = databaseName,
+        };
+        return builder.ConnectionString;
+    }
+
     internal static TestMySqlConnectionSettings ResolveSettings()
         => ResolveSettings(configuration: null, environmentConnectionStringOverride: null);
 

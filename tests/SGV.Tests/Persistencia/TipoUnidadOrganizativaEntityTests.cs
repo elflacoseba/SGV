@@ -12,15 +12,7 @@ namespace SGV.Tests.Persistencia;
 public sealed class TipoUnidadOrganizativaEntityTests
 {
     private static SgvDbContext CreateEmptyContext()
-    {
-        var options = new DbContextOptionsBuilder<SgvDbContext>()
-            .UseMySql(
-                "Server=localhost;Database=sgv_test_entity;User=root;",
-                ServerVersion.AutoDetect("Server=localhost;Database=sgv_test_entity;User=root;"),
-                mysqlOptions => mysqlOptions.SchemaBehavior(Pomelo.EntityFrameworkCore.MySql.Infrastructure.MySqlSchemaBehavior.Ignore))
-            .Options;
-        return new SgvDbContext(options);
-    }
+        => new TestSgvDbContextFactory().CreateDbContext([]);
 
     [Fact]
     public void Entity_TienePropiedadesCorrectas()
@@ -62,8 +54,8 @@ public sealed class TipoUnidadOrganizativaEntityTests
 
         // Should NOT have audit properties
         Assert.Null(entityType!.FindProperty("IsDeleted"));
-        Assert.Null(entityType!.FindProperty("IsActive"));
-        Assert.Null(entityType!.FindProperty("CreatedAt"));
-        Assert.Null(entityType!.FindProperty("UpdatedAt"));
+        Assert.Null(entityType.FindProperty("IsActive"));
+        Assert.Null(entityType.FindProperty("CreatedAt"));
+        Assert.Null(entityType.FindProperty("UpdatedAt"));
     }
 }
