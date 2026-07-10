@@ -123,6 +123,44 @@ public sealed class MySqlTestDatabaseBootstrapTests
         Assert.IsType<InvalidOperationException>(exception.InnerException);
     }
 
+    [Fact]
+    public void MySqlFactAttribute_WhenCiAndBootstrapFails_FailsLoudWithInnerException()
+    {
+        var availability = new MySqlTestDatabaseAvailability(
+            MySqlTestDatabaseStatus.BootstrapFailure,
+            "MySQL test database bootstrap failed during migration. Source: ConnectionStrings__SgvDatabase. Connection: Server=127.0.0.1;Port=3306;Database=sgv_test;User=root;Password=<redacted>;. Reason: Broken migration",
+            new InvalidOperationException("Broken migration"));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => new MySqlFactAttribute(availability, isCi: true));
+
+        Assert.Equal(availability.Message, exception.Message);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void RedactMessage_WhenTextContainsPassword_ReplacesIt()
+    {
+        const string input = "Server=localhost;Password=super-secret;Database=sgv_test";
+        var result = MySqlTestDatabaseBootstrap.RedactMessage(input);
+        Assert.Contains("Password=<redacted>", result, StringComparison.Ordinal);
+        Assert.DoesNotContain("super-secret", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RedactMessage_WhenTextDoesNotContainPassword_ReturnsUnchanged()
+    {
+        const string input = "Connection timed out after 30 seconds";
+        var result = MySqlTestDatabaseBootstrap.RedactMessage(input);
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void RedactMessage_WhenTextIsNull_ReturnsEmpty()
+    {
+        var result = MySqlTestDatabaseBootstrap.RedactMessage(null);
+        Assert.Equal(string.Empty, result);
+    }
+
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]

@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
 using SGV.Infraestructura.Persistencia;
@@ -27,9 +28,28 @@ internal sealed record MySqlTestDatabaseAvailability(
     public bool ShouldSkip(bool isCi) => Status == MySqlTestDatabaseStatus.ServerUnavailable && !isCi;
 }
 
-internal static class MySqlTestDatabaseBootstrap
+internal static partial class MySqlTestDatabaseBootstrap
 {
+    /// <summary>
+    /// Cached once per test-session via <see cref="Lazy{T}"/>. This means
+    /// the probe runs exactly once: the first [MySqlFact] triggers it and
+    /// the result is frozen for the session. If MySQL becomes available
+    /// mid-session (unlikely in CI, possible in local), subsequent tests
+    /// still see the cached state. Acceptable trade-off for performance.
+    /// </summary>
     private static readonly Lazy<MySqlTestDatabaseAvailability> CachedAvailability = new(CheckAvailability);
+
+    /// <summary>MySqlException 1042 — Can't get hostname for your address.</summary>
+    private const int ER_BAD_HOST_ERROR = 1042;
+    /// <summary>MySqlException 1045 — Access denied (bad credentials).</summary>
+    private const int ER_ACCESS_DENIED_ERROR = 1045;
+    /// <summary>MySqlException 2002 — Can't connect to server (socket).</summary>
+    private const int CR_CONNECTION_ERROR = 2002;
+    /// <summary>MySqlException 2003 — Can't connect to MySQL server.</summary>
+    private const int CR_CONN_HOST_ERROR = 2003;
+
+    /// <summary>Maximum depth when walking <see cref="Exception.InnerException"/> chains.</summary>
+    private const int MaxExceptionDepth = 10;
 
     public static MySqlTestDatabaseAvailability GetAvailability() => CachedAvailability.Value;
 
@@ -116,21 +136,63 @@ internal static class MySqlTestDatabaseBootstrap
         string? reason = null,
         Exception? exception = null)
     {
-        var details = reason ?? exception?.Message;
+        var details = reason is not null
+            ? reason
+            : exception is not null
+                ? RedactMessage(exception.Message)
+                : null;
         return details is null
             ? $"{summary} Source: {settings.Source}. Connection: {settings.RedactedConnectionString}"
             : $"{summary} Source: {settings.Source}. Connection: {settings.RedactedConnectionString}. Reason: {details}";
     }
 
+    /// <summary>
+    /// Redacts sensitive patterns (e.g. Password=...) from a diagnostic message.
+    /// This is a best-effort safety net — it does NOT guarantee full sanitization.
+    /// </summary>
+    internal static string RedactMessage(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        return PasswordPattern().Replace(text, "Password=<redacted>");
+    }
+
+    [GeneratedRegex(@"Password\s*=\s*[^;]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PasswordPattern();
+
+    /// <summary>
+    /// Classifies an exception as "server unavailable" (safe to skip locally).
+    /// Walks up to <see cref="MaxExceptionDepth"/> InnerException levels using
+    /// an iterative loop to avoid unbounded recursion.
+    /// </summary>
     private static bool IsServerUnavailable(Exception exception)
     {
-        return exception switch
+        var current = exception;
+        for (var depth = 0; current is not null && depth < MaxExceptionDepth; depth++)
         {
-            MySqlException mySqlException when mySqlException.Number is 0 or 1042 or 1045 or 2002 or 2003 => true,
-            SocketException => true,
-            TimeoutException => true,
-            _ when exception.InnerException is not null => IsServerUnavailable(exception.InnerException),
-            _ => false,
-        };
+            switch (current)
+            {
+                // Network-level errors — server genuinely unreachable.
+                case MySqlException { Number: 0 }:
+                case MySqlException { Number: ER_BAD_HOST_ERROR }:
+                case MySqlException { Number: CR_CONNECTION_ERROR }:
+                case MySqlException { Number: CR_CONN_HOST_ERROR }:
+                case SocketException:
+                case TimeoutException:
+                    return true;
+
+                // ER_ACCESS_DENIED_ERROR (1045) intentionally NOT classified as
+                // ServerUnavailable: the server is reachable, credentials are
+                // wrong. This is a bootstrap/configuration failure and should
+                // fail loud even locally so the developer fixes auth, not skips.
+            }
+
+            current = current.InnerException;
+        }
+
+        return false;
     }
 }
