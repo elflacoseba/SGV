@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -75,26 +76,13 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
             return new PuestoDeleteResult(true, response.StatusCode, null, null);
         }
 
-        ProblemDetails? problem = null;
-        try
-        {
-            problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
-        }
-        catch (NotSupportedException)
-        {
-        }
-        catch (HttpRequestException)
-        {
-        }
-        catch (System.Text.Json.JsonException)
-        {
-        }
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
 
         return new PuestoDeleteResult(
             false,
             response.StatusCode,
-            problem?.Title,
-            problem?.Detail);
+            parsed.Title,
+            parsed.Detail);
     }
 
     /// <inheritdoc />
@@ -121,33 +109,31 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
     /// </summary>
     private static async Task<PuestoCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+
         if (response.StatusCode == HttpStatusCode.BadRequest)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>(cancellationToken: cancellationToken);
-            if (problem?.Errors is { Count: > 0 })
+            if (parsed.FieldErrors is { Count: > 0 })
             {
-                var fieldErrors = problem.Errors.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray());
                 return PuestoCommandResult.Failure(
-                    new PuestoError(PuestoErrorType.Validation, problem.Title ?? "DatosInvalidos", problem.Detail ?? "Uno o más campos son inválidos."),
-                    fieldErrors);
+                    new PuestoError(PuestoErrorType.Validation, parsed.Title ?? "DatosInvalidos", parsed.Detail ?? "Uno o más campos son inválidos."),
+                    parsed.FieldErrors);
             }
 
             return PuestoCommandResult.Failure(
-                new PuestoError(PuestoErrorType.Validation, problem?.Title ?? "BadRequest", problem?.Detail ?? "Solicitud inválida."));
+                new PuestoError(PuestoErrorType.Validation, parsed.Title ?? "BadRequest", parsed.Detail ?? "Solicitud inválida."));
         }
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
             return PuestoCommandResult.Failure(
-                new PuestoError(PuestoErrorType.NotFound, problem?.Title ?? "PuestoNoEncontrado", problem?.Detail ?? "Recurso no encontrado."));
+                new PuestoError(PuestoErrorType.NotFound, parsed.Title ?? "PuestoNoEncontrado", parsed.Detail ?? "Recurso no encontrado."));
         }
 
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
             return PuestoCommandResult.Failure(
-                new PuestoError(PuestoErrorType.Conflict, problem?.Title ?? "Conflict", problem?.Detail ?? "Conflicto."));
+                new PuestoError(PuestoErrorType.Conflict, parsed.Title ?? "Conflict", parsed.Detail ?? "Conflicto."));
         }
 
         return PuestoCommandResult.Failure(

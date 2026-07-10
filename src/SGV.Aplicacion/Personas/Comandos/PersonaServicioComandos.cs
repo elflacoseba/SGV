@@ -1,5 +1,6 @@
 using FluentValidation;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Personas.Comandos.Validaciones;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;

@@ -1,5 +1,6 @@
 using FluentValidation;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Contracts.Organizacion.Comandos;
@@ -19,13 +20,9 @@ public sealed class PuestoServicioComandos(
     IValidator<CrearPuestoRequest> crearValidator,
     IValidator<ActualizarPuestoRequest> actualizarValidator) : IPuestoServicioComandos
 {
-    /// <summary>
-    /// Converts a PascalCase property name to camelCase for field-error keys.
-    /// </summary>
-    private static string ToCamelCase(string propertyName) =>
-        string.IsNullOrEmpty(propertyName) || char.IsLower(propertyName[0])
-            ? propertyName
-            : char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
+    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
+        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
+        => ValidationHelper.BuildFieldErrors(failures);
 
     /// <summary>
     /// Convenience constructor for backward compatibility (e.g., tests).
@@ -257,13 +254,5 @@ public sealed class PuestoServicioComandos(
             puesto.CargoId,
             cargoNombre ?? string.Empty,
             puesto.PuestoSuperiorId);
-    }
-
-    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
-        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
-    {
-        return failures
-            .GroupBy(e => ToCamelCase(e.PropertyName))
-            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
     }
 }

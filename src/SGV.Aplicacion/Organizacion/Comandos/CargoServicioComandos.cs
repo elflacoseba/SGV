@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Contracts.Organizacion.Comandos;
@@ -19,14 +20,9 @@ public sealed class CargoServicioComandos(
     IValidator<CrearCargoRequest> crearValidator,
     IValidator<ActualizarCargoRequest> actualizarValidator) : ICargoServicioComandos
 {
-    /// <summary>
-    /// Converts a PascalCase property name (e.g. <c>NivelId</c>) to camelCase
-    /// (<c>nivelId</c>) so field-error keys match the JSON casing used by HTTP clients.
-    /// </summary>
-    private static string ToCamelCase(string propertyName) =>
-        string.IsNullOrEmpty(propertyName) || char.IsLower(propertyName[0])
-            ? propertyName
-            : char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
+    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
+        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
+        => ValidationHelper.BuildFieldErrors(failures);
 
     /// <summary>
     /// Convenience constructor for backward compatibility (e.g., tests).
@@ -218,18 +214,6 @@ public sealed class CargoServicioComandos(
             cargo.Descripcion,
             cargo.NivelId,
             nivelCargo?.Nombre ?? cargo.NivelCargo?.Nombre);
-    }
-
-    /// <summary>
-    /// Groups FluentValidation failures into a per-field dictionary using camelCase keys so the
-    /// HTTP contract matches the JSON casing of incoming requests.
-    /// </summary>
-    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
-        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
-    {
-        return failures
-            .GroupBy(e => ToCamelCase(e.PropertyName))
-            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
     }
 
     /// <summary>

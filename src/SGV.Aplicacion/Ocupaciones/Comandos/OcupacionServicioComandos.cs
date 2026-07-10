@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Ocupaciones.Comandos.Validaciones;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
@@ -84,12 +85,22 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
     }
 
     /// <summary>
-    /// Converts a PascalCase property name to camelCase for field-error keys.
+    /// Groups FluentValidation failures into a per-field dictionary using
+    /// camelCase keys so the HTTP contract matches the JSON casing of
+    /// incoming requests.
     /// </summary>
-    private static string ToCamelCase(string propertyName) =>
-        string.IsNullOrEmpty(propertyName) || char.IsLower(propertyName[0])
-            ? propertyName
-            : char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
+    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
+        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
+        => ValidationHelper.BuildFieldErrors(failures);
+
+    /// <summary>
+    /// Helper used to convert a property name to camelCase for inline
+    /// FieldErrors dictionaries produced by manual reference validators
+    /// (e.g. when the request omits a required id). Delegates to the
+    /// shared helper to avoid drift.
+    /// </summary>
+    private static string ToCamelCase(string propertyName)
+        => ValidationHelper.ToCamelCase(propertyName);
 
     // ── CrearAsync ─────────────────────────────────────────────
 
@@ -470,13 +481,5 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             ocupacion.TipoAsignacion,
             ocupacion.Observaciones,
             OcupacionEstadoHelper.CalcularEstado(ocupacion));
-    }
-
-    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
-        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
-    {
-        return failures
-            .GroupBy(e => ToCamelCase(e.PropertyName))
-            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
     }
 }

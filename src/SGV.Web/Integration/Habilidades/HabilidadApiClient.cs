@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 
 namespace SGV.Web.Integration.Habilidades;
 
@@ -53,26 +54,13 @@ public sealed class HabilidadApiClient(
             return new HabilidadDeleteResult(true, response.StatusCode, null, null);
         }
 
-        ProblemDetails? problem = null;
-        try
-        {
-            problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken);
-        }
-        catch (NotSupportedException)
-        {
-        }
-        catch (HttpRequestException)
-        {
-        }
-        catch (System.Text.Json.JsonException)
-        {
-        }
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
 
         return new HabilidadDeleteResult(
             false,
             response.StatusCode,
-            problem?.Title,
-            problem?.Detail);
+            parsed.Title,
+            parsed.Detail);
     }
 
     /// <inheritdoc />
@@ -221,33 +209,31 @@ public sealed class HabilidadApiClient(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+
         if (response.StatusCode == HttpStatusCode.BadRequest)
         {
-            var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>(cancellationToken: cancellationToken);
-            if (problem?.Errors is { Count: > 0 })
+            if (parsed.FieldErrors is { Count: > 0 })
             {
-                var fieldErrors = problem.Errors.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray());
                 return HabilidadCommandResult.Failure(
-                    new HabilidadError(HabilidadErrorType.Validation, problem.Title ?? "ValidationError", problem.Detail ?? "Uno o más campos son inválidos."),
-                    fieldErrors);
+                    new HabilidadError(HabilidadErrorType.Validation, parsed.Title ?? "ValidationError", parsed.Detail ?? "Uno o más campos son inválidos."),
+                    parsed.FieldErrors);
             }
 
             return HabilidadCommandResult.Failure(
-                new HabilidadError(HabilidadErrorType.Validation, problem?.Title ?? "BadRequest", problem?.Detail ?? "Solicitud inválida."));
+                new HabilidadError(HabilidadErrorType.Validation, parsed.Title ?? "BadRequest", parsed.Detail ?? "Solicitud inválida."));
         }
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            var problem = await TryReadProblemDetailsAsync(response, cancellationToken).ConfigureAwait(false);
             return HabilidadCommandResult.Failure(
-                new HabilidadError(HabilidadErrorType.NotFound, problem?.Title ?? "NotFound", problem?.Detail ?? "Recurso no encontrado."));
+                new HabilidadError(HabilidadErrorType.NotFound, parsed.Title ?? "NotFound", parsed.Detail ?? "Recurso no encontrado."));
         }
 
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
-            var problem = await TryReadProblemDetailsAsync(response, cancellationToken).ConfigureAwait(false);
             return HabilidadCommandResult.Failure(
-                new HabilidadError(HabilidadErrorType.Conflict, problem?.Title ?? "Conflict", problem?.Detail ?? "Conflicto."));
+                new HabilidadError(HabilidadErrorType.Conflict, parsed.Title ?? "Conflict", parsed.Detail ?? "Conflicto."));
         }
 
         // Status inesperado (5xx, 408, 3xx que cuele, etc.): no lo enmascaremos
@@ -266,29 +252,5 @@ public sealed class HabilidadApiClient(
             "ServerError",
             "El servicio de habilidades no respondió correctamente. Intentá nuevamente.",
             StatusCode: statusCode));
-    }
-
-    /// <summary>
-    /// Lee un <see cref="ProblemDetails"/> del cuerpo de la respuesta,
-    /// tolerando cuerpos no-JSON o ausentes (devuelve <c>null</c> en ese
-    /// caso en vez de propagar <see cref="System.Text.Json.JsonException"/>).
-    /// </summary>
-    private static async Task<ProblemDetails?> TryReadProblemDetailsAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            return null;
-        }
-        catch (NotSupportedException)
-        {
-            return null;
-        }
     }
 }

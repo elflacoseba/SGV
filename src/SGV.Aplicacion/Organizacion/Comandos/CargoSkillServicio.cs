@@ -1,7 +1,7 @@
-using System.Text.Json;
 using FluentValidation;
 using FluentValidation.Results;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Comandos;
@@ -194,12 +194,9 @@ public sealed class CargoSkillServicio(
     /// Groups FluentValidation failures into a per-field dictionary using
     /// camelCase keys so the HTTP contract matches the JSON casing of the
     /// incoming requests and the eventual <c>ValidationProblemDetails</c>
-    /// emitted by the controller.
+    /// emitted by the controller. Delegates to the centralized helper to
+    /// keep all services in sync.
     /// </summary>
     private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(ValidationResult validationResult)
-    {
-        return validationResult.Errors
-            .GroupBy(e => JsonNamingPolicy.CamelCase.ConvertName(e.PropertyName))
-            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
-    }
+        => ValidationHelper.BuildFieldErrors(validationResult.Errors);
 }

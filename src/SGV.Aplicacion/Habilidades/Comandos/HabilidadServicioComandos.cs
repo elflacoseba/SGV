@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Habilidades.Comandos.Validaciones;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Contracts.Habilidades.Comandos;
@@ -31,13 +32,9 @@ public sealed class HabilidadServicioComandos(
     /// </summary>
     private const string ActiveCodigoUniqueIndex = "IX_Habilidades_ActiveCodigoUnique";
 
-    /// <summary>
-    /// Converts a PascalCase property name to camelCase for field-error keys.
-    /// </summary>
-    private static string ToCamelCase(string propertyName) =>
-        string.IsNullOrEmpty(propertyName) || char.IsLower(propertyName[0])
-            ? propertyName
-            : char.ToLowerInvariant(propertyName[0]) + propertyName[1..];
+    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
+        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
+        => ValidationHelper.BuildFieldErrors(failures);
 
     /// <summary>
     /// Convenience constructor for backward compatibility (e.g., tests).
@@ -198,18 +195,6 @@ public sealed class HabilidadServicioComandos(
             habilidad.Nombre,
             habilidad.Descripcion,
             habilidad.Categoria);
-    }
-
-    /// <summary>
-    /// Groups FluentValidation failures into a per-field dictionary using camelCase keys so the
-    /// HTTP contract matches the JSON casing of incoming requests.
-    /// </summary>
-    private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
-        IEnumerable<FluentValidation.Results.ValidationFailure> failures)
-    {
-        return failures
-            .GroupBy(e => ToCamelCase(e.PropertyName))
-            .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
     }
 
     /// <summary>

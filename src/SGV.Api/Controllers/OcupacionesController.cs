@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
@@ -97,9 +98,9 @@ public class OcupacionesController : ControllerBase
             return CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value);
 
         if (result.FieldErrors is { Count: > 0 })
-            return ToValidationProblemResult(result.Error!, result);
+            return ApiResults.ToValidationProblemResult(result.Error!, result.FieldErrors, HttpContext);
 
-        return ToProblemResult(result.Error!);
+        return ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     /// <summary>
@@ -130,9 +131,9 @@ public class OcupacionesController : ControllerBase
             return Ok(result.Value);
 
         if (result.FieldErrors is { Count: > 0 })
-            return ToValidationProblemResult(result.Error!, result);
+            return ApiResults.ToValidationProblemResult(result.Error!, result.FieldErrors, HttpContext);
 
-        return ToProblemResult(result.Error!);
+        return ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     /// <summary>
@@ -163,9 +164,9 @@ public class OcupacionesController : ControllerBase
             return Ok(result.Value);
 
         if (result.FieldErrors is { Count: > 0 })
-            return ToValidationProblemResult(result.Error!, result);
+            return ApiResults.ToValidationProblemResult(result.Error!, result.FieldErrors, HttpContext);
 
-        return ToProblemResult(result.Error!);
+        return ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     /// <summary>
@@ -190,7 +191,7 @@ public class OcupacionesController : ControllerBase
         var result = await _comandos.ReactivarAsync(id, cancellationToken);
         return result.IsSuccess
             ? Ok(result.Value)
-            : ToProblemResult(result.Error!);
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     /// <summary>
@@ -215,45 +216,6 @@ public class OcupacionesController : ControllerBase
         var result = await _comandos.EliminarAsync(id, cancellationToken);
         return result.IsSuccess
             ? NoContent()
-            : ToProblemResult(result.Error!);
-    }
-
-    private ActionResult ToProblemResult(OcupacionError error)
-    {
-        var statusCode = error.Type switch
-        {
-            OcupacionErrorType.NotFound => StatusCodes.Status404NotFound,
-            OcupacionErrorType.Conflict => StatusCodes.Status409Conflict,
-            OcupacionErrorType.Validation => StatusCodes.Status400BadRequest,
-            _ => StatusCodes.Status400BadRequest
-        };
-
-        return Problem(
-            statusCode: statusCode,
-            title: error.Code,
-            detail: error.Message,
-            type: $"https://httpstatuses.com/{statusCode}");
-    }
-
-    private ActionResult ToValidationProblemResult(OcupacionError error, OcupacionCommandResult result)
-    {
-        var modelState = new Dictionary<string, string[]>();
-        if (result.FieldErrors is not null)
-        {
-            foreach (var kvp in result.FieldErrors)
-            {
-                modelState[kvp.Key] = kvp.Value;
-            }
-        }
-
-        var details = new ValidationProblemDetails(modelState)
-        {
-            Status = StatusCodes.Status400BadRequest,
-            Title = error.Code,
-            Detail = error.Message,
-            Type = "https://httpstatuses.com/400"
-        };
-
-        return BadRequest(details);
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 }

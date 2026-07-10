@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Contracts.Habilidades.Comandos;
@@ -192,9 +193,9 @@ public class SkillsController : ControllerBase
             return CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value);
 
         if (result.FieldErrors is { Count: > 0 })
-            return ToValidationProblemResult(result.Error!, result);
+            return ApiResults.ToValidationProblemResult(result.Error!, result.FieldErrors, HttpContext);
 
-        return ToProblemResult(result.Error!);
+        return ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     /// <summary>
@@ -245,9 +246,9 @@ public class SkillsController : ControllerBase
             return Ok(result.Value);
 
         if (result.FieldErrors is { Count: > 0 })
-            return ToValidationProblemResult(result.Error!, result);
+            return ApiResults.ToValidationProblemResult(result.Error!, result.FieldErrors, HttpContext);
 
-        return ToProblemResult(result.Error!);
+        return ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     /// <summary>
@@ -270,7 +271,7 @@ public class SkillsController : ControllerBase
         var result = await _comandos.DesactivarAsync(id, cancellationToken);
         return result.IsSuccess
             ? NoContent()
-            : ToProblemResult(result.Error!);
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
     /// <summary>
@@ -296,45 +297,6 @@ public class SkillsController : ControllerBase
         var result = await _comandos.ReactivarAsync(id, cancellationToken);
         return result.IsSuccess
             ? Ok(result.Value)
-            : ToProblemResult(result.Error!);
-    }
-
-    private ActionResult ToProblemResult(HabilidadError error)
-    {
-        var statusCode = error.Type switch
-        {
-            HabilidadErrorType.NotFound => StatusCodes.Status404NotFound,
-            HabilidadErrorType.Conflict => StatusCodes.Status409Conflict,
-            HabilidadErrorType.Validation => StatusCodes.Status400BadRequest,
-            _ => StatusCodes.Status400BadRequest
-        };
-
-        return Problem(
-            statusCode: statusCode,
-            title: error.Code,
-            detail: error.Message,
-            type: $"https://httpstatuses.com/{statusCode}");
-    }
-
-    private ActionResult ToValidationProblemResult(HabilidadError error, HabilidadCommandResult result)
-    {
-        var modelState = new Dictionary<string, string[]>();
-        if (result.FieldErrors is not null)
-        {
-            foreach (var kvp in result.FieldErrors)
-            {
-                modelState[kvp.Key] = kvp.Value;
-            }
-        }
-
-        var details = new ValidationProblemDetails(modelState)
-        {
-            Status = StatusCodes.Status400BadRequest,
-            Title = error.Code,
-            Detail = error.Message,
-            Type = "https://httpstatuses.com/400"
-        };
-
-        return BadRequest(details);
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 }
