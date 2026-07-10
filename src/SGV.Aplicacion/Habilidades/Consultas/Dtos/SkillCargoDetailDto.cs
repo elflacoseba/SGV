@@ -5,7 +5,7 @@ namespace SGV.Aplicacion.Habilidades.Consultas.Dtos;
 
 /// <summary>
 /// GET-only detailed DTO for a Habilidad → Cargo association (mirror of
-/// <see cref="SGV.Aplicacion.Organizacion.Consultas.Dtos.CargoSkillDetailDto"/>).
+/// <see cref="SGV.Contracts.Organizacion.Consultas.Dtos.CargoSkillDetailDto"/>).
 /// The primary constructor preserves the existing <c>(cargo, nivel)</c> shape
 /// used by the EF Core projection in the infrastructure layer, while the link
 /// fields (<c>cargoId</c>, <c>nivelRequeridoId</c>, <c>ponderacion</c>,

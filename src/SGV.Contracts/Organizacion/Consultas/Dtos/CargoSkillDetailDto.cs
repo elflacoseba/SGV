@@ -8,7 +8,7 @@ namespace SGV.Contracts.Organizacion.Consultas.Dtos;
 /// the EF Core projection in the infrastructure layer, while the new link
 /// fields (<c>skillId</c>, <c>nivelRequeridoId</c>, <c>ponderacion</c>,
 /// <c>esObligatoria</c>) are exposed as init-only properties so the
-/// infrastructure projection can populate them in PR2 without breaking the
+/// infrastructure projection can populate them without breaking the
 /// two-argument call site.
 /// </summary>
 public sealed record CargoSkillDetailDto(
