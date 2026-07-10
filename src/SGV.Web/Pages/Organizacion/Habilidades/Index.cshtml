@@ -1,6 +1,5 @@
 @page "/organizacion/habilidades"
 @model SGV.Web.Pages.Organizacion.Habilidades.IndexModel
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 @{
     ViewBag.title = "Habilidades";
@@ -222,11 +221,6 @@
         </div>
     </div>
 </div>
-
-<script>
-    // API runs on a different port in development; use appsettings value
-    window.__sgvApiBaseUrl = '@(Configuration["SgvApi:BaseUrl"] ?? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}")';
-</script>
 
 @section scripts {
     <script src="/plugins/sweetalert2/sweetalert2.all.min.js"></script>
