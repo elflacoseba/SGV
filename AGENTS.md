@@ -192,6 +192,7 @@ Ante la duda, generar **menos** tests, pero que sean significativos, mantenibles
 - El organigrama de unidades organizativas usa Google OrgChart como vista oficial de jerarquía en web.
 - Las operaciones write de cargos, habilidades y usuarios están protegidas por rol `Administrador`; no relajar esa frontera sin cambio explícito de negocio.
 - `SGV.Web` es una shell Razor Pages apoyada en Inspinia; preservar esa responsabilidad y no mezclarla con reglas de negocio.
+- La cookie de autenticación web y la política CORS de la API se endurecieron por ambiente en la issue #101. La cookie lleva `HttpOnly=true`, `SameSite=Lax`, `SecurePolicy={SameAsRequest en Development | Always en otros}`; la API exige `AllowedOrigins` poblado fuera de `Development` con fail-loud. Ver `docs/decisiones-implementacion.md` para la matriz completa ambiente ↔ seguridad.
 - Revisá `docs/decisiones-implementacion.md` antes de modificar persistencia, auditoría, ocupaciones o seguridad.
 
 ## OpenSpec / SDD
