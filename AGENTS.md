@@ -12,6 +12,7 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 4. Si tocás `src/SGV.Web`, instalá dependencias frontend con `bun install` dentro de `src/SGV.Web` y validá el bundle con `bun run build`.
 5. Si tocás persistencia o integración, validá también contra MySQL.
 6. Antes de planificar o implementar, revisá `openspec/` y `docs/decisiones-implementacion.md`.
+7. Antes del primer `dotnet run` de `SGV.Api`, generá una clave JWT propia con `dotnet user-secrets set "Jwt:SigningKey" "<random ≥32 bytes>" --project src/SGV.Api`. Sin esto, el host **no arranca** (`OptionsValidationException`). El placeholder dev en `src/SGV.Api/appsettings.Development.json` también sirve para un primer arranque, pero **NO es apto para producción ni commits**. Ver sección "Gestión de secretos JWT" en `docs/decisiones-implementacion.md`.
 
 ## Estructura del Proyecto y Organización
 
