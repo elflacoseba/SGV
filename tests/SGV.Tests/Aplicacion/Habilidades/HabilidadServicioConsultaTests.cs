@@ -1,6 +1,5 @@
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 using Xunit;
 

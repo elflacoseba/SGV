@@ -1,3 +1,5 @@
+using SGV.Contracts.Habilidades.Comandos;
+
 namespace SGV.Aplicacion.Habilidades.Comandos;
 
 /// <summary>

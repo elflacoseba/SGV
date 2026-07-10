@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using SGV.Aplicacion.Habilidades.Comandos;
+using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad.Usuarios;
@@ -195,8 +195,8 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     {
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.ReactivateResult = HabilidadCommandResult.Failure(
-            new SGV.Aplicacion.Habilidades.Comandos.HabilidadError(
-                SGV.Aplicacion.Habilidades.Comandos.HabilidadErrorType.Conflict,
+            new SGV.Contracts.Habilidades.Comandos.HabilidadError(
+                SGV.Contracts.Habilidades.Comandos.HabilidadErrorType.Conflict,
                 "CodigoDuplicado",
                 "Ya existe una habilidad activa con el mismo código."));
 

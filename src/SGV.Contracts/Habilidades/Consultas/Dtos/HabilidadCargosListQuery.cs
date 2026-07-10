@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Habilidades.Consultas.Dtos;
+namespace SGV.Contracts.Habilidades.Consultas.Dtos;
 
 /// <summary>
 /// Query parameters for the paginated, filtered listing of cargos

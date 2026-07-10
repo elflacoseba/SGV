@@ -3,10 +3,9 @@ using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using SGV.Aplicacion.Habilidades.Comandos;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
-using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Web.Integration.Habilidades;
 

@@ -1,4 +1,5 @@
 using FluentValidation;
+using SGV.Contracts.Habilidades.Comandos;
 using SGV.Dominio.Habilidades;
 
 namespace SGV.Aplicacion.Habilidades.Comandos.Validaciones;

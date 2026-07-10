@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Habilidades.Comandos;
+namespace SGV.Contracts.Habilidades.Comandos;
 
 /// <summary>
 /// Request to create a new Habilidad.

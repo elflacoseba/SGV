@@ -1,4 +1,3 @@
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 

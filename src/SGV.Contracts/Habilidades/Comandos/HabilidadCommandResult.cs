@@ -1,7 +1,6 @@
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 
-namespace SGV.Aplicacion.Habilidades.Comandos;
+namespace SGV.Contracts.Habilidades.Comandos;
 
 /// <summary>
 /// Categorizes command-side failures for Habilidad operations.
