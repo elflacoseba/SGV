@@ -2,6 +2,7 @@
   <Project Path="src/SGV.Dominio/SGV.Dominio.csproj" />
   <Project Path="src/SGV.Aplicacion/SGV.Aplicacion.csproj" />
   <Project Path="src/SGV.Infraestructura/SGV.Infraestructura.csproj" />
+  <Project Path="src/SGV.Contracts/SGV.Contracts.csproj" />
   <Project Path="src/SGV.Api/SGV.Api.csproj" />
   <Project Path="src/SGV.Web/SGV.Web.csproj" />
   <Project Path="tests/SGV.Tests/SGV.Tests.csproj" />

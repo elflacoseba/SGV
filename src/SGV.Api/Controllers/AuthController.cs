@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SGV.Api.Contracts;
+using SGV.Contracts.Auth;
 using SGV.Aplicacion.Seguridad.Usuarios;
 
 namespace SGV.Api.Controllers;
