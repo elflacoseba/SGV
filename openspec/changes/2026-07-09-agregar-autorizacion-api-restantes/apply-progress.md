@@ -1,28 +1,35 @@
-# apply-progress — change `2026-07-09-agregar-autorizacion-api-restantes` (PR-1)
+# apply-progress — change `2026-07-09-agregar-autorizacion-api-restantes`
 
 > Artefacto de progreso. Resume el estado real del branch
 > `feature/96-auth-pr1-mutantes` después de la recuperación del incidente
-> del commit `045e29ee`.
+> del commit `045e29ee` y la extensión con el scope PR-C
+> (default-deny global).
 
 ## 1. Resumen ejecutivo
 
-PR-1 cubre los **tres controllers restantes** de la oleada de auth
-(Issue #96 — `agregar-autorizacion-api-restantes`):
+El PR cubre **todo el change** (PR-A + PR-B + PR-C del diseño) en un
+solo branch stacked-to-develop. La decisión de unificar surge de la
+revisión post-recovery: el reviewer R1 detectó drift entre docs y
+código (el `design.md` y el `spec/sgv-readonly-api` prometían una
+`FallbackPolicy` global que no existía en `Program.cs`). Cerrar el
+change en un solo merge elimina el drift y mantiene la spec coherente
+con el código.
 
 | Controller | Atributos `[Authorize]` | Commit |
 |---|---|---|
 | `PersonasController` | 7 | `d3a25797` |
 | `OcupacionesController` | 6 | `7fd61ed1` |
 | `UnidadesOrganizativasController` | 6 | `d6596927` |
+| `NivelesCargoController` | `[Authorize]` clase | `51bcd781` |
+| `TipoUnidadesOrganizativasController` | `[Authorize]` clase | `51bcd781` |
+| `AuthController.Login` | `[AllowAnonymous]` | `e07257ee` |
+| `Program.cs` | `FallbackPolicy.RequireAuthenticatedUser` | `e07257ee` |
 
-Diff neto vs `develop` en `src/SGV.Api/Controllers/`: **63 líneas
-agregadas** (sin borrar nada — `[Authorize]` se aplica a nivel de
-clase y `[ProducesResponseType(401/403)]` se agrega a las actions que
-lo requieren). La matriz de tests 401/403 está cubierta en los tres
-archivos `*ControllerTests.cs` (Personas: +316, Ocupaciones: +398,
-UnidadesOrganizativas: +272 líneas de tests).
+Diff neto vs `develop` en código de producción: **80 líneas agregadas**
+(controllers `[Authorize]` + Login `[AllowAnonymous]` + FallbackPolicy).
+Diff total con artifacts OpenSpec y docs: ver §7.
 
-El PR-1 está **listo para merge** después de pasar el ground-truth
+PR-1 está **listo para merge** después de pasar el ground-truth
 verification gate (sección 5).
 
 ## 2. Incidente del commit `045e29ee` (rollback)
@@ -196,27 +203,30 @@ original con scope mínimo.
 
 ## 9. Problemas encontrados
 
-- **Pre-existente, fuera del scope de PR-1**: 12 fallos en
+- **Pre-existente, fuera del scope**: 12 fallos en
   `OcupacionRepositoryTests` por bug de tipo `ActivePuestoIdUnique
   INT` vs `PuestoId CHAR(36)` en la migración inicial (issue #59).
-  Pendiente de su propio change. NO bloquea PR-1.
-- **Pre-existente, fuera del scope**: la spec `openspec/changes/2026-
-  07-09-agregar-autorizacion-api-restantes/` no tenía artefactos
-  `proposal.md`/`design.md`/`tasks.md` en disco. Este artefacto
-  recupera `apply-progress.md` desde cero. La falta de los otros
-  artefactos NO bloquea el merge de PR-1 (los commits de código son
-  la fuente de verdad del work realizado), pero debería cubrirse
-  antes de la fase `sdd-archive`.
+  Pendiente de su propio change. NO bloquea este PR.
+- **Pre-existente, fuera del scope**: la spec `openspec/changes/2026-07-09-agregar-autorizacion-api-restantes/` no tenía artefactos `proposal.md`/`design.md`/`tasks.md` en disco después del recovery del sub-agente `sdd-apply`. Restaurados por el orquestador en commit `3def5051` con contenido idéntico a las fases previas. NO bloquea el merge.
 
 ## 10. Estado
 
-**4/4 commits del PR-1 completados y verificados**. PR-1 listo para
-merge. Pendiente (no bloqueante):
+**8 commits del change completados y verificados**. PR unificado listo para merge:
 
-- PR-2: replicar la auth en `NivelesCargoController`,
-  `TipoUnidadesOrganizativasController`, `AuthController` + endurecer
-  `Program.cs` (allow-anon para `/api/v1/auth/login`).
-- Issue #59: fix del tipo `ActivePuestoIdUnique` (requiere su propio
-  change SDD).
-- Sdd-archive: poblar `proposal.md`/`design.md`/`tasks.md` para que
-  el change archive tenga rastro completo de los work units.
+```
+git log --oneline develop..HEAD
+<chore> docs(security): document API authorization posture in decisiones-implementacion
+<feat>  feat(api): mark AuthController.Login as anonymous + apply default-deny FallbackPolicy
+<feat>  feat(api): require authentication on read-only catalogs (NivelesCargo + TipoUnidadesOrganizativas)
+<chore> chore(sdd): restore proposal/design/tasks/delta-specs lost during recovery
+<chore> chore(sdd): apply-progress PR-1 recovered + ground-truth gate passed
+<test>  test(api): migrate persona-skill tests to admin client + adapt swagger anonymous check
+<feat>  feat(api): require authentication on UnidadesOrganizativasController + 401/403 test matrix
+<feat>  feat(api): require authentication on OcupacionesController + 401/403 test matrix
+<feat>  feat(api): require authentication on PersonasController + 401/403 test matrix
+```
+
+Pendiente (no bloqueante):
+
+- Issue #59: fix del tipo `ActivePuestoIdUnique` (requiere su propio change SDD).
+- Sdd-verify sobre el branch mergeado.
