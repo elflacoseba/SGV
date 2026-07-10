@@ -17,7 +17,7 @@ public sealed class TipoUnidadesOrganizativasControllerTests
     public async Task GetAll_Returns200With7SeedDtos()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/tipos-unidad-organizativa");
 
@@ -31,6 +31,28 @@ public sealed class TipoUnidadesOrganizativasControllerTests
     }
 
     [Fact]
+    public async Task GetAll_WithoutCredentials_Returns401()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/tipos-unidad-organizativa");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_WithoutCredentials_Returns401()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/v1/tipos-unidad-organizativa/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetAll_WhenNoData_Returns200WithEmptyArray()
     {
         using var factory = new ApiWebApplicationFactory(services =>
@@ -39,7 +61,7 @@ public sealed class TipoUnidadesOrganizativasControllerTests
             services.AddSingleton<ITipoUnidadOrganizativaServicioConsulta>(
                 new FakeTipoUnidadOrganizativaServicio(isEmpty: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/tipos-unidad-organizativa");
 
@@ -54,7 +76,7 @@ public sealed class TipoUnidadesOrganizativasControllerTests
     public async Task GetById_ExistingId_Returns200WithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/tipos-unidad-organizativa/{FakeTipoUnidadOrganizativaServicio.DireccionId}");
@@ -71,7 +93,7 @@ public sealed class TipoUnidadesOrganizativasControllerTests
     public async Task GetById_NonExistentId_Returns404()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/tipos-unidad-organizativa/{Guid.NewGuid()}");
@@ -83,7 +105,7 @@ public sealed class TipoUnidadesOrganizativasControllerTests
     public async Task GetById_InvalidGuid_Returns400()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             "/api/v1/tipos-unidad-organizativa/not-a-guid");
@@ -95,7 +117,7 @@ public sealed class TipoUnidadesOrganizativasControllerTests
     public async Task Dto_Shape_OnlyIdCodigoNombre()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/tipos-unidad-organizativa");
         var json = await response.Content.ReadAsStringAsync();
@@ -115,13 +137,13 @@ public sealed class TipoUnidadesOrganizativasControllerTests
     }
 
     [Fact]
-    public void Controller_DoesNotHaveAuthorizeAttribute()
+    public void Controller_HasAuthorizeAttribute()
     {
         var controllerType = typeof(SGV.Api.Controllers.TipoUnidadesOrganizativasController);
 
         var hasAuthorize = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Any(a => a is AuthorizeAttribute);
 
-        Assert.False(hasAuthorize, "Controller should not require authorization");
+        Assert.True(hasAuthorize, "Controller MUST require authorization");
     }
 }

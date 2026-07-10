@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
+using SGV.Aplicacion.Seguridad;
 
 namespace SGV.Api.Controllers;
 
@@ -11,6 +13,7 @@ namespace SGV.Api.Controllers;
 [ApiController]
 [Route("api/v1/personas")]
 [Produces("application/json")]
+[Authorize]
 public class PersonasController : ControllerBase
 {
     private readonly IPersonaServicioConsulta _servicio;
@@ -72,8 +75,11 @@ public class PersonasController : ControllerBase
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="409">Conflicto — ya existe una persona activa con el mismo legajo, email o documento.</response>
     [HttpPost]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(PersonaDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PersonaDto>> Create(
         CrearPersonaRequest request,
@@ -101,8 +107,11 @@ public class PersonasController : ControllerBase
     /// <response code="404">No se encontró una persona con el ID especificado.</response>
     /// <response code="409">Conflicto — el legajo, email o documento ya está en uso por otra persona activa.</response>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(PersonaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PersonaDto>> Update(
@@ -128,7 +137,10 @@ public class PersonasController : ControllerBase
     /// <response code="204">Persona desactivada correctamente.</response>
     /// <response code="404">No se encontró una persona con el ID especificado.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(
         Guid id,
@@ -150,7 +162,10 @@ public class PersonasController : ControllerBase
     /// <response code="404">No se encontró una persona con el ID especificado.</response>
     /// <response code="409">Conflicto — ya existe una persona activa con el mismo legajo, email o documento.</response>
     [HttpPatch("{id:guid}/reactivar")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(PersonaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PersonaDto>> Reactivate(
@@ -194,8 +209,11 @@ public class PersonasController : ControllerBase
     /// <response code="400">Nivel de habilidad inválido.</response>
     /// <response code="404">Persona o habilidad no encontradas.</response>
     [HttpPut("{personaId:guid}/skills/{skillId:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(PersonaSkillDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PersonaSkillDto>> UpsertSkill(
         Guid personaId,
@@ -219,7 +237,10 @@ public class PersonasController : ControllerBase
     /// <response code="204">Habilidad eliminada correctamente.</response>
     /// <response code="404">Persona o asignación no encontradas.</response>
     [HttpDelete("{personaId:guid}/skills/{skillId:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> DeleteSkill(
         Guid personaId,

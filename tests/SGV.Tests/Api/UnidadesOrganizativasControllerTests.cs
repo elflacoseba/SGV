@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -54,13 +55,54 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.True(errors.ContainsKey(fieldName), $"Expected field '{fieldName}' in errors");
     }
 
+    private static CrearUnidadOrganizativaRequest DefaultCreateRequest() => new(
+        Codigo: "NUEVO",
+        Nombre: "Nueva Unidad",
+        TipoUnidadOrganizativaId: TipoUnidadOrganizativaConstantes.AreaId,
+        Descripcion: null,
+        VigenteDesde: null,
+        VigenteHasta: null,
+        UnidadPadreId: null);
+
+    private static ActualizarUnidadOrganizativaRequest DefaultUpdateRequest() => new(
+        Nombre: "Actualizada",
+        TipoUnidadOrganizativaId: TipoUnidadOrganizativaConstantes.DireccionId,
+        Descripcion: null,
+        VigenteDesde: null,
+        VigenteHasta: null,
+        UnidadPadreId: null);
+
+    private static CambiarUnidadPadreRequest DefaultChangeParentRequest() => new(UnidadPadreId);
+
     // ---- GET endpoints (existing) ----
+
+    [Fact]
+    public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAll_WithAuthenticatedNonAdmin_ReturnsOk()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 
     [Fact]
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas");
 
@@ -69,7 +111,7 @@ public sealed class UnidadesOrganizativasControllerTests
         var dtos = JsonSerializer.Deserialize<List<UnidadOrganizativaDto>>(json, JsonOptions);
         Assert.NotNull(dtos);
         Assert.NotEmpty(dtos);
-        Assert.Equal(FakeUnidadOrganizativaServicio.UnidadId1, dtos[0].Id);
+        Assert.Equal(FakeUnidadOrganizativaServicio.UnidadId1, dtos![0].Id);
         Assert.Equal("GER", dtos[0].Codigo);
     }
 
@@ -82,7 +124,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
                 new FakeUnidadOrganizativaServicio(isEmpty: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas");
 
@@ -90,14 +132,26 @@ public sealed class UnidadesOrganizativasControllerTests
         var json = await response.Content.ReadAsStringAsync();
         var dtos = JsonSerializer.Deserialize<List<UnidadOrganizativaDto>>(json, JsonOptions);
         Assert.NotNull(dtos);
-        Assert.Empty(dtos);
+        Assert.Empty(dtos!);
+    }
+
+    [Fact]
+    public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/v1/unidades-organizativas/{FakeUnidadOrganizativaServicio.UnidadId1}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/unidades-organizativas/{FakeUnidadOrganizativaServicio.UnidadId1}");
@@ -106,7 +160,7 @@ public sealed class UnidadesOrganizativasControllerTests
         var json = await response.Content.ReadAsStringAsync();
         var dto = JsonSerializer.Deserialize<UnidadOrganizativaDto>(json, JsonOptions);
         Assert.NotNull(dto);
-        Assert.Equal(FakeUnidadOrganizativaServicio.UnidadId1, dto.Id);
+        Assert.Equal(FakeUnidadOrganizativaServicio.UnidadId1, dto!.Id);
         Assert.Equal("Gerencia General", dto.Nombre);
     }
 
@@ -114,7 +168,7 @@ public sealed class UnidadesOrganizativasControllerTests
     public async Task GetById_JsonResponseContieneUnidadPadreCodigoYNombre()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/unidades-organizativas/{FakeUnidadOrganizativaServicio.UnidadId1}");
@@ -147,7 +201,7 @@ public sealed class UnidadesOrganizativasControllerTests
             var fakeWithParent = new FakeUnidadOrganizativaServicio(withPadreData: true);
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(fakeWithParent);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/unidades-organizativas/{FakeUnidadOrganizativaServicio.UnidadConPadreId}");
@@ -171,31 +225,57 @@ public sealed class UnidadesOrganizativasControllerTests
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/unidades-organizativas/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // ---- Controller metadata ----
+
     [Fact]
-    public void Controller_DoesNotHaveAuthorizeAttribute()
+    public void Controller_HasAuthorizeAttribute()
     {
         var controllerType = typeof(SGV.Api.Controllers.UnidadesOrganizativasController);
 
         var hasAuthorize = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Any(a => a is AuthorizeAttribute);
 
-        Assert.False(hasAuthorize, "Controller should not require authorization");
+        Assert.True(hasAuthorize, "Controller MUST require authorization");
     }
 
     // ---- POST (create) ----
 
     [Fact]
-    public async Task Post_ValidRequest_Returns201CreatedWithDto()
+    public async Task Post_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
+
+        var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
+
+        var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_ValidRequest_Returns201CreatedWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
@@ -227,7 +307,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "", nombre = "", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
@@ -253,7 +333,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "GER", nombre = "Duplicado", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PostAsync("/api/v1/unidades-organizativas", body);
@@ -264,6 +344,30 @@ public sealed class UnidadesOrganizativasControllerTests
     }
 
     // ---- PUT (update) ----
+
+    [Fact]
+    public async Task Put_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var body = ToJsonBody(new { codigo = "GER", nombre = "Actualizada", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId });
+
+        var response = await client.PutAsync($"/api/v1/unidades-organizativas/{UnidadId}", body);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var body = ToJsonBody(new { codigo = "GER", nombre = "Actualizada", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId });
+
+        var response = await client.PutAsync($"/api/v1/unidades-organizativas/{UnidadId}", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     /// <summary>
     /// Verifica que el PUT responde 200 con el DTO producido por el servicio. El
@@ -298,7 +402,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "GER-UPD", nombre = "Actualizada", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId });
 
         var response = await client.PutAsync($"/api/v1/unidades-organizativas/{UnidadId}", body);
@@ -344,7 +448,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         // Body intencionalmente incluye "codigo": "HACKED" fuera de contrato.
         var body = ToJsonBody(new
@@ -381,7 +485,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "NON", nombre = "No existe", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PutAsync($"/api/v1/unidades-organizativas/{Guid.NewGuid()}", body);
@@ -410,7 +514,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "", nombre = "Test", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
         var response = await client.PutAsync($"/api/v1/unidades-organizativas/{UnidadId}", body);
@@ -424,10 +528,36 @@ public sealed class UnidadesOrganizativasControllerTests
     // ---- PATCH (parent change) ----
 
     [Fact]
-    public async Task PatchParent_ValidRequest_Returns200OkWithDto()
+    public async Task PatchParent_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+        var body = ToJsonBody(new { unidadPadreId = UnidadPadreId });
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}/unidad-padre", body);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PatchParent_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var body = ToJsonBody(new { unidadPadreId = UnidadPadreId });
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}/unidad-padre", body);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PatchParent_ValidRequest_Returns200OkWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { unidadPadreId = UnidadPadreId });
 
         var response = await client.PatchAsync(
@@ -452,7 +582,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { unidadPadreId = UnidadId });
 
         var response = await client.PatchAsync(
@@ -469,7 +599,7 @@ public sealed class UnidadesOrganizativasControllerTests
     public async Task GetAll_JsonResponseContieneTipoUnidadOrganizativaId()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas");
         var json = await response.Content.ReadAsStringAsync();
@@ -488,7 +618,7 @@ public sealed class UnidadesOrganizativasControllerTests
     public async Task GetById_JsonResponseContieneTipoUnidadOrganizativaId()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/unidades-organizativas/{FakeUnidadOrganizativaServicio.UnidadId1}");
@@ -506,10 +636,21 @@ public sealed class UnidadesOrganizativasControllerTests
     // ---- Consulta endpoint (Task 3.4 / 3.5) ----
 
     [Fact]
-    public async Task Consulta_SinFiltros_RetornaPagedResult()
+    public async Task Consulta_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Consulta_SinFiltros_RetornaPagedResult()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
 
@@ -526,7 +667,7 @@ public sealed class UnidadesOrganizativasControllerTests
     public async Task Consulta_ConSearch_FiltraResultados()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta?search=GER");
 
@@ -540,7 +681,7 @@ public sealed class UnidadesOrganizativasControllerTests
     public async Task Consulta_JsonResponseContieneUnidadPadreCodigoYNombre()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
         var json = await response.Content.ReadAsStringAsync();
@@ -560,7 +701,7 @@ public sealed class UnidadesOrganizativasControllerTests
     public async Task Consulta_ConTipoUnidadOrganizativaId_FiltraPorTipo()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/unidades-organizativas/consulta?tipoUnidadOrganizativaId={TipoUnidadOrganizativaConstantes.DireccionId}");
@@ -582,7 +723,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
                 new FakeUnidadOrganizativaServicio(withEliminadas: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta?status=activas");
 
@@ -601,7 +742,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
                 new FakeUnidadOrganizativaServicio(withEliminadas: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta?status=eliminadas");
 
@@ -620,7 +761,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
                 new FakeUnidadOrganizativaServicio(withEliminadas: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
 
@@ -633,10 +774,21 @@ public sealed class UnidadesOrganizativasControllerTests
     // ---- Tree endpoint (Task 3.4 / 3.5) ----
 
     [Fact]
-    public async Task GetTree_ReturnsOkWithTreeNodeArray()
+    public async Task GetTree_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetTree_ReturnsOkWithTreeNodeArray()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
 
@@ -650,7 +802,7 @@ public sealed class UnidadesOrganizativasControllerTests
     public async Task GetTree_JsonNodoIncluyeTipoUnidadOrganizativaId()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
         var json = await response.Content.ReadAsStringAsync();
@@ -680,7 +832,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
 
@@ -693,10 +845,34 @@ public sealed class UnidadesOrganizativasControllerTests
     // ---- PATCH reactivar ----
 
     [Fact]
-    public async Task Reactivate_ExistentDeletedUnidad_Returns200OkWithDto()
+    public async Task Reactivate_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/unidades-organizativas/{UnidadId}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reactivate_ExistentDeletedUnidad_Returns200OkWithDto()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/unidades-organizativas/{UnidadId}/reactivar", null);
@@ -721,7 +897,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/unidades-organizativas/{Guid.NewGuid()}/reactivar", null);
@@ -746,7 +922,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/unidades-organizativas/{UnidadId}/reactivar", null);
@@ -760,10 +936,32 @@ public sealed class UnidadesOrganizativasControllerTests
     // ---- DELETE (soft-delete) ----
 
     [Fact]
-    public async Task Delete_ExistingId_Returns204NoContent()
+    public async Task Delete_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_ExistingId_Returns204NoContent()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
 
@@ -784,7 +982,7 @@ public sealed class UnidadesOrganizativasControllerTests
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{Guid.NewGuid()}");
 

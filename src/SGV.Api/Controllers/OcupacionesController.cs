@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Seguridad;
 
 namespace SGV.Api.Controllers;
 
@@ -12,6 +14,7 @@ namespace SGV.Api.Controllers;
 [ApiController]
 [Route("api/v1/ocupaciones")]
 [Produces("application/json")]
+[Authorize]
 public class OcupacionesController : ControllerBase
 {
     private readonly IOcupacionServicioConsulta _servicio;
@@ -37,6 +40,7 @@ public class OcupacionesController : ControllerBase
     /// <response code="200">Lista paginada de ocupaciones devuelta correctamente.</response>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<OcupacionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<PagedResult<OcupacionDto>>> GetAll(
         [FromQuery] bool includeHistory = false,
         [FromQuery] int page = 1,
@@ -56,6 +60,7 @@ public class OcupacionesController : ControllerBase
     /// <response code="404">No se encontró una ocupación con el ID especificado.</response>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(OcupacionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<OcupacionDto>> GetById(
         Guid id, CancellationToken cancellationToken)
@@ -76,8 +81,11 @@ public class OcupacionesController : ControllerBase
     /// <response code="404">Persona o puesto referenciados no existen.</response>
     /// <response code="409">Conflicto — persona inactiva, puesto inactivo, puesto ya ocupado, o persona+puesto ya ocupados.</response>
     [HttpPost]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(OcupacionDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<OcupacionDto>> Create(
@@ -105,8 +113,11 @@ public class OcupacionesController : ControllerBase
     /// <response code="404">Ocupación, persona o puesto no encontrados.</response>
     /// <response code="409">Conflicto — ocupación finalizada/eliminada no editable, persona inactiva, puesto inactivo, o colisión de unicidad.</response>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(OcupacionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<OcupacionDto>> Update(
@@ -135,8 +146,11 @@ public class OcupacionesController : ControllerBase
     /// <response code="404">No se encontró una ocupación con el ID especificado.</response>
     /// <response code="409">Conflicto — la ocupación ya está finalizada o eliminada.</response>
     [HttpPatch("{id:guid}/finalizar")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(OcupacionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<OcupacionDto>> Finalize(
@@ -163,7 +177,10 @@ public class OcupacionesController : ControllerBase
     /// <response code="404">No se encontró una ocupación con el ID especificado.</response>
     /// <response code="409">Conflicto — la ocupación ya está activa, o existe colisión de unicidad con otra ocupación activa.</response>
     [HttpPatch("{id:guid}/reactivar")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(OcupacionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<OcupacionDto>> Reactivate(
@@ -185,7 +202,10 @@ public class OcupacionesController : ControllerBase
     /// <response code="404">No se encontró una ocupación con el ID especificado.</response>
     /// <response code="409">Conflicto — la ocupación ya está finalizada o eliminada.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult> Delete(

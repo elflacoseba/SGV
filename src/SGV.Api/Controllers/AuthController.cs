@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Contracts;
 using SGV.Aplicacion.Seguridad.Usuarios;
@@ -10,6 +11,7 @@ namespace SGV.Api.Controllers;
 public sealed class AuthController(IAuthServicio authServicio) : ControllerBase
 {
     [HttpPost(AuthApiRoutes.LoginRelative)]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken cancellationToken)

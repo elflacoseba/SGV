@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
@@ -14,29 +14,59 @@ using Xunit;
 namespace SGV.Tests.Api;
 
 public sealed class OcupacionesControllerTests
-    : IClassFixture<WebApplicationFactory<SGV.Api.Program>>
 {
-    private readonly WebApplicationFactory<SGV.Api.Program> _factory;
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public OcupacionesControllerTests(WebApplicationFactory<SGV.Api.Program> factory)
-    {
-        _factory = factory;
-    }
+    private static CrearOcupacionRequest DefaultCreateRequest() => new(
+        FakeOcupacionServicioConsulta.PersonaId1,
+        FakeOcupacionServicioConsulta.PuestoId1,
+        new DateOnly(2024, 6, 1),
+        TipoAsignacion.Permanente);
 
-    // ── GET /api/v1/ocupaciones ─────────────────────────────────
+    private static ActualizarOcupacionRequest DefaultUpdateRequest() => new(
+        FakeOcupacionServicioConsulta.PersonaId1,
+        FakeOcupacionServicioConsulta.PuestoId1,
+        new DateOnly(2024, 6, 15),
+        TipoAsignacion.Interina);
+
+    private static FinalizarOcupacionRequest DefaultFinalizeRequest() => new(new DateOnly(2024, 12, 31));
+
+    // ---- GET endpoints ----
 
     [Fact]
-    public async Task GetAll_Default_ReturnsOkWithActiveOccupations()
+    public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
     {
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/ocupaciones");
 
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAll_WithAuthenticatedNonAdmin_ReturnsOk()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.GetAsync("/api/v1/ocupaciones");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAll_Default_ReturnsOkWithActiveOccupations()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/ocupaciones");
+
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadFromJsonAsync<PagedResult<OcupacionDto>>();
         Assert.NotNull(content);
-        Assert.NotEmpty(content.Items);
+        Assert.NotEmpty(content!.Items);
         Assert.All(content.Items, o => Assert.Equal("Activo", o.Estado));
     }
 
@@ -44,23 +74,32 @@ public sealed class OcupacionesControllerTests
     public async Task GetAll_IncludeHistory_ReturnsAllIncludingFinalized()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/ocupaciones?includeHistory=true");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadFromJsonAsync<PagedResult<OcupacionDto>>();
         Assert.NotNull(content);
-        Assert.NotEmpty(content.Items);
+        Assert.NotEmpty(content!.Items);
     }
 
-    // ── GET /api/v1/ocupaciones/{id} ───────────────────────────
+    [Fact]
+    public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 
     [Fact]
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}");
 
@@ -74,26 +113,58 @@ public sealed class OcupacionesControllerTests
     public async Task GetById_NonExistentId_Returns404()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/ocupaciones/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    // ── POST /api/v1/ocupaciones ────────────────────────────────
+    // ---- Controller metadata ----
+
+    [Fact]
+    public void Controller_HasAuthorizeAttribute()
+    {
+        var controllerType = typeof(SGV.Api.Controllers.OcupacionesController);
+
+        var hasAuthorize = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Any(a => a is AuthorizeAttribute);
+
+        Assert.True(hasAuthorize, "Controller MUST require authorization");
+    }
+
+    // ---- POST /api/v1/ocupaciones ----
+
+    [Fact]
+    public async Task Create_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var request = DefaultCreateRequest();
+
+        var response = await client.PostAsJsonAsync("/api/v1/ocupaciones", request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var request = DefaultCreateRequest();
+
+        var response = await client.PostAsJsonAsync("/api/v1/ocupaciones", request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     [Fact]
     public async Task Create_ValidRequest_Returns201Created()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
-
-        var request = new CrearOcupacionRequest(
-            FakeOcupacionServicioConsulta.PersonaId1,
-            FakeOcupacionServicioConsulta.PuestoId1,
-            new DateOnly(2024, 6, 1),
-            TipoAsignacion.Permanente);
+        var client = factory.CreateAdminClient();
+        var request = DefaultCreateRequest();
 
         var response = await client.PostAsJsonAsync("/api/v1/ocupaciones", request);
 
@@ -106,24 +177,20 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Create_Conflict_Returns409WithProblemDetails()
     {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            CrearHandler = (_, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(OcupacionErrorType.Conflict, "PuestoOcupado",
+                        "Ya existe una ocupación activa para el puesto especificado.")))
+        };
         using var factory = new ApiWebApplicationFactory(services =>
         {
-            var fakeComandos = new FakeOcupacionServicioComandos
-            {
-                CrearHandler = (_, _) => Task.FromResult(
-                    OcupacionCommandResult.Failure(
-                        new(OcupacionErrorType.Conflict, "PuestoOcupado",
-                            "Ya existe una ocupación activa para el puesto especificado.")))
-            };
+            services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-
-        var request = new CrearOcupacionRequest(
-            FakeOcupacionServicioConsulta.PersonaId1,
-            FakeOcupacionServicioConsulta.PuestoId1,
-            new DateOnly(2024, 6, 1),
-            TipoAsignacion.Permanente);
+        var client = factory.CreateAdminClient();
+        var request = DefaultCreateRequest();
 
         var response = await client.PostAsJsonAsync("/api/v1/ocupaciones", request);
 
@@ -133,19 +200,40 @@ public sealed class OcupacionesControllerTests
         Assert.Contains("PuestoOcupado", problem!.Title ?? string.Empty);
     }
 
-    // ── PUT /api/v1/ocupaciones/{id} ────────────────────────────
+    // ---- PUT /api/v1/ocupaciones/{id} ----
+
+    [Fact]
+    public async Task Update_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var request = DefaultUpdateRequest();
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}", request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var request = DefaultUpdateRequest();
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}", request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     [Fact]
     public async Task Update_ValidRequest_Returns200Ok()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
-
-        var request = new ActualizarOcupacionRequest(
-            FakeOcupacionServicioConsulta.PersonaId1,
-            FakeOcupacionServicioConsulta.PuestoId1,
-            new DateOnly(2024, 6, 15),
-            TipoAsignacion.Interina);
+        var client = factory.CreateAdminClient();
+        var request = DefaultUpdateRequest();
 
         var response = await client.PutAsJsonAsync(
             $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}", request);
@@ -158,24 +246,20 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Update_NonExistent_Returns404()
     {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            ActualizarHandler = (_, _, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
+                        "La ocupación no existe.")))
+        };
         using var factory = new ApiWebApplicationFactory(services =>
         {
-            var fakeComandos = new FakeOcupacionServicioComandos
-            {
-                ActualizarHandler = (_, _, _) => Task.FromResult(
-                    OcupacionCommandResult.Failure(
-                        new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
-                            "La ocupación no existe.")))
-            };
+            services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-
-        var request = new ActualizarOcupacionRequest(
-            FakeOcupacionServicioConsulta.PersonaId1,
-            FakeOcupacionServicioConsulta.PuestoId1,
-            new DateOnly(2024, 6, 15),
-            TipoAsignacion.Interina);
+        var client = factory.CreateAdminClient();
+        var request = DefaultUpdateRequest();
 
         var response = await client.PutAsJsonAsync(
             $"/api/v1/ocupaciones/{Guid.NewGuid()}", request);
@@ -186,24 +270,20 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Update_Finalized_Returns409()
     {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            ActualizarHandler = (_, _, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(OcupacionErrorType.Conflict, "OcupacionNoEditable",
+                        "La ocupación no está activa y no se puede modificar.")))
+        };
         using var factory = new ApiWebApplicationFactory(services =>
         {
-            var fakeComandos = new FakeOcupacionServicioComandos
-            {
-                ActualizarHandler = (_, _, _) => Task.FromResult(
-                    OcupacionCommandResult.Failure(
-                        new(OcupacionErrorType.Conflict, "OcupacionNoEditable",
-                            "La ocupación no está activa y no se puede modificar.")))
-            };
+            services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-
-        var request = new ActualizarOcupacionRequest(
-            FakeOcupacionServicioConsulta.PersonaId1,
-            FakeOcupacionServicioConsulta.PuestoId1,
-            new DateOnly(2024, 6, 15),
-            TipoAsignacion.Interina);
+        var client = factory.CreateAdminClient();
+        var request = DefaultUpdateRequest();
 
         var response = await client.PutAsJsonAsync(
             $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}", request);
@@ -211,15 +291,40 @@ public sealed class OcupacionesControllerTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    // ── PATCH /api/v1/ocupaciones/{id}/finalizar ────────────────
+    // ---- PATCH /api/v1/ocupaciones/{id}/finalizar ----
+
+    [Fact]
+    public async Task Finalize_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+        var request = DefaultFinalizeRequest();
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/finalizar", request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Finalize_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+        var request = DefaultFinalizeRequest();
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/finalizar", request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     [Fact]
     public async Task Finalize_ValidRequest_Returns200Ok()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
-
-        var request = new FinalizarOcupacionRequest(new DateOnly(2024, 12, 31));
+        var client = factory.CreateAdminClient();
+        var request = DefaultFinalizeRequest();
 
         var response = await client.PatchAsJsonAsync(
             $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/finalizar", request);
@@ -233,20 +338,20 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Finalize_NonExistent_Returns404()
     {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            FinalizarHandler = (_, _, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
+                        "La ocupación no existe.")))
+        };
         using var factory = new ApiWebApplicationFactory(services =>
         {
-            var fakeComandos = new FakeOcupacionServicioComandos
-            {
-                FinalizarHandler = (_, _, _) => Task.FromResult(
-                    OcupacionCommandResult.Failure(
-                        new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
-                            "La ocupación no existe.")))
-            };
+            services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-
-        var request = new FinalizarOcupacionRequest(new DateOnly(2024, 12, 31));
+        var client = factory.CreateAdminClient();
+        var request = DefaultFinalizeRequest();
 
         var response = await client.PatchAsJsonAsync(
             $"/api/v1/ocupaciones/{Guid.NewGuid()}/finalizar", request);
@@ -257,20 +362,20 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Finalize_AlreadyFinalized_Returns409()
     {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            FinalizarHandler = (_, _, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(OcupacionErrorType.Conflict, "OcupacionNoEditable",
+                        "La ocupación no está activa y no se puede finalizar.")))
+        };
         using var factory = new ApiWebApplicationFactory(services =>
         {
-            var fakeComandos = new FakeOcupacionServicioComandos
-            {
-                FinalizarHandler = (_, _, _) => Task.FromResult(
-                    OcupacionCommandResult.Failure(
-                        new(OcupacionErrorType.Conflict, "OcupacionNoEditable",
-                            "La ocupación no está activa y no se puede finalizar.")))
-            };
+            services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
-
-        var request = new FinalizarOcupacionRequest(new DateOnly(2024, 12, 31));
+        var client = factory.CreateAdminClient();
+        var request = DefaultFinalizeRequest();
 
         var response = await client.PatchAsJsonAsync(
             $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/finalizar", request);
@@ -278,13 +383,39 @@ public sealed class OcupacionesControllerTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    // ── PATCH /api/v1/ocupaciones/{id}/reactivar ───────────────
+    // ---- PATCH /api/v1/ocupaciones/{id}/reactivar ----
+
+    [Fact]
+    public async Task Reactivate_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/reactivar",
+            null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/reactivar",
+            null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     [Fact]
     public async Task Reactivate_ValidRequest_Returns200Ok()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/reactivar",
@@ -299,18 +430,19 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Reactivate_NonExistent_Returns404()
     {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            ReactivarHandler = (_, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
+                        "La ocupación no existe.")))
+        };
         using var factory = new ApiWebApplicationFactory(services =>
         {
-            var fakeComandos = new FakeOcupacionServicioComandos
-            {
-                ReactivarHandler = (_, _) => Task.FromResult(
-                    OcupacionCommandResult.Failure(
-                        new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
-                            "La ocupación no existe.")))
-            };
+            services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/ocupaciones/{Guid.NewGuid()}/reactivar", null);
@@ -321,18 +453,19 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Reactivate_Conflict_Returns409()
     {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            ReactivarHandler = (_, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(OcupacionErrorType.Conflict, "PuestoOcupado",
+                        "Ya existe una ocupación activa para el puesto especificado.")))
+        };
         using var factory = new ApiWebApplicationFactory(services =>
         {
-            var fakeComandos = new FakeOcupacionServicioComandos
-            {
-                ReactivarHandler = (_, _) => Task.FromResult(
-                    OcupacionCommandResult.Failure(
-                        new(OcupacionErrorType.Conflict, "PuestoOcupado",
-                            "Ya existe una ocupación activa para el puesto especificado.")))
-            };
+            services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
             $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/reactivar", null);
@@ -340,13 +473,37 @@ public sealed class OcupacionesControllerTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
-    // ── DELETE /api/v1/ocupaciones/{id} ─────────────────────────
+    // ---- DELETE /api/v1/ocupaciones/{id} ----
+
+    [Fact]
+    public async Task Delete_WithoutCredentials_ReturnsUnauthorized()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     [Fact]
     public async Task Delete_ExistingId_Returns204NoContent()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}");
@@ -357,18 +514,19 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Delete_NonExistent_Returns404()
     {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            EliminarHandler = (_, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
+                        "La ocupación no existe.")))
+        };
         using var factory = new ApiWebApplicationFactory(services =>
         {
-            var fakeComandos = new FakeOcupacionServicioComandos
-            {
-                EliminarHandler = (_, _) => Task.FromResult(
-                    OcupacionCommandResult.Failure(
-                        new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
-                            "La ocupación no existe.")))
-            };
+            services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/ocupaciones/{Guid.NewGuid()}");
 
