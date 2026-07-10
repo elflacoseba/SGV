@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Comandos.Validaciones;
 using SGV.Aplicacion.Habilidades.Consultas;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
 using SGV.Web.Integration.Habilidades;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;
 
@@ -184,8 +183,8 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
         var errorMessage = result.Error?.Message;
         var message = result.Error?.Type switch
         {
-            SGV.Aplicacion.Habilidades.Comandos.HabilidadErrorType.Conflict => $"No se pudo reactivar la habilidad. {errorMessage}",
-            SGV.Aplicacion.Habilidades.Comandos.HabilidadErrorType.NotFound => "La habilidad ya no está disponible para reactivar.",
+            SGV.Contracts.Habilidades.Comandos.HabilidadErrorType.Conflict => $"No se pudo reactivar la habilidad. {errorMessage}",
+            SGV.Contracts.Habilidades.Comandos.HabilidadErrorType.NotFound => "La habilidad ya no está disponible para reactivar.",
             _ => "No se pudo reactivar la habilidad. Intentá nuevamente."
         };
 

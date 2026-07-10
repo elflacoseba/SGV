@@ -48,13 +48,13 @@ Chain strategy: pending
 
 ## Phase 3 — PR3: Habilidades
 
-- [ ] 3.1 Crear `SGV.Contracts/Habilidades/Consultas/Dtos/*.cs` (7 records/enums).
-- [ ] 3.2 Crear `SGV.Contracts/Habilidades/Comandos/*.cs` (`Habilidad*` + `CargoSkill*`).
-- [ ] 3.3 Reescribir `using` en `SGV.Aplicacion/Habilidades/**`.
-- [ ] 3.4 Cambiar `using` en 4 controllers.
-- [ ] 3.5 Cambiar `using` en ≈6 archivos Web.
-- [ ] 3.6 Cambiar `using` en 6 controller tests.
-- [ ] 3.7 Verificación: build + test verdes.
+- [x] 3.1 Crear `SGV.Contracts/Habilidades/Consultas/Dtos/*.cs` (7 records/enums).
+- [x] 3.2 Crear `SGV.Contracts/Habilidades/Comandos/*.cs` (`Habilidad*` + `CargoSkill*`).
+- [x] 3.3 Reescribir `using` en `SGV.Aplicacion/Habilidades/**`.
+- [x] 3.4 Cambiar `using` en 4 controllers.
+- [x] 3.5 Cambiar `using` en ≈6 archivos Web.
+- [x] 3.6 Cambiar `using` en 6 controller tests.
+- [x] 3.7 Verificación: build + test verdes.
 
 ## Phase 4 — PR4: Seguridad + cleanup
 

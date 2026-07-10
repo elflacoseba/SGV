@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;

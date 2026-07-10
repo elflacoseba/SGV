@@ -1,5 +1,5 @@
 using FluentValidation.TestHelper;
-using SGV.Aplicacion.Habilidades.Comandos;
+using SGV.Contracts.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Comandos.Validaciones;
 using Xunit;
 

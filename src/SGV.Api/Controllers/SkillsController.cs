@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Seguridad;

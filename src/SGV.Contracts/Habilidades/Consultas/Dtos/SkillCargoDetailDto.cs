@@ -1,17 +1,15 @@
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Habilidades.Consultas.Dtos;
 
-namespace SGV.Aplicacion.Habilidades.Consultas.Dtos;
+namespace SGV.Contracts.Habilidades.Consultas.Dtos;
 
 /// <summary>
 /// GET-only detailed DTO for a Habilidad → Cargo association (mirror of
-/// <see cref="SGV.Contracts.Organizacion.Consultas.Dtos.CargoSkillDetailDto"/>).
-/// The primary constructor preserves the existing <c>(cargo, nivel)</c> shape
-/// used by the EF Core projection in the infrastructure layer, while the link
-/// fields (<c>cargoId</c>, <c>nivelRequeridoId</c>, <c>ponderacion</c>,
-/// <c>esObligatoria</c>) are exposed as init-only properties so the
-/// infrastructure projection can populate them without breaking the
-/// two-argument call site.
+/// <see cref="CargoSkillDetailDto"/>). The primary constructor preserves the
+/// existing <c>(cargo, nivel)</c> shape used by the EF Core projection in
+/// the infrastructure layer, while the link fields (<c>cargoId</c>,
+/// <c>nivelRequeridoId</c>, <c>ponderacion</c>, <c>esObligatoria</c>) are
+/// exposed as init-only properties so the infrastructure projection can
+/// populate them without breaking the two-argument call site.
 /// </summary>
 /// <remarks>
 /// Skill-cargo-query-contract requirement: every item MUST expose

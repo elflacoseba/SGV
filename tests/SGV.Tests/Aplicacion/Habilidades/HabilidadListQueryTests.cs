@@ -1,4 +1,4 @@
-using SGV.Aplicacion.Habilidades.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Habilidades;

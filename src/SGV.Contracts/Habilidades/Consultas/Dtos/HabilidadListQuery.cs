@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Habilidades.Consultas.Dtos;
+namespace SGV.Contracts.Habilidades.Consultas.Dtos;
 
 /// <summary>
 /// Defines the listing segment for habilidad queries: active (non-deleted)

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
-using SGV.Aplicacion.Habilidades.Comandos;
+using SGV.Contracts.Habilidades.Comandos;
 using SGV.Web.Integration.Habilidades;
 
 namespace SGV.Web.Pages.Organizacion.Habilidades;
