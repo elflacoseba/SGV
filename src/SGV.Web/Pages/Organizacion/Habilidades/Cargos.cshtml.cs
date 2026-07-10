@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Habilidades;
 
 namespace SGV.Web.Pages.Organizacion.Habilidades;

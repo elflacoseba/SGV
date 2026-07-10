@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using SGV.Contracts.Auth;
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Web.Integration.Auth;
 

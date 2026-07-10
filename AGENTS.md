@@ -2,7 +2,7 @@
 
 ## Resumen rápido
 
-SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pages para `SGV.Web`, EF Core 9 y MySQL 8 mediante Pomelo. `SGV.Web` hoy funciona como shell autenticada que consume `SGV.Api` mediante clientes tipados `HttpClient`, con cookie auth en web y JWT bearer en API. El flujo del repo combina desarrollo tradicional con OpenSpec/SDD y `strict_tdd: true`.
+SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pages para `SGV.Web`, EF Core 9 y MySQL 8 mediante Pomelo. `SGV.Web` hoy funciona como shell autenticada que consume `SGV.Api` mediante clientes tipados `HttpClient`, con cookie auth en web y JWT bearer en API. El grafo de proyectos es `Dominio ← Aplicacion ← Contracts ← {Api, Web}`; `SGV.Web` ya **NO** referencia `SGV.Api` directamente — sus contratos wire viven en `SGV.Contracts`. El flujo del repo combina desarrollo tradicional con OpenSpec/SDD y `strict_tdd: true`.
 
 ## Ruta rápida para trabajar
 
@@ -19,10 +19,11 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - `SGV.slnx`: solución principal del repositorio.
 - `global.json`: fija SDK `10.0.300`.
 - `src/SGV.Dominio/`: entidades, value objects y reglas de negocio.
-- `src/SGV.Aplicacion/`: casos de uso, contratos, validaciones y servicios.
+- `src/SGV.Aplicacion/`: casos de uso, contratos (interfaces) de servicios, validaciones y servicios. Solo depende de `SGV.Dominio` y `SGV.Contracts`.
+- `src/SGV.Contracts/`: **wire-types compartidos** entre `SGV.Api` y `SGV.Web` (records/DTOs de request/response/result + constantes). Es una **leaf** del grafo (no referencia ningún proyecto). Organizado por subdominio: `Auth/`, `Organizacion/`, `Habilidades/`, `Seguridad/`.
 - `src/SGV.Infraestructura/`: EF Core, Identity, repositorios, interceptor de auditoría y migraciones.
-- `src/SGV.Api/`: controladores HTTP, autenticación y composición de la aplicación.
-- `src/SGV.Web/`: frontend Razor Pages y shell web basado en Inspinia Starterkit.
+- `src/SGV.Api/`: controladores HTTP, autenticación y composición de la aplicación. Depende de `SGV.Aplicacion`, `SGV.Contracts` e `SGV.Infraestructura`.
+- `src/SGV.Web/`: frontend Razor Pages y shell web basado en Inspinia Starterkit. Depende **únicamente** de `SGV.Contracts` (no de `SGV.Api`).
 - `src/SGV.Web/Integration/`: clientes tipados hacia `SGV.Api`, bridge de JWT (`ApiBearerTokenHandler`) y contratos de integración web.
 - `src/SGV.Web/Pages/Organizacion/`: módulos web vigentes de unidades organizativas, cargos y habilidades.
 - `src/SGV.Web/Pages/Error/`: páginas de error HTTP de la shell web (`401`, `403`, `404`, `408`, `500`, `Maintenance`).
@@ -70,7 +71,7 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - Métodos asíncronos terminan en `Async`.
 - Respetá separaciones de capa: dominio no depende de infraestructura; aplicación no conoce detalles HTTP.
 - `SGV.Web` actúa como capa web/composition layer; no mover lógica de dominio o persistencia al frontend.
-- Aunque `SGV.Web` referencia `SGV.Api` para reutilizar contratos, la integración runtime con backend debe seguir pasando por clientes tipados en `src/SGV.Web/Integration/`.
+- La integración runtime con backend debe pasar por clientes tipados en `src/SGV.Web/Integration/`. Los wire-types consumidos por Web viven en `SGV.Contracts` (no en `SGV.Api`).
 - Los cambios OpenSpec se nombran en kebab-case.
 - Conservá nombres técnicos, código, comentarios e identificadores en inglés salvo que el contexto existente del archivo exija otra cosa.
 - Los documentos generados por SDD deben escribirse en español: `proposal.md`, `design.md`, `tasks.md`, `exploration.md`, `apply-progress.md`, `verify-report.md`, `archive-report.md` y `specs/**/spec.md`.

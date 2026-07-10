@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
 using Xunit;
 

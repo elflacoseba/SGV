@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
 
 namespace SGV.Web.Pages.Auth;

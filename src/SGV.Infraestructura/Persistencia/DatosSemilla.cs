@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
-using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Infraestructura.Persistencia.Entidades;
 

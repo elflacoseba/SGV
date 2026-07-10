@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Cargo;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;

@@ -2,7 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Web.Integration.Auth;
 

@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Contracts.Auth;
 using SGV.Web.Integration.Auth;
 using Xunit;

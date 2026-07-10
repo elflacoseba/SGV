@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Seguridad;

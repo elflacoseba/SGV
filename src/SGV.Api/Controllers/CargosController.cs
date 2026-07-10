@@ -4,7 +4,7 @@ using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
 
 namespace SGV.Api.Controllers;
 
