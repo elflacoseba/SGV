@@ -58,14 +58,14 @@ Chain strategy: pending
 
 ## Phase 4 — PR4: Seguridad + cleanup
 
-- [ ] 4.1 Crear `SGV.Contracts/Seguridad/RolesSgv.cs`.
-- [ ] 4.2 Crear `SGV.Contracts/Seguridad/Usuarios/UsuarioContracts.cs` (8 tipos wire de login/usuario).
-- [ ] 4.3 Reescribir `using` en `UsuarioServicioComandos.cs`, `RolServicioConsulta.cs`, `DatosSemilla.cs`.
-- [ ] 4.4 Cambiar `using` en `UsuariosController.cs`.
-- [ ] 4.5 Cambiar `using` en `SignIn.cshtml.cs`, `AuthApiClient.cs`, ≈6 `Pages/.../Cargos/*.cshtml.cs`.
-- [ ] 4.6 Cambiar `using` en 7 tests.
-- [ ] 4.7 En `SGV.Web.csproj`: `<ProjectReference SGV.Api` → `<ProjectReference SGV.Contracts`.
-- [ ] 4.8 Confirmar `SGV.Api.csproj` y `SGV.Aplicacion.csproj` ya referencian `SGV.Contracts`.
-- [ ] 4.9 Actualizar `AGENTS.md`: añadir `src/SGV.Contracts/`; nuevo grafo.
-- [ ] 4.10 Actualizar `docs/decisiones-implementacion.md` línea 83: namespace → `SGV.Contracts.Organizacion`.
-- [ ] 4.11 Verificación: build + test verdes; greps → 0; `dotnet list reference` → `Web → Contracts` y `Web ⟂ Api`.
+- [x] 4.1 Crear `SGV.Contracts/Seguridad/RolesSgv.cs`.
+- [x] 4.2 Crear `SGV.Contracts/Seguridad/Usuarios/UsuarioContracts.cs` (8 tipos wire de login/usuario).
+- [x] 4.3 Reescribir `using` en `UsuarioServicioComandos.cs`, `RolServicioConsulta.cs`, `DatosSemilla.cs`.
+- [x] 4.4 Cambiar `using` en `UsuariosController.cs`.
+- [x] 4.5 Cambiar `using` en `SignIn.cshtml.cs`, `AuthApiClient.cs`, ≈6 `Pages/.../Cargos/*.cshtml.cs`.
+- [x] 4.6 Cambiar `using` en 7 tests.
+- [x] 4.7 En `SGV.Web.csproj`: `<ProjectReference SGV.Api` → `<ProjectReference SGV.Contracts`.
+- [x] 4.8 Confirmar `SGV.Api.csproj` y `SGV.Aplicacion.csproj` ya referencian `SGV.Contracts`.
+- [x] 4.9 Actualizar `AGENTS.md`: añadir `src/SGV.Contracts/`; nuevo grafo.
+- [x] 4.10 Actualizar `docs/decisiones-implementacion.md` línea 83: namespace → `SGV.Contracts.Organizacion`.
+- [x] 4.11 Verificación: build + test verdes; greps → 0; `dotnet list reference` → `Web → Contracts` y `Web ⟂ Api`.

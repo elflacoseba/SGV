@@ -1,4 +1,4 @@
-using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
 
 namespace SGV.Aplicacion.Seguridad.Usuarios;
 

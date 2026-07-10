@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
 
 namespace SGV.Api.Controllers;
 

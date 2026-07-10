@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using SGV.Aplicacion.Seguridad;
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad;
+using SGV.Contracts.Seguridad.Usuarios;
 using Xunit;
 
 namespace SGV.Tests.Api;

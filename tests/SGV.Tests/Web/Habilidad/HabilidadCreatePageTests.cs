@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using Xunit;

@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Seguridad;
+namespace SGV.Contracts.Seguridad;
 
 /// <summary>
 /// Fixed SGV role catalog for the first Identity management slice.

@@ -1,4 +1,4 @@
-using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Web.Integration.Auth;
 

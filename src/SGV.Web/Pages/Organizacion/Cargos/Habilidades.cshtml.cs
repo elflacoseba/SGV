@@ -6,7 +6,7 @@ using System.Text.Json;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 

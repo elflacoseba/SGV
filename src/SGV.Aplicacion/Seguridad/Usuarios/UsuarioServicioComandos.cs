@@ -1,5 +1,6 @@
 using SGV.Aplicacion.Personas.Consultas;
-using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
+using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Aplicacion.Seguridad.Usuarios;
 
