@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Seguridad;
@@ -64,18 +65,23 @@ internal sealed class JwtRealWebApplicationFactory(string signingKey)
             Assert.True(roleResult.Succeeded, string.Join(", ", roleResult.Errors.Select(e => e.Description)));
         }
 
-        // 2) Persona previa — PersonaId es FK obligatoria (OnDelete=Restrict) y
+        // 2) Persona previa (idempotente) — PersonaId es FK obligatoria (OnDelete=Restrict) y
         //    Nombres/Apellidos son required; Id debe setearse explicitamente
         //    (ConfigurarId usa ValueGeneratedNever).
-        var persona = new PersonaEntity
+        var persona = await db.Personas
+            .FirstOrDefaultAsync(p => p.Nombres == "Admin" && p.Apellidos == "Seed");
+        if (persona is null)
         {
-            Id = Guid.NewGuid(),
-            Nombres = "Admin",
-            Apellidos = "Seed",
-            IsActive = true,
-        };
-        db.Personas.Add(persona);
-        await db.SaveChangesAsync();
+            persona = new PersonaEntity
+            {
+                Id = Guid.NewGuid(),
+                Nombres = "Admin",
+                Apellidos = "Seed",
+                IsActive = true,
+            };
+            db.Personas.Add(persona);
+            await db.SaveChangesAsync();
+        }
 
         // 3) Admin — UserManager.CreateAsync NO asigna PersonaId, es property
         //    publica de SgvIdentityUser y debe setearse antes.

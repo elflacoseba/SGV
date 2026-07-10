@@ -61,7 +61,23 @@ public sealed class JwtOptionsTests
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
                     new Dictionary<string, string?> { [SigningKeyConfigKey] = clave31Bytes })));
 
-        Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        var ex = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+        Assert.Contains("32 UTF-8 bytes", ex.Message);
+    }
+
+    [Fact]
+    public void HostBuild_SigningKey32Bytes_Arranca()
+    {
+        // 32 ASCII chars — UTF-8 byte count == 32, must pass the >= 32 validator.
+        var clave32Bytes = new string('b', 32);
+
+        using var factory = new WebApplicationFactory<SGV.Api.Program>()
+            .WithWebHostBuilder(builder => builder
+                .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
+                    new Dictionary<string, string?> { [SigningKeyConfigKey] = clave32Bytes })));
+
+        using var client = factory.CreateClient();
+        Assert.NotNull(client);
     }
 
     /// <summary>
