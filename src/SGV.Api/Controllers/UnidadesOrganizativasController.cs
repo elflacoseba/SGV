@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
+using SGV.Aplicacion.Seguridad;
 
 namespace SGV.Api.Controllers;
 
@@ -11,6 +13,7 @@ namespace SGV.Api.Controllers;
 [ApiController]
 [Route("api/v1/unidades-organizativas")]
 [Produces("application/json")]
+[Authorize]
 public class UnidadesOrganizativasController : ControllerBase
 {
     private readonly IUnidadOrganizativaServicioConsulta _servicio;
@@ -32,6 +35,7 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="200">Lista de unidades organizativas devuelta correctamente.</response>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<UnidadOrganizativaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<UnidadOrganizativaDto>>> GetAll(
         CancellationToken cancellationToken)
     {
@@ -49,6 +53,7 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="404">No se encontró una unidad organizativa con el ID especificado.</response>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(UnidadOrganizativaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UnidadOrganizativaDto>> GetById(
         Guid id, CancellationToken cancellationToken)
@@ -69,8 +74,11 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="409">Conflicto — ya existe una unidad con el mismo código o nombre.</response>
     [HttpPost]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UnidadOrganizativaDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<UnidadOrganizativaDto>> Create(
         CrearUnidadOrganizativaRequest request,
@@ -98,8 +106,11 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="404">No se encontró una unidad organizativa con el ID especificado.</response>
     /// <response code="409">Conflicto — el código o nombre ya está en uso por otra unidad.</response>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UnidadOrganizativaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<UnidadOrganizativaDto>> Update(
@@ -129,8 +140,11 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="404">No se encontró la unidad organizativa o la unidad padre especificada.</response>
     /// <response code="409">Conflicto — el cambio de padre crearía un ciclo en la jerarquía.</response>
     [HttpPatch("{id:guid}/unidad-padre")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UnidadOrganizativaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<UnidadOrganizativaDto>> ChangeParent(
@@ -159,6 +173,7 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="200">Resultado paginado devuelto correctamente con el mismo contrato <c>UnidadOrganizativaDto</c> para vistas activas o eliminadas; no mezcla ambos conjuntos en una misma respuesta.</response>
     [HttpGet("consulta")]
     [ProducesResponseType(typeof(PagedResult<UnidadOrganizativaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<PagedResult<UnidadOrganizativaDto>>> Consulta(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -186,6 +201,7 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="200">Árbol jerárquico devuelto correctamente.</response>
     [HttpGet("arbol")]
     [ProducesResponseType(typeof(IReadOnlyList<UnidadOrganizativaTreeNodeDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>> GetTree(
         CancellationToken cancellationToken)
     {
@@ -202,7 +218,10 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="404">No se encontró una unidad organizativa con el ID especificado.</response>
     /// <response code="409">Conflicto — la unidad tiene hijos o recursos asociados que impiden la eliminación.</response>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult> Delete(
@@ -225,7 +244,10 @@ public class UnidadesOrganizativasController : ControllerBase
     /// <response code="404">No se encontró una unidad organizativa con el ID especificado.</response>
     /// <response code="409">Conflicto — no se puede reactivar porque la unidad padre sigue eliminada.</response>
     [HttpPatch("{id:guid}/reactivar")]
+    [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UnidadOrganizativaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<UnidadOrganizativaDto>> Reactivate(
