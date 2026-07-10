@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -15,6 +16,12 @@ namespace SGV.Tests.Persistencia;
 /// Hardcoded server/user literals break CI (which uses a password) and any
 /// developer whose local MySQL deviates from the <c>root</c>/no-password
 /// default. See issue #99.
+///
+/// <para><b>Scope:</b> This guard detects the specific pattern that caused
+/// issue #99: <c>Server=localhost;...;User=root;</c> with an empty password
+/// (<c>Password=;</c>). It does <b>not</b> detect arbitrary hardcoded
+/// credentials with other users or non-empty passwords — those are outside
+/// the reported bug surface.</para>
 /// </summary>
 public sealed class NoHardcodedMySqlConnectionStringsTests
 {
@@ -37,10 +44,12 @@ public sealed class NoHardcodedMySqlConnectionStringsTests
         "NoHardcodedMySqlConnectionStringsTests.cs",
     };
 
+    private static readonly Lazy<string> LazyPersistenciaDirectory = new(ResolvePersistenciaDirectory);
+
     [Fact]
-    public void PersistenciaTests_NoContienenConnectionStringsMySqlHardcodeadas()
+    public void PersistenceTests_DoNotContainHardcodedMySqlConnectionStrings()
     {
-        var directory = ResolvePersistenciaDirectory();
+        var directory = LazyPersistenciaDirectory.Value;
         var files = Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories).ToList();
 
         var violations = new List<string>();
@@ -75,20 +84,54 @@ public sealed class NoHardcodedMySqlConnectionStringsTests
 
     private static string ResolvePersistenciaDirectory()
     {
-        // AppContext.BaseDirectory when running `dotnet test` from the repo root is
-        // `tests/SGV.Tests/bin/Debug/net10.0/`. Five `..` get us back to the workspace.
-        var path = Path.GetFullPath(Path.Combine(
+        // Search upward from the test assembly directory until we find the
+        // repo root (identified by SGV.slnx). This is more robust than a
+        // fixed number of parent hops because it tolerates changes to TFM,
+        // build configuration, or project structure.
+        const int maxDepth = 10;
+        var candidate = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
+            ?? AppContext.BaseDirectory;
+
+        for (var i = 0; i < maxDepth; i++)
+        {
+            if (File.Exists(Path.Combine(candidate, "SGV.slnx")))
+            {
+                var path = Path.GetFullPath(Path.Combine(
+                    candidate, "tests", "SGV.Tests", "Persistencia"));
+
+                if (Directory.Exists(path))
+                {
+                    return path;
+                }
+
+                throw new DirectoryNotFoundException(
+                    $"Found repo root at '{candidate}' but the Persistencia test " +
+                    $"directory does not exist at '{path}'.");
+            }
+
+            var parent = Directory.GetParent(candidate);
+            if (parent is null)
+            {
+                break;
+            }
+
+            candidate = parent.FullName;
+        }
+
+        // Fallback: try the 5-level parent approach for compatibility
+        var fallback = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
             "..", "..", "..", "..", "..",
             "tests", "SGV.Tests", "Persistencia"));
 
-        if (!Directory.Exists(path))
+        if (Directory.Exists(fallback))
         {
-            throw new DirectoryNotFoundException(
-                $"Could not resolve Persistencia test directory from '{AppContext.BaseDirectory}'. " +
-                $"Expected '{path}'. Run tests from the repository root via `dotnet test`.");
+            return fallback;
         }
 
-        return path;
+        throw new DirectoryNotFoundException(
+            $"Could not resolve the Persistencia test directory. Tried " +
+            $"searching upward from '{AppContext.BaseDirectory}' for " +
+            $"SGV.slnx. Run tests via `dotnet test` from the repository root.");
     }
 }
