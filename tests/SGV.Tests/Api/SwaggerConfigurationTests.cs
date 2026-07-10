@@ -71,12 +71,28 @@ public sealed class SwaggerConfigurationTests
     }
 
     [Fact]
-    public async Task AnonymousClient_CanStillReadPublicResourceCollection()
+    public async Task AnonymousClient_CanStillReadSwaggerMetadataCollection()
     {
+        // PR-1 (change 2026-07-09-agregar-autorizacion-api-restantes): antes
+        // este test verificaba que un cliente anónimo podía leer
+        // GET /api/v1/personas (200 OK). PR-1 cierra esa superficie con
+        // [Authorize] a nivel de clase en PersonasController, por lo que el
+        // body original ya no refleja la realidad del repo.
+        //
+        // Pivotamos el test al ÚNICO surface informativo que sigue siendo
+        // público por diseño: el documento OpenAPI en
+        // /swagger/v1/swagger.json. La aserción verifica explícitamente que
+        // el cliente anónimo sigue pudiendo consumir swagger.json — un
+        // invariant de discoverability que cualquier endurecimiento futuro
+        // de auth debe preservar.
+        //
+        // NO reintroducimos un GET anónimo contra /api/v1/personas para
+        // "honrar el nombre viejo": PR-1 quiere exactamente lo contrario
+        // (que ese endpoint requiera token).
         using var factory = new ApiWebApplicationFactory();
         var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/api/v1/personas");
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

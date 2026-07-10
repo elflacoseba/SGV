@@ -94,7 +94,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/personas/{ExistingPersonaId}/skills");
 
@@ -119,7 +119,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/personas/{ExistingPersonaId}/skills");
 
@@ -137,7 +137,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/personas/{ExistingPersonaId}/skills");
         var json = await response.Content.ReadAsStringAsync();
@@ -162,7 +162,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = ExistingNivelId });
 
         var response = await client.PutAsync(
@@ -189,7 +189,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = Guid.NewGuid() });
 
         var response = await client.PutAsync(
@@ -215,7 +215,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = ExistingNivelId });
 
         var response = await client.PutAsync(
@@ -236,7 +236,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/personas/{ExistingPersonaId}/skills/{ExistingSkillId}");
@@ -259,7 +259,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/personas/{ExistingPersonaId}/skills/{NonExistentSkillId}");
@@ -284,7 +284,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/personas/{NonExistentPersonaId}/skills/{ExistingSkillId}");
@@ -302,7 +302,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nivelId = ExistingNivelId });
 
         var response = await client.PutAsync(
@@ -321,7 +321,7 @@ public sealed class PersonaSkillControllerTests
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         // Parent resource should NOT include skills
         var parentResponse = await client.GetAsync($"/api/v1/personas/{ExistingPersonaId}");
