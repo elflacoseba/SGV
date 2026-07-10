@@ -17,7 +17,7 @@ public sealed class NivelesCargoControllerTests
     public async Task GetAll_Returns200With2SeedDtos()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/niveles-cargo");
 
@@ -31,6 +31,28 @@ public sealed class NivelesCargoControllerTests
     }
 
     [Fact]
+    public async Task GetAll_WithoutCredentials_Returns401()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/niveles-cargo");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_WithoutCredentials_Returns401()
+    {
+        using var factory = new ApiWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/v1/niveles-cargo/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetAll_WhenNoData_Returns200WithEmptyArray()
     {
         using var factory = new ApiWebApplicationFactory(services =>
@@ -39,7 +61,7 @@ public sealed class NivelesCargoControllerTests
             services.AddSingleton<INivelCargoServicioConsulta>(
                 new FakeNivelCargoServicioConsulta(isEmpty: true));
         });
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/niveles-cargo");
 
@@ -54,7 +76,7 @@ public sealed class NivelesCargoControllerTests
     public async Task GetById_ExistingId_Returns200WithDto()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/niveles-cargo/{FakeNivelCargoServicioConsulta.Nivel1Id}");
@@ -71,7 +93,7 @@ public sealed class NivelesCargoControllerTests
     public async Task GetById_NonExistentId_Returns404()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             $"/api/v1/niveles-cargo/{Guid.NewGuid()}");
@@ -83,7 +105,7 @@ public sealed class NivelesCargoControllerTests
     public async Task GetById_InvalidGuid_Returns400()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
             "/api/v1/niveles-cargo/not-a-guid");
@@ -95,7 +117,7 @@ public sealed class NivelesCargoControllerTests
     public async Task Post_Returns405MethodNotAllowed()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PostAsync(
             "/api/v1/niveles-cargo", null);
@@ -107,7 +129,7 @@ public sealed class NivelesCargoControllerTests
     public async Task Put_Returns405MethodNotAllowed()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.PutAsync(
             $"/api/v1/niveles-cargo/{Guid.NewGuid()}", null);
@@ -119,7 +141,7 @@ public sealed class NivelesCargoControllerTests
     public async Task Delete_Returns405MethodNotAllowed()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
             $"/api/v1/niveles-cargo/{Guid.NewGuid()}");
@@ -131,7 +153,7 @@ public sealed class NivelesCargoControllerTests
     public async Task Patch_Returns405MethodNotAllowed()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var request = new HttpRequestMessage(HttpMethod.Patch,
             $"/api/v1/niveles-cargo/{Guid.NewGuid()}")
@@ -148,7 +170,7 @@ public sealed class NivelesCargoControllerTests
     public async Task Dto_Shape_OnlyExpectedProperties()
     {
         using var factory = new ApiWebApplicationFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/niveles-cargo");
         var json = await response.Content.ReadAsStringAsync();
@@ -170,13 +192,13 @@ public sealed class NivelesCargoControllerTests
     }
 
     [Fact]
-    public void Controller_DoesNotHaveAuthorizeAttribute()
+    public void Controller_HasAuthorizeAttribute()
     {
         var controllerType = typeof(SGV.Api.Controllers.NivelesCargoController);
 
         var hasAuthorize = controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .Any(a => a is AuthorizeAttribute);
 
-        Assert.False(hasAuthorize, "Controller should not require authorization");
+        Assert.True(hasAuthorize, "Controller MUST require authorization");
     }
 }

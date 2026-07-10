@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -10,6 +11,7 @@ namespace SGV.Api.Controllers;
 [ApiController]
 [Route("api/v1/niveles-cargo")]
 [Produces("application/json")]
+[Authorize]
 public class NivelesCargoController : ControllerBase
 {
     private readonly INivelCargoServicioConsulta _servicio;
@@ -27,6 +29,7 @@ public class NivelesCargoController : ControllerBase
     /// <response code="200">Lista de niveles de cargo devuelta correctamente.</response>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<NivelCargoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<NivelCargoDto>>> GetAll(
         CancellationToken cancellationToken)
     {
@@ -46,6 +49,7 @@ public class NivelesCargoController : ControllerBase
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(NivelCargoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<NivelCargoDto>> GetById(
         string id, CancellationToken cancellationToken)

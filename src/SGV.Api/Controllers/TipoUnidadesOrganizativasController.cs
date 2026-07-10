@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas.Dtos;
@@ -6,6 +7,7 @@ namespace SGV.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/tipos-unidad-organizativa")]
+[Authorize]
 public class TipoUnidadesOrganizativasController : ControllerBase
 {
     private readonly ITipoUnidadOrganizativaServicioConsulta _servicio;
@@ -16,6 +18,7 @@ public class TipoUnidadesOrganizativasController : ControllerBase
     }
 
     [HttpGet]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<TipoUnidadOrganizativaDto>>> GetAll(
         CancellationToken cancellationToken)
     {
@@ -24,6 +27,7 @@ public class TipoUnidadesOrganizativasController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<TipoUnidadOrganizativaDto>> GetById(
         string id, CancellationToken cancellationToken)
     {
