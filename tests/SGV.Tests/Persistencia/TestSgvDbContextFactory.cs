@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
+using MySqlConnector;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 using SGV.Infraestructura.Persistencia;
 
@@ -41,27 +42,80 @@ public sealed class TestSgvDbContextFactory : IDesignTimeDbContextFactory<SgvDbC
     public const string LocalDevConnectionString =
         "Server=localhost;Port=3306;Database=sgv_test;User=root;Password=;Default Command Timeout=30;Connection Timeout=5;";
 
+    public static bool IsRunningInCi()
+    {
+        return string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase);
+    }
+
     public SgvDbContext CreateDbContext(string[] args)
     {
-        var connectionString = ResolveConnectionString();
+        return CreateDbContext(ResolveSettings());
+    }
+
+    internal static SgvDbContext CreateDbContext(TestMySqlConnectionSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
 
         var opciones = new DbContextOptionsBuilder<SgvDbContext>()
-            .UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36)))
+            .UseMySql(settings.ConnectionString, new MySqlServerVersion(new Version(8, 0, 36)))
             .Options;
 
         return new SgvDbContext(opciones);
     }
 
     public static string ResolveConnectionString()
+        => ResolveSettings().ConnectionString;
+
+    internal static TestMySqlConnectionSettings ResolveSettings()
+        => ResolveSettings(configuration: null, environmentConnectionStringOverride: null);
+
+    internal static TestMySqlConnectionSettings ResolveSettings(
+        IConfiguration? configuration,
+        string? environmentConnectionStringOverride)
     {
-        var configuration = new ConfigurationBuilder()
+        configuration ??= CreateConfiguration();
+
+        var configured = configuration.GetConnectionString("SgvDatabase");
+
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return new TestMySqlConnectionSettings(
+                LocalDevConnectionString,
+                nameof(LocalDevConnectionString),
+                Redact(LocalDevConnectionString));
+        }
+
+        const string envVarName = "ConnectionStrings__SgvDatabase";
+        environmentConnectionStringOverride ??= Environment.GetEnvironmentVariable(envVarName);
+        var source = string.Equals(configured, environmentConnectionStringOverride, StringComparison.Ordinal)
+            ? envVarName
+            : "appsettings";
+
+        return new TestMySqlConnectionSettings(
+            configured,
+            source,
+            Redact(configured));
+    }
+
+    private static IConfiguration CreateConfiguration()
+    {
+        return new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true)
             .AddJsonFile("appsettings.Development.json", optional: true)
             .AddEnvironmentVariables()
             .Build();
+    }
 
-        var configured = configuration.GetConnectionString("SgvDatabase");
-        return string.IsNullOrWhiteSpace(configured) ? LocalDevConnectionString : configured;
+    private static string Redact(string connectionString)
+    {
+        var builder = new MySqlConnectionStringBuilder(connectionString);
+        if (!string.IsNullOrEmpty(builder.Password))
+        {
+            builder.Password = "<redacted>";
+        }
+
+        return builder.ConnectionString;
     }
 }

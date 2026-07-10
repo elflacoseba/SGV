@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -8,43 +7,37 @@ namespace SGV.Tests.Persistencia;
 /// Use this for tests that actually connect to the database (migration
 /// application, data operations). Model-level tests that only inspect EF
 /// metadata do NOT need this attribute.
+/// 
+/// The bootstrap probe runs exactly once per test-session via
+/// <see cref="MySqlTestDatabaseBootstrap.GetAvailability"/> (backed by
+/// <see cref="Lazy{T}"/>). If MySQL becomes available mid-session (local dev),
+/// subsequent <c>[MySqlFact]</c> tests still see the cached state — an
+/// acceptable performance trade-off since session restart is trivial.
 /// </summary>
 public sealed class MySqlFactAttribute : FactAttribute
 {
-    private static readonly bool MySqlAvailable = CheckMySqlAvailability();
+    private static readonly MySqlTestDatabaseAvailability Availability = MySqlTestDatabaseBootstrap.GetAvailability();
 
     public MySqlFactAttribute()
+        : this(Availability, TestSgvDbContextFactory.IsRunningInCi())
     {
-        if (!MySqlAvailable)
-        {
-            Skip = "MySQL server is not available";
-        }
     }
 
-    private static bool CheckMySqlAvailability()
+    internal MySqlFactAttribute(MySqlTestDatabaseAvailability availability, bool isCi)
     {
-        try
+        ArgumentNullException.ThrowIfNull(availability);
+
+        if (availability.IsAvailable)
         {
-            using var context = new TestSgvDbContextFactory().CreateDbContext([]);
-
-            if (!context.Database.CanConnect())
-            {
-                return false;
-            }
-
-            // Bootstrap the test database schema once per test session. Migrate
-            // is idempotent: it creates the database if it doesn't exist and
-            // applies only the pending migrations. Tests that depend on a clean
-            // schema (auditoria interceptor, repos, unique constraints) can
-            // then insert/update/delete against sgv_test without extra setup.
-            context.Database.Migrate();
-
-            return true;
+            return;
         }
-        catch
+
+        if (availability.ShouldSkip(isCi))
         {
-            // Any connection failure (network, auth, missing server) → skip
-            return false;
+            Skip = availability.Message;
+            return;
         }
+
+        throw new InvalidOperationException(availability.Message, availability.Exception);
     }
 }
