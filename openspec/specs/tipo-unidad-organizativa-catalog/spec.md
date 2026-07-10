@@ -30,12 +30,13 @@ The `TipoUnidadOrganizativa` catalog MUST be immutable at runtime. The system MU
 
 ### REQ-TUO-002 — List all types.
 
-The system MUST expose `GET /api/v1/tipos-unidad-organizativa` (anonymous, no authentication required) that returns every type in the catalog.
+The system MUST expose `GET /api/v1/tipos-unidad-organizativa` that returns every type in the catalog. The endpoint MUST requerir autenticación mediante `[Authorize]` a nivel clase en `TipoUnidadesOrganizativasController` (y la `FallbackPolicy.RequireAuthenticatedUser` global de `Program.cs` sirve como red de seguridad para cualquier controller futuro). El cliente sin credenciales MUST recibir `401 Unauthorized`; el cliente autenticado MUST recibir `200 OK` con el contrato de catálogo vigente.
+(Previously: el endpoint estaba abierto anónimamente — la cláusula `(anonymous, no authentication required)` quedó retirada en favor de la postura default-deny global adoptada en el change `2026-07-09-agregar-autorizacion-api-restantes`.)
 
 #### Scenario: Returns full list
 
 - **GIVEN** 7 seeded types exist in `TiposUnidadOrganizativa`
-- **WHEN** a client calls `GET /api/v1/tipos-unidad-organizativa`
+- **WHEN** an authenticated client calls `GET /api/v1/tipos-unidad-organizativa`
 - **THEN** the response status is `200 OK`
 - **AND** the response body is a JSON array of 7 elements
 - **AND** each element has the fields `id`, `codigo`, `nombre` and no other fields.
@@ -43,7 +44,7 @@ The system MUST expose `GET /api/v1/tipos-unidad-organizativa` (anonymous, no au
 #### Scenario: Empty database
 
 - **GIVEN** the `TiposUnidadOrganizativa` table has no rows
-- **WHEN** a client calls `GET /api/v1/tipos-unidad-organizativa`
+- **WHEN** an authenticated client calls `GET /api/v1/tipos-unidad-organizativa`
 - **THEN** the response status is `200 OK`
 - **AND** the response body is an empty JSON array `[]` (not `404 Not Found`).
 
@@ -93,3 +94,19 @@ The 7 seed Ids MUST be **static shared constants** referenced from a single sour
 - **WHEN** the test `DatosSemilla_SeedIdsMatchMigracionEstatica` runs
 - **THEN** it passes — every Id declared in the migration matches the corresponding Id declared in `DatosSemilla`
 - **AND** there are exactly 7 distinct Ids in both lists.
+
+### REQ-TUO-006 — Autorización de lectura de TiposUnidadOrganizativa.
+
+`TipoUnidadesOrganizativasController` MUST requerir autenticación para sus endpoints de lectura. `GET /api/v1/tipos-unidad-organizativa` y `GET /api/v1/tipos-unidad-organizativa/{id:guid}` MUST responder `2xx` únicamente para usuarios autenticados y MUST conservar el contrato de respuesta vigente (`id`, `codigo`, `nombre`). Los endpoints de escritura (`POST`, `PUT`, `PATCH`, `DELETE`) sobre el catálogo MUST NO estar expuestos; cualquier intento de escritura MUST responder `405 Method Not Allowed` o no estar disponible como acción documentada, independientemente del estado de autenticación del cliente.
+
+#### Scenario: Acceso anónimo rechazado
+
+- **GIVEN** un cliente sin credenciales
+- **WHEN** solicita `GET /api/v1/tipos-unidad-organizativa` o `GET /api/v1/tipos-unidad-organizativa/{id:guid}`
+- **THEN** la API MUST responder `401 Unauthorized`.
+
+#### Scenario: Lectura autenticada exitosa
+
+- **GIVEN** un usuario autenticado
+- **WHEN** solicita `GET /api/v1/tipos-unidad-organizativa` o `GET /api/v1/tipos-unidad-organizativa/{id:guid}`
+- **THEN** la API MUST responder `2xx` con el contrato de lectura vigente del catálogo.

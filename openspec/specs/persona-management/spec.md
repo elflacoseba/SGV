@@ -90,3 +90,26 @@ El sistema MUST NOT crear, modificar, consultar ni exponer comportamiento de Pos
 - **DADO** que una Persona tiene relaciones persistidas fuera de este corte
 - **CUANDO** se usa cualquier operación administrativa de Personas
 - **ENTONCES** la operación NO DEBE incluir ni modificar esas relaciones.
+
+### Requisito: Autorización de endpoints de personas
+
+`PersonasController` MUST requerir autenticación. `GET /api/v1/personas` y `GET /api/v1/personas/{id}` MUST permitir el acceso a cualquier usuario autenticado y MUST responder `2xx` con el contrato de lectura vigente. `POST`, `PUT`, `PATCH` y `DELETE` (incluyendo `Reactivar`, `AsignarSkill` y `QuitarSkill`) MUST requerir el rol `Administrador`; con payload válido y rol correcto, MUST conservar sus contratos `2xx` vigentes.
+
+#### Escenario: Lectura autenticada exitosa
+
+- **DADO** un usuario autenticado
+- **CUANDO** solicita `GET /api/v1/personas` o `GET /api/v1/personas/{id}`
+- **ENTONCES** la API MUST responder `2xx` con el contrato de lectura vigente.
+
+#### Escenario: Acceso anónimo rechazado
+
+- **DADO** un cliente sin credenciales
+- **CUANDO** solicita un `GET` o una mutación de `PersonasController` (incluyendo `Reactivar`, `AsignarSkill` y `QuitarSkill`)
+- **ENTONCES** la API MUST responder `401 Unauthorized`.
+
+#### Escenario: Mutación protegida por rol administrador
+
+- **DADO** una solicitud válida de mutación sobre personas
+- **CUANDO** la ejecuta un usuario autenticado sin rol `Administrador`
+- **ENTONCES** la API MUST responder `403 Forbidden`
+- **Y**, si la ejecuta un `Administrador`, MUST responder `2xx` con el contrato vigente.

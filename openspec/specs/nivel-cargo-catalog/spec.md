@@ -94,3 +94,19 @@ El sistema DEBE exponer NivelesCargo como recurso de solo lectura a través de l
 - **DADO** un cliente que intenta crear, actualizar o eliminar un NivelCargo
 - **CUANDO** envía `POST`, `PUT`, `PATCH` o `DELETE` a `/api/v1/niveles-cargo`
 - **ENTONCES** la API DEBE responder con 405 Method Not Allowed o no exponer esos endpoints.
+
+### Requisito: Autorización de lectura de NivelesCargo
+
+`NivelesCargoController` MUST requerir autenticación para sus endpoints de lectura. `GET /api/v1/niveles-cargo` y `GET /api/v1/niveles-cargo/{id:guid}` MUST responder `2xx` únicamente para usuarios autenticados y MUST conservar el contrato de respuesta vigente (`id`, `codigo`, `nombre`, `valorNumerico`, `orden`). Los endpoints de escritura (`POST`, `PUT`, `PATCH`, `DELETE`) sobre `NivelesCargo` MUST NO estar expuestos; cualquier intento de escritura MUST responder `405 Method Not Allowed` o no estar disponible como acción documentada, independientemente del estado de autenticación del cliente.
+
+#### Escenario: Acceso anónimo rechazado
+
+- **DADO** un cliente sin credenciales
+- **CUANDO** solicita `GET /api/v1/niveles-cargo` o `GET /api/v1/niveles-cargo/{id:guid}`
+- **ENTONCES** la API MUST responder `401 Unauthorized`.
+
+#### Escenario: Lectura autenticada exitosa
+
+- **DADO** un usuario autenticado
+- **CUANDO** solicita `GET /api/v1/niveles-cargo` o `GET /api/v1/niveles-cargo/{id:guid}`
+- **ENTONCES** la API MUST responder `2xx` con el contrato de lectura vigente del catálogo.

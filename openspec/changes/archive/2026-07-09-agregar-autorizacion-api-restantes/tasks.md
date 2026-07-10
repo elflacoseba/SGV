@@ -44,16 +44,16 @@ Chain strategy: stacked-to-develop
 ## Phase 2: PR-2 — Default-deny global + catálogos + Login
 
 ### Catálogos read-only
-- [ ] 2.1 `src/SGV.Api/Controllers/NivelesCargoController.cs`: `[Authorize]` a nivel clase. ~3 LOC.
-- [ ] 2.2 `tests/SGV.Tests/Api/NivelesCargoControllerTests.cs`: anónimo→`401` y autenticado→`2xx` en `GetAll`/`GetById`. ~15 LOC. Verify: `dotnet test --filter NivelesCargoControllerTests`.
-- [ ] 2.3 `src/SGV.Api/Controllers/TipoUnidadesOrganizativasController.cs`: `[Authorize]` a nivel clase. ~3 LOC.
-- [ ] 2.4 `tests/SGV.Tests/Api/TipoUnidadesOrganizativasControllerTests.cs`: anónimo→`401` y autenticado→`2xx`. ~15 LOC. Verify: `dotnet test --filter TipoUnidadesOrganizativasControllerTests`.
+- [x] 2.1 `src/SGV.Api/Controllers/NivelesCargoController.cs`: `[Authorize]` a nivel clase. ~3 LOC.
+- [x] 2.2 `tests/SGV.Tests/Api/NivelesCargoControllerTests.cs`: anónimo→`401` y autenticado→`2xx` en `GetAll`/`GetById`. ~15 LOC. Verify: `dotnet test --filter NivelesCargoControllerTests`.
+- [x] 2.3 `src/SGV.Api/Controllers/TipoUnidadesOrganizativasController.cs`: `[Authorize]` a nivel clase. ~3 LOC.
+- [x] 2.4 `tests/SGV.Tests/Api/TipoUnidadesOrganizativasControllerTests.cs`: anónimo→`401` y autenticado→`2xx`. ~15 LOC. Verify: `dotnet test --filter TipoUnidadesOrganizativasControllerTests`.
 
 ### Login + Fallback policy
-- [ ] 2.5 `src/SGV.Api/Controllers/AuthController.cs`: `[AllowAnonymous]` en `Login`. ~2 LOC.
-- [ ] 2.6 `tests/SGV.Tests/Api/AuthControllerTests.cs`: `Login_AnonymousHeaderless_Returns200` con `CreateClient()` sin header. ~10 LOC.
-- [ ] 2.7 `src/SGV.Api/Program.cs`: cambiar `AddAuthorization()` por `AddAuthorization(opts => opts.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())`. ~3 LOC. Gate: `dotnet test SGV.slnx` con 2.1–2.6.
+- [x] 2.5 `src/SGV.Api/Controllers/AuthController.cs`: `[AllowAnonymous]` en `Login`. ~2 LOC.
+- [x] 2.6 `tests/SGV.Tests/Api/AuthControllerTests.cs`: `Login_AnonymousHeaderless_Returns200` con `CreateClient()` sin header. ~10 LOC.
+- [x] 2.7 `src/SGV.Api/Program.cs`: cambiar `AddAuthorization()` por `AddAuthorization(opts => opts.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())`. ~3 LOC. Gate: `dotnet test SGV.slnx` con 2.1–2.6.
 
 ### Documentación
-- [ ] 2.8 `docs/decisiones-implementacion.md` sección seguridad/auth: default-deny, `[Authorize]` por defecto, única excepción `[AllowAnonymous]` en `Login`, precedente Cargos e issue #90. ~10 LOC.
-- [ ] 2.9 Gate PR-2: `dotnet test SGV.slnx` 100% verde con FallbackPolicy global activa y catálogos autenticados. Sin este gate, no mergear.
+- [x] 2.8 `docs/decisiones-implementacion.md` sección seguridad/auth: default-deny, `[Authorize]` por defecto, única excepción `[AllowAnonymous]` en `Login`, precedente Cargos e issue #90. ~10 LOC.
+- [x] 2.9 Gate PR-2: `dotnet test SGV.slnx` 100% verde con FallbackPolicy global activa y catálogos autenticados. Sin este gate, no mergear.
