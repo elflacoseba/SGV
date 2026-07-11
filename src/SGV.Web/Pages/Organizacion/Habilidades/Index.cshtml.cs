@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Web.Integration.Habilidades;
+using SGV.Web.Pages.Common;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;
 
 namespace SGV.Web.Pages.Organizacion.Habilidades;
@@ -72,12 +73,12 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
     /// <summary>
     /// Mensaje de feedback tras una operación (baja lógica, reactivación).
     /// </summary>
-    public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
+    public string? StatusMessage => PageFeedback.GetStatusMessage(TempData);
 
     /// <summary>
     /// Tipo de feedback: <c>success</c> o <c>danger</c>.
     /// </summary>
-    public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
+    public string StatusKind => PageFeedback.GetStatusKind(TempData);
 
     /// <summary>
     /// Identificador de la última habilidad eliminada, persistido en TempData
@@ -109,7 +110,7 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
 
         if (deletedId.HasValue)
         {
-            TempData[nameof(LastDeletedId)] = deletedId.Value.ToString();
+            PageFeedback.SetLastDeletedId(TempData, deletedId.Value);
         }
 
         await LoadAsync(cancellationToken);
@@ -136,8 +137,7 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
             // evitar que el PRG caiga en una página sin filas. Espejo del
             // helper que PR #71 añadió al Index de Cargos.
             var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, normalizedSegmento, cancellationToken);
-            TempData[nameof(StatusMessage)] = "La habilidad se eliminó correctamente.";
-            TempData[nameof(StatusKind)] = "success";
+            PageFeedback.SetSuccess(TempData, "La habilidad se eliminó correctamente.");
 
             return RedirectToPage("/Organizacion/Habilidades/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento, deletedId = id });
         }
@@ -148,8 +148,7 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
                 ? "La habilidad ya no está disponible."
                 : "No se pudo eliminar la habilidad. Intentá nuevamente.";
 
-        TempData[nameof(StatusMessage)] = message;
-        TempData[nameof(StatusKind)] = "danger";
+        PageFeedback.SetDanger(TempData, message);
 
         return RedirectToPage("/Organizacion/Habilidades/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
     }
@@ -171,8 +170,7 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
 
         if (result.IsSuccess)
         {
-            TempData[nameof(StatusMessage)] = "La habilidad se reactivó correctamente.";
-            TempData[nameof(StatusKind)] = "success";
+            PageFeedback.SetSuccess(TempData, "La habilidad se reactivó correctamente.");
 
             ClearLastDeleted();
 
@@ -188,8 +186,7 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
             _ => "No se pudo reactivar la habilidad. Intentá nuevamente."
         };
 
-        TempData[nameof(StatusMessage)] = message;
-        TempData[nameof(StatusKind)] = "danger";
+        PageFeedback.SetDanger(TempData, message);
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
             TempData["ErrorCode"] = errorCode;
@@ -279,15 +276,7 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
     {
         LoadErrorMessage = null;
 
-        var rawLastDeleted = TempData[nameof(LastDeletedId)] as string;
-        if (Guid.TryParse(rawLastDeleted, out var parsedDeleted))
-        {
-            LastDeletedId = parsedDeleted;
-        }
-        else
-        {
-            LastDeletedId = null;
-        }
+        LastDeletedId = PageFeedback.GetLastDeletedId(TempData);
 
         try
         {
@@ -314,11 +303,7 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
         }
     }
 
-    private void ClearLastDeleted()
-    {
-        TempData.Remove(nameof(LastDeletedId));
-        LastDeletedId = null;
-    }
+    private void ClearLastDeleted() => PageFeedback.ClearLastDeletedId(TempData);
 
     /// <summary>
     /// Tras una baja lógica puede ocurrir que la página vigente quede vacía.

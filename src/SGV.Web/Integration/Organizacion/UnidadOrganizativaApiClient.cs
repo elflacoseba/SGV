@@ -29,6 +29,37 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<UnidadOrganizativaDto>> GetAllActivasAsync(int pageSize = 100, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
+
+        var items = new List<UnidadOrganizativaDto>();
+        var page = 1;
+
+        while (true)
+        {
+            var result = await QueryAsync(
+                new UnidadOrganizativaListQuery(page, pageSize, Search: null, Sort: null, Status: "activas"),
+                cancellationToken);
+
+            if (result.Items.Count == 0)
+            {
+                break;
+            }
+
+            items.AddRange(result.Items);
+            if (items.Count >= result.TotalCount)
+            {
+                break;
+            }
+
+            page++;
+        }
+
+        return items;
+    }
+
+    /// <inheritdoc />
     public async Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var response = await httpClient.GetAsync($"{BaseRoute}/{id}", cancellationToken);

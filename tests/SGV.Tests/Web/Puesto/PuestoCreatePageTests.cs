@@ -64,25 +64,21 @@ public sealed class PuestoCreatePageTests : IClassFixture<PuestoWebTestFixture>
             new CargoDto(Guid.NewGuid(), "C-VEND", "Vendedor", null, Guid.NewGuid(), "Ventas"));
         var unidadClient = new FakeUnidadOrganizativaApiClient
         {
-            QueryResult = new PagedResult<UnidadOrganizativaDto>(
-                new[]
-                {
-                    new UnidadOrganizativaDto(
-                        PuestoWebTestFixture.SampleUnidadOrganizativaId,
-                        "UO-001",
-                        "Comercial",
-                        Guid.NewGuid(),
-                        "Área",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null)
-                },
-                1,
-                1,
-                200)
+            AllActivasResult =
+            [
+                new UnidadOrganizativaDto(
+                    PuestoWebTestFixture.SampleUnidadOrganizativaId,
+                    "UO-001",
+                    "Comercial",
+                    Guid.NewGuid(),
+                    "Área",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)
+            ]
         };
 
         using var client = await _fixture.CreateAuthenticatedClientAsync(unidadClient, cargoClient, apiClient);
@@ -102,8 +98,10 @@ public sealed class PuestoCreatePageTests : IClassFixture<PuestoWebTestFixture>
 
         // El catálogo de cargos debe popular el select.
         Assert.Contains("Vendedor", content, StringComparison.OrdinalIgnoreCase);
-        // El catálogo de unidades debe popular el select.
+        // El catálogo de unidades debe popular el select sin usar el workaround paginado del PageModel.
         Assert.Contains("Comercial", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(unidadClient.GetAllActivasCalls);
+        Assert.Empty(unidadClient.QueryCalls);
 
         // El catálogo de puestos debe haber sido consultado exactamente una vez.
         Assert.Single(apiClient.GetAllCalls);
