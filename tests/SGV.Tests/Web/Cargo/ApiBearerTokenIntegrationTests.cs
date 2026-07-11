@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Common;
 using SGV.Web.Integration.Auth;
 using Xunit;
 
@@ -24,7 +25,7 @@ public sealed class ApiBearerTokenIntegrationTests
     {
         // Arrange: a stub auth handler that issues a known JWT, plus a recording
         // handler for the cargo API so we can inspect the outbound request.
-        const string expectedJwt = "test-jwt-xyz";
+        var expectedJwt = AdminJwtTestHelper.BuildUserJwt();
         var authHandler = new StubAuthHandler(expectedJwt);
         var cargoHandler = new RecordingCargoHandler();
 

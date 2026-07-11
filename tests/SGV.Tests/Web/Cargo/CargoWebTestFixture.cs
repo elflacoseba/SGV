@@ -82,17 +82,17 @@ public sealed class CargoWebTestFixture : IDisposable
     /// Variante sobrecargada que también inyecta un
     /// <see cref="FakeHabilidadApiClient"/> en el contenedor y permite
     /// optar por autenticar con rol <see cref="RolesSgv.Administrador"/>.
-    /// El "admin" se modela firmando un JWT con <c>ClaimTypes.Role</c>:
-    /// <see cref="AuthSessionFactory.TryAddTokenClaims"/> lo lee y lo
-    /// agrega a la identidad de la cookie, así <c>User.IsInRole(...)</c>
-    /// devuelve <c>true</c> dentro del pipeline de Razor Pages.
+    /// El "admin" se modela firmando un JWT válido con <c>ClaimTypes.Role</c>:
+    /// <see cref="AuthSessionFactory"/> lo valida y agrega sus claims a la
+    /// identidad de la cookie, así <c>User.IsInRole(...)</c> devuelve
+    /// <c>true</c> dentro del pipeline de Razor Pages.
     /// </summary>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(
         FakeCargoApiClient apiClient,
         FakeHabilidadApiClient habilidadApiClient,
         bool adminRole)
     {
-        var accessToken = adminRole ? AdminJwtTestHelper.BuildAdminRoleJwt() : "token-123";
+        var accessToken = adminRole ? AdminJwtTestHelper.BuildAdminRoleJwt() : AdminJwtTestHelper.BuildUserJwt();
 
         var authHandler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)

@@ -34,8 +34,8 @@ public sealed partial class CargoHabilidadesPageTests
     [Fact]
     public async Task Get_AuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
     {
-        // El factory fixture existente produce un principal SIN role-claims
-        // (el token "token-123" es opaco), por lo que
+        // El factory fixture existente produce un principal SIN role-claims,
+        // por lo que
         // User.IsInRole(RolesSgv.Administrador) devuelve false y la página
         // emite Forbid(). El cookie auth scheme configurado en Program.cs
         // tiene AccessDeniedPath="/error/403", así que Forbid() se traduce

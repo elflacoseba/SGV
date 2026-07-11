@@ -104,3 +104,22 @@ La cookie que carga el ticket de autenticación de `SGV.Web` DEBE aplicar atribu
 - **CUANDO** se inspeccionan las opciones del esquema cookie expuestas por el contenedor de DI
 - **ENTONCES** los valores de `HttpOnly`, `SameSite` y `SecurePolicy` DEBEN coincidir con la tabla de atributos por ambiente
 - **Y** ningún path DEBE sobrescribir esos atributos fuera de la rama de registro de `AddCookie(...)`.
+
+### Requisito: Validación real del JWT antes de crear sesión web
+
+`SGV.Web` DEBE validar el JWT recibido desde `SGV.Api` antes de crear el principal de cookie local. La validación DEBE cubrir firma, issuer, audience y lifetime usando la misma sección de configuración `Jwt` que usa `SGV.Api`. Si el token no valida, `SGV.Web` DEBE fallar cerrado: no crear una cookie autenticada ni degradar al usuario a una sesión sin roles.
+
+#### Escenario: Token válido crea principal con claims
+
+- **DADO** que `SGV.Api` devuelve un JWT firmado con la clave configurada
+- **Y** el token tiene issuer, audience y vigencia válidos
+- **CUANDO** `SGV.Web` procesa el login exitoso
+- **ENTONCES** la sesión web DEBE crearse
+- **Y** los claims del JWT, incluyendo roles, DEBEN agregarse al principal de cookie.
+
+#### Escenario: Token inválido no crea sesión web
+
+- **DADO** que `SGV.Api` devuelve un token con firma inválida, expirado, issuer incorrecto o audience incorrecta
+- **CUANDO** `SGV.Web` procesa el login
+- **ENTONCES** la sesión web NO DEBE crearse
+- **Y** la pantalla de login DEBE mostrar un error de autenticación controlado.

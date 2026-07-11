@@ -433,7 +433,7 @@ public sealed class HabilidadesCargosModelTests
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = System.Net.Http.Json.JsonContent.Create(
-                    new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1))),
+                    new LoginResponse(SGV.Tests.Web.Common.AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1))),
             });
 
         var factory = baseFactory.WithOverrides(

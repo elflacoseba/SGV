@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using SGV.Tests.Web.Common;
 using Xunit;
 
 namespace SGV.Tests.Web;
@@ -41,7 +42,8 @@ public sealed class WebCookieAuthenticationOptionsTests
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
                     new Dictionary<string, string?>
                     {
-                        [WebBaseUrlConfigKey] = DevWebBaseUrl
+                        [WebBaseUrlConfigKey] = DevWebBaseUrl,
+                        ["Jwt:SigningKey"] = AdminJwtTestHelper.SigningKey
                     })));
 
         using var client = factory.CreateClient();
@@ -65,7 +67,8 @@ public sealed class WebCookieAuthenticationOptionsTests
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
                     new Dictionary<string, string?>
                     {
-                        [WebBaseUrlConfigKey] = DevWebBaseUrl
+                        [WebBaseUrlConfigKey] = DevWebBaseUrl,
+                        ["Jwt:SigningKey"] = AdminJwtTestHelper.SigningKey
                     })));
 
         using var client = factory.CreateClient();

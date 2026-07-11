@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Contracts.Auth;
+using SGV.Tests.Web.Common;
 using SGV.Web.Integration.Auth;
 using Xunit;
 
@@ -23,10 +24,11 @@ public sealed class WebAuthenticationTests
     [Fact]
     public async Task LoginAsync_PostsToCentralizedRouteAndReturnsResponse()
     {
+        var accessToken = AdminJwtTestHelper.BuildUserJwt();
         var handler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
+                Content = JsonContent.Create(new LoginResponse(accessToken, DateTimeOffset.UtcNow.AddHours(1)))
             });
 
         using var factory = new SgvWebApplicationFactory().WithOverrides(
@@ -38,7 +40,7 @@ public sealed class WebAuthenticationTests
         var response = await authApiClient.LoginAsync(new LoginRequest("admin", "Password1!"));
 
         Assert.NotNull(response);
-        Assert.Equal("token-123", response!.AccessToken);
+        Assert.Equal(accessToken, response!.AccessToken);
         Assert.Equal(new Uri("https://api.test/api/v1/auth/login"), handler.LastRequestUri);
         Assert.Equal(HttpMethod.Post, handler.LastMethod);
     }
@@ -115,7 +117,7 @@ public sealed class WebAuthenticationTests
         var handler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
+                Content = JsonContent.Create(new LoginResponse(AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
             });
 
         using var factory = new SgvWebApplicationFactory().WithOverrides(
@@ -144,6 +146,41 @@ public sealed class WebAuthenticationTests
     }
 
     [Fact]
+    public async Task Post_SignIn_WhenApiReturnsInvalidToken_ShowsAuthenticationErrorWithoutCookie()
+    {
+        var handler = new RecordingHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
+            });
+
+        using var factory = new SgvWebApplicationFactory().WithOverrides(
+            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
+            authApiHandler: handler);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var getResponse = await client.GetAsync("/auth/sign-in");
+        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.UserNameOrEmail"] = "admin",
+            ["Input.Password"] = "Password1!"
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain(response.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies : Array.Empty<string>(),
+            value => value.Contains(".AspNetCore.Cookies=", StringComparison.OrdinalIgnoreCase));
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("No se pudo validar la sesi&#xF3;n de autenticaci&#xF3;n.", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Post_Logout_ClearsCookieAndRedirectsToSignIn()
     {
         using var client = await CreateAuthenticatedClientAsync();
@@ -169,7 +206,7 @@ public sealed class WebAuthenticationTests
         var handler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
+                Content = JsonContent.Create(new LoginResponse(AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
             });
 
         var factory = new SgvWebApplicationFactory().WithOverrides(
