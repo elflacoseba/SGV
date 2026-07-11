@@ -71,18 +71,27 @@ public sealed class AuthSessionFactoryTests
             AuthSessionFactory.CreatePrincipal(NullLogger.Instance, Options, Request, response));
     }
 
+    // Los casos marcados como "plano" disparan ArgumentException (raíz, no
+    // SecurityTokenArgumentException) porque el Base64Url decoder del handler
+    // falla antes de que el validador pueda clasificar el error. Cualquier
+    // cambio de Microsoft.IdentityModel.Tokens que reclasifique estos casos
+    // sigue siendo detectado por Assert.ThrowsAny<ArgumentException> porque
+    // SecurityTokenMalformedException : SecurityTokenArgumentException : ArgumentException.
+    // El test unitario se complementa con el test de integración
+    // Post_SignIn_WhenApiReturnsInvalidToken_ShowsAuthenticationErrorWithoutCookie
+    // que verifica HTTP 200 (no 500) para el caso "token-123".
     public static IEnumerable<object[]> MalformedTokenCases()
     {
-        // Sin segmentos → SecurityTokenMalformedException.
+        // SecurityTokenMalformedException: sin puntos separadores, segmentos
+        // no-JWT detectados por el handler antes del decoder.
         yield return ["token-123"];
-        // Un solo segmento → SecurityTokenMalformedException.
         yield return ["single-segment"];
-        // Dos segmentos (necesita tres para JWS) → SecurityTokenMalformedException.
         yield return ["only.two"];
-        // Cinco segmentos con bytes no-base64 en la primera parte → ArgumentException
-        // plano (Base64Url decode falla antes de que el handler clasifique el error).
-        yield return ["a.b.c.d.e"];
-        // Segmentos con bytes no base64 → ArgumentException plano.
         yield return ["%%%.%%%.%%%"];
+        // ArgumentException plano: segmentos que el Base64Url decoder no
+        // puede procesar, antes de que el handler intervenga.
+        yield return ["a.b.c.d.e"];
+        yield return ["abc.def.ghi"];
+        yield return ["a.b."];
     }
 }
