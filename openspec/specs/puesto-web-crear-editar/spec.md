@@ -6,14 +6,15 @@ Flujos autenticados de alta y edición de `Puestos` en `SGV.Web` alineados con `
 
 ## Requirements
 
-### Requirement: Acceso autenticado a create y edit
+### Requirement: Acceso administrador a create y edit
 
-Páginas Razor protegidas para `crear` y `editar/{id}` dentro del shell autenticado.
+Páginas Razor protegidas para `crear` y `editar/{id}` dentro del shell autenticado. Un usuario autenticado sin rol `Administrador` MUST ser redirigido a `/error/403` en GET y MUST recibir `Forbid()` en POST.
 
-#### Scenario: Acceso autenticado vs anónimo
+#### Scenario: Acceso administrador vs no-admin vs anónimo
 - GIVEN un usuario en `SGV.Web`
 - WHEN navega a `crear` o `editar/{id}`
-- IF autenticado MUST responder con el form.
+- IF autenticado con rol `Administrador` MUST responder con el form.
+- IF autenticado sin rol `Administrador` MUST redirigirlo a `/error/403`.
 - IF anónimo MUST redirigirlo a `sign-in`.
 
 #### Scenario: Puesto inexistente en edit
@@ -72,6 +73,12 @@ El PageModel MUST invocar `IPuestosApiClient.GetAllAsync()` para armar el `Selec
 ### Requirement: Guardado con PRG y feedback
 
 Create y Edit MUST aplicar PRG tras éxito y MUST traducir `ValidationProblemDetails` a `FieldErrors`, 409 a mensaje visible y fallos de transporte a reintento.
+
+#### Scenario: POST no-admin rechazado
+- GIVEN un usuario autenticado sin rol `Administrador`
+- WHEN envía el formulario de `crear` o `editar/{id}`
+- THEN el handler MUST responder mediante `Forbid()`
+- AND MUST NOT invocar la mutación contra la API.
 
 #### Scenario: Create o Edit exitoso
 - GIVEN datos válidos

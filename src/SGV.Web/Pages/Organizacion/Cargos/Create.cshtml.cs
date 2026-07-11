@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Text.Json;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Seguridad;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Web.Pages.Organizacion.Cargos;
@@ -42,17 +43,29 @@ public sealed class CreateModel(
 
     public string ReturnToListUrl => CargoFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort);
 
+    public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
     /// <summary>
     /// GET handler for the form. Loads the nivel catalog for the dropdown.
     /// If the catalog load fails, a recoverable error is shown.
     /// </summary>
-    public async Task OnGetAsync(string? p = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnGetAsync(string? p = null, string? search = null, string? sort = null, CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            // Patrón canónico del repo (ver Habilidades.cshtml.cs): Forbid()
+            // delega al cookie scheme, que redirige a AccessDeniedPath
+            // ("/error/403" configurado en Program.cs). Es testeable y
+            // simétrico con los POST handlers del módulo.
+            return Forbid();
+        }
+
         ReturnPage = p ?? string.Empty;
         ReturnSearch = search ?? string.Empty;
         ReturnSort = sort ?? string.Empty;
 
         await LoadCatalogsAsync(cancellationToken);
+        return Page();
     }
 
     /// <summary>
@@ -66,6 +79,11 @@ public sealed class CreateModel(
     /// </summary>
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
         if (!ModelState.IsValid)
         {
             await LoadCatalogsAsync(cancellationToken);
@@ -85,11 +103,7 @@ public sealed class CreateModel(
         {
             result = await cargoApiClient.CreateAsync(request, cancellationToken);
         }
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException ||
-            ex is OperationCanceledException)
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             // Transport-level failure (network down, timeout, malformed body).
             // Map to a recoverable error: keep user input, reload the catalog,

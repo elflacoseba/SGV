@@ -19,7 +19,7 @@
         @* REQ-CW-06: el CTA Reactivar del banner SOLO se muestra en la vista Activas
            y SOLO si hay un LastDeletedId persistido en TempData. La propiedad
            Model.LastDeletedId se popula desde TempData en LoadAsync. *@
-        @if (Model.HasLastDeleted && !Model.IsDeletedView)
+        @if (Model.EsAdministrador && Model.HasLastDeleted && !Model.IsDeletedView)
         {
             <form method="post" class="d-inline">
                 @Html.AntiForgeryToken()
@@ -63,7 +63,7 @@
                         <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/Cargos/Index", Model.BuildToggleSegmentoRouteValues("eliminadas"))">Eliminadas</a>
                     </div>
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
-                    @if (!Model.IsDeletedView)
+                    @if (!Model.IsDeletedView && Model.EsAdministrador)
                     {
                         <a class="btn btn-primary btn-sm" href="/organizacion/cargos/crear">
                             <i class="ti ti-plus me-1"></i>Crear cargo
@@ -162,37 +162,43 @@
                                                 <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Details", Model.BuildDetailsRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.Nombre">
                                                     <i class="ti ti-eye fs-lg"></i>
                                                 </a>
-                                                <a class="btn btn-primary btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Habilidades", new { id = item.Id })" data-bs-toggle="tooltip" data-bs-title="Habilidades" aria-label="Gestionar habilidades de @item.Nombre">
-                                                    <i class="ti ti-stars fs-lg"></i>
-                                                </a>
-                                                <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
-                                                    <i class="ti ti-edit fs-lg"></i>
-                                                </a>
-                                                <form data-cargo-delete-form method="post">
-                                                    @Html.AntiForgeryToken()
-                                                    <input name="id" type="hidden" value="@item.Id" />
-                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
-                                                    <input name="search" type="hidden" value="@Model.Search" />
-                                                    <input name="sort" type="hidden" value="@Model.Sort" />
-                                                    <input name="status" type="hidden" value="@Model.Segmento" />
-                                                    <button aria-label="Eliminar @item.Nombre" class="btn btn-danger btn-icon btn-sm rounded-circle" data-cargo-delete-button data-cargo-item-name="@item.Nombre" data-cargo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
-                                                        <i class="ti ti-trash fs-lg"></i>
-                                                    </button>
-                                                </form>
+                                                @if (Model.EsAdministrador)
+                                                {
+                                                    <a class="btn btn-primary btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Habilidades", new { id = item.Id })" data-bs-toggle="tooltip" data-bs-title="Habilidades" aria-label="Gestionar habilidades de @item.Nombre">
+                                                        <i class="ti ti-stars fs-lg"></i>
+                                                    </a>
+                                                    <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Organizacion/Cargos/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Nombre">
+                                                        <i class="ti ti-edit fs-lg"></i>
+                                                    </a>
+                                                    <form data-cargo-delete-form method="post">
+                                                        @Html.AntiForgeryToken()
+                                                        <input name="id" type="hidden" value="@item.Id" />
+                                                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                        <input name="search" type="hidden" value="@Model.Search" />
+                                                        <input name="sort" type="hidden" value="@Model.Sort" />
+                                                        <input name="status" type="hidden" value="@Model.Segmento" />
+                                                        <button aria-label="Eliminar @item.Nombre" class="btn btn-danger btn-icon btn-sm rounded-circle" data-cargo-delete-button data-cargo-item-name="@item.Nombre" data-cargo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
+                                                            <i class="ti ti-trash fs-lg"></i>
+                                                        </button>
+                                                    </form>
+                                                }
                                             }
                                             else
                                             {
-                                                <form data-cargo-reactivate-form method="post">
-                                                    @Html.AntiForgeryToken()
-                                                    <input name="id" type="hidden" value="@item.Id" />
-                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
-                                                    <input name="search" type="hidden" value="@Model.Search" />
-                                                    <input name="sort" type="hidden" value="@Model.Sort" />
-                                                    <input name="status" type="hidden" value="@Model.Segmento" />
-                                                    <button aria-label="Reactivar @item.Nombre" class="btn btn-success btn-icon btn-sm rounded-circle" data-cargo-reactivate-button data-cargo-item-name="@item.Nombre" data-cargo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Reactivar" formaction="?handler=Reactivate" type="submit">
-                                                        <i class="ti ti-refresh fs-lg"></i>
-                                                    </button>
-                                                </form>
+                                                @if (Model.EsAdministrador)
+                                                {
+                                                    <form data-cargo-reactivate-form method="post">
+                                                        @Html.AntiForgeryToken()
+                                                        <input name="id" type="hidden" value="@item.Id" />
+                                                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                        <input name="search" type="hidden" value="@Model.Search" />
+                                                        <input name="sort" type="hidden" value="@Model.Sort" />
+                                                        <input name="status" type="hidden" value="@Model.Segmento" />
+                                                        <button aria-label="Reactivar @item.Nombre" class="btn btn-success btn-icon btn-sm rounded-circle" data-cargo-reactivate-button data-cargo-item-name="@item.Nombre" data-cargo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Reactivar" formaction="?handler=Reactivate" type="submit">
+                                                            <i class="ti ti-refresh fs-lg"></i>
+                                                        </button>
+                                                    </form>
+                                                }
                                             }
                                         </div>
                                     </td>

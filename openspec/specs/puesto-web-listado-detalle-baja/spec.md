@@ -24,7 +24,13 @@ Páginas Razor protegidas para listado y detalle de `Puestos` dentro del shell a
 - GIVEN un usuario autenticado abre `Puestos`
 - WHEN la página termina de cargar
 - THEN la tabla MUST mostrar puestos activos de `GET /api/v1/puestos`
-- AND cada fila MUST ofrecer `Detalle`, `Editar` y `Eliminar`.
+- AND cada fila MUST ofrecer `Detalle`, `Editar` y `Eliminar` solo para rol `Administrador`.
+
+#### Scenario: Usuario autenticado sin rol admin ve solo acciones readonly
+- GIVEN un usuario autenticado sin rol `Administrador` abre `Puestos`
+- WHEN la tabla termina de cargar
+- THEN la grilla MUST mantener `Detalle` y links readonly
+- AND MUST ocultar `Crear`, `Editar`, `Eliminar` y `Reactivar`.
 
 #### Scenario: Puesto superior como link con contexto
 - GIVEN un puesto activo con `PuestoSuperiorId` no nulo
@@ -39,6 +45,12 @@ Páginas Razor protegidas para listado y detalle de `Puestos` dentro del shell a
 ### Requirement: Baja lógica confirmada con feedback
 
 `Index` MUST pedir confirmación SweetAlert2 antes de la baja, MUST redirigir por PRG y MUST traducir rechazos a feedback claro.
+
+#### Scenario: POST no-admin rechazado
+- GIVEN un usuario autenticado sin rol `Administrador`
+- WHEN intenta `Delete` o `Reactivate` desde el listado
+- THEN el handler MUST responder mediante `Forbid()`
+- AND MUST NOT invocar la mutación contra la API.
 
 #### Scenario: Cancelación no elimina
 - GIVEN una fila activa visible

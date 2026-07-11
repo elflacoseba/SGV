@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Pages.Common;
@@ -69,6 +70,8 @@ public sealed class CreateModel(
         ReturnSort,
         ReturnStatus);
 
+    public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
     /// <summary>
     /// GET handler. Carga los tres catálogos en paralelo vía
     /// <c>Task.WhenAll</c>. Si cualquiera falla, se marca
@@ -76,19 +79,29 @@ public sealed class CreateModel(
     /// que sí llegaron se conservan; el form sigue visible para que el
     /// usuario pueda reintentar.
     /// </summary>
-    public async Task OnGetAsync(
+    public async Task<IActionResult> OnGetAsync(
         string? p = null,
         string? search = null,
         string? sort = null,
         string? status = null,
         CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            // Patrón canónico del repo (ver Habilidades.cshtml.cs): Forbid()
+            // delega al cookie scheme, que redirige a AccessDeniedPath
+            // ("/error/403" configurado en Program.cs). Es testeable y
+            // simétrico con los POST handlers del módulo.
+            return Forbid();
+        }
+
         ReturnPage = p ?? string.Empty;
         ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
         ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
         ReturnStatus = RouteValuesPreserver.NormalizeDeletedStatus(status) ?? string.Empty;
 
         await LoadCatalogsAsync(cancellationToken);
+        return Page();
     }
 
     /// <summary>
@@ -101,6 +114,11 @@ public sealed class CreateModel(
     /// </summary>
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
         if (!ModelState.IsValid)
         {
             await LoadCatalogsAsync(cancellationToken);

@@ -37,7 +37,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
             }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -69,7 +69,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
             NivelesException = new HttpRequestException("catalog down")
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -78,6 +78,17 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains("No se pudo cargar el catálogo", content, StringComparison.OrdinalIgnoreCase);
         // El form debe seguir visible para que el usuario pueda reintentar
         Assert.Contains($"name=\"{CargoFormKeys.CodigoKey}\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Create_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync(new FakeCargoApiClient());
+
+        var response = await client.GetAsync("/organizacion/cargos/crear");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────
@@ -95,7 +106,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
                 new CargoDto(newCargoId, "C-NEW", "Nuevo Cargo", "Desc", nivelId, "Junior"))
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -136,7 +147,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
                     "Ya existe un cargo activo con el código C-DUP."))
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -185,7 +196,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
     {
         var apiClient = new FakeCargoApiClient();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -213,7 +224,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
     {
         var apiClient = new FakeCargoApiClient();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -262,7 +273,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
     {
         var apiClient = new FakeCargoApiClient();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -317,7 +328,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
             }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -360,6 +371,28 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
     }
 
     [Fact]
+    public async Task Post_Create_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        var apiClient = new FakeCargoApiClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos/crear", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "C-DENY",
+            ["Input.Nombre"] = "Cargo Denegado",
+            ["Input.NivelId"] = CargoWebTestFixture.JuniorNivelId.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.CreateCalls);
+    }
+
+    [Fact]
     public async Task Post_Create_WhenTaskCanceledException_ReloadsCatalogAndShowsGeneralError()
     {
         var apiClient = new FakeCargoApiClient
@@ -371,7 +404,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
             }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -409,7 +442,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
             }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -451,7 +484,7 @@ public sealed class CargoCreatePageTests : IClassFixture<CargoWebTestFixture>
                 })
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos/crear");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);

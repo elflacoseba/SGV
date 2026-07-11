@@ -34,7 +34,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         var second = PuestoWebTestFixture.BuildPuestoDto("P-002", "Líder de Proyecto", null);
         var apiClient = FakePuestosApiClient.WithPuestoList(first, second);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/puestos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -89,7 +89,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         var apiClient = FakePuestosApiClient.WithPuestoList(
             PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/puestos?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -102,6 +102,41 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.DoesNotContain("data-bs-title=\"Editar\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-puesto-reactivate-form", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("formaction=\"?handler=Reactivate\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenAuthenticatedWithoutAdminRole_HidesAdminActions()
+    {
+        var first = PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", "Desc A");
+        var apiClient = FakePuestosApiClient.WithPuestoList(first);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/puestos");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"href=\"/organizacion/puestos/detalles/{first.Id}", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Crear puesto", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"href=\"/organizacion/puestos/editar/{first.Id}", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-puesto-delete-form", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenDeletedViewAndAuthenticatedWithoutAdminRole_HidesReactivateAction()
+    {
+        var apiClient = FakePuestosApiClient.WithPuestoList(
+            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null));
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/puestos?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Crear puesto", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-puesto-reactivate-form", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("formaction=\"?handler=Reactivate\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────────
@@ -254,7 +289,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         var apiClient = FakePuestosApiClient.WithPuestoList(toDelete, remaining);
         apiClient.DeleteResult = new PuestoDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/puestos?p=1&search=ana&sort=nombre_desc");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -303,7 +338,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
             Code: "PuestoEnOcupacion",
             Message: "El puesto tiene una ocupación activa.");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/puestos?search=conf&sort=codigo_asc");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -347,7 +382,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
             Code: "PuestoNoEncontrado",
             Message: "El puesto no existe.");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/puestos");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -369,6 +404,52 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Contains(puesto.Nombre, refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Post_Delete_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        var puesto = PuestoWebTestFixture.BuildPuestoDto("DENY-DEL", "Sin permisos", null, null);
+        var apiClient = FakePuestosApiClient.WithPuestoList(puesto);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/puestos");
+        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = puesto.Id.ToString(),
+            ["page"] = "1"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.DeleteCalls);
+    }
+
+    [Fact]
+    public async Task Post_Reactivate_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        var puesto = PuestoWebTestFixture.BuildPuestoDto("DENY-REACT", "Sin permisos", null, null);
+        var apiClient = FakePuestosApiClient.WithPuestoList(puesto);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/puestos");
+        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/puestos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = puesto.Id.ToString(),
+            ["page"] = "1"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.ReactivateCalls);
+    }
+
     // ──────────────────────────────────────────────────
     // Tarea 2.1.10: POST Reactivate éxito → Activas + LastDeletedId limpio
     // ──────────────────────────────────────────────────
@@ -383,7 +464,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
                 PuestoWebTestFixture.SampleUnidadOrganizativaId, "Ventas",
                 PuestoWebTestFixture.SampleCargoId, "Vendedor", null));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/puestos?status=eliminadas&search=react&sort=nombre_asc&deletedId=" + puesto.Id);
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -426,7 +507,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
             new PuestoError(PuestoErrorType.Conflict, "CodigoDuplicado",
                 "Ya existe un puesto activo con el mismo código."));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/puestos?status=eliminadas");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);

@@ -18,7 +18,7 @@
         <span>@Model.StatusMessage</span>
         @* PR 2 — Reactivar rápida desde banner: visible solo en Activas
            con un LastDeletedId persistido en TempData vía deletedId. *@
-        @if (Model.HasLastDeleted && !Model.IsDeletedView)
+        @if (Model.EsAdministrador && Model.HasLastDeleted && !Model.IsDeletedView)
         {
             <form method="post" class="d-inline">
                 @Html.AntiForgeryToken()
@@ -72,9 +72,18 @@
                               data-bs-title="Próximamente">Eliminadas</span>
                     </div>
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
-                    <a class="btn btn-primary btn-sm" href="/organizacion/puestos/crear">
-                        <i class="ti ti-plus me-1"></i>Crear puesto
-                    </a>
+                    @* Espejo del patrón de Cargos/Index.cshtml: el botón Crear
+                       NUNCA debe aparecer en la vista Eliminadas (regla
+                       REQ-CW-06 MUST NOT, simetría entre módulos). En el
+                       slice actual el toggle Eliminadas está deshabilitado
+                       como <span>, pero blindamos la condición para forward-
+                       compat cuando llegue el endpoint segmentado. *@
+                    @if (!Model.IsDeletedView && Model.EsAdministrador)
+                    {
+                        <a class="btn btn-primary btn-sm" href="/organizacion/puestos/crear">
+                            <i class="ti ti-plus me-1"></i>Crear puesto
+                        </a>
+                    }
                 </div>
             </div>
             <div class="card-header border-0">
@@ -187,53 +196,59 @@
                                                    aria-label="Detalle de @item.Nombre">
                                                     <i class="ti ti-eye fs-lg"></i>
                                                 </a>
-                                                <a class="btn btn-warning btn-icon btn-sm rounded-circle"
-                                                   href="@Url.Page("/Organizacion/Puestos/Edit", Model.BuildEditRouteValues(item.Id))"
-                                                   data-bs-toggle="tooltip" data-bs-title="Editar"
-                                                   aria-label="Editar @item.Nombre">
-                                                    <i class="ti ti-edit fs-lg"></i>
-                                                </a>
-                                                <form data-puesto-delete-form method="post">
-                                                    @Html.AntiForgeryToken()
-                                                    <input name="id" type="hidden" value="@item.Id" />
-                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
-                                                    <input name="search" type="hidden" value="@Model.Search" />
-                                                    <input name="sort" type="hidden" value="@Model.Sort" />
-                                                    <input name="status" type="hidden" value="@Model.Segmento" />
-                                                    <button aria-label="Eliminar @item.Nombre"
-                                                            class="btn btn-danger btn-icon btn-sm rounded-circle"
-                                                            data-puesto-delete-button
-                                                            data-puesto-item-name="@item.Nombre"
-                                                            data-puesto-item-code="@item.Codigo"
-                                                            data-bs-toggle="tooltip"
-                                                            data-bs-title="Eliminar"
-                                                            formaction="?handler=Delete"
-                                                            type="submit">
-                                                        <i class="ti ti-trash fs-lg"></i>
-                                                    </button>
-                                                </form>
+                                                @if (Model.EsAdministrador)
+                                                {
+                                                    <a class="btn btn-warning btn-icon btn-sm rounded-circle"
+                                                       href="@Url.Page("/Organizacion/Puestos/Edit", Model.BuildEditRouteValues(item.Id))"
+                                                       data-bs-toggle="tooltip" data-bs-title="Editar"
+                                                       aria-label="Editar @item.Nombre">
+                                                        <i class="ti ti-edit fs-lg"></i>
+                                                    </a>
+                                                    <form data-puesto-delete-form method="post">
+                                                        @Html.AntiForgeryToken()
+                                                        <input name="id" type="hidden" value="@item.Id" />
+                                                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                        <input name="search" type="hidden" value="@Model.Search" />
+                                                        <input name="sort" type="hidden" value="@Model.Sort" />
+                                                        <input name="status" type="hidden" value="@Model.Segmento" />
+                                                        <button aria-label="Eliminar @item.Nombre"
+                                                                class="btn btn-danger btn-icon btn-sm rounded-circle"
+                                                                data-puesto-delete-button
+                                                                data-puesto-item-name="@item.Nombre"
+                                                                data-puesto-item-code="@item.Codigo"
+                                                                data-bs-toggle="tooltip"
+                                                                data-bs-title="Eliminar"
+                                                                formaction="?handler=Delete"
+                                                                type="submit">
+                                                            <i class="ti ti-trash fs-lg"></i>
+                                                        </button>
+                                                    </form>
+                                                }
                                             }
                                             else
                                             {
-                                                <form data-puesto-reactivate-form method="post">
-                                                    @Html.AntiForgeryToken()
-                                                    <input name="id" type="hidden" value="@item.Id" />
-                                                    <input name="page" type="hidden" value="@Model.CurrentPage" />
-                                                    <input name="search" type="hidden" value="@Model.Search" />
-                                                    <input name="sort" type="hidden" value="@Model.Sort" />
-                                                    <input name="status" type="hidden" value="@Model.Segmento" />
-                                                    <button aria-label="Reactivar @item.Nombre"
-                                                            class="btn btn-success btn-icon btn-sm rounded-circle"
-                                                            data-puesto-reactivate-button
-                                                            data-puesto-item-name="@item.Nombre"
-                                                            data-puesto-item-code="@item.Codigo"
-                                                            data-bs-toggle="tooltip"
-                                                            data-bs-title="Reactivar"
-                                                            formaction="?handler=Reactivate"
-                                                            type="submit">
-                                                        <i class="ti ti-refresh fs-lg"></i>
-                                                    </button>
-                                                </form>
+                                                @if (Model.EsAdministrador)
+                                                {
+                                                    <form data-puesto-reactivate-form method="post">
+                                                        @Html.AntiForgeryToken()
+                                                        <input name="id" type="hidden" value="@item.Id" />
+                                                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                        <input name="search" type="hidden" value="@Model.Search" />
+                                                        <input name="sort" type="hidden" value="@Model.Sort" />
+                                                        <input name="status" type="hidden" value="@Model.Segmento" />
+                                                        <button aria-label="Reactivar @item.Nombre"
+                                                                class="btn btn-success btn-icon btn-sm rounded-circle"
+                                                                data-puesto-reactivate-button
+                                                                data-puesto-item-name="@item.Nombre"
+                                                                data-puesto-item-code="@item.Codigo"
+                                                                data-bs-toggle="tooltip"
+                                                                data-bs-title="Reactivar"
+                                                                formaction="?handler=Reactivate"
+                                                                type="submit">
+                                                            <i class="ti ti-refresh fs-lg"></i>
+                                                        </button>
+                                                    </form>
+                                                }
                                             }
                                         </div>
                                     </td>

@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Text.Json;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Seguridad;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Web.Pages.Organizacion.Cargos;
@@ -61,6 +62,8 @@ public sealed class EditModel(
         ReturnSearch,
         ReturnSort);
 
+    public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
     /// <summary>
     /// GET handler. Carga el cargo por id y el catálogo de niveles. Si el
     /// cargo no existe o la consulta falla, marca <see cref="IsRecoverable"/>
@@ -75,6 +78,15 @@ public sealed class EditModel(
         [FromQuery(Name = "sort")] string? sort = null,
         CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            // Patrón canónico del repo (ver Habilidades.cshtml.cs): Forbid()
+            // delega al cookie scheme, que redirige a AccessDeniedPath
+            // ("/error/403" configurado en Program.cs). Es testeable y
+            // simétrico con el POST handler de este mismo PageModel.
+            return Forbid();
+        }
+
         ReturnPage = Math.Max(1, page);
         ReturnSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         ReturnSort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
@@ -120,6 +132,11 @@ public sealed class EditModel(
         [FromQuery(Name = "sort")] string? sort = null,
         CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
         ReturnPage = Math.Max(1, page);
         ReturnSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         ReturnSort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
@@ -143,11 +160,7 @@ public sealed class EditModel(
         {
             result = await cargoApiClient.UpdateAsync(id, request, cancellationToken);
         }
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException ||
-            ex is OperationCanceledException)
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             // Transport-level failure (network down, timeout, malformed body).
             // Map to a recoverable error: keep user input, reload the catalog,
