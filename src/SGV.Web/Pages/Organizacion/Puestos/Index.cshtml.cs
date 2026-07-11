@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
@@ -57,10 +56,10 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
     public string? LoadErrorMessage { get; private set; }
 
     /// <summary>Mensaje de feedback tras una operación (baja lógica, reactivación).</summary>
-    public string? StatusMessage => PageFeedback.GetStatusMessage(TempData);
+    public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
 
     /// <summary>Tipo de feedback: <c>success</c> o <c>danger</c>.</summary>
-    public string StatusKind => PageFeedback.GetStatusKind(TempData);
+    public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
 
     /// <summary>
     /// Identificador del último puesto eliminado, persistido en TempData
@@ -95,7 +94,7 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
         // renderizar el CTA de reactivación rápida.
         if (deletedId.HasValue)
         {
-            PageFeedback.SetLastDeletedId(TempData, deletedId.Value);
+            TempData[nameof(LastDeletedId)] = deletedId.Value.ToString();
         }
 
         await LoadAsync(cancellationToken);
@@ -118,7 +117,8 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
 
         if (result.Succeeded)
         {
-            PageFeedback.SetSuccess(TempData, "El puesto se eliminó correctamente.");
+            TempData[nameof(StatusMessage)] = "El puesto se eliminó correctamente.";
+            TempData[nameof(StatusKind)] = "success";
 
             // Propagar el id del puesto eliminado en el PRG para que el
             // siguiente GET pueda persistirlo en TempData y renderizar el
@@ -140,7 +140,8 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
                 ? "El puesto ya no está disponible."
                 : "No se pudo eliminar el puesto. Intentá nuevamente.";
 
-        PageFeedback.SetDanger(TempData, message);
+        TempData[nameof(StatusMessage)] = message;
+        TempData[nameof(StatusKind)] = "danger";
 
         return RedirectToPage("/Organizacion/Puestos/Index", new
         {
@@ -168,7 +169,8 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
 
         if (result.IsSuccess)
         {
-            PageFeedback.SetSuccess(TempData, "El puesto se reactivó correctamente.");
+            TempData[nameof(StatusMessage)] = "El puesto se reactivó correctamente.";
+            TempData[nameof(StatusKind)] = "success";
 
             // Limpiar el LastDeletedId tras una reactivación exitosa para
             // que el banner ya no ofrezca el CTA.
@@ -194,7 +196,8 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
             _ => "No se pudo reactivar el puesto. Intentá nuevamente."
         };
 
-        PageFeedback.SetDanger(TempData, message);
+        TempData[nameof(StatusMessage)] = message;
+        TempData[nameof(StatusKind)] = "danger";
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
             TempData["ErrorCode"] = errorCode;
@@ -312,7 +315,15 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
         // Razor pueda renderizar el CTA. El getter inline del Razor y esta
         // propiedad quedan sincronizados para que ambas vistas (OnGet/OnPost)
         // accedan al mismo valor persistido.
-        LastDeletedId = PageFeedback.GetLastDeletedId(TempData);
+        var rawLastDeleted = TempData[nameof(LastDeletedId)] as string;
+        if (Guid.TryParse(rawLastDeleted, out var parsedDeleted))
+        {
+            LastDeletedId = parsedDeleted;
+        }
+        else
+        {
+            LastDeletedId = null;
+        }
 
         try
         {
@@ -383,7 +394,11 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
         LoadErrorMessage = "No se pudo cargar el listado de puestos. Intentá nuevamente.";
     }
 
-    private void ClearLastDeleted() => PageFeedback.ClearLastDeletedId(TempData);
+    private void ClearLastDeleted()
+    {
+        TempData.Remove(nameof(LastDeletedId));
+        LastDeletedId = null;
+    }
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
