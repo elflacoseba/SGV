@@ -180,7 +180,7 @@ Ante la duda, generar **menos** tests, pero que sean significativos, mantenibles
   4. Si cae al stub `127.0.0.1:1` (sin configuración y sin MySQL), los `[MySqlFact]` se skipean limpio (146 tests).
 - Si tu MySQL local usa otro puerto, usuario o password, seteá `ConnectionStrings__SgvDatabase` en la shell antes de `dotnet test`.
 - El factory de producción (`SgvDbContextFactory`) **no usa estos defaults**: tira `InvalidOperationException` si no hay configuración, forzando al developer a usar `dotnet user-secrets` o env var en CI.
-- **Bug conocido (issue #59):** 12 tests de `OcupacionRepositoryTests` fallan contra MySQL real por un bug de tipo en la migración inicial (`ActivePuestoIdUnique INT` incompatible con `PuestoId CHAR(36)`). Pendiente de SDD change.
+- Cerrado por change archivado `2026-07-11-fix-active-puesto-id-unique-type` (migración `FixActivePuestoIdUniqueType`).
 
 ## Decisiones Técnicas que NO conviene romper
 
