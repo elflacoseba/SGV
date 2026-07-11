@@ -258,15 +258,19 @@ public sealed class ModeloPersistenciaTests
 
             // Forward-only migrations intentionally throw NotSupportedException
             // from Down() to block rollback. The exception is the contract,
-            // not a regression.
+            // not a regression. We verify the message contains the expected
+            // sentinel ("forward-only" or "Migración forward-only") to distinguish
+            // intentional forward-only design from accidental NotSupportedException
+            // leaks (e.g. from a bug in Down()).
             try
             {
                 Assert.NotNull(instance.DownOperations);
             }
-            catch (NotSupportedException)
+            catch (NotSupportedException ex) when (
+                ex.Message.Contains("forward-only", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("Migración forward-only", StringComparison.OrdinalIgnoreCase))
             {
-                // Forward-only: Down() must throw NotSupportedException,
-                // which is the documented contract for these migrations.
+                // Forward-only by design: the sentinel phrase confirms intent.
             }
         }
     }

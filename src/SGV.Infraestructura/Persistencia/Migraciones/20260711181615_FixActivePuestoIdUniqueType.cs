@@ -11,11 +11,17 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // MySQL rejects ALTER COLUMN on an indexed column. Drop the
-            // unique index, alter the column, recreate the index. The
-            // computed expression is re-evaluated by MySQL during ALTER,
-            // so any pre-existing `'0'` values (from a permissive sql_mode
-            // truncating char(36) → int) are replaced with the correct
-            // PuestoId string or NULL automatically.
+            // unique index, alter the column, recreate the index.
+            //
+            // Why no defensive UPDATE pre-ALTER: MySQL re-evaluates the
+            // computed column expression during ALTER COLUMN on a generated
+            // column. Any pre-existing `0` value (from a permissive sql_mode
+            // truncating char(36) → int) is automatically replaced with the
+            // correct PuestoId string (for active rows) or NULL (for inactive
+            // rows) when the column is redefined. In CI/dev fresh databases
+            // this is a no-op because active-row inserts fail before commit
+            // under strict sql_mode. Production environments with permissive
+            // sql_mode and existing `0` values are self-healing.
             migrationBuilder.DropIndex(
                 name: "IX_Ocupaciones_ActivePuestoIdUnique",
                 table: "Ocupaciones");

@@ -72,12 +72,27 @@ public sealed class OcupacionGeneratedColumnRegressionTests
         }
         finally
         {
-            context.Set<OcupacionEntity>().Remove(entity);
-            context.Set<PuestoEntity>().Remove(puesto);
-            context.Set<CargoEntity>().Remove(cargo);
-            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
-            context.Set<PersonaEntity>().Remove(persona);
-            await context.SaveChangesAsync();
+            // Best-effort cleanup. If the connection is broken (test failed
+            // mid-flight, MySQL shutdown, etc.) the cleanup SaveChangesAsync
+            // would throw and mask the original assertion failure. Swallow
+            // cleanup exceptions and log them so the test result reflects the
+            // assertion, not the cleanup.
+            try
+            {
+                context.Set<OcupacionEntity>().Remove(entity);
+                context.Set<PuestoEntity>().Remove(puesto);
+                context.Set<CargoEntity>().Remove(cargo);
+                context.Set<UnidadOrganizativaEntity>().Remove(unidad);
+                context.Set<PersonaEntity>().Remove(persona);
+                await context.SaveChangesAsync();
+            }
+            catch (Exception cleanupEx)
+            {
+                // Surface the cleanup failure but don't override the test result.
+                // In CI, this appears as a warning in the test log.
+                Console.WriteLine(
+                    $"[Cleanup Warning] Failed to remove test data: {cleanupEx.Message}");
+            }
         }
     }
 }
