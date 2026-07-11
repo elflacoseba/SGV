@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
 
@@ -72,12 +71,12 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
     /// <summary>
     /// Mensaje de feedback tras una operación (baja lógica, reactivación).
     /// </summary>
-    public string? StatusMessage => PageFeedback.GetStatusMessage(TempData);
+    public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
 
     /// <summary>
     /// Tipo de feedback: <c>success</c> o <c>danger</c>.
     /// </summary>
-    public string StatusKind => PageFeedback.GetStatusKind(TempData);
+    public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
 
     /// <summary>
     /// Identificador del último cargo eliminado, persistido en TempData
@@ -115,7 +114,7 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         // con el patrón de Unidades Organizativas.
         if (deletedId.HasValue)
         {
-            PageFeedback.SetLastDeletedId(TempData, deletedId.Value);
+            TempData[nameof(LastDeletedId)] = deletedId.Value.ToString();
         }
 
         await LoadAsync(cancellationToken);
@@ -139,7 +138,8 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         if (result.Succeeded)
         {
             var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, normalizedSegmento, cancellationToken);
-            PageFeedback.SetSuccess(TempData, "El cargo se eliminó correctamente.");
+            TempData[nameof(StatusMessage)] = "El cargo se eliminó correctamente.";
+            TempData[nameof(StatusKind)] = "success";
 
             // REQ-CW-06: propagar el id del cargo eliminado en el PRG para
             // que el siguiente GET pueda persistirlo en TempData y renderizar
@@ -153,7 +153,8 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
                 ? "El cargo ya no está disponible."
                 : "No se pudo eliminar el cargo. Intentá nuevamente.";
 
-        PageFeedback.SetDanger(TempData, message);
+        TempData[nameof(StatusMessage)] = message;
+        TempData[nameof(StatusKind)] = "danger";
 
         return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
     }
@@ -175,7 +176,8 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
 
         if (result.IsSuccess)
         {
-            PageFeedback.SetSuccess(TempData, "El cargo se reactivó correctamente.");
+            TempData[nameof(StatusMessage)] = "El cargo se reactivó correctamente.";
+            TempData[nameof(StatusKind)] = "success";
 
             // REQ-CW-06: limpiar el LastDeletedId tras una reactivación
             // exitosa para que el banner ya no ofrezca el CTA.
@@ -194,7 +196,8 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
             _ => "No se pudo reactivar el cargo. Intentá nuevamente."
         };
 
-        PageFeedback.SetDanger(TempData, message);
+        TempData[nameof(StatusMessage)] = message;
+        TempData[nameof(StatusKind)] = "danger";
         if (!string.IsNullOrWhiteSpace(errorCode))
         {
             TempData["ErrorCode"] = errorCode;
@@ -272,7 +275,15 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         // del Razor pueda renderizar el CTA. El getter inline del Razor
         // y esta propiedad quedan sincronizados para que ambas vistas
         // (OnGet/OnPost) accedan al mismo valor persistido.
-        LastDeletedId = PageFeedback.GetLastDeletedId(TempData);
+        var rawLastDeleted = TempData[nameof(LastDeletedId)] as string;
+        if (Guid.TryParse(rawLastDeleted, out var parsedDeleted))
+        {
+            LastDeletedId = parsedDeleted;
+        }
+        else
+        {
+            LastDeletedId = null;
+        }
 
         try
         {
@@ -303,7 +314,11 @@ public sealed class IndexModel(ICargoApiClient cargoApiClient, ILogger<IndexMode
         }
     }
 
-    private void ClearLastDeleted() => PageFeedback.ClearLastDeletedId(TempData);
+    private void ClearLastDeleted()
+    {
+        TempData.Remove(nameof(LastDeletedId));
+        LastDeletedId = null;
+    }
 
     private async Task<int> ResolveRedirectPageAsync(
         int currentPage,
