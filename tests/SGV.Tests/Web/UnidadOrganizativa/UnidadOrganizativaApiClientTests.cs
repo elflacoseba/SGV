@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 using RecordingHandler = SGV.Tests.Web._Shared.HttpClientExceptionScenarios.RecordingHandler;
@@ -68,6 +69,66 @@ public class UnidadOrganizativaApiClientTests
         Assert.Equal("NoAutorizado", result.Error.Code);
         Assert.Equal("El token expiró.", result.Error.Message);
     }
+
+    [Fact]
+    public async Task GetAllActivasAsync_WhenCatalogSpansMultiplePages_ReturnsAllItemsUntilTotalCount()
+    {
+        var first = NewDto("UO-001", "Rectorado");
+        var second = NewDto("UO-002", "Talento");
+        var third = NewDto("UO-003", "Finanzas");
+        var requests = new List<Uri>();
+        var handler = new RecordingHandler(request =>
+        {
+            requests.Add(request.RequestUri!);
+            var page = int.Parse(System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query)["page"]!);
+            var payload = page switch
+            {
+                1 => new PagedResult<UnidadOrganizativaDto>([first, second], 3, 1, 2),
+                2 => new PagedResult<UnidadOrganizativaDto>([third], 3, 2, 2),
+                _ => new PagedResult<UnidadOrganizativaDto>([], 3, page, 2)
+            };
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(payload)
+            };
+        });
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        var result = await client.GetAllActivasAsync(pageSize: 2);
+
+        Assert.Equal([first.Id, second.Id, third.Id], result.Select(item => item.Id).ToArray());
+        Assert.Equal(2, requests.Count);
+        Assert.All(requests, uri => Assert.Equal("/api/v1/unidades-organizativas/consulta", uri.AbsolutePath));
+        Assert.Contains("page=1", requests[0].Query, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pageSize=2", requests[0].Query, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("status=activas", requests[0].Query, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("page=2", requests[1].Query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetAllActivasAsync_WhenServerReturnsEmptyPageBeforeTotalCount_StopsToAvoidInfiniteLoop()
+    {
+        var requests = new List<Uri>();
+        var handler = new RecordingHandler(request =>
+        {
+            requests.Add(request.RequestUri!);
+            var payload = new PagedResult<UnidadOrganizativaDto>([], 10, 1, 50);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(payload)
+            };
+        });
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        var result = await client.GetAllActivasAsync(pageSize: 50);
+
+        Assert.Empty(result);
+        Assert.Single(requests);
+    }
+
+    private static UnidadOrganizativaDto NewDto(string codigo, string nombre) =>
+        new(Guid.NewGuid(), codigo, nombre, Guid.NewGuid(), "Dirección", null, null, null, null, null, null);
 
     private static CrearUnidadOrganizativaRequest NewRequest() =>
         new("UO-001", "Dirección General", Guid.NewGuid());

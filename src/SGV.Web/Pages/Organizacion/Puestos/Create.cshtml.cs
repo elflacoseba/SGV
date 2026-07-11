@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Text.Json;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
@@ -45,9 +45,9 @@ public sealed class CreateModel(
     /// propiedad queda pública para que la vista pueda renderizar el
     /// mensaje de feedback tras un redirect del propio Create.
     /// </summary>
-    public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
+    public string? StatusMessage => PageFeedback.GetStatusMessage(TempData);
 
-    public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
+    public string StatusKind => PageFeedback.GetStatusKind(TempData);
 
     [BindProperty]
     public string? ReturnPage { get; set; }
@@ -124,11 +124,7 @@ public sealed class CreateModel(
         {
             result = await puestosApiClient.CreateAsync(request, cancellationToken);
         }
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException ||
-            ex is OperationCanceledException)
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex, includeOperationCanceled: true))
         {
             // Transport-level failure (network down, timeout, malformed
             // body). El usuario podrá reintentar conservando su input.
@@ -141,10 +137,13 @@ public sealed class CreateModel(
 
         if (result.IsSuccess && result.Value is not null)
         {
-            TempData[nameof(StatusMessage)] = $"El puesto \"{result.Value.Nombre}\" se creó correctamente.";
-            TempData[nameof(StatusKind)] = "success";
+            PageFeedback.SetSuccess(TempData, $"El puesto \"{result.Value.Nombre}\" se creó correctamente.");
 
-            var routeValues = BuildListRouteValues();
+            var routeValues = RouteValuesPreserver.BuildListRouteValues(
+                ParseReturnPage(),
+                ReturnSearch,
+                ReturnSort,
+                ReturnStatus);
             return RedirectToPage("/Organizacion/Puestos/Index", routeValues);
         }
 
@@ -168,32 +167,8 @@ public sealed class CreateModel(
         return Page();
     }
 
-    /// <summary>
-    /// Construye los route values del redirect PRG hacia el listado.
-    /// Mantiene <c>p</c>/<c>search</c>/<c>sort</c>/<c>status</c> sólo
-    /// cuando tienen valor para no contaminar el URL.
-    /// </summary>
-    private object BuildListRouteValues()
-    {
-        var routeValues = new Dictionary<string, object?>();
-        if (!string.IsNullOrWhiteSpace(ReturnPage) && int.TryParse(ReturnPage, out var page) && page > 1)
-        {
-            routeValues["p"] = page;
-        }
-        if (!string.IsNullOrWhiteSpace(ReturnSearch))
-        {
-            routeValues["search"] = ReturnSearch;
-        }
-        if (!string.IsNullOrWhiteSpace(ReturnSort))
-        {
-            routeValues["sort"] = ReturnSort;
-        }
-        if (string.Equals(ReturnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase))
-        {
-            routeValues["status"] = "eliminadas";
-        }
-        return routeValues;
-    }
+    private int ParseReturnPage() =>
+        int.TryParse(ReturnPage, out var page) ? Math.Max(1, page) : 1;
 
     /// <summary>
     /// Carga los tres catálogos en paralelo vía <c>Task.WhenAll</c>.
@@ -211,14 +186,7 @@ public sealed class CreateModel(
         ErrorMessage = null;
         var anyFailure = false;
 
-        // TODO: IUnidadOrganizativaApiClient no expone GetAllAsync(), por eso
-        // usamos QueryAsync con pageSize=200 como workaround. Si el backend
-        // implementa paginación real con pageSize menor, el dropdown de Create
-        // se truncará silenciosamente. Seguimiento: exponer GetAllAsync() en el
-        // interface o al menos un query con pageSize configurable.
-        var unidadesTask = PuestoFormHelpers.LaunchSafeAsync(() => unidadOrganizativaApiClient.QueryAsync(
-            new UnidadOrganizativaListQuery(1, 200, null, null, "activas"),
-            cancellationToken));
+        var unidadesTask = PuestoFormHelpers.LaunchSafeAsync(() => unidadOrganizativaApiClient.GetAllActivasAsync(cancellationToken: cancellationToken));
         var cargosTask = PuestoFormHelpers.LaunchSafeAsync(() => cargoApiClient.GetAllAsync(cancellationToken));
         var puestosTask = PuestoFormHelpers.LaunchSafeAsync(() => puestosApiClient.GetAllAsync(cancellationToken));
 
@@ -235,7 +203,7 @@ public sealed class CreateModel(
 
         if (unidadesTask.Status == TaskStatus.RanToCompletion)
         {
-            UnidadOrganizativaOptions = unidadesTask.Result.Items;
+            UnidadOrganizativaOptions = unidadesTask.Result;
         }
         else
         {
