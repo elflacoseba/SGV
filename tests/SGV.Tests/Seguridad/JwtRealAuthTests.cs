@@ -76,4 +76,27 @@ public sealed class JwtRealAuthTests
         var protectedResponse = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Unauthorized, protectedResponse.StatusCode);
     }
+
+    [MySqlFact]
+    public async Task TokenExpirado_DentroDelClockSkewDefault_Rechazado_401()
+    {
+        using var factory = new JwtRealWebApplicationFactory(signingKey: TestKeys.Host);
+        await factory.InitializeAsync();
+        using var client = factory.CreateClient();
+
+        var expired = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
+            issuer: "SGV",
+            audience: "SGV",
+            claims: [new Claim(JwtRegisteredClaimNames.Sub, "admin")],
+            expires: DateTime.UtcNow.AddMinutes(-1),
+            signingCredentials: new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestKeys.Host)),
+                SecurityAlgorithms.HmacSha256)));
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, UsuariosRelative);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", expired);
+
+        var protectedResponse = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Unauthorized, protectedResponse.StatusCode);
+    }
 }

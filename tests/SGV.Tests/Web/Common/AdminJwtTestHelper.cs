@@ -7,50 +7,86 @@ using SGV.Contracts.Seguridad;
 namespace SGV.Tests.Web.Common;
 
 /// <summary>
-/// Helper compartido por los <see cref="IClassFixture{TFixture}"/> web de los
-/// módulos que requieren autenticar con rol <see cref="RolesSgv.Administrador"/>
-/// durante los tests de integración (Cargo, Puesto, futuros Habilidad/Persona,
-/// etc.).
-/// Centraliza la generación del JWT firmado con un HMAC dummy para evitar
-/// duplicación literal entre fixtures y para que el comentario justificando
-/// la no-validación de firma viva en un solo lugar.
+/// Helper compartido por los <see cref="IClassFixture{TFixture}"/> web que
+/// necesitan tokens JWT válidos durante tests de integración.
 /// </summary>
 public static class AdminJwtTestHelper
 {
     /// <summary>
-    /// Clave HMAC dummy usada para firmar el JWT del "admin" en los tests.
-    /// Es fija (no la rotamos entre tests) y NO corresponde a la clave real
-    /// de <c>JwtOptions</c>: <see cref="SGV.Web.Integration.Auth.AuthSessionFactory.TryAddTokenClaims"/>
-    /// sólo lee los claims del JWT, no valida la firma. El HMAC es suficiente
-    /// para que <c>JwtSecurityTokenHandler.WriteToken</c> produzca un token con
-    /// la estructura canónica (header.payload.signature).
+    /// Test key aligned with the development placeholder configured by SGV.Web.
     /// </summary>
-    private const string AdminFixtureSigningKey =
-        "sgv-tests-fixture-admin-jwt-signing-key-32bytes-long-enough";
+    /// <summary>
+    /// Test signing key aligned with the development placeholder configured
+    /// by both <c>SGV.Api</c> and <c>SGV.Web</c>. Tokens signed with this
+    /// key will pass validation in test fixtures.
+    /// </summary>
+    public const string SigningKey = "DEV-PLACEHOLDER-DO-NOT-USE-IN-PROD-0000000000000000";
 
     /// <summary>
-    /// Genera un JWT firmado con HMAC-SHA256 que incluye el claim
-    /// <see cref="ClaimTypes.Role"/> con valor <see cref="RolesSgv.Administrador"/>.
-    /// El issuer/audience coinciden con los configurados en <c>JwtOptions</c>
-    /// para que, si en el futuro <see cref="SGV.Web.Integration.Auth.AuthSessionFactory"/>
-    /// pasara a validar issuer/audience, este token siga siendo aceptado.
+    /// Issuer expected by <c>JwtTokenValidationParameters</c>.
     /// </summary>
-    public static string BuildAdminRoleJwt()
+    public const string Issuer = "SGV";
+
+    /// <summary>
+    /// Audience expected by <c>JwtTokenValidationParameters</c>.
+    /// </summary>
+    public const string Audience = "SGV";
+
+    /// <summary>
+    /// A signing key different from <see cref="SigningKey"/>. Use this when
+    /// a test must produce a token whose signature will be rejected,
+    /// verifying that <c>AuthSessionFactory</c> correctly fails validation
+    /// for tokens signed with an unknown key.
+    /// </summary>
+    public const string InvalidSigningKey = "FOREIGN-TEST-KEY-DO-NOT-USE-IN-PROD-0000000000000000";
+
+    /// <summary>
+    /// Builds a JWT signed with HMAC-SHA256 without an administrator role.
+    /// </summary>
+    public static string BuildUserJwt(
+        string signingKey = SigningKey,
+        string issuer = Issuer,
+        string audience = Audience,
+        DateTime? expires = null)
+        => BuildJwt(includeAdminRole: false, signingKey, issuer, audience, expires);
+
+    /// <summary>
+    /// Builds a JWT signed with HMAC-SHA256 that includes the
+    /// <see cref="ClaimTypes.Role"/> con valor <see cref="RolesSgv.Administrador"/>.
+    /// </summary>
+    public static string BuildAdminRoleJwt(
+        string signingKey = SigningKey,
+        string issuer = Issuer,
+        string audience = Audience,
+        DateTime? expires = null)
+        => BuildJwt(includeAdminRole: true, signingKey, issuer, audience, expires);
+
+    private static string BuildJwt(
+        bool includeAdminRole,
+        string signingKey,
+        string issuer,
+        string audience,
+        DateTime? expires)
     {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(AdminFixtureSigningKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, "admin-test"),
+            new(ClaimTypes.NameIdentifier, "admin-test"),
+            new(ClaimTypes.Name, "admin")
+        };
+
+        if (includeAdminRole)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, RolesSgv.Administrador));
+        }
 
         var token = new JwtSecurityToken(
-            issuer: "sgv-tests",
-            audience: "sgv-web",
-            claims:
-            [
-                new Claim(JwtRegisteredClaimNames.Sub, "admin-test"),
-                new Claim(ClaimTypes.NameIdentifier, "admin-test"),
-                new Claim(ClaimTypes.Name, "admin"),
-                new Claim(ClaimTypes.Role, RolesSgv.Administrador)
-            ],
-            expires: DateTime.UtcNow.AddHours(1),
+            issuer: issuer,
+            audience: audience,
+            claims: claims,
+            expires: expires ?? DateTime.UtcNow.AddHours(1),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

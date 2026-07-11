@@ -1,15 +1,22 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
 
 namespace SGV.Web.Pages.Auth;
 
-public sealed class SignInModel(IAuthApiClient authApiClient, ILogger<SignInModel> logger) : PageModel
+public sealed class SignInModel(
+    IAuthApiClient authApiClient,
+    IOptions<JwtOptions> jwtOptions,
+    ILogger<SignInModel> logger) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -34,7 +41,25 @@ public sealed class SignInModel(IAuthApiClient authApiClient, ILogger<SignInMode
             return Page();
         }
 
-        var principal = AuthSessionFactory.CreatePrincipal(logger, request, response);
+        if (string.IsNullOrWhiteSpace(response.AccessToken))
+        {
+            logger.LogWarning("SGV.Api returned an empty access token.");
+            ModelState.AddModelError(string.Empty, "No se pudo validar la sesión de autenticación.");
+            return Page();
+        }
+
+        ClaimsPrincipal principal;
+        try
+        {
+            principal = AuthSessionFactory.CreatePrincipal(logger, jwtOptions.Value, request, response);
+        }
+        catch (SecurityTokenException ex)
+        {
+            logger.LogWarning(ex, "SGV.Api returned an access token that SGV.Web could not validate.");
+            ModelState.AddModelError(string.Empty, "No se pudo validar la sesión de autenticación.");
+            return Page();
+        }
+
         var properties = AuthSessionFactory.CreateProperties(response);
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);

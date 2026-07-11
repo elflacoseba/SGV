@@ -1,4 +1,4 @@
-namespace SGV.Infraestructura.Seguridad;
+namespace SGV.Contracts.Seguridad;
 
 public sealed class JwtOptions
 {

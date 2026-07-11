@@ -28,7 +28,7 @@ public sealed partial class UnidadOrganizativaWebTests
         var authHandler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
+                Content = JsonContent.Create(new LoginResponse(SGV.Tests.Web.Common.AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
             });
 
         var factory = new SgvWebApplicationFactory().WithOverrides(

@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
@@ -15,6 +17,13 @@ builder.Services
     .BindConfiguration(SgvApiOptions.SectionName)
     .Validate(options => Uri.IsWellFormedUriString(options.BaseUrl, UriKind.Absolute),
         $"{SgvApiOptions.SectionName}:BaseUrl must be an absolute URI")
+    .ValidateOnStart();
+builder.Services
+    .AddOptions<JwtOptions>()
+    .BindConfiguration(JwtOptions.SectionName)
+    .Validate(o => !string.IsNullOrWhiteSpace(o.SigningKey)
+                   && Encoding.UTF8.GetByteCount(o.SigningKey) >= 32,
+        "Jwt:SigningKey must be configured and ≥32 UTF-8 bytes")
     .ValidateOnStart();
 
 builder.Services

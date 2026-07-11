@@ -123,7 +123,7 @@ public sealed class PuestoWebTestFixture : IDisposable
         FakePuestosApiClient puestosFake,
         bool adminRole)
     {
-        var accessToken = adminRole ? AdminJwtTestHelper.BuildAdminRoleJwt() : "token-123";
+        var accessToken = adminRole ? AdminJwtTestHelper.BuildAdminRoleJwt() : AdminJwtTestHelper.BuildUserJwt();
 
         var authHandler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)

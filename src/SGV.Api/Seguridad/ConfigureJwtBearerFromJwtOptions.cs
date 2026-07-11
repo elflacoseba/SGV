@@ -1,15 +1,14 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using SGV.Infraestructura.Seguridad;
+using SGV.Contracts.Seguridad;
 
 namespace SGV.Api.Seguridad;
 
 /// <summary>
-/// Defers the construction of <see cref="TokenValidationParameters"/> for
+/// Defers the construction of bearer token validation parameters for
 /// <see cref="JwtBearerOptions"/> until DI resolves the validated
-/// <see cref="JwtOptions"/>.
+/// <see cref="JwtOptions"/>. The actual parameters are built by
+/// <see cref="JwtTokenValidationParameters"/>.
 ///
 /// The previous wiring captured <c>IConfiguration</c> via closure at
 /// <c>Program</c> registration time, sealing the signing key on a snapshot
@@ -31,16 +30,6 @@ internal sealed class ConfigureJwtBearerFromJwtOptions(
             return;
         }
 
-        var jwt = options.Value;
-        bearer.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwt.Issuer,
-            ValidAudience = jwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
-        };
+        bearer.TokenValidationParameters = JwtTokenValidationParameters.Create(options.Value);
     }
 }

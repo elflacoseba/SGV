@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using SGV.Aplicacion;
 using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Seguridad;
 using SGV.Infraestructura;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Seguridad;

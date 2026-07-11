@@ -3,15 +3,21 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
+using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Web.Integration.Auth;
 
 internal static class AuthSessionFactory
 {
-    public static ClaimsPrincipal CreatePrincipal(ILogger logger, LoginRequest request, LoginResponse response)
+    private static TokenValidationParameters? _cachedValidationParameters;
+    private static readonly object _cacheLock = new();
+
+    public static ClaimsPrincipal CreatePrincipal(ILogger logger, JwtOptions jwtOptions, LoginRequest request, LoginResponse response)
     {
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(jwtOptions);
 
         var claims = new List<Claim>
         {
@@ -19,7 +25,7 @@ internal static class AuthSessionFactory
             new(ClaimTypes.Name, request.UserNameOrEmail)
         };
 
-        TryAddTokenClaims(logger, response.AccessToken, claims);
+        AddValidatedTokenClaims(logger, jwtOptions, response.AccessToken, claims);
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         return new ClaimsPrincipal(identity);
@@ -43,30 +49,34 @@ internal static class AuthSessionFactory
         return properties;
     }
 
-    private static void TryAddTokenClaims(ILogger logger, string accessToken, ICollection<Claim> claims)
+    private static void AddValidatedTokenClaims(ILogger logger, JwtOptions jwtOptions, string accessToken, ICollection<Claim> claims)
     {
-        try
+        var validationParameters = GetOrCreateValidationParameters(jwtOptions);
+        var principal = new JwtSecurityTokenHandler().ValidateToken(accessToken, validationParameters, out _);
+
+        foreach (var claim in principal.Claims)
         {
-            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
-
-            foreach (var claim in jwt.Claims)
+            if (claims.Any(existing => existing.Type == claim.Type && existing.Value == claim.Value))
             {
-                if (claims.Any(existing => existing.Type == claim.Type && existing.Value == claim.Value))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                claims.Add(new Claim(claim.Type, claim.Value));
+            claims.Add(new Claim(claim.Type, claim.Value));
+        }
+
+        logger.LogDebug("Access token validated successfully for web cookie session creation.");
+    }
+
+    private static TokenValidationParameters GetOrCreateValidationParameters(JwtOptions jwtOptions)
+    {
+        if (_cachedValidationParameters is null)
+        {
+            lock (_cacheLock)
+            {
+                _cachedValidationParameters ??= JwtTokenValidationParameters.Create(jwtOptions);
             }
         }
-        catch (Exception ex)
-        {
-            // Opaque tokens are acceptable in tests; keep the session usable.
-            // Still surface the parse failure so admins aren't silently
-            // downgraded — without role claims, every Authorize(Roles=...)
-            // gate will deny until the user logs in again to obtain a parseable
-            // access token.
-            logger.LogWarning(ex, "Failed to parse access token claims; admin role checks may fail until re-login.");
-        }
+
+        return _cachedValidationParameters;
     }
 }
