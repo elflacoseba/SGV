@@ -53,7 +53,24 @@ public sealed class SignInModel(
         {
             principal = AuthSessionFactory.CreatePrincipal(logger, jwtOptions.Value, request, response);
         }
-        catch (SecurityTokenException ex)
+        // Cubre las tres familias de excepciones que JwtSecurityTokenHandler.ValidateToken
+        // puede emitir en Microsoft.IdentityModel.Tokens 8.x cuando recibe un access_token
+        // que no puede validar:
+        //   - SecurityTokenException y subclases (validation: firma, issuer, audience, expiración).
+        //   - SecurityTokenArgumentException y subclases (input malformado: "JWT must have
+        //     three segments", carácter inválido, etc.). Esta rama es independiente de
+        //     SecurityTokenException en 8.x porque Microsoft movió las excepciones de
+        //     argumento bajo ArgumentException.
+        //   - ArgumentException plano (encoding errors: Base64Url decode failures sobre
+        //     segmentos con bytes no-base64). Esta rama no es SecurityTokenArgumentException
+        //     porque el decoder falla antes de que el handler clasifique el error.
+        // Las dos fuentes legítimas de ArgumentException dentro de AuthSessionFactory.CreatePrincipal
+        // son ArgumentNullException.ThrowIfNull(logger/jwtOptions) — que en runtime normal
+        // no se disparan porque ambos vienen de DI con ValidateOnStart — y el JWT validator.
+        // Aceptamos el riesgo de capturar ArgumentException aquí a cambio de no devolver 500
+        // ante un access_token corrupto de la API (proxy, baseUrl incorrecto, respuesta
+        // no-JSON de un balanceador).
+        catch (Exception ex) when (ex is SecurityTokenException or SecurityTokenArgumentException or ArgumentException)
         {
             logger.LogWarning(ex, "SGV.Api returned an access token that SGV.Web could not validate.");
             ModelState.AddModelError(string.Empty, "No se pudo validar la sesión de autenticación.");
