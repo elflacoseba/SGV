@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Logging;
@@ -12,6 +11,9 @@ namespace SGV.Web.Integration.Auth;
 
 internal static class AuthSessionFactory
 {
+    private static TokenValidationParameters? _cachedValidationParameters;
+    private static readonly object _cacheLock = new();
+
     public static ClaimsPrincipal CreatePrincipal(ILogger logger, JwtOptions jwtOptions, LoginRequest request, LoginResponse response)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -49,18 +51,7 @@ internal static class AuthSessionFactory
 
     private static void AddValidatedTokenClaims(ILogger logger, JwtOptions jwtOptions, string accessToken, ICollection<Claim> claims)
     {
-        var validationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ClockSkew = TimeSpan.Zero,
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey))
-        };
-
+        var validationParameters = GetOrCreateValidationParameters(jwtOptions);
         var principal = new JwtSecurityTokenHandler().ValidateToken(accessToken, validationParameters, out _);
 
         foreach (var claim in principal.Claims)
@@ -74,5 +65,18 @@ internal static class AuthSessionFactory
         }
 
         logger.LogDebug("Access token validated successfully for web cookie session creation.");
+    }
+
+    private static TokenValidationParameters GetOrCreateValidationParameters(JwtOptions jwtOptions)
+    {
+        if (_cachedValidationParameters is null)
+        {
+            lock (_cacheLock)
+            {
+                _cachedValidationParameters ??= JwtTokenValidationParameters.Create(jwtOptions);
+            }
+        }
+
+        return _cachedValidationParameters;
     }
 }

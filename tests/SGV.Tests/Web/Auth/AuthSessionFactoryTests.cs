@@ -41,11 +41,11 @@ public sealed class AuthSessionFactoryTests
             AuthSessionFactory.CreatePrincipal(NullLogger.Instance, Options, Request, response));
     }
 
-    public static TheoryData<string> InvalidTokenCases => new()
+    public static IEnumerable<object[]> InvalidTokenCases()
     {
-        AdminJwtTestHelper.BuildAdminRoleJwt(signingKey: AdminJwtTestHelper.ForeignSigningKey),
-        AdminJwtTestHelper.BuildAdminRoleJwt(expires: DateTime.UtcNow.AddMinutes(-1)),
-        AdminJwtTestHelper.BuildAdminRoleJwt(issuer: "WrongIssuer"),
-        AdminJwtTestHelper.BuildAdminRoleJwt(audience: "WrongAudience")
-    };
+        yield return [AdminJwtTestHelper.BuildAdminRoleJwt(signingKey: AdminJwtTestHelper.InvalidSigningKey)];
+        yield return [AdminJwtTestHelper.BuildAdminRoleJwt(expires: DateTime.UtcNow.AddMinutes(-1))];
+        yield return [AdminJwtTestHelper.BuildAdminRoleJwt(issuer: "WrongIssuer")];
+        yield return [AdminJwtTestHelper.BuildAdminRoleJwt(audience: "WrongAudience")];
+    }
 }

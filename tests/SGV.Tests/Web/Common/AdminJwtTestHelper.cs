@@ -15,13 +15,30 @@ public static class AdminJwtTestHelper
     /// <summary>
     /// Test key aligned with the development placeholder configured by SGV.Web.
     /// </summary>
+    /// <summary>
+    /// Test signing key aligned with the development placeholder configured
+    /// by both <c>SGV.Api</c> and <c>SGV.Web</c>. Tokens signed with this
+    /// key will pass validation in test fixtures.
+    /// </summary>
     public const string SigningKey = "DEV-PLACEHOLDER-DO-NOT-USE-IN-PROD-0000000000000000";
 
+    /// <summary>
+    /// Issuer expected by <c>JwtTokenValidationParameters</c>.
+    /// </summary>
     public const string Issuer = "SGV";
 
+    /// <summary>
+    /// Audience expected by <c>JwtTokenValidationParameters</c>.
+    /// </summary>
     public const string Audience = "SGV";
 
-    public const string ForeignSigningKey = "FOREIGN-TEST-KEY-DO-NOT-USE-IN-PROD-0000000000000000";
+    /// <summary>
+    /// A signing key different from <see cref="SigningKey"/>. Use this when
+    /// a test must produce a token whose signature will be rejected,
+    /// verifying that <c>AuthSessionFactory</c> correctly fails validation
+    /// for tokens signed with an unknown key.
+    /// </summary>
+    public const string InvalidSigningKey = "FOREIGN-TEST-KEY-DO-NOT-USE-IN-PROD-0000000000000000";
 
     /// <summary>
     /// Builds a JWT signed with HMAC-SHA256 without an administrator role.

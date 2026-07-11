@@ -41,6 +41,13 @@ public sealed class SignInModel(
             return Page();
         }
 
+        if (string.IsNullOrWhiteSpace(response.AccessToken))
+        {
+            logger.LogWarning("SGV.Api returned an empty access token.");
+            ModelState.AddModelError(string.Empty, "No se pudo validar la sesión de autenticación.");
+            return Page();
+        }
+
         ClaimsPrincipal principal;
         try
         {
@@ -49,12 +56,6 @@ public sealed class SignInModel(
         catch (SecurityTokenException ex)
         {
             logger.LogWarning(ex, "SGV.Api returned an access token that SGV.Web could not validate.");
-            ModelState.AddModelError(string.Empty, "No se pudo validar la sesión de autenticación.");
-            return Page();
-        }
-        catch (ArgumentException ex)
-        {
-            logger.LogWarning(ex, "SGV.Api returned a malformed access token that SGV.Web could not validate.");
             ModelState.AddModelError(string.Empty, "No se pudo validar la sesión de autenticación.");
             return Page();
         }
