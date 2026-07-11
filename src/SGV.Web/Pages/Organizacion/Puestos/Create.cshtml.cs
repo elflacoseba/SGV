@@ -5,6 +5,7 @@ using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
 
@@ -85,9 +86,7 @@ public sealed class CreateModel(
         ReturnPage = p ?? string.Empty;
         ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
         ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
-        ReturnStatus = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? "eliminadas"
-            : string.Empty;
+        ReturnStatus = RouteValuesPreserver.NormalizeDeletedStatus(status) ?? string.Empty;
 
         await LoadCatalogsAsync(cancellationToken);
     }
@@ -124,7 +123,7 @@ public sealed class CreateModel(
         {
             result = await puestosApiClient.CreateAsync(request, cancellationToken);
         }
-        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex, includeOperationCanceled: true))
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             // Transport-level failure (network down, timeout, malformed
             // body). El usuario podrá reintentar conservando su input.

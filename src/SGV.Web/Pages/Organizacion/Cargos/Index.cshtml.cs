@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 using CargoListQuery = SGV.Web.Integration.Organizacion.CargoListQuery;
 
 namespace SGV.Web.Pages.Organizacion.Cargos;

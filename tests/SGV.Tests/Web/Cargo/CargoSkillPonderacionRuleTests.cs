@@ -1,4 +1,4 @@
-using CargoSkillPonderacionRule = SGV.Web.Integration.Organizacion.CargoSkillPonderacionRule;
+using CargoSkillPonderacionRule = SGV.Web.Pages.Organizacion.Cargos.CargoSkillPonderacionRule;
 using Xunit;
 
 namespace SGV.Tests.Web.Cargo;

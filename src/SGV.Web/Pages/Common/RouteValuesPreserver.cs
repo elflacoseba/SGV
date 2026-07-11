@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Routing;
 
-namespace SGV.Web.Integration.Common;
+namespace SGV.Web.Pages.Common;
 
 /// <summary>
 /// Builds route values that preserve list context across Razor Page PRG flows.

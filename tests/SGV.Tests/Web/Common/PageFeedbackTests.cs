@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using SGV.Web.Integration.Common;
+using SGV.Web.Pages.Common;
 using Xunit;
 
 namespace SGV.Tests.Web.Common;

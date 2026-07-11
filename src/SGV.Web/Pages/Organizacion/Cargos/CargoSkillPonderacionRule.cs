@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace SGV.Web.Integration.Organizacion;
+namespace SGV.Web.Pages.Organizacion.Cargos;
 
 /// <summary>
 /// Single source of truth for the editable Cargo-Habilidad grid Ponderacion
@@ -21,16 +21,6 @@ public static class CargoSkillPonderacionRule
     /// <summary>Localized error message anchored to the Ponderación field.</summary>
     public const string ErrorMessage = "La ponderación debe estar entre 0,01 y 100,00.";
 
-    /// <summary>
-    /// Parses <paramref name="raw"/> using <see cref="CultureInfo.InvariantCulture"/>
-    /// and validates it against the <see cref="Min"/>/<see cref="Max"/> range.
-    /// Returns the parsed value (or <see langword="null"/> if the string is
-    /// blank/unparseable) together with a flag that signals whether the
-    /// value also lies inside the range. Callers that bind the value to
-    /// the request DTO should propagate <c>Value</c> as-is so the user
-    /// still sees the offending input on re-render; callers that gate
-    /// the request on validity should check <c>IsValid</c>.
-    /// </summary>
     public static (bool IsValid, decimal? Value) TryParse(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -46,6 +36,5 @@ public static class CargoSkillPonderacionRule
         return (IsInRange(parsed), parsed);
     }
 
-    /// <summary><see langword="true"/> when <paramref name="value"/> lies in [<see cref="Min"/>, <see cref="Max"/>].</summary>
     public static bool IsInRange(decimal value) => value >= Min && value <= Max;
 }

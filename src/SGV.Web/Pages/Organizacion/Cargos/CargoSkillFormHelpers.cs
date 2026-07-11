@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using SGV.Contracts.Organizacion.Comandos;
+using SGV.Web.Integration.Organizacion;
 
-namespace SGV.Web.Integration.Organizacion;
+namespace SGV.Web.Pages.Organizacion.Cargos;
 
 /// <summary>
 /// Form parsing and ModelState mapping helpers for the editable Cargo-Habilidad grid.

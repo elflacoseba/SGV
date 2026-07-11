@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
-using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
+using SGV.Web.Pages.Common;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;
 
 namespace SGV.Web.Pages.Organizacion.Habilidades;

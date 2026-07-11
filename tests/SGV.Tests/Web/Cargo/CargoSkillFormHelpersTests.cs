@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using SGV.Contracts.Organizacion.Comandos;
-using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Organizacion.Cargos;
 using Xunit;
 
 namespace SGV.Tests.Web.Cargo;

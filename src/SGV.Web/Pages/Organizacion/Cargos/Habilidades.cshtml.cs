@@ -8,6 +8,7 @@ using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Cargos;
 

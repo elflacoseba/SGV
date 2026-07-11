@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
-namespace SGV.Web.Integration.Common;
+namespace SGV.Web.Pages.Common;
 
 /// <summary>
 /// Centralizes TempData keys used by Razor Pages feedback banners.
