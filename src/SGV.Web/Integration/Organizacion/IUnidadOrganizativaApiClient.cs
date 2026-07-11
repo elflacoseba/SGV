@@ -14,6 +14,11 @@ public interface IUnidadOrganizativaApiClient
     Task<PagedResult<UnidadOrganizativaDto>> QueryAsync(UnidadOrganizativaListQuery query, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets all active unidades organizativas for catalog/dropdown usage.
+    /// </summary>
+    Task<IReadOnlyList<UnidadOrganizativaDto>> GetAllActivasAsync(int pageSize = 100, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets a single unidad organizativa by its identifier.
     /// </summary>
     Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
