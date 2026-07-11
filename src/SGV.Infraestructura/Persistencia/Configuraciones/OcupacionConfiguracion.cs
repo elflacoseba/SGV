@@ -32,7 +32,16 @@ public sealed class OcupacionConfiguracion : IEntityTypeConfiguration<OcupacionE
         // are NULL when the ocupacion is not active (ended or soft-deleted) so
         // the unique index enforces one active ocupacion per puesto,
         // and one active ocupacion per persona+puesto combination.
-        builder.Property<int?>("ActivePuestoIdUnique")
+        //
+        // Note: `HasColumnType("char(36)")` is intentionally omitted. EF Core 9 +
+        // Pomelo 9 throw NullReferenceException when combining HasColumnType +
+        // HasComputedColumnSql + string property. Pomelo defaults to varchar(36)
+        // when only HasMaxLength is set; functionally equivalent to char(36)
+        // for fixed-width 36-char ASCII Guids. The byte overhead (1 length-prefix
+        // byte per row) is acceptable for the blast radius of this column.
+        builder.Property<string?>("ActivePuestoIdUnique")
+            .HasMaxLength(36)
+            .UseCollation("ascii_general_ci")
             .HasComputedColumnSql("CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END")
             .IsRequired(false);
         builder.HasIndex("ActivePuestoIdUnique").IsUnique();
