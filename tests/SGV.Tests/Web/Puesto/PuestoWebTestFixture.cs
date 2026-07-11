@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Cargo;
+using SGV.Tests.Web.Common;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
@@ -89,7 +90,25 @@ public sealed class PuestoWebTestFixture : IDisposable
         => await CreateAuthenticatedClientAsync(
             new FakeUnidadOrganizativaApiClient(),
             new FakeCargoApiClient(),
-            apiClient);
+            apiClient,
+            adminRole: false);
+
+    public async Task<HttpClient> CreateAdminClientAsync(FakePuestosApiClient apiClient)
+        => await CreateAuthenticatedClientAsync(
+            new FakeUnidadOrganizativaApiClient(),
+            new FakeCargoApiClient(),
+            apiClient,
+            adminRole: true);
+
+    public async Task<HttpClient> CreateAdminClientAsync(
+        IUnidadOrganizativaApiClient unidadFake,
+        ICargoApiClient cargoFake,
+        FakePuestosApiClient puestosFake)
+        => await CreateAuthenticatedClientAsync(
+            unidadFake,
+            cargoFake,
+            puestosFake,
+            adminRole: true);
 
     /// <summary>
     /// Variante sobrecargada que inyecta los tres fakes de catálogo en el
@@ -101,14 +120,22 @@ public sealed class PuestoWebTestFixture : IDisposable
     public async Task<HttpClient> CreateAuthenticatedClientAsync(
         IUnidadOrganizativaApiClient unidadFake,
         ICargoApiClient cargoFake,
-        FakePuestosApiClient puestosFake)
+        FakePuestosApiClient puestosFake,
+        bool adminRole)
     {
+        var accessToken = adminRole ? AdminJwtTestHelper.BuildAdminRoleJwt() : "token-123";
+
         var authHandler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
+                Content = JsonContent.Create(new LoginResponse(accessToken, DateTimeOffset.UtcNow.AddHours(1)))
             });
 
+        // Reusamos el _baseFactory (patrón canónico del repo, ver
+        // HabilidadWebTestFixture.WithHabilidadApiClient): encadenar WithOverrides
+        // sobre _baseFactory evita crear hosts adicionales nunca dispuestos
+        // (resource leak) y garantiza que cualquier override heredado del
+        // constructor del fixture siga presente.
         var factory = _baseFactory.WithOverrides(
             configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
             authApiHandler: authHandler,

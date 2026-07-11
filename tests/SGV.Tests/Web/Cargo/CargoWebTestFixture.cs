@@ -1,16 +1,12 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Claims;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Common;
 using SGV.Tests.Web.Habilidad;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
@@ -79,6 +75,9 @@ public sealed class CargoWebTestFixture : IDisposable
     public Task<HttpClient> CreateAuthenticatedClientAsync(FakeCargoApiClient apiClient)
         => CreateAuthenticatedClientAsync(apiClient, new FakeHabilidadApiClient(), adminRole: false);
 
+    public Task<HttpClient> CreateAdminClientAsync(FakeCargoApiClient apiClient)
+        => CreateAuthenticatedClientAsync(apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
     /// <summary>
     /// Variante sobrecargada que también inyecta un
     /// <see cref="FakeHabilidadApiClient"/> en el contenedor y permite
@@ -93,7 +92,7 @@ public sealed class CargoWebTestFixture : IDisposable
         FakeHabilidadApiClient habilidadApiClient,
         bool adminRole)
     {
-        var accessToken = adminRole ? BuildAdminRoleJwt() : "token-123";
+        var accessToken = adminRole ? AdminJwtTestHelper.BuildAdminRoleJwt() : "token-123";
 
         var authHandler = new RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
@@ -101,6 +100,11 @@ public sealed class CargoWebTestFixture : IDisposable
                 Content = JsonContent.Create(new LoginResponse(accessToken, DateTimeOffset.UtcNow.AddHours(1)))
             });
 
+        // Reusamos el _baseFactory (patrón canónico del repo, ver
+        // HabilidadWebTestFixture.WithHabilidadApiClient): encadenar WithOverrides
+        // sobre _baseFactory evita crear hosts adicionales nunca dispuestos
+        // (resource leak) y garantiza que cualquier override heredado del
+        // constructor del fixture siga presente.
         var factory = _baseFactory.WithOverrides(
             configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
             authApiHandler: authHandler,
@@ -125,37 +129,6 @@ public sealed class CargoWebTestFixture : IDisposable
 
         Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
         return client;
-    }
-
-    /// <summary>
-    /// Genera un JWT firmado con un HMAC dummy que incluye el claim
-    /// <see cref="ClaimTypes.Role"/> con valor <see cref="RolesSgv.Administrador"/>.
-    /// No usamos la clave real de <c>JwtOptions</c> porque
-    /// <see cref="AuthSessionFactory.TryAddTokenClaims"/> NO valida la
-    /// firma — sólo lee los claims. El HMAC es suficiente para que
-    /// <c>JwtSecurityTokenHandler.WriteToken</c> produzca un token con
-    /// la estructura canónica (header.payload.signature).
-    /// </summary>
-    private static string BuildAdminRoleJwt()
-    {
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes("sgv-tests-fixture-admin-jwt-signing-key-32bytes-long-enough"));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var token = new JwtSecurityToken(
-            issuer: "sgv-tests",
-            audience: "sgv-web",
-            claims: new[]
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, "admin-test"),
-                new Claim(ClaimTypes.NameIdentifier, "admin-test"),
-                new Claim(ClaimTypes.Name, "admin"),
-                new Claim(ClaimTypes.Role, RolesSgv.Administrador)
-            },
-            expires: DateTime.UtcNow.AddHours(1),
-            signingCredentials: creds);
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     /// <summary>
