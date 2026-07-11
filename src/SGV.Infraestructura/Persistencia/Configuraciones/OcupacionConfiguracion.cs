@@ -32,7 +32,9 @@ public sealed class OcupacionConfiguracion : IEntityTypeConfiguration<OcupacionE
         // are NULL when the ocupacion is not active (ended or soft-deleted) so
         // the unique index enforces one active ocupacion per puesto,
         // and one active ocupacion per persona+puesto combination.
-        builder.Property<int?>("ActivePuestoIdUnique")
+        builder.Property<string?>("ActivePuestoIdUnique")
+            .HasMaxLength(36)
+            .UseCollation("ascii_general_ci")
             .HasComputedColumnSql("CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END")
             .IsRequired(false);
         builder.HasIndex("ActivePuestoIdUnique").IsUnique();

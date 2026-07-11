@@ -530,7 +530,7 @@ BEGIN
         `TipoAsignacion` varchar(50) CHARACTER SET utf8mb4 NOT NULL,
         `Observaciones` varchar(1000) CHARACTER SET utf8mb4 NULL,
         `ActivePersonaIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) NULL,
-        `ActivePuestoIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL,
+        `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL,
         `CreatedAt` datetime(6) NOT NULL,
         `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
         `UpdatedAt` datetime(6) NULL,
@@ -2040,6 +2040,63 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260711181615_FixActivePuestoIdUniqueType') THEN
+
+    ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePuestoIdUnique`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260711181615_FixActivePuestoIdUniqueType') THEN
+
+    ALTER TABLE `Ocupaciones` MODIFY COLUMN `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260711181615_FixActivePuestoIdUniqueType') THEN
+
+    CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePuestoIdUnique` ON `Ocupaciones` (`ActivePuestoIdUnique`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260711181615_FixActivePuestoIdUniqueType') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260711181615_FixActivePuestoIdUniqueType', '9.0.0');
 
     END IF;
 END //

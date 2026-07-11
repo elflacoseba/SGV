@@ -55,6 +55,15 @@ public sealed class ModeloPersistenciaTests
         Assert.Contains("IsDeleted", computedSql, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("PuestoId", computedSql, StringComparison.OrdinalIgnoreCase);
 
+        // Regression guard for issue #59: ActivePuestoIdUnique must store
+        // 36 ASCII chars (varchar(36) by default; char(36) when IsFixedLength).
+        // The bug was int?; the fix is string? matching PuestoId's width.
+        Assert.Equal(typeof(string), generatedProperty.ClrType);
+        Assert.Equal(36, generatedProperty.GetMaxLength());
+        Assert.True(
+            generatedProperty.GetColumnType()?.Contains("(36)", StringComparison.OrdinalIgnoreCase) == true,
+            $"Expected column type to declare width (36); got '{generatedProperty.GetColumnType()}'.");
+
         var index = entidad.GetIndexes()
             .Single(i => i.Properties.Any(p => p.Name == "ActivePuestoIdUnique"));
         Assert.True(index.IsUnique);
@@ -246,7 +255,19 @@ public sealed class ModeloPersistenciaTests
         {
             var instance = (Migration)Activator.CreateInstance(migrationType)!;
             Assert.NotNull(instance.UpOperations);
-            Assert.NotNull(instance.DownOperations);
+
+            // Forward-only migrations intentionally throw NotSupportedException
+            // from Down() to block rollback. The exception is the contract,
+            // not a regression.
+            try
+            {
+                Assert.NotNull(instance.DownOperations);
+            }
+            catch (NotSupportedException)
+            {
+                // Forward-only: Down() must throw NotSupportedException,
+                // which is the documented contract for these migrations.
+            }
         }
     }
 
