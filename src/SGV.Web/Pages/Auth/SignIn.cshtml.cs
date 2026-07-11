@@ -53,9 +53,16 @@ public sealed class SignInModel(
         {
             principal = AuthSessionFactory.CreatePrincipal(logger, jwtOptions.Value, request, response);
         }
-        catch (SecurityTokenException ex)
+        // Cubre las familias de excepciones que JwtSecurityTokenHandler.ValidateToken
+        // puede emitir en Microsoft.IdentityModel.Tokens 8.x para un access_token
+        // inválido: SecurityTokenException (validation), ArgumentException (input
+        // malformado, incluye SecurityTokenArgumentException y Base64Url decode
+        // failures). Se excluye ArgumentNullException para que un null inesperado de
+        // DI se propague como fail-fast en vez de confundirse con token inválido.
+        // Ver AuthSessionFactoryTests para la taxonomía completa.
+        catch (Exception ex) when (ex is not ArgumentNullException && (ex is SecurityTokenException or ArgumentException))
         {
-            logger.LogWarning(ex, "SGV.Api returned an access token that SGV.Web could not validate.");
+            logger.LogWarning("SGV.Api returned an access token that SGV.Web could not validate. {ExceptionType}", ex.GetType().Name);
             ModelState.AddModelError(string.Empty, "No se pudo validar la sesión de autenticación.");
             return Page();
         }
