@@ -9,7 +9,7 @@ using Xunit;
 namespace SGV.Tests.Seguridad;
 
 /// <summary>
-/// Fail-loud tests for <see cref="SGV.Infraestructura.Seguridad.JwtOptions.SigningKey"/>.
+/// Fail-loud tests for <see cref="SGV.Contracts.Seguridad.JwtOptions.SigningKey"/>.
 ///
 /// The validator wired in <c>SGV.Api/Program.cs</c> must:
 /// <list type="bullet">
