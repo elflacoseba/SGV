@@ -23,16 +23,24 @@ El sistema MUST exponer páginas Razor protegidas para listado y detalle de `Car
 - WHEN solicita la URL del listado o del detalle de cargos
 - THEN la aplicación MUST redirigirlo a `/auth/sign-in`.
 
-### Requirement: Listado visible de cargos activos
+### Requirement: Listado visible de cargos activos con gating admin
 
-El sistema MUST renderizar una tabla de cargos activos usando el patrón visual del shell, MUST consultar exclusivamente el contrato existente de lectura activa y MUST exponer por fila solo acciones de detalle y baja lógica. La interfaz MUST NOT mostrar create, edit, skills, eliminados ni reactivación en este slice.
+El sistema MUST renderizar una tabla de cargos activos usando el patrón visual del shell, MUST consultar exclusivamente el contrato existente de lectura activa y MUST aplicar UI gating por rol. La interfaz MUST mostrar `Detalle` a cualquier usuario autenticado, y MUST reservar `Crear`, `Editar`, `Eliminar`, `Reactivar` y `Habilidades` para rol `Administrador`.
 
 #### Scenario: Carga inicial del listado
 
 - GIVEN un usuario autenticado abre `Cargos`
 - WHEN la página termina de cargar
 - THEN la tabla MUST mostrar cargos activos devueltos por el backend
-- AND cada fila MUST ofrecer acciones visibles de detalle y baja.
+- AND cada fila MUST ofrecer `Detalle` a cualquier autenticado
+- AND las acciones admin-only MUST renderizarse solo para rol `Administrador`.
+
+#### Scenario: Usuario autenticado sin rol admin ve solo acciones readonly
+
+- GIVEN un usuario autenticado sin rol `Administrador`
+- WHEN abre `Cargos`
+- THEN la interfaz MUST ocultar `Crear`, `Editar`, `Eliminar`, `Reactivar` y `Habilidades`
+- AND MUST conservar solo `Detalle` como acción visible por fila.
 
 #### Scenario: Listado sin resultados activos
 
@@ -62,6 +70,13 @@ El sistema MUST mostrar en detalle los datos legibles del cargo en modo solo lec
 ### Requirement: Baja lógica confirmada con feedback de conflicto
 
 El sistema MUST solicitar confirmación antes de ejecutar la baja lógica, MUST remover el cargo del listado activo cuando la operación sea exitosa y MUST traducir rechazos por conflicto a feedback claro y accionable.
+
+#### Scenario: POST no-admin rechazado
+
+- GIVEN un usuario autenticado sin rol `Administrador`
+- WHEN intenta `Delete` o `Reactivate` desde el listado
+- THEN el handler MUST responder mediante `Forbid()`
+- AND MUST NOT invocar la mutación contra la API.
 
 #### Scenario: Usuario cancela la confirmación
 

@@ -107,6 +107,17 @@ La API adopta una postura **default-deny** desde el change `2026-07-09-agregar-a
 - **Ventana de exposición por JWT**: el sistema valida firma, issuer, audience y lifetime del JWT pero NO reconsulta roles contra la DB por request. Un usuario cuyo rol cambia de `Administrador` a `GestorVacantes` conserva permisos de mutación hasta que su JWT expire. Esta ventana es inherente a JWT y no se aborda en este change.
 - **Sub-recursos**: la decoración `[Authorize]` a nivel clase se hereda a sub-recursos anidados (e.g. `PUT /api/v1/personas/{id}/skills/{skillId}`). El sub-recurso `PersonasController.UpsertSkill`/`DeleteSkill` queda protegido automáticamente; no requiere override adicional porque la mutación ya exige `RolesSgv.Administrador` por la convención adoptada.
 
+## Hardening defense-in-depth en SGV.Web
+
+La shell web replica una defensa en profundidad coherente con el backend para los entry points administrativos de Organización.
+
+### Reglas
+
+1. **Lecturas autenticadas, mutaciones admin-only** — Los listados y detalles de `Cargos` y `Puestos` siguen accesibles para cualquier usuario autenticado, pero las operaciones de mutación (`crear`, `editar`, `eliminar`, `reactivar` y navegación a gestión de habilidades de cargo) se consideran admin-only también en la UI.
+2. **UI gating explícito** — `Index.cshtml` de `Cargos` y `Puestos` MUST ocultar CTAs admin-only para usuarios autenticados sin rol `Administrador`. Esto evita affordances engañosas aunque el backend ya falle cerrado con `403`.
+3. **GET restringidos con UX consistente** — `Create` y `Edit` de `Cargos` y `Puestos` redirigen a `/error/403` cuando el usuario está autenticado pero no tiene rol `Administrador`.
+4. **POST restringidos con `Forbid()`** — Los handlers POST admin-only en Razor Pages devuelven `Forbid()` para no-admin. Con cookie auth, el navegador aterriza en el flujo estándar de access denied del shell.
+
 ## Hardening runtime: cookie y CORS por ambiente
 
 `SGV.Api` y `SGV.Web` aplican una matriz de seguridad que depende del ambiente (`ASPNETCORE_ENVIRONMENT`). La matriz se valida en arranque mediante `ValidateOnStart` y fail-loud, de modo que un deploy mal configurado se surface antes de aceptar tráfico.

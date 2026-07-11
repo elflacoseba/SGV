@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Pages.Common;
 
@@ -77,6 +78,8 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
     /// </summary>
     public bool HasLastDeleted => LastDeletedId.HasValue;
 
+    public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
     public async Task OnGetAsync(
         [FromQuery(Name = "p")] int currentPage = 1,
         string? search = null,
@@ -109,6 +112,11 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
         string? status = null,
         CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
         var normalizedSearch = Normalize(search);
         var normalizedSort = Normalize(sort);
         var normalizedSegmento = NormalizeSegmento(status);
@@ -159,6 +167,11 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
         string? status = null,
         CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
         var normalizedSearch = Normalize(search);
         var normalizedSort = Normalize(sort);
         var normalizedSegmento = NormalizeSegmento(status);

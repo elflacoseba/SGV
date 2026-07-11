@@ -51,6 +51,17 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Contains("/auth/sign-in", location, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Get_Edit_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+
+        var response = await client.GetAsync($"/organizacion/puestos/editar/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ──────────────────────────────────────────────
     // Spec 3B.1 · Req 5 — GET autenticado prepopula Nombre/Descripcion/PuestoSuperiorId
     // ──────────────────────────────────────────────
@@ -92,7 +103,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -130,7 +141,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
         };
         var missingId = Guid.NewGuid();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync($"/organizacion/puestos/editar/{missingId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -175,7 +186,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             GetAllResult = new[] { puesto }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -237,7 +248,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             UpdateResult = PuestoCommandResult.Success(updatedPuesto)
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -301,7 +312,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
                 })
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -368,7 +379,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
                     "Ya existe un puesto activo con el código P-DUP."))
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -425,7 +436,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             UpdateException = new HttpRequestException("api caída")
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -499,7 +510,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             GetAllResult = new[] { seedPuesto }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -522,6 +533,30 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
         // en el alert-danger, NO pisado por el reset que hace LoadCatalogsAsync
         // cuando los catálogos responden OK.
         Assert.Contains("No se pudo cargar el puesto", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        var puestoId = Guid.NewGuid();
+        var apiClient = new FakePuestosApiClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/puestos");
+        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Nombre"] = "Sin permiso",
+            ["Input.Descripcion"] = string.Empty,
+            ["Input.PuestoSuperiorId"] = string.Empty
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.GetByIdCalls);
+        Assert.Empty(apiClient.UpdateCalls);
     }
 
     // ──────────────────────────────────────────────
@@ -574,7 +609,7 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             UpdateResult = PuestoCommandResult.Success(updatedPuesto)
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         // 1) GET: el Index emite ?returnStatus=eliminadas cuando el usuario
         //    hace clic en Editar desde la vista Eliminadas. Edit debe poblar

@@ -42,6 +42,17 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Get_Edit_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync(new FakeCargoApiClient());
+
+        var response = await client.GetAsync($"/organizacion/cargos/editar/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ──────────────────────────────────────────────
     // Task 2.2: GET autenticado prellena form y dropdown de niveles
     // ──────────────────────────────────────────────
@@ -59,7 +70,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
             new(CargoWebTestFixture.SeniorNivelId, "SR", "Senior", 2, 2)
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -90,7 +101,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList();
         var missingId = Guid.NewGuid();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync($"/organizacion/cargos/editar/{missingId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -117,7 +128,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList(updatedCargo);
         apiClient.UpdateResult = CargoCommandResult.Success(updatedCargo);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -167,7 +178,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
                 "CodigoDuplicado",
                 "Ya existe un cargo activo con el código C-DUP."));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -217,7 +228,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
                 ["nombre"] = new[] { "El nombre es obligatorio." }
             });
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -264,7 +275,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.UpdateException = new HttpRequestException("network down");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -298,5 +309,28 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         var update = Assert.Single(apiClient.UpdateCalls);
         Assert.Equal(cargoId, update.Id);
         Assert.Equal("C-EDIT", update.Request.Codigo);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        var cargoId = Guid.NewGuid();
+        var apiClient = new FakeCargoApiClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Codigo"] = "C-DENY",
+            ["Input.Nombre"] = "Cargo Denegado",
+            ["Input.NivelId"] = CargoWebTestFixture.JuniorNivelId.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.UpdateCalls);
     }
 }

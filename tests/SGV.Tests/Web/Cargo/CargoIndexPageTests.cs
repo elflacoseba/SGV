@@ -33,7 +33,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         var second = CargoWebTestFixture.BuildCargoDto("C-002", "Líder de Proyecto", null, "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(first, second);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -123,7 +123,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         var cargo = CargoWebTestFixture.BuildCargoDto("HAB-001", "Cargo Con Habilidades", "Desc", "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -235,7 +235,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList(toDelete, remaining);
         apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos?p=1&search=ana&sort=nombre_desc");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -278,7 +278,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
             Code: "CargoConPuestosActivos",
             Message: "El cargo tiene puestos activos asociados.");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos?search=c&sort=codigo_asc");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -318,7 +318,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
             Code: "CargoNoEncontrado",
             Message: "El cargo no existe.");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -349,7 +349,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
     {
         var apiClient = FakeCargoApiClient.WithCargoList();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -373,7 +373,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
             q.Page,
             q.PageSize);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var response = await client.GetAsync("/organizacion/cargos?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -392,7 +392,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
     {
         var apiClient = FakeCargoApiClient.WithCargoList();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         await client.GetAsync("/organizacion/cargos?status=archivo");
 
@@ -408,7 +408,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         apiClient.ReactivateResult = CargoCommandResult.Success(
             new CargoDto(cargo.Id, cargo.Codigo, cargo.Nombre, cargo.Descripcion, cargo.NivelId, cargo.NivelNombre));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas&search=react&sort=nombre_asc");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -442,7 +442,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
             new CargoError(CargoErrorType.Conflict, "CodigoDuplicado",
                 "Ya existe un cargo activo con el mismo código."));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -483,7 +483,7 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList(toDelete, remaining);
         apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos?p=1&search=ban&sort=nombre_asc");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -517,6 +517,92 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
     }
 
     [Fact]
+    public async Task Get_Index_WhenAuthenticatedWithoutAdminRole_HidesAdminActions()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("C-001", "Analista", "Descripción A", "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/cargos");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"/organizacion/cargos/detalles/{cargo.Id}", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Crear cargo", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"/organizacion/cargos/{cargo.Id}/habilidades", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"/organizacion/cargos/editar/{cargo.Id}", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-cargo-delete-form", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_WhenDeletedViewAndAuthenticatedWithoutAdminRole_HidesReactivateAction()
+    {
+        var eliminado = CargoWebTestFixture.BuildCargoDto("DEL-001", "Eliminado", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList();
+        apiClient.QueryHandler = q => new PagedResult<CargoDto>(
+            q.Status == "eliminadas" ? [eliminado] : [],
+            q.Status == "eliminadas" ? 1 : 0,
+            q.Page,
+            q.PageSize);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var response = await client.GetAsync("/organizacion/cargos?status=eliminadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Crear cargo", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-cargo-reactivate-form", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Delete_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("DENY-DEL", "Sin permisos", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.DeleteCalls);
+    }
+
+    [Fact]
+    public async Task Post_Reactivate_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
+    {
+        var cargo = CargoWebTestFixture.BuildCargoDto("DENY-REACT", "Sin permisos", null, "Junior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+
+        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+
+        var getResponse = await client.GetAsync("/organizacion/cargos");
+        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await client.PostAsync("/organizacion/cargos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["id"] = cargo.Id.ToString(),
+            ["page"] = "1"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.ReactivateCalls);
+    }
+
+    [Fact]
     public async Task Post_Delete_CuandoSegmentoEsEliminadas_NoMuestraCtaReactivar()
     {
         // REQ-CW-06 MUST NOT: cuando el usuario está en la vista Eliminadas,
@@ -526,7 +612,12 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList(toDelete);
         apiClient.DeleteResult = new CargoDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        // El handler POST Delete requiere rol admin (Issue #115). Antes este
+        // test usaba CreateAuthenticatedClientAsync y se silenciaba porque el
+        // gate Forbid() redirigía a /error/403, donde trivialmente no aparece
+        // el texto ">Reactivar</button>". Subimos a admin para ejercitar el
+        // camino real del POST.
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         var getResponse = await client.GetAsync("/organizacion/cargos?status=eliminadas");
         var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
@@ -568,7 +659,12 @@ public sealed class CargoIndexPageTests : IClassFixture<CargoWebTestFixture>
         apiClient.ReactivateResult = CargoCommandResult.Success(
             new CargoDto(cargo.Id, cargo.Codigo, cargo.Nombre, cargo.Descripcion, cargo.NivelId, cargo.NivelNombre));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        // El handler POST Reactivate requiere rol admin (Issue #115). Antes
+        // este test usaba CreateAuthenticatedClientAsync y se silenciaba
+        // porque el gate Forbid() redirigía a /error/403, donde trivialmente
+        // no aparece el formaction del banner. Subimos a admin para ejercitar
+        // el camino real del POST.
+        using var client = await _fixture.CreateAdminClientAsync(apiClient);
 
         // GET inicial sin LastDeletedId: el CTA no debe aparecer.
         var firstGet = await client.GetAsync("/organizacion/cargos");

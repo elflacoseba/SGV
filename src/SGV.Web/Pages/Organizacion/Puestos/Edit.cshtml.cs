@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Text.Json;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Seguridad;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
@@ -69,6 +70,8 @@ public sealed class EditModel(
         ReturnSort,
         ReturnStatus);
 
+    public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
     private void CaptureReturnContext(
         string? p, string? search, string? sort, string? returnStatus)
     {
@@ -98,6 +101,15 @@ public sealed class EditModel(
         [FromQuery(Name = "returnStatus")] string? returnStatus = null,
         CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            // Patrón canónico del repo (ver Habilidades.cshtml.cs): Forbid()
+            // delega al cookie scheme, que redirige a AccessDeniedPath
+            // ("/error/403" configurado en Program.cs). Es testeable y
+            // simétrico con el POST handler de este mismo PageModel.
+            return Forbid();
+        }
+
         CaptureReturnContext(p, search, sort, returnStatus);
 
         try
@@ -123,11 +135,7 @@ public sealed class EditModel(
             await LoadCatalogsAsync(cancellationToken);
             return Page();
         }
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException ||
-            ex is OperationCanceledException)
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             logger.LogError(ex, "Failed to load edit page for puesto {Id}.", id);
             IsRecoverable = true;
@@ -151,6 +159,11 @@ public sealed class EditModel(
         [FromQuery(Name = "returnStatus")] string? returnStatus = null,
         CancellationToken cancellationToken = default)
     {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
         CaptureReturnContext(p, search, sort, returnStatus);
 
         // Pre-poblar los campos inmutables (Codigo, UnidadOrganizativaId,
@@ -182,11 +195,7 @@ public sealed class EditModel(
             ModelState.Remove(PuestoFormKeys.UnidadOrganizativaIdKey);
             ModelState.Remove(PuestoFormKeys.CargoIdKey);
         }
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException ||
-            ex is OperationCanceledException)
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             logger.LogError(ex, "Failed to load puesto {Id} during POST prepopulate.", id);
             ErrorMessage = "No se pudo cargar el puesto. Intentá nuevamente.";
@@ -219,11 +228,7 @@ public sealed class EditModel(
         {
             result = await puestosApiClient.UpdateAsync(id, request, cancellationToken);
         }
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException ||
-            ex is OperationCanceledException)
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             // Transport-level failure (network down, timeout, malformed body).
             // Map to a recoverable error: keep user input, reload the catalog,

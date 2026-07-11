@@ -3,12 +3,13 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
 
 namespace SGV.Web.Pages.Auth;
 
-public sealed class SignInModel(IAuthApiClient authApiClient) : PageModel
+public sealed class SignInModel(IAuthApiClient authApiClient, ILogger<SignInModel> logger) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -33,7 +34,7 @@ public sealed class SignInModel(IAuthApiClient authApiClient) : PageModel
             return Page();
         }
 
-        var principal = AuthSessionFactory.CreatePrincipal(request, response);
+        var principal = AuthSessionFactory.CreatePrincipal(logger, request, response);
         var properties = AuthSessionFactory.CreateProperties(response);
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);

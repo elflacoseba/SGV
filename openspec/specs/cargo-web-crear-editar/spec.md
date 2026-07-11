@@ -6,23 +6,29 @@ Agregar el flujo autenticado de create y edit de `Cargos` en `SGV.Web`, alineado
 
 ## Requirements
 
-### Requirement: Acceso autenticado a create y edit de cargos
+### Requirement: Acceso administrador a create y edit de cargos
 
-El sistema MUST exponer páginas Razor protegidas para create y edit de `Cargos` dentro del shell autenticado y MUST ofrecer una acción visible para volver al listado.
+El sistema MUST exponer páginas Razor protegidas para create y edit de `Cargos` dentro del shell autenticado y MUST ofrecer una acción visible para volver al listado. Un usuario autenticado sin rol `Administrador` MUST ser redirigido a `/error/403` en GET y MUST recibir `Forbid()` en POST.
 
-#### Scenario: Usuario autenticado abre create
+#### Scenario: Usuario administrador abre create
 
-- GIVEN un usuario autenticado en `SGV.Web`
+- GIVEN un usuario autenticado con rol `Administrador` en `SGV.Web`
 - WHEN navega a `/organizacion/cargos/crear`
 - THEN la aplicación MUST responder con un formulario vacío dentro del shell autenticado
 - AND MUST mostrar una acción visible para volver al listado.
 
-#### Scenario: Usuario autenticado abre edit
+#### Scenario: Usuario administrador abre edit
 
-- GIVEN un Cargo activo existente y un usuario autenticado
+- GIVEN un Cargo activo existente y un usuario autenticado con rol `Administrador`
 - WHEN navega a la URL de edición del Cargo
 - THEN la aplicación MUST mostrar el formulario prellenado con los datos actuales
 - AND MUST mostrar una acción visible para volver al listado.
+
+#### Scenario: Usuario autenticado sin rol admin intenta acceder
+
+- GIVEN un usuario autenticado sin rol `Administrador`
+- WHEN solicita la URL de create o edit de cargos
+- THEN la aplicación MUST redirigirlo a `/error/403`.
 
 #### Scenario: Usuario anónimo intenta acceder
 
@@ -76,6 +82,13 @@ El sistema MUST poblar el dropdown de `Nivel` desde `GET /api/v1/niveles-cargo` 
 ### Requirement: Guardado con feedback accionable
 
 El sistema MUST aplicar PRG tras operaciones exitosas y MUST traducir validaciones, conflictos y fallos de disponibilidad del backend a feedback claro y accionable para administradores.
+
+#### Scenario: POST no-admin rechazado
+
+- GIVEN un usuario autenticado sin rol `Administrador`
+- WHEN envía create o edit
+- THEN el handler MUST responder mediante `Forbid()`
+- AND MUST NOT invocar la mutación contra la API.
 
 #### Scenario: Create exitoso
 
