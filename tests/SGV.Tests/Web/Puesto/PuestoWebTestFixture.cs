@@ -1,187 +1,80 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Cargo;
-using SGV.Tests.Web.Common;
-using SGV.Web.Integration.Auth;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
-using Xunit;
 
 namespace SGV.Tests.Web.Puesto;
 
 /// <summary>
-/// Shared xUnit fixture (<see cref="IClassFixture{TFixture}"/>) for the Puesto
-/// web tests. Encapsula el setup recurrente: una <see cref="SgvWebApplicationFactory"/>
-/// base, un <see cref="HttpClient"/> autenticado cableado con un
-/// <see cref="FakePuestosApiClient"/> y builders de datos de siembra.
-/// Espejo de <c>CargoWebTestFixture</c>.
+/// Shim histórico (PR 2b-2) sobre <see cref="WebIntegrationFixture"/> que
+/// conserva las cuatro firmas <c>Task&lt;WebClientLease&gt;</c> originales
+/// (<c>CreateAuthenticatedClientAsync(FakePuestosApiClient)</c>,
+/// <c>CreateAdminClientAsync(FakePuestosApiClient)</c>,
+/// <c>CreateAdminClientAsync(unidad, cargo, puestos)</c> y
+/// <c>CreateAuthenticatedClientAsync(unidad, cargo, puestos, bool)</c>)
+/// delegando a <see cref="WebIntegrationFixture.CreatePuestoLeaseAsync"/>.
+/// Los seeds de builders y el extractor antiforgery ahora viven en
+/// <see cref="WebTestBuilders"/>; las cuatro clases PageTests + PuestoWebSeamTests
+/// consumen <see cref="WebIntegrationFixture"/> directamente vía
+/// <c>[Collection("WebIntegration")]</c>, por lo que este fixture conserva
+/// los helpers sólo como superficie de compat para futuros cross-anchors.
 /// </summary>
-public sealed class PuestoWebTestFixture : IDisposable
+public sealed class PuestoWebTestFixture : IAsyncDisposable
 {
-    private readonly SgvWebApplicationFactory _baseFactory;
+    private readonly WebIntegrationFixture _root;
 
-    public PuestoWebTestFixture()
-    {
-        _baseFactory = new SgvWebApplicationFactory();
-    }
+    public PuestoWebTestFixture() => _root = new WebIntegrationFixture();
 
-    /// <summary>Factory base sin overrides.</summary>
-    public SgvWebApplicationFactory BaseFactory => _baseFactory;
+    /// <summary>Raíz del composite para casos seam (inspect Services/CreateScope).</summary>
+    public SgvWebApplicationFactory BaseFactory => _root.RootFactory;
 
-    /// <summary>Seeds Guid estáticos usados por los tests de páginas (PR 2/3).</summary>
-    public static readonly Guid SampleUnidadOrganizativaId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    public static readonly Guid SampleCargoId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    public static readonly Guid SamplePuestoSuperiorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
-
-    /// <summary>Devuelve un factory con <see cref="IPuestosApiClient"/> reemplazado por <paramref name="fake"/>.</summary>
+    /// <summary>Factory con <see cref="IPuestosApiClient"/> reemplazado por el fake.</summary>
     public SgvWebApplicationFactory WithPuestosApiClient(FakePuestosApiClient fake)
-        => _baseFactory.WithOverrides(puestosApiClient: fake);
+        => _root.RootFactory.WithOverrides(puestosApiClient: fake);
 
-    /// <summary>Devuelve un factory con <see cref="ICargoApiClient"/> reemplazado por <paramref name="fake"/>.</summary>
+    /// <summary>Factory con <see cref="ICargoApiClient"/> reemplazado por el fake.</summary>
     public SgvWebApplicationFactory WithCargoApiClient(ICargoApiClient fake)
-        => _baseFactory.WithOverrides(cargoApiClient: fake);
+        => _root.RootFactory.WithOverrides(cargoApiClient: fake);
 
-    /// <summary>Devuelve un factory con <see cref="IUnidadOrganizativaApiClient"/> reemplazado por <paramref name="fake"/>.</summary>
+    /// <summary>Factory con <see cref="IUnidadOrganizativaApiClient"/> reemplazado por el fake.</summary>
     public SgvWebApplicationFactory WithUnidadOrganizativaApiClient(IUnidadOrganizativaApiClient fake)
-        => _baseFactory.WithOverrides(unidadOrganizativaApiClient: fake);
+        => _root.RootFactory.WithOverrides(unidadOrganizativaApiClient: fake);
 
-    /// <summary>
-    /// Devuelve un factory con los tres clientes de catálogo (unidades,
-    /// cargos, puestos) reemplazados por los fakes provistos. Usado por
-    /// los tests de la página Create de Puestos (PR 3A), que carga los
-    /// tres catálogos en paralelo vía <c>Task.WhenAll</c>.
-    /// </summary>
+    /// <summary>Factory con los tres fakes de catálogo inyectados (Create page).</summary>
     public SgvWebApplicationFactory WithCatalogFakes(
         IUnidadOrganizativaApiClient unidadFake,
         ICargoApiClient cargoFake,
         FakePuestosApiClient puestosFake)
-        => _baseFactory.WithOverrides(
+        => _root.RootFactory.WithOverrides(
             unidadOrganizativaApiClient: unidadFake,
             cargoApiClient: cargoFake,
             puestosApiClient: puestosFake);
 
-    /// <summary>Construye un <see cref="PuestoDto"/> con ids aleatorios, útil cuando el test sólo se fija en el shape.</summary>
-    public static PuestoDto BuildPuestoDto(
-        string codigo,
-        string nombre,
-        string? descripcion = null,
-        Guid? puestoSuperiorId = null)
-        => new(
-            Guid.NewGuid(),
-            codigo,
-            nombre,
-            descripcion,
-            SampleUnidadOrganizativaId,
-            "Ventas",
-            SampleCargoId,
-            "Vendedor",
-            puestoSuperiorId);
+    /// <summary>Lease autenticado (no admin) contra el módulo de Puestos.</summary>
+    public Task<WebClientLease> CreateAuthenticatedClientAsync(FakePuestosApiClient apiClient)
+        => _root.CreatePuestoLeaseAsync(apiClient);
 
-    /// <summary>
-    /// Devuelve un <see cref="HttpClient"/> autenticado cuyo
-    /// <see cref="IPuestosApiClient"/> resuelve a <paramref name="apiClient"/>.
-    /// La API de auth se stubea para devolver un bearer token fijo.
-    /// </summary>
-    public async Task<HttpClient> CreateAuthenticatedClientAsync(FakePuestosApiClient apiClient)
-        => await CreateAuthenticatedClientAsync(
-            new FakeUnidadOrganizativaApiClient(),
-            new FakeCargoApiClient(),
-            apiClient,
-            adminRole: false);
+    /// <summary>Lease autenticado con rol Administrador.</summary>
+    public Task<WebClientLease> CreateAdminClientAsync(FakePuestosApiClient apiClient)
+        => _root.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-    public async Task<HttpClient> CreateAdminClientAsync(FakePuestosApiClient apiClient)
-        => await CreateAuthenticatedClientAsync(
-            new FakeUnidadOrganizativaApiClient(),
-            new FakeCargoApiClient(),
-            apiClient,
-            adminRole: true);
-
-    public async Task<HttpClient> CreateAdminClientAsync(
+    /// <summary>Lease admin con los tres fakes de catálogo inyectados.</summary>
+    public Task<WebClientLease> CreateAdminClientAsync(
         IUnidadOrganizativaApiClient unidadFake,
         ICargoApiClient cargoFake,
         FakePuestosApiClient puestosFake)
-        => await CreateAuthenticatedClientAsync(
-            unidadFake,
-            cargoFake,
-            puestosFake,
-            adminRole: true);
+        => _root.CreatePuestoLeaseAsync(puestosFake, unidadFake, cargoFake, adminRole: true);
 
     /// <summary>
-    /// Variante sobrecargada que inyecta los tres fakes de catálogo en el
-    /// contenedor. La página Create de Puestos (PR 3A) carga los catálogos
-    /// de unidades, cargos y puestos en paralelo vía <c>Task.WhenAll</c>;
-    /// los tests que sólo ejercitan el render necesitan los tres overrides
-    /// activos (incluso con listas vacías) para evitar fugas al API real.
+    /// Variante sobrecargada con los tres overrides activos. Conservada como
+    /// firma externa; delega al composite.
     /// </summary>
-    public async Task<HttpClient> CreateAuthenticatedClientAsync(
+    public Task<WebClientLease> CreateAuthenticatedClientAsync(
         IUnidadOrganizativaApiClient unidadFake,
         ICargoApiClient cargoFake,
         FakePuestosApiClient puestosFake,
         bool adminRole)
-    {
-        var accessToken = adminRole ? AdminJwtTestHelper.BuildAdminRoleJwt() : AdminJwtTestHelper.BuildUserJwt();
+        => _root.CreatePuestoLeaseAsync(puestosFake, unidadFake, cargoFake, adminRole);
 
-        var authHandler = new RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new LoginResponse(accessToken, DateTimeOffset.UtcNow.AddHours(1)))
-            });
-
-        // Reusamos el _baseFactory (patrón canónico del repo, ver
-        // HabilidadWebTestFixture.WithHabilidadApiClient): encadenar WithOverrides
-        // sobre _baseFactory evita crear hosts adicionales nunca dispuestos
-        // (resource leak) y garantiza que cualquier override heredado del
-        // constructor del fixture siga presente.
-        var factory = _baseFactory.WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            unidadOrganizativaApiClient: unidadFake,
-            cargoApiClient: cargoFake,
-            puestosApiClient: puestosFake);
-
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
-    }
-
-    /// <summary>Extrae el token antiforgery de un <c>__RequestVerificationToken</c> oculto.</summary>
-    public static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        var match = Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
-        Assert.True(match.Success, "Antiforgery token was not rendered.");
-        return match.Groups[1].Value;
-    }
-
-    public void Dispose() => _baseFactory?.Dispose();
-
-    /// <summary>
-    /// <see cref="HttpMessageHandler"/> mínimo que siempre devuelve una
-    /// respuesta preconfigurada. Se usa para stubear el endpoint de auth de
-    /// SGV.Api durante los tests.
-    /// </summary>
-    public sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(response);
-    }
+    public async ValueTask DisposeAsync() => await _root.DisposeAsync();
 }

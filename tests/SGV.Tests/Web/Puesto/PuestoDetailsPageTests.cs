@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web.Collections;
 using Xunit;
 
 namespace SGV.Tests.Web.Puesto;
@@ -20,11 +21,12 @@ namespace SGV.Tests.Web.Puesto;
 /// Usa <see cref="SgvWebApplicationFactory"/> + <see cref="FakePuestosApiClient"/>
 /// para no requerir MySQL.
 /// </summary>
-public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class PuestoDetailsPageTests
 {
-    private readonly PuestoWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public PuestoDetailsPageTests(PuestoWebTestFixture fixture) => _fixture = fixture;
+    public PuestoDetailsPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     // ──────────────────────────────────────────────
     // Spec 3C.1 · Req 1 — Acceso anónimo redirige a /auth/sign-in
@@ -33,15 +35,11 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Details_WhenAnonymous_RedirectsToSignIn()
     {
-        // Cliente sin autenticación: usa la base factory sin overrides para
-        // que [Authorize] de la página dispare el challenge.
-        var client = _fixture.BaseFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        // Cliente sin autenticación: el lease anónimo dispara el challenge de
+        // [Authorize] en la página Details sin requerir overrides adicionales.
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
 
-        var response = await client.GetAsync($"/organizacion/puestos/detalles/{Guid.NewGuid()}");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/detalles/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location?.OriginalString ?? string.Empty;
@@ -61,8 +59,8 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Get_Details_WhenAuthenticated_ShowsPuestoReadOnly()
     {
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var puesto = new PuestoDto(
             puestoId,
             "P-DET-001",
@@ -80,9 +78,9 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
             GetAllResult = new[] { puesto }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync($"/organizacion/puestos/detalles/{puestoId}");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/detalles/{puestoId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -143,9 +141,9 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
         };
         var missingId = Guid.NewGuid();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync($"/organizacion/puestos/detalles/{missingId}?p=2&search=foo&sort=codigo_asc");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/detalles/{missingId}?p=2&search=foo&sort=codigo_asc");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -186,9 +184,9 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
             "P-BACK-001",
             "Back Link Puesto",
             null,
-            PuestoWebTestFixture.SampleUnidadOrganizativaId,
+            WebTestBuilders.SampleUnidadOrganizativaId,
             "Comercial",
-            PuestoWebTestFixture.SampleCargoId,
+            WebTestBuilders.SampleCargoId,
             "Vendedor",
             PuestoSuperiorId: null);
 
@@ -198,7 +196,7 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
             GetAllResult = new[] { puesto }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
         // Entramos con p=3, search=back, sort=codigo_desc, returnStatus=eliminadas
         // (forward-compat con puestos-filtro-activos-eliminados). Usamos
@@ -206,7 +204,7 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
         // DetailsModel.OnGetAsync (status se usa en Index como filtro activo,
         // no en Details). El link de retorno al Index mapea returnStatus a
         // status automáticamente (BuildIndexRouteValuesForReturn).
-        var response = await client.GetAsync(
+        var response = await lease.Client.GetAsync(
             $"/organizacion/puestos/detalles/{puestoId}?p=3&search=back&sort=codigo_desc&returnStatus=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
@@ -238,8 +236,8 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
     {
         var superiorId = Guid.NewGuid();
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var superior = new PuestoDto(
             superiorId,
             "P-SUP",
@@ -267,13 +265,13 @@ public sealed class PuestoDetailsPageTests : IClassFixture<PuestoWebTestFixture>
             GetAllResult = new[] { superior, child }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
         // Entramos con search/sort/returnStatus para verificar que se preservan en el link al superior.
         // Usamos returnStatus (no status) porque es el nombre del parámetro que espera
         // DetailsModel.OnGetAsync. El link al superior usa returnStatus para preservar
         // el contexto del segmento (BuildSuperiorUrl).
-        var response = await client.GetAsync(
+        var response = await lease.Client.GetAsync(
             $"/organizacion/puestos/detalles/{puestoId}?p=1&search=dep&sort=nombre_asc&returnStatus=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 

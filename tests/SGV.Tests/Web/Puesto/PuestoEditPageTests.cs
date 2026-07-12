@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Cargo;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -23,11 +24,12 @@ namespace SGV.Tests.Web.Puesto;
 /// <see cref="FakeCargoApiClient"/> + <see cref="FakeUnidadOrganizativaApiClient"/>
 /// para no requerir MySQL.
 /// </summary>
-public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class PuestoEditPageTests
 {
-    private readonly PuestoWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public PuestoEditPageTests(PuestoWebTestFixture fixture) => _fixture = fixture;
+    public PuestoEditPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     // ──────────────────────────────────────────────
     // Spec 3B.1 · Req 1 — Acceso anónimo redirige a /auth/sign-in
@@ -36,15 +38,11 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Edit_WhenAnonymous_RedirectsToSignIn()
     {
-        // Cliente sin autenticación: usa la base factory sin overrides para
-        // que [Authorize] de la página dispare el challenge.
-        var client = _fixture.BaseFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        // Cliente sin autenticación: el lease anónimo dispara el challenge de
+        // [Authorize] en la página Edit sin requerir overrides adicionales.
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
 
-        var response = await client.GetAsync($"/organizacion/puestos/editar/{Guid.NewGuid()}");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/editar/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location?.OriginalString ?? string.Empty;
@@ -54,9 +52,9 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Edit_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
     {
-        using var client = await _fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(new FakePuestosApiClient());
 
-        var response = await client.GetAsync($"/organizacion/puestos/editar/{Guid.NewGuid()}");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/editar/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
@@ -71,8 +69,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     {
         var puestoId = Guid.NewGuid();
         var superiorId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var puesto = new PuestoDto(
             puestoId,
             "P-EDIT",
@@ -103,9 +101,9 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             }
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var response = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -141,9 +139,9 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
         };
         var missingId = Guid.NewGuid();
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var response = await client.GetAsync($"/organizacion/puestos/editar/{missingId}");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/editar/{missingId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -167,8 +165,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Get_Edit_HtmlRenderizado_NoContieneCodigoUnidadOrganizativaNiCargo()
     {
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var puesto = new PuestoDto(
             puestoId,
             "P-EDIT",
@@ -186,9 +184,9 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             GetAllResult = new[] { puesto }
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var response = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -218,8 +216,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation()
     {
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var puesto = new PuestoDto(
             puestoId,
             "P-EDIT",
@@ -248,12 +246,12 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             UpdateResult = PuestoCommandResult.Success(updatedPuesto)
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Nombre"] = "Nombre actualizado",
@@ -287,8 +285,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Post_Edit_WhenBackendReturnsFieldErrors_RendersFieldValidationOnNombre()
     {
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var puesto = new PuestoDto(
             puestoId,
             "P-EDIT",
@@ -312,12 +310,12 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
                 })
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Nombre"] = string.Empty,
@@ -355,8 +353,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Post_Edit_WhenCodigoDuplicadoConflict_ShowsSpecificMessageAndKeepsForm()
     {
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var puesto = new PuestoDto(
             puestoId,
             "P-EDIT",
@@ -379,12 +377,12 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
                     "Ya existe un puesto activo con el código P-DUP."))
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Nombre"] = "Puesto Duplicado",
@@ -416,8 +414,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Post_Edit_WhenTransportFails_ShowsRecoverableError()
     {
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var puesto = new PuestoDto(
             puestoId,
             "P-EDIT",
@@ -436,12 +434,12 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             UpdateException = new HttpRequestException("api caída")
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Nombre"] = "Puesto Transport Fail",
@@ -485,8 +483,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Post_Edit_WhenTransportFailsOnPrepopulateAndCatalogsSucceed_KeepsErrorMessageVisible()
     {
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
 
         // Catalog seed suficiente para que LoadCatalogsAsync NO marque anyFailure:
         // los tres catálogos responden OK con datos válidos.
@@ -510,12 +508,12 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             GetAllResult = new[] { seedPuesto }
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/puestos/editar/{puestoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Nombre"] = "Puesto con pre-populate fallido",
@@ -540,12 +538,12 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     {
         var puestoId = Guid.NewGuid();
         var apiClient = new FakePuestosApiClient();
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var getResponse = await client.GetAsync("/organizacion/puestos");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/puestos");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/puestos/editar/{puestoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Nombre"] = "Sin permiso",
@@ -579,8 +577,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task RoundTrip_FromEliminadasSegment_PreservesSegmentInPostSaveRedirect()
     {
         var puestoId = Guid.NewGuid();
-        var unidadId = PuestoWebTestFixture.SampleUnidadOrganizativaId;
-        var cargoId = PuestoWebTestFixture.SampleCargoId;
+        var unidadId = WebTestBuilders.SampleUnidadOrganizativaId;
+        var cargoId = WebTestBuilders.SampleCargoId;
         var puesto = new PuestoDto(
             puestoId,
             "P-RT",
@@ -609,13 +607,13 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
             UpdateResult = PuestoCommandResult.Success(updatedPuesto)
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
         // 1) GET: el Index emite ?returnStatus=eliminadas cuando el usuario
         //    hace clic en Editar desde la vista Eliminadas. Edit debe poblar
         //    el campo oculto ReturnStatus con ese valor (espejo del helper
         //    BuildEditRouteValues).
-        var getResponse = await client.GetAsync(
+        var getResponse = await lease.Client.GetAsync(
             $"/organizacion/puestos/editar/{puestoId}?p=1&returnStatus=eliminadas");
         var getContent = HttpUtility.HtmlDecode(await getResponse.Content.ReadAsStringAsync());
 
@@ -628,8 +626,8 @@ public sealed class PuestoEditPageTests : IClassFixture<PuestoWebTestFixture>
 
         // 2) POST: enviar el form con éxito. El redirect a Details debe
         //    propagar el segmento via returnStatus=eliminadas.
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
-        var postResponse = await client.PostAsync(
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+        var postResponse = await lease.Client.PostAsync(
             $"/organizacion/puestos/editar/{puestoId}?p=1&returnStatus=eliminadas",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {

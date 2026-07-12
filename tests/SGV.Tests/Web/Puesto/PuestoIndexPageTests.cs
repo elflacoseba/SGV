@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Web;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -17,11 +18,12 @@ namespace SGV.Tests.Web.Puesto;
 /// "POST Reactivate éxito/409 por código" y "Harness SweetAlert2".
 /// Espejo de <c>CargoIndexPageTests</c>.
 /// </summary>
-public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class PuestoIndexPageTests
 {
-    private readonly PuestoWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public PuestoIndexPageTests(PuestoWebTestFixture fixture) => _fixture = fixture;
+    public PuestoIndexPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     // ──────────────────────────────────────────────────
     // Tarea 2.1.1: render inicial del listado activo con 6 columnas
@@ -30,13 +32,13 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Index_WhenAuthenticated_RendersActivePuestosTable()
     {
-        var first = PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", "Desc A");
-        var second = PuestoWebTestFixture.BuildPuestoDto("P-002", "Líder de Proyecto", null);
+        var first = WebTestBuilders.BuildPuestoDto("P-001", "Analista", "Desc A");
+        var second = WebTestBuilders.BuildPuestoDto("P-002", "Líder de Proyecto", null);
         var apiClient = FakePuestosApiClient.WithPuestoList(first, second);
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var response = await client.GetAsync("/organizacion/puestos");
+        var response = await lease.Client.GetAsync("/organizacion/puestos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -87,11 +89,11 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Get_Index_WhenDeletedView_DoesNotRenderEditButton()
     {
         var apiClient = FakePuestosApiClient.WithPuestoList(
-            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null));
+            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null));
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var response = await client.GetAsync("/organizacion/puestos?status=eliminadas");
+        var response = await lease.Client.GetAsync("/organizacion/puestos?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -107,12 +109,12 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Index_WhenAuthenticatedWithoutAdminRole_HidesAdminActions()
     {
-        var first = PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", "Desc A");
+        var first = WebTestBuilders.BuildPuestoDto("P-001", "Analista", "Desc A");
         var apiClient = FakePuestosApiClient.WithPuestoList(first);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos");
+        var response = await lease.Client.GetAsync("/organizacion/puestos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -126,11 +128,11 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Get_Index_WhenDeletedViewAndAuthenticatedWithoutAdminRole_HidesReactivateAction()
     {
         var apiClient = FakePuestosApiClient.WithPuestoList(
-            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null));
+            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos?status=eliminadas");
+        var response = await lease.Client.GetAsync("/organizacion/puestos?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -146,17 +148,17 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Index_WhenPuestoHasSuperior_RendersLinkPreservingContext()
     {
-        var superior = PuestoWebTestFixture.BuildPuestoDto("SUP-01", "Superior", null);
-        var child = PuestoWebTestFixture.BuildPuestoDto("CHD-01", "Dependiente", null, superior.Id);
+        var superior = WebTestBuilders.BuildPuestoDto("SUP-01", "Superior", null);
+        var child = WebTestBuilders.BuildPuestoDto("CHD-01", "Dependiente", null, superior.Id);
         var apiClient = FakePuestosApiClient.WithPuestoList(superior, child);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
         // status=eliminadas fuerza Segmento="eliminadas" (no-default) y
         // permite verificar que el link preserva contexto via returnStatus.
         // PR 2: el toggle Eliminadas está deshabilitado pero la query sigue
         // siendo válida (forward-compat con puestos-filtro-activos-eliminados).
-        var response = await client.GetAsync($"/organizacion/puestos?search=dep&sort=nombre_asc&status=eliminadas");
+        var response = await lease.Client.GetAsync($"/organizacion/puestos?search=dep&sort=nombre_asc&status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -179,11 +181,11 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Get_Index_ToggleEliminadas_IsDisabledAndShowsTooltip()
     {
         var apiClient = FakePuestosApiClient.WithPuestoList(
-            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null));
+            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos");
+        var response = await lease.Client.GetAsync("/organizacion/puestos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -225,9 +227,9 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     {
         var apiClient = FakePuestosApiClient.WithPuestoList();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos");
+        var response = await lease.Client.GetAsync("/organizacion/puestos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -244,11 +246,11 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     public async Task Get_Index_WhenSearchHasNoResults_ShowsEmptyState()
     {
         var apiClient = FakePuestosApiClient.WithPuestoList(
-            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null));
+            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos?search=zzzzz");
+        var response = await lease.Client.GetAsync("/organizacion/puestos?search=zzzzz");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -266,9 +268,9 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         var apiClient = FakePuestosApiClient.WithPuestoList();
         apiClient.GetAllException = new HttpRequestException("boom");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos");
+        var response = await lease.Client.GetAsync("/organizacion/puestos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -284,17 +286,17 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Post_Delete_WhenSuccessful_RedirectsPreservingFiltersAndKeepsLastDeletedId()
     {
-        var toDelete = PuestoWebTestFixture.BuildPuestoDto("DEL-01", "Analista Senior", "Desc", null);
-        var remaining = PuestoWebTestFixture.BuildPuestoDto("DEL-02", "Analista Junior", null, null);
+        var toDelete = WebTestBuilders.BuildPuestoDto("DEL-01", "Analista Senior", "Desc", null);
+        var remaining = WebTestBuilders.BuildPuestoDto("DEL-02", "Analista Junior", null, null);
         var apiClient = FakePuestosApiClient.WithPuestoList(toDelete, remaining);
         apiClient.DeleteResult = new PuestoDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync("/organizacion/puestos?p=1&search=ana&sort=nombre_desc");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/puestos?p=1&search=ana&sort=nombre_desc");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["id"] = toDelete.Id.ToString(),
@@ -311,7 +313,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Contains("sort=nombre_desc", location, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"deletedId={toDelete.Id}", location, StringComparison.OrdinalIgnoreCase);
 
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
@@ -330,7 +332,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Post_Delete_WhenConflict_ShowsFeedbackAndKeepsRowVisible()
     {
-        var puesto = PuestoWebTestFixture.BuildPuestoDto("CONF-01", "Con Conflicto", null, null);
+        var puesto = WebTestBuilders.BuildPuestoDto("CONF-01", "Con Conflicto", null, null);
         var apiClient = FakePuestosApiClient.WithPuestoList(puesto);
         apiClient.DeleteResult = new PuestoDeleteResult(
             Succeeded: false,
@@ -338,12 +340,12 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
             Code: "PuestoEnOcupacion",
             Message: "El puesto tiene una ocupación activa.");
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync("/organizacion/puestos?search=conf&sort=codigo_asc");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/puestos?search=conf&sort=codigo_asc");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["id"] = puesto.Id.ToString(),
@@ -358,7 +360,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Contains("search=conf", location, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("sort=codigo_asc", location, StringComparison.OrdinalIgnoreCase);
 
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
@@ -374,7 +376,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Post_Delete_WhenNotFound_ShowsFeedbackAndKeepsRowVisible()
     {
-        var puesto = PuestoWebTestFixture.BuildPuestoDto("NF-01", "A Borrar", null, null);
+        var puesto = WebTestBuilders.BuildPuestoDto("NF-01", "A Borrar", null, null);
         var apiClient = FakePuestosApiClient.WithPuestoList(puesto);
         apiClient.DeleteResult = new PuestoDeleteResult(
             Succeeded: false,
@@ -382,12 +384,12 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
             Code: "PuestoNoEncontrado",
             Message: "El puesto no existe.");
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync("/organizacion/puestos");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/puestos");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["id"] = puesto.Id.ToString(),
@@ -396,7 +398,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
 
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
@@ -407,15 +409,15 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Post_Delete_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
     {
-        var puesto = PuestoWebTestFixture.BuildPuestoDto("DENY-DEL", "Sin permisos", null, null);
+        var puesto = WebTestBuilders.BuildPuestoDto("DENY-DEL", "Sin permisos", null, null);
         var apiClient = FakePuestosApiClient.WithPuestoList(puesto);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var getResponse = await client.GetAsync("/organizacion/puestos");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/puestos");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync("/organizacion/puestos?handler=Delete", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["id"] = puesto.Id.ToString(),
@@ -430,15 +432,15 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Post_Reactivate_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
     {
-        var puesto = PuestoWebTestFixture.BuildPuestoDto("DENY-REACT", "Sin permisos", null, null);
+        var puesto = WebTestBuilders.BuildPuestoDto("DENY-REACT", "Sin permisos", null, null);
         var apiClient = FakePuestosApiClient.WithPuestoList(puesto);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var getResponse = await client.GetAsync("/organizacion/puestos");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/puestos");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync("/organizacion/puestos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync("/organizacion/puestos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["id"] = puesto.Id.ToString(),
@@ -457,19 +459,19 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Post_Reactivate_WhenSuccessful_RedirectsToActivasClearsLastDeletedId()
     {
-        var puesto = PuestoWebTestFixture.BuildPuestoDto("REACT-01", "A Reactivar", null, null);
+        var puesto = WebTestBuilders.BuildPuestoDto("REACT-01", "A Reactivar", null, null);
         var apiClient = FakePuestosApiClient.WithPuestoList();
         apiClient.ReactivateResult = PuestoCommandResult.Success(
             new PuestoDto(puesto.Id, puesto.Codigo, puesto.Nombre, puesto.Descripcion,
-                PuestoWebTestFixture.SampleUnidadOrganizativaId, "Ventas",
-                PuestoWebTestFixture.SampleCargoId, "Vendedor", null));
+                WebTestBuilders.SampleUnidadOrganizativaId, "Ventas",
+                WebTestBuilders.SampleCargoId, "Vendedor", null));
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync("/organizacion/puestos?status=eliminadas&search=react&sort=nombre_asc&deletedId=" + puesto.Id);
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/puestos?status=eliminadas&search=react&sort=nombre_asc&deletedId=" + puesto.Id);
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync("/organizacion/puestos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync("/organizacion/puestos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["id"] = puesto.Id.ToString(),
@@ -487,7 +489,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         Assert.Contains("search=react", location, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("sort=nombre_asc", location, StringComparison.OrdinalIgnoreCase);
 
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
@@ -501,18 +503,18 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Post_Reactivate_WhenConflictByCodigo_ShowsFeedbackAndKeepsContext()
     {
-        var puesto = PuestoWebTestFixture.BuildPuestoDto("CONF-REACT-01", "Conflicto React", null, null);
+        var puesto = WebTestBuilders.BuildPuestoDto("CONF-REACT-01", "Conflicto React", null, null);
         var apiClient = FakePuestosApiClient.WithPuestoList();
         apiClient.ReactivateResult = PuestoCommandResult.Failure(
             new PuestoError(PuestoErrorType.Conflict, "CodigoDuplicado",
                 "Ya existe un puesto activo con el mismo código."));
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync("/organizacion/puestos?status=eliminadas");
-        var antiforgeryToken = await PuestoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/puestos?status=eliminadas");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync("/organizacion/puestos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync("/organizacion/puestos?handler=Reactivate", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["id"] = puesto.Id.ToString(),
@@ -526,7 +528,7 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         var location = response.Headers.Location?.OriginalString ?? string.Empty;
         Assert.Contains("status=eliminadas", location, StringComparison.OrdinalIgnoreCase);
 
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
@@ -546,11 +548,11 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
         // status=eliminadas en query (forward-compat), la página debe seguir
         // renderizando OK y el endpoint GetAllAsync debe ser consultado.
         var apiClient = FakePuestosApiClient.WithPuestoList(
-            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null));
+            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos?status=eliminadas");
+        var response = await lease.Client.GetAsync("/organizacion/puestos?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -565,13 +567,9 @@ public sealed class PuestoIndexPageTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Index_WhenAnonymous_RedirectsToSignIn()
     {
-        var factory = _fixture.BaseFactory;
-        var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
 
-        var response = await client.GetAsync("/organizacion/puestos");
+        var response = await lease.Client.GetAsync("/organizacion/puestos");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString ?? string.Empty,

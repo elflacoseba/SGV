@@ -1,26 +1,28 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Web.Puesto;
 
 /// <summary>
-/// Seam tests de PR 1 para el módulo web de Puestos:
+/// Seam tests de PR 1 para el módulo web de Puestos (migrado a composite en PR 2b-2):
 ///   - shape de <see cref="PuestoListItemViewModel"/>, <see cref="PuestoDeleteResult"/>
 ///     y <see cref="PuestoListQuery"/>;
 ///   - resolución del cliente tipado <see cref="IPuestosApiClient"/> desde la
 ///     composición raíz registrada en <c>Program.cs</c>;
-///   - override del fake vía <see cref="SgvWebApplicationFactory.WithPuestosApiClient"/>;
+///   - override del fake vía <c>SgvWebApplicationFactory.WithOverrides</c>
+///     (espejo del patrón <c>CargoWebSeamTests</c>);
 ///   - render de la entry colapsable "Puestos" en el sidenav autenticado.
-/// Espejo de <c>CargoWebSeamTests</c> + el bloque de sidenav de <c>CargoWebTests</c>.
 /// </summary>
-public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
+[Collection("WebIntegration")]
+public class PuestoWebSeamTests
 {
-    private readonly PuestoWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public PuestoWebSeamTests(PuestoWebTestFixture fixture)
+    public PuestoWebSeamTests(WebIntegrationFixture fixture)
     {
         _fixture = fixture;
     }
@@ -79,7 +81,7 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public void ProductionRegistration_ResolvesPuestosApiClient()
     {
-        using var scope = _fixture.BaseFactory.Services.CreateScope();
+        using var scope = _fixture.RootFactory.Services.CreateScope();
 
         var client = scope.ServiceProvider.GetRequiredService<IPuestosApiClient>();
 
@@ -92,7 +94,7 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
     {
         var fake = new FakePuestosApiClient();
 
-        using var factory = _fixture.WithPuestosApiClient(fake);
+        using var factory = new SgvWebApplicationFactory().WithOverrides(puestosApiClient: fake);
         using var scope = factory.Services.CreateScope();
 
         var resolved = scope.ServiceProvider.GetRequiredService<IPuestosApiClient>();
@@ -136,9 +138,9 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Sidenav_WhenAuthenticated_ExposesPuestosModule()
     {
-        using var client = await _fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(new FakePuestosApiClient());
 
-        var response = await client.GetAsync("/");
+        var response = await lease.Client.GetAsync("/");
         var content = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -158,9 +160,9 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
     [Fact]
     public async Task Get_Sidenav_WhenAuthenticated_DoesNotExposeUnimplementedModules()
     {
-        using var client = await _fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(new FakePuestosApiClient());
 
-        var response = await client.GetAsync("/");
+        var response = await lease.Client.GetAsync("/");
         var content = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -186,11 +188,11 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
     {
         // Un puesto cualquiera: la página Index lo usa para renderizar la grilla.
         var apiClient = FakePuestosApiClient.WithPuestoList(
-            PuestoWebTestFixture.BuildPuestoDto("P-001", "Analista", null, null));
+            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null, null));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos");
+        var response = await lease.Client.GetAsync("/organizacion/puestos");
         var content = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -226,9 +228,9 @@ public class PuestoWebSeamTests : IClassFixture<PuestoWebTestFixture>
     {
         var apiClient = FakePuestosApiClient.WithPuestoList();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync("/organizacion/puestos?status=eliminadas");
+        var response = await lease.Client.GetAsync("/organizacion/puestos?status=eliminadas");
         var content = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
