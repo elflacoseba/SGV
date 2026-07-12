@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Web;
+using Microsoft.AspNetCore.Mvc.Testing;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
@@ -19,7 +20,11 @@ public sealed partial class CargoHabilidadesPageTests
     [Fact]
     public async Task Get_Anonymous_RedirectsToSignIn()
     {
-        using var client = _fixture.BaseFactory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        // Anónimo: usamos factory local porque el lease anónimo del composite
+        // dispose la _root al terminar, rompiendo tests hermanos. (Bug
+        // documentado en apply-progress de PR 2b-1.)
+        using var localFactory = new SgvWebApplicationFactory();
+        using var client = localFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             HandleCookies = true
@@ -43,9 +48,9 @@ public sealed partial class CargoHabilidadesPageTests
         // el navegador y consistente con el patrón del repo (Forbid en
         // lugar de 403 plano cuando hay sesión autenticada).
         var apiClient = FakeCargoApiClient.WithCargoList();
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync($"/organizacion/cargos/{Guid.NewGuid()}/habilidades");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/{Guid.NewGuid()}/habilidades");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);

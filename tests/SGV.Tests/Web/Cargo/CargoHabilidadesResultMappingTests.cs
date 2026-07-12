@@ -5,6 +5,7 @@ using System.Web;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Habilidad;
 using Xunit;
 
@@ -24,15 +25,15 @@ public sealed partial class CargoHabilidadesPageTests
         apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
             new CargoSkillError(CargoSkillErrorType.Conflict, "Conflicto", "Conflicto de versión."));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
         var skillId = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
             BuildAsignarForm(antiforgeryToken, skillId, nivelId));
 
@@ -56,15 +57,15 @@ public sealed partial class CargoHabilidadesPageTests
         apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
             new CargoSkillError(CargoSkillErrorType.Unauthorized, "Unauthorized", "Token expirado."));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
         var skillId = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
             BuildAsignarForm(antiforgeryToken, skillId, nivelId));
 
@@ -87,15 +88,15 @@ public sealed partial class CargoHabilidadesPageTests
         apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
             new CargoSkillError(CargoSkillErrorType.Forbidden, "Forbidden", "Acceso denegado."));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
         var skillId = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
             BuildAsignarForm(antiforgeryToken, skillId, nivelId));
 
@@ -122,15 +123,15 @@ public sealed partial class CargoHabilidadesPageTests
         apiClient.SkillUpsertResult = CargoSkillCommandResult.Failure(
             new CargoSkillError(CargoSkillErrorType.Transport, "ServiceUnavailable", "Servicio caído."));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
         var skillId = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
             BuildAsignarForm(antiforgeryToken, skillId, nivelId));
 

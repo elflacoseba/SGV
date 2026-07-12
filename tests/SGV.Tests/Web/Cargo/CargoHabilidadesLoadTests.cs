@@ -24,9 +24,9 @@ public sealed partial class CargoHabilidadesPageTests
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.GetSkillsResult = Array.Empty<CargoSkillDetailDto>();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient, new FakeHabilidadApiClient(), adminRole: true);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var response = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -70,12 +70,12 @@ public sealed partial class CargoHabilidadesPageTests
             NivelesResult = new[] { nivelBasico, nivelAvanzado }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient,
             habilidadApiClient,
             adminRole: true);
 
-        var response = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

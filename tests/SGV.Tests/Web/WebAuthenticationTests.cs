@@ -5,14 +5,20 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Contracts.Auth;
+using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Common;
 using SGV.Web.Integration.Auth;
 using Xunit;
 
 namespace SGV.Tests.Web;
 
+[Collection("WebIntegration")]
 public sealed class WebAuthenticationTests
 {
+    private readonly WebIntegrationFixture _fixture;
+
+    public WebAuthenticationTests(WebIntegrationFixture fixture) => _fixture = fixture;
+
     [Fact]
     public void AuthApiRoutes_ExposeCentralizedLoginPath()
     {
@@ -65,8 +71,11 @@ public sealed class WebAuthenticationTests
     [Fact]
     public async Task Get_SignIn_ReturnsSuccessAndOmitsRecoveryLinks()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        // Anónimo: usamos factory local porque el lease anónimo del composite
+        // dispose la _root al terminar, rompiendo tests hermanos. (Bug
+        // documentado en apply-progress de PR 2b-1.)
+        using var localFactory = new SgvWebApplicationFactory();
+        using var client = localFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             HandleCookies = true
@@ -96,7 +105,7 @@ public sealed class WebAuthenticationTests
         });
 
         var getResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -130,7 +139,7 @@ public sealed class WebAuthenticationTests
         });
 
         var getResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -164,7 +173,7 @@ public sealed class WebAuthenticationTests
         });
 
         var getResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
         var response = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -183,12 +192,12 @@ public sealed class WebAuthenticationTests
     [Fact]
     public async Task Post_Logout_ClearsCookieAndRedirectsToSignIn()
     {
-        using var client = await CreateAuthenticatedClientAsync();
+        await using var lease = await CreateAuthenticatedLeaseAsync();
 
-        var homeResponse = await client.GetAsync("/");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(homeResponse);
+        var homeResponse = await lease.Client.GetAsync("/");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(homeResponse);
 
-        var response = await client.PostAsync("/auth/logout", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync("/auth/logout", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken
         }));
@@ -196,50 +205,13 @@ public sealed class WebAuthenticationTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
 
-        var afterLogout = await client.GetAsync("/");
+        var afterLogout = await lease.Client.GetAsync("/");
         Assert.Equal(HttpStatusCode.Redirect, afterLogout.StatusCode);
         Assert.Contains("/auth/sign-in", afterLogout.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync()
-    {
-        var handler = new RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new LoginResponse(AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
-            });
-
-        var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: handler);
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var getResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
-
-        var response = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        return client;
-    }
-
-    private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        var match = Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
-
-        Assert.True(match.Success, "Antiforgery token was not rendered.");
-        return match.Groups[1].Value;
-    }
+    private Task<WebClientLease> CreateAuthenticatedLeaseAsync()
+        => _fixture.CreateAuthOnlyLeaseAsync();
 
     private sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
     {

@@ -34,10 +34,10 @@ Maintainer approved a single PR with `size:exception`; sdd-apply may proceed as 
 
 ## Fase 3 — PR2b-1: Cargo + Shell/Auth (~361)
 
-- [ ] 3.1 Migrar `CargoWebTestFixture.cs:75/78/90` a `Task<WebClientLease>`; 66 call sites (incl. cross `HabilidadesCargosModelTests.cs:290`).
-- [ ] 3.2 Migrar `CargoWebTests.cs:169`, `WebAuthenticationTests.cs:204`, `WebShellSmokeTests.cs:55`; 6 sites.
-- [ ] 3.3 6 clases (`Cargo*PageTests`+`CargoHabilidadesPageTests`+smoke) a `[Collection("WebIntegration")]`.
-- [ ] 3.4 VERIFICAR `--filter ~Cargo|~WebShellSmoke|~WebAuthentication --no-build` verde.
+- [x] 3.1 Migrar `CargoWebTestFixture.cs:75/78/90` a `Task<WebClientLease>`; 66 call sites (incl. cross `HabilidadesCargosModelTests.cs:290`).
+- [x] 3.2 Migrar `CargoWebTests.cs:169`, `WebAuthenticationTests.cs:204`, `WebShellSmokeTests.cs:55`; 6 sites.
+- [x] 3.3 6 clases (`Cargo*PageTests`+`CargoHabilidadesPageTests`+smoke) a `[Collection("WebIntegration")]`.
+- [x] 3.4 VERIFICAR `--filter ~Cargo|~WebShellSmoke|~WebAuthentication --no-build` verde.
 
 ## Fase 4 — PR2b-2: Puesto (~153)
 

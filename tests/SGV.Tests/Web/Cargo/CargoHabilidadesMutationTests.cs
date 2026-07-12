@@ -5,6 +5,7 @@ using System.Web;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Habilidad;
 using Xunit;
 
@@ -28,13 +29,13 @@ public sealed partial class CargoHabilidadesPageTests
         apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
             new CargoSkillDto(skillId, nivelId) { Ponderacion = 1.00m, EsObligatoria = false });
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -57,7 +58,7 @@ public sealed partial class CargoHabilidadesPageTests
         Assert.True(upsert.Request.EsObligatoria);
 
         // El PRG debe propagar el TempData que el siguiente GET renderiza.
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
         Assert.Contains("se asign", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
@@ -86,13 +87,13 @@ public sealed partial class CargoHabilidadesPageTests
         apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
             new CargoSkillDto(skillId, nivelId) { Ponderacion = 2.50m, EsObligatoria = true });
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
             BuildActualizarForm(antiforgeryToken, skillId, nivelId, ponderacion: "2.50"));
 
@@ -115,13 +116,13 @@ public sealed partial class CargoHabilidadesPageTests
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.SkillDeleteResult = new CargoSkillDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Quitar&skillId={skillId}",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -134,7 +135,7 @@ public sealed partial class CargoHabilidadesPageTests
         Assert.Equal(cargoId, delete.CargoId);
         Assert.Equal(skillId, delete.SkillId);
 
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
         Assert.Contains("quit", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
@@ -172,12 +173,12 @@ public sealed partial class CargoHabilidadesPageTests
             NivelesResult = new[] { nivel }
         };
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient,
             habilidadApiClient,
             adminRole: true);
 
-        var response = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

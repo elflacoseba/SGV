@@ -5,6 +5,7 @@ using System.Web;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Habilidad;
 using Xunit;
 
@@ -51,13 +52,13 @@ public sealed partial class CargoHabilidadesPageTests
         apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
             new CargoSkillDto(skillId, nivelId) { Ponderacion = 3.50m, EsObligatoria = true });
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
             BuildActualizarForm(antiforgeryToken, skillId, nivelId, ponderacion: "3.50"));
 
@@ -76,7 +77,7 @@ public sealed partial class CargoHabilidadesPageTests
 
         // El TempData del PRG debe propagarse al siguiente GET, que recarga
         // la grilla con los nuevos valores.
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);

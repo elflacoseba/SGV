@@ -1,12 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
-using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Common;
+using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Habilidad;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
@@ -16,36 +16,34 @@ using Xunit;
 namespace SGV.Tests.Web.Cargo;
 
 /// <summary>
-/// Shared xUnit fixture (<see cref="IClassFixture{TFixture}"/>) for the
-/// Cargo web tests. Encapsulates the recurring setup: a base
-/// <see cref="SgvWebApplicationFactory"/>, an authenticated
-/// <see cref="HttpClient"/> wired with a <see cref="FakeCargoApiClient"/>,
-/// and a small set of seed-data builders (<see cref="BuildCargoDto"/>).
-/// Test names and assertions in the consuming classes are not affected;
-/// only the duplicated helpers move here.
+/// Compatibilidad histórica para PR 2b-3 (cross-módulo
+/// <c>HabilidadesCargosModelTests</c>): conserva las firmas
+/// <c>Task&lt;HttpClient&gt;</c> y la base factory, pero delega el grueso del
+/// trabajo al composite <see cref="WebIntegrationFixture"/> para evitar
+/// repetir la cadena <c>WithOverrides</c> + sign-in. El host resultante es
+/// el mismo que produce <see cref="WebIntegrationFixture.CreateCargoLeaseAsync"/>;
+/// sólo cambia el envoltorio: aquí devolvemos <see cref="HttpClient"/> para
+/// no romper los call sites que aún no migraron a <see cref="WebClientLease"/>.
 /// </summary>
 public sealed class CargoWebTestFixture : IDisposable
 {
-    private readonly SgvWebApplicationFactory _baseFactory;
+    private readonly WebIntegrationFixture _root;
 
-    public CargoWebTestFixture()
-    {
-        _baseFactory = new SgvWebApplicationFactory();
-    }
+    public CargoWebTestFixture() => _root = new WebIntegrationFixture();
 
     /// <summary>
-    /// Base factory without overrides. Tests that need no cargo override
-    /// can call <c>BaseFactory.CreateClient(...)</c> directly.
+    /// Devuelve la raíz del composite para casos que necesiten construir un
+    /// cliente anónimo o crear su propio lease (futuro PR 2b-3).
     /// </summary>
-    public SgvWebApplicationFactory BaseFactory => _baseFactory;
+    public SgvWebApplicationFactory BaseFactory => _root.RootFactory;
 
     /// <summary>
-    /// Returns a new factory with <see cref="ICargoApiClient"/> swapped
-    /// for the supplied <paramref name="fake"/>. The base factory is
-    /// left untouched so multiple tests can run with different fakes.
+    /// Devuelve un factory con <see cref="ICargoApiClient"/> sobrescrito
+    /// para el fake provisto. Encadena sobre la raíz del composite para no
+    /// crear hosts adicionales nunca dispuestos.
     /// </summary>
     public SgvWebApplicationFactory WithCargoApiClient(FakeCargoApiClient fake)
-        => _baseFactory.WithOverrides(cargoApiClient: fake);
+        => _root.RootFactory.WithOverrides(cargoApiClient: fake);
 
     /// <summary>
     /// Seeds the fake catalog ids used by the Create page tests.
@@ -67,10 +65,9 @@ public sealed class CargoWebTestFixture : IDisposable
     /// <summary>
     /// Returns an authenticated <see cref="HttpClient"/> whose
     /// <see cref="ICargoApiClient"/> resolves to <paramref name="apiClient"/>.
-    /// The auth API is stubbed to return a fixed bearer token.
-    /// Mantiene la firma pre-existente: el usuario autenticado NO tiene
-    /// claims de rol, por lo que <c>User.IsInRole(RolesSgv.Administrador)</c>
-    /// devuelve <c>false</c> en tests que la usen para chequeos explícitos.
+    /// Thin shim sobre <see cref="WebIntegrationFixture.CreateCargoLeaseAsync"/>
+    /// que retorna <see cref="WebClientLease.Client"/> mientras la lease queda
+    /// retenida en el fixture hasta su <see cref="Dispose"/>.
     /// </summary>
     public Task<HttpClient> CreateAuthenticatedClientAsync(FakeCargoApiClient apiClient)
         => CreateAuthenticatedClientAsync(apiClient, new FakeHabilidadApiClient(), adminRole: false);
@@ -82,53 +79,19 @@ public sealed class CargoWebTestFixture : IDisposable
     /// Variante sobrecargada que también inyecta un
     /// <see cref="FakeHabilidadApiClient"/> en el contenedor y permite
     /// optar por autenticar con rol <see cref="RolesSgv.Administrador"/>.
-    /// El "admin" se modela firmando un JWT válido con <c>ClaimTypes.Role</c>:
-    /// <see cref="AuthSessionFactory"/> lo valida y agrega sus claims a la
-    /// identidad de la cookie, así <c>User.IsInRole(...)</c> devuelve
-    /// <c>true</c> dentro del pipeline de Razor Pages.
+    /// Internamente solicita un <see cref="WebClientLease"/> al composite y
+    /// entrega el <see cref="WebClientLease.Client"/> al test; el fixture
+    /// conserva la lease hasta <see cref="Dispose"/> para que la factory
+    /// no quede huérfana.
     /// </summary>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(
         FakeCargoApiClient apiClient,
         FakeHabilidadApiClient habilidadApiClient,
         bool adminRole)
     {
-        var accessToken = adminRole ? AdminJwtTestHelper.BuildAdminRoleJwt() : AdminJwtTestHelper.BuildUserJwt();
-
-        var authHandler = new RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new LoginResponse(accessToken, DateTimeOffset.UtcNow.AddHours(1)))
-            });
-
-        // Reusamos el _baseFactory (patrón canónico del repo, ver
-        // HabilidadWebTestFixture.WithHabilidadApiClient): encadenar WithOverrides
-        // sobre _baseFactory evita crear hosts adicionales nunca dispuestos
-        // (resource leak) y garantiza que cualquier override heredado del
-        // constructor del fixture siga presente.
-        var factory = _baseFactory.WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            cargoApiClient: apiClient,
-            habilidadApiClient: habilidadApiClient);
-
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
+        var lease = await _root.CreateCargoLeaseAsync(apiClient, habilidadApiClient, adminRole);
+        _leases.Add(lease);
+        return lease.Client;
     }
 
     /// <summary>
@@ -143,16 +106,17 @@ public sealed class CargoWebTestFixture : IDisposable
         return match.Groups[1].Value;
     }
 
-    public void Dispose() => _baseFactory?.Dispose();
+    private readonly List<WebClientLease> _leases = new();
 
-    /// <summary>
-    /// Minimal <see cref="HttpMessageHandler"/> that always returns a
-    /// preconfigured <see cref="HttpResponseMessage"/>. Used to stub the
-    /// SGV.Api auth endpoint during tests.
-    /// </summary>
-    public sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
+    public async ValueTask DisposeAsync()
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(response);
+        foreach (var lease in _leases)
+        {
+            await lease.DisposeAsync();
+        }
+        _leases.Clear();
+        await _root.DisposeAsync();
     }
+
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 }

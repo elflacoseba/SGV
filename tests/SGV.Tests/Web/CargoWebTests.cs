@@ -5,6 +5,7 @@ using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
@@ -16,13 +17,20 @@ namespace SGV.Tests.Web;
 /// PR 1 cubre: redirección anónima, presencia en el sidenav y seams.
 /// Las pruebas end-to-end del listado, baja y detalle viven en PR 2 y PR 3.
 /// </summary>
+[Collection("WebIntegration")]
 public sealed class CargoWebTests
 {
+    private readonly WebIntegrationFixture _fixture;
+
+    public CargoWebTests(WebIntegrationFixture fixture) => _fixture = fixture;
     [Fact]
     public async Task Get_Index_WhenAnonymous_RedirectsToSignIn()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        // Anónimo: usamos factory local porque el lease anónimo del composite
+        // dispose la _root al terminar, rompiendo tests hermanos. (Bug
+        // documentado en apply-progress de PR 2b-1.)
+        using var localFactory = new SgvWebApplicationFactory();
+        using var client = localFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             HandleCookies = true
@@ -37,8 +45,9 @@ public sealed class CargoWebTests
     [Fact]
     public async Task Get_Details_WhenAnonymous_RedirectsToSignIn()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        // Anónimo: usamos factory local por la misma razón que arriba.
+        using var localFactory = new SgvWebApplicationFactory();
+        using var client = localFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             HandleCookies = true
@@ -53,9 +62,9 @@ public sealed class CargoWebTests
     [Fact]
     public async Task Get_Sidenav_WhenAuthenticated_ExposesCargosModule()
     {
-        using var client = await CreateAuthenticatedClientAsync();
+        await using var lease = await _fixture.CreateAuthOnlyLeaseAsync();
 
-        var response = await client.GetAsync("/");
+        var response = await lease.Client.GetAsync("/");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -72,9 +81,9 @@ public sealed class CargoWebTests
     [Fact]
     public async Task Get_Sidenav_WhenAuthenticated_ExposesHabilidadesModule()
     {
-        using var client = await CreateAuthenticatedClientAsync();
+        await using var lease = await _fixture.CreateAuthOnlyLeaseAsync();
 
-        var response = await client.GetAsync("/");
+        var response = await lease.Client.GetAsync("/");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -98,9 +107,9 @@ public sealed class CargoWebTests
         // Spec CRITICAL-04: al estar en /organizacion/habilidades el item
         // Listado del submenú Habilidades debe llevar la clase "active",
         // pero el item Nueva NO debe llevarlo.
-        using var client = await CreateAuthenticatedClientAsync();
+        await using var lease = await _fixture.CreateAuthOnlyLeaseAsync();
 
-        var response = await client.GetAsync("/organizacion/habilidades");
+        var response = await lease.Client.GetAsync("/organizacion/habilidades");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
@@ -119,9 +128,9 @@ public sealed class CargoWebTests
         // Spec CRITICAL-04: al estar en /organizacion/habilidades/crear el
         // item Nueva del submenú Habilidades debe llevar la clase "active"
         // y el item Listado NO debe llevarla.
-        using var client = await CreateAuthenticatedClientAsync();
+        await using var lease = await _fixture.CreateAuthOnlyLeaseAsync();
 
-        var response = await client.GetAsync("/organizacion/habilidades/crear");
+        var response = await lease.Client.GetAsync("/organizacion/habilidades/crear");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
@@ -164,52 +173,5 @@ public sealed class CargoWebTests
             || anchor.Contains("active ", StringComparison.OrdinalIgnoreCase)
             || anchor.Contains(" active ", StringComparison.OrdinalIgnoreCase);
         return hasActive;
-    }
-
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync()
-    {
-        var handler = new RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new LoginResponse(SGV.Tests.Web.Common.AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
-            });
-
-        var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: handler);
-
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
-    }
-
-    private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        var match = Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
-
-        Assert.True(match.Success, "Antiforgery token was not rendered.");
-        return match.Groups[1].Value;
-    }
-
-    private sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(response);
     }
 }

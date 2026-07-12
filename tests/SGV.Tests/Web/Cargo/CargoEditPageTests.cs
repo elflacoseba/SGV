@@ -3,8 +3,10 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using System.Web;
+using Microsoft.AspNetCore.Mvc.Testing;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -17,11 +19,12 @@ namespace SGV.Tests.Web.Cargo;
 /// Codigo, backend validation errors). Uses <see cref="SgvWebApplicationFactory"/>
 /// + <see cref="FakeCargoApiClient"/> so MySQL is not required.
 /// </summary>
-public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class CargoEditPageTests
 {
-    private readonly CargoWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public CargoEditPageTests(CargoWebTestFixture fixture) => _fixture = fixture;
+    public CargoEditPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     // ──────────────────────────────────────────────
     // Task 2.1: GET anónimo redirige a sign-in
@@ -30,7 +33,11 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
     [Fact]
     public async Task Get_Edit_WhenAnonymous_RedirectsToSignIn()
     {
-        using var client = _fixture.BaseFactory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        // Anónimo: usamos factory local porque el lease anónimo del composite
+        // dispose la _root al terminar, rompiendo tests hermanos. (Bug
+        // documentado en apply-progress de PR 2b-1.)
+        using var localFactory = new SgvWebApplicationFactory();
+        using var client = localFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             HandleCookies = true
@@ -45,9 +52,9 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
     [Fact]
     public async Task Get_Edit_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
     {
-        using var client = await _fixture.CreateAuthenticatedClientAsync(new FakeCargoApiClient());
+        await using var lease = await _fixture.CreateCargoLeaseAsync(new FakeCargoApiClient());
 
-        var response = await client.GetAsync($"/organizacion/cargos/editar/{Guid.NewGuid()}");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/editar/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/error/403", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);
@@ -70,9 +77,9 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
             new(CargoWebTestFixture.SeniorNivelId, "SR", "Senior", 2, 2)
         };
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);
 
-        var response = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -101,9 +108,9 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList();
         var missingId = Guid.NewGuid();
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);
 
-        var response = await client.GetAsync($"/organizacion/cargos/editar/{missingId}");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/editar/{missingId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -128,12 +135,12 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList(updatedCargo);
         apiClient.UpdateResult = CargoCommandResult.Success(updatedCargo);
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "C-EDIT",
@@ -155,7 +162,7 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         Assert.Equal("Descripción actualizada", update.Request.Descripcion);
 
         // Al refrescar, el TempData debe mostrar el mensaje de éxito en la página de detalle
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         Assert.Contains("se actualizó correctamente", refreshedContent, StringComparison.OrdinalIgnoreCase);
@@ -178,12 +185,12 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
                 "CodigoDuplicado",
                 "Ya existe un cargo activo con el código C-DUP."));
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "C-DUP",
@@ -228,12 +235,12 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
                 ["nombre"] = new[] { "El nombre es obligatorio." }
             });
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = new string('x', 51),
@@ -275,12 +282,12 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.UpdateException = new HttpRequestException("network down");
 
-        using var client = await _fixture.CreateAdminClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/editar/{cargoId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "C-EDIT",
@@ -316,12 +323,12 @@ public sealed class CargoEditPageTests : IClassFixture<CargoWebTestFixture>
     {
         var cargoId = Guid.NewGuid();
         var apiClient = new FakeCargoApiClient();
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient);
 
-        var getResponse = await client.GetAsync("/organizacion/cargos");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync("/organizacion/cargos");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await lease.Client.PostAsync($"/organizacion/cargos/editar/{cargoId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.Codigo"] = "C-DENY",

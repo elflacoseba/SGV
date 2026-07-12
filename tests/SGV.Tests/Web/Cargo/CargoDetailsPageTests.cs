@@ -1,6 +1,7 @@
 using System.Net;
 using System.Web;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -11,11 +12,12 @@ namespace SGV.Tests.Web.Cargo;
 /// "Apertura de detalle existente" y "Cargo no disponible en detalle"
 /// de la especificación.
 /// </summary>
-public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class CargoDetailsPageTests
 {
-    private readonly CargoWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public CargoDetailsPageTests(CargoWebTestFixture fixture) => _fixture = fixture;
+    public CargoDetailsPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     // ──────────────────────────────────────────────
     // Task 3.1: detalle de cargo existente (readonly)
@@ -27,9 +29,9 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         var cargo = CargoWebTestFixture.BuildCargoDto("C-001", "Analista Funcional", "Descripción del cargo", "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync($"/organizacion/cargos/detalles/{cargo.Id}");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/detalles/{cargo.Id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -63,9 +65,9 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         var cargo = CargoWebTestFixture.BuildCargoDto("C-001", "Analista Funcional", "Descripción del cargo", "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync(
+        var response = await lease.Client.GetAsync(
             $"/organizacion/cargos/detalles/{cargo.Id}?p=2&search=func&sort=nombre_desc");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
@@ -90,9 +92,9 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList();
         var missingId = Guid.NewGuid();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync($"/organizacion/cargos/detalles/{missingId}");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/detalles/{missingId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -124,9 +126,9 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         var cargo = CargoWebTestFixture.BuildCargoDto("DET-001", "Cargo Detalle", "Desc", "Senior");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync($"/organizacion/cargos/detalles/{cargo.Id}");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/detalles/{cargo.Id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -153,9 +155,9 @@ public sealed class CargoDetailsPageTests : IClassFixture<CargoWebTestFixture>
         var apiClient = FakeCargoApiClient.WithCargoList();
         var missingId = Guid.NewGuid();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient);
 
-        var response = await client.GetAsync($"/organizacion/cargos/detalles/{missingId}");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/detalles/{missingId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

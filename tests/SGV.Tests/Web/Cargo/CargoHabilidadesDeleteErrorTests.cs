@@ -5,6 +5,7 @@ using System.Web;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Habilidad;
 using Xunit;
 
@@ -34,7 +35,7 @@ public sealed partial class CargoHabilidadesPageTests
         // que NUNCA se invoca.
         apiClient.SkillDeleteResult = new CargoSkillDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: false);
 
         // La página Habilidades emite Forbid() antes de hidratar la
@@ -44,11 +45,11 @@ public sealed partial class CargoHabilidadesPageTests
         // con @AntiForgeryToken implícito y contra el cual podemos
         // validar el POST contra la cookie antiforgery ya presente en
         // el jar (seteada durante el flujo de sign-in del fixture).
-        var signInGet = await client.GetAsync("/auth/sign-in");
+        var signInGet = await lease.Client.GetAsync("/auth/sign-in");
         Assert.Equal(HttpStatusCode.OK, signInGet.StatusCode);
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(signInGet);
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(signInGet);
 
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Quitar&skillId={skillId}",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -79,16 +80,16 @@ public sealed partial class CargoHabilidadesPageTests
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.SkillDeleteException = new HttpRequestException("network down");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
         // El GET inicial sirve además para obtener el token
         // antiforgery de un form que sí se renderiza (Asignar está
         // siempre presente cuando el usuario es admin).
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Quitar&skillId={skillId}",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -104,7 +105,7 @@ public sealed partial class CargoHabilidadesPageTests
         // Seguimos el PRG y verificamos que el TempData danger llega al
         // GET renderizado. La aserción es contra el span del alert y el
         // substring del mensaje para no acoplarse al orden de clases.
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Contains("No se pudo contactar", refreshedContent, StringComparison.OrdinalIgnoreCase);
@@ -132,13 +133,13 @@ public sealed partial class CargoHabilidadesPageTests
             "AsociacionNoEncontrada",
             "La asociación ya no existe.");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient, new FakeHabilidadApiClient(), adminRole: true);
 
-        var getResponse = await client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
-        var antiforgeryToken = await CargoWebTestFixture.ExtractAntiforgeryTokenAsync(getResponse);
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
 
-        var response = await client.PostAsync(
+        var response = await lease.Client.PostAsync(
             $"/organizacion/cargos/{cargoId}/habilidades?handler=Quitar&skillId={skillId}",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -147,7 +148,7 @@ public sealed partial class CargoHabilidadesPageTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
 
-        var refreshed = await client.GetAsync(response.Headers.Location);
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Contains("ya no existe", refreshedContent, StringComparison.OrdinalIgnoreCase);
