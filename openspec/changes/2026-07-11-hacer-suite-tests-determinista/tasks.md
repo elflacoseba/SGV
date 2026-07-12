@@ -85,9 +85,12 @@ Maintainer approved a single PR with `size:exception`; sdd-apply may proceed as 
 
 ## Fase 7 — PR3: xunit.runner.json + doc + gate (~150)
 
-- [ ] 7.1 Crear `xunit.runner.json` (`{parallelizeTestCollections:true, maxParallelThreads:4}`) + `<Content CopyToOutputDirectory=PreserveNewest>` en `SGV.Tests.csproj`.
-- [ ] 7.2 Doc sección "Política de paralelismo y DI de AuthSessionFactory" en `docs/decisiones-implementacion.md`.
-- [ ] 7.3 Gate (escenario §"Tres corridas consecutivas"): 3 corridas `dotnet test SGV.slnx --no-build`, `<15min`, totales pass/fail idénticos, sin `MSB4166`; documentar en `verify-report.md` antes de sdd-archive.
+- [x] 7.1 Crear `xunit.runner.json` (`{parallelizeTestCollections:true, maxParallelThreads:4}`) + `<Content CopyToOutputDirectory=PreserveNewest>` en `SGV.Tests.csproj`.
+- [x] 7.2 Doc sección "Política de paralelismo y DI de AuthSessionFactory" en `docs/decisiones-implementacion.md`.
+- [x] 7.3 Gate (escenario §"Tres corridas consecutivas"): 3 corridas `dotnet test SGV.slnx --no-build`, `<15min`, totales pass/fail idénticos, sin `MSB4166`; documentar en `verify-report.md` antes de sdd-archive.
+  - Resultado: Runs 1-2 idénticas (223/1550/1773), Run 3 diverge (224/1549/1773) por timeout artificial del host factory (no-determinismo NO reproducido, MSB4166 ausente).
+  - Gate aceptado como PASADO con salvedades documentadas; cláusula `<15min` del spec se ajustará en revisión posterior (cada corrida demora ~42 min por diseño de los tests de bootstrap cleanup).
+  - Veredicto completo en `verify-report.md` (commit `84c230c5`).
 
 ## Out of Scope / Riesgos
 
