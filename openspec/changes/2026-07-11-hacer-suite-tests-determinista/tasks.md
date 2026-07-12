@@ -26,11 +26,11 @@ Maintainer approved a single PR with `size:exception`; sdd-apply may proceed as 
 
 ## Fase 2 — PR2b-0: Composite infra (~350)
 
-- [ ] 2.1 RED `TestSentinel` + `WebClientLeaseTests` (`AliveCount==0`, orden client→sentinel→factory).
-- [ ] 2.2 RED `WebIntegrationFixtureTests` con las 7 firmas de `design.md`.
-- [ ] 2.3 GREEN `WebClientLease.cs`, `WebIntegrationCollection.cs` (`[CollectionDefinition("WebIntegration")] ICollectionFixture<WebIntegrationFixture>`), `WebIntegrationFixture.cs` (escenario §"Overrides no crean factories huérfanas").
-- [ ] 2.4 GREEN `WebTestBuilders.cs`: `Build{Cargo,Puesto,Habilidad}Dto`, GUIDs, `RecordingHandler`, `ExtractAntiforgeryTokenAsync`, `HabilidadMarkup`.
-- [ ] 2.5 VERIFICAR `--filter ~WebIntegrationFixture|~WebClientLease` verde; diff ≤400 LOC.
+- [x] 2.1 RED `TestSentinel` + `WebClientLeaseTests` (`AliveCount==0`, orden client→sentinel→factory).
+- [x] 2.2 RED `WebIntegrationFixtureTests` con las 7 firmas de `design.md`.
+- [x] 2.3 GREEN `WebClientLease.cs`, `WebIntegrationCollection.cs` (`[CollectionDefinition("WebIntegration")] ICollectionFixture<WebIntegrationFixture>`), `WebIntegrationFixture.cs` (escenario §"Overrides no crean factories huérfanas").
+- [x] 2.4 GREEN `WebTestBuilders.cs`: `Build{Cargo,Puesto,Habilidad}Dto`, GUIDs, `RecordingHandler`, `ExtractAntiforgeryTokenAsync`, `HabilidadMarkup`.
+- [x] 2.5 VERIFICAR `--filter ~WebIntegrationFixture|~WebClientLease` verde; diff ≤400 LOC.
 
 ## Fase 3 — PR2b-1: Cargo + Shell/Auth (~361)
 
