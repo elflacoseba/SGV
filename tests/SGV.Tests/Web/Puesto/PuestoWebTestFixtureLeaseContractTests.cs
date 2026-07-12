@@ -1,9 +1,8 @@
 using System.Net;
-using System.Net.Http;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Tests.Web.Cargo;
 using SGV.Tests.Web.Collections;
-using SGV.Tests.Web.Habilidad;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -32,9 +31,54 @@ namespace SGV.Tests.Web.Puesto;
 /// después de la llave de cierre que dispara el <c>DisposeAsync</c> implícito.
 /// Esto elimina el doble dispose y deja la cobertura del comportamiento al
 /// <c>await using</c>, no a una llamada manual redundante.
+///
+/// La clase se une a <c>[Collection("WebIntegration")]</c> para serializarse
+/// frente a los contract tests de <c>HabilidadWebTestFixtureLeaseContractTests</c>
+/// y los PageTests del mismo grupo. Sin esa colección, las aserciones de
+/// balance sobre <see cref="TestSentinel.AliveCount"/> serían no
+/// deterministas: un PageTest que crease o liberase su lease entre la
+/// captura del baseline y la aserción rompería la invariante
+/// "baseline+1" / "baseline" esperada por los cuatro tests de la familia
+/// "ReturnsLeaseWithDerivedFactoryAndOwnsSentinel". El propio test
+/// <c>TestClass_DeclaresWebIntegrationCollection_ToSerializeSentinelAssertions</c>
+/// protege esa frontera vía reflexión.
 /// </summary>
+[Collection("WebIntegration")]
 public sealed class PuestoWebTestFixtureLeaseContractTests
 {
+    // ── Contrato de scheduling: la clase pertenece a WebIntegration ────
+
+    /// <summary>
+    /// Contrato de scheduling RED (strict TDD): la clase debe declarar
+    /// <c>[Collection("WebIntegration")]</c> para serializarse contra los
+    /// PageTests del composite. Sin el atributo, las aserciones de balance
+    /// sobre <see cref="TestSentinel.AliveCount"/> se vuelven no
+    /// deterministas bajo paralelismo: un PageTest que cree/libere su lease
+    /// entre la captura del baseline y la aserción puede decrementar el
+    /// contador global y romper la invariante "baseline+1" / "baseline"
+    /// esperada por los cuatro tests de la familia "ReturnsLeaseWithDerived
+    /// FactoryAndOwnsSentinel". El test de scheduling protege esa frontera
+    /// mediante reflexión: si alguien borra el atributo, la clase vuelve a
+    /// correr en su colección implícita y el flake regresa.
+    /// </summary>
+    [Fact]
+    public void TestClass_DeclaresWebIntegrationCollection_ToSerializeSentinelAssertions()
+    {
+        // xUnit 2.9.2 no expone el nombre de la colección como propiedad
+        // pública ni como campo privado en `CollectionAttribute`: el nombre
+        // se conserva únicamente como argumento del constructor dentro de los
+        // metadatos. Para extraerlo se usa `CustomAttributeData`, que lee los
+        // argumentos directamente desde los metadatos del CLR. Esta es la
+        // única vía estable entre versiones de xUnit y no depende de
+        // Reflection internals sujetos a cambiar.
+        var collectionAttr = CustomAttributeData.GetCustomAttributes(typeof(PuestoWebTestFixtureLeaseContractTests))
+            .SingleOrDefault(a => a.AttributeType == typeof(Xunit.CollectionAttribute));
+
+        Assert.NotNull(collectionAttr);
+        var name = Assert.Single(collectionAttr!.ConstructorArguments).Value as string;
+        Assert.Equal("WebIntegration", name);
+    }
+
     // ── Contrato por firma: lease + sentinel + factory derivada ────────
 
     [Fact]
