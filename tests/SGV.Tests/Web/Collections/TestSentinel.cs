@@ -12,16 +12,25 @@ public sealed class TestSentinel : IDisposable
 {
     private static int _alive;
 
+    private int _disposed;
+
     public static int AliveCount => Volatile.Read(ref _alive);
 
     public TestSentinel() => Interlocked.Increment(ref _alive);
 
     /// <summary>True tras <see cref="Dispose"/>. Útil para tests bajo paralelismo xUnit.</summary>
-    public bool IsDisposed { get; private set; }
+    public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     public void Dispose()
     {
-        IsDisposed = true;
+        // Idempotencia: una segunda llamada (p. ej. lease dispuesto dentro de
+        // un `await using` y luego explícitamente, o dos llamadas manuales)
+        // NO debe volver a decrementar el contador global compartido.
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         Interlocked.Decrement(ref _alive);
     }
 }

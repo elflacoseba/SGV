@@ -21,6 +21,17 @@ namespace SGV.Tests.Web.Puesto;
 /// Si <see cref="PuestoWebTestFixture"/> deja de delegar al composite, estos
 /// tests rompen antes que los call sites de páginas, exponiendo drift durante
 /// el refactor.
+///
+/// Política de dispose: ningún test invoca manualmente
+/// <see cref="WebClientLease.DisposeAsync"/>. Cada lease nace dentro de un
+/// <c>await using</c> y se libera exclusivamente cuando el scope cierra. Para
+/// los tests que necesitan comprobar el contador global tras el dispose (los
+/// cuatro de la familia "ReturnsLeaseWithDerivedFactoryAndOwnsSentinel") se
+/// usa un bloque interno anidado: las aserciones de vida útil quedan dentro
+/// del scope, y la verificación del sentinel liberado queda afuera, justo
+/// después de la llave de cierre que dispara el <c>DisposeAsync</c> implícito.
+/// Esto elimina el doble dispose y deja la cobertura del comportamiento al
+/// <c>await using</c>, no a una llamada manual redundante.
 /// </summary>
 public sealed class PuestoWebTestFixtureLeaseContractTests
 {
@@ -32,15 +43,18 @@ public sealed class PuestoWebTestFixtureLeaseContractTests
         var baseline = TestSentinel.AliveCount;
 
         await using var fixture = new PuestoWebTestFixture();
-        await using var lease = await fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+        {
+            await using var lease = await fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
 
-        // La lease debe provenir de una factory distinta de la raíz del fixture.
-        Assert.NotSame(fixture.RootFactory, lease.Factory);
-        Assert.NotNull(lease.Client);
-        // El lease debe haber retenido exactamente un sentinel durante su vida.
-        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
-
-        await lease.DisposeAsync();
+            // La lease debe provenir de una factory distinta de la raíz del fixture.
+            Assert.NotSame(fixture.RootFactory, lease.Factory);
+            Assert.NotNull(lease.Client);
+            // El lease debe haber retenido exactamente un sentinel durante su vida.
+            Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+        }
+        // Al cerrar el bloque interno, el `await using` invoca
+        // `WebClientLease.DisposeAsync()` una sola vez: el sentinel baja
+        // exactamente una vez al baseline.
         Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
@@ -50,13 +64,13 @@ public sealed class PuestoWebTestFixtureLeaseContractTests
         var baseline = TestSentinel.AliveCount;
 
         await using var fixture = new PuestoWebTestFixture();
-        await using var lease = await fixture.CreateAdminClientAsync(new FakePuestosApiClient());
+        {
+            await using var lease = await fixture.CreateAdminClientAsync(new FakePuestosApiClient());
 
-        Assert.NotSame(fixture.RootFactory, lease.Factory);
-        Assert.NotNull(lease.Client);
-        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
-
-        await lease.DisposeAsync();
+            Assert.NotSame(fixture.RootFactory, lease.Factory);
+            Assert.NotNull(lease.Client);
+            Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+        }
         Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
@@ -66,16 +80,16 @@ public sealed class PuestoWebTestFixtureLeaseContractTests
         var baseline = TestSentinel.AliveCount;
 
         await using var fixture = new PuestoWebTestFixture();
-        await using var lease = await fixture.CreateAdminClientAsync(
-            new FakeUnidadOrganizativaApiClient(),
-            new FakeCargoApiClient(),
-            new FakePuestosApiClient());
+        {
+            await using var lease = await fixture.CreateAdminClientAsync(
+                new FakeUnidadOrganizativaApiClient(),
+                new FakeCargoApiClient(),
+                new FakePuestosApiClient());
 
-        Assert.NotSame(fixture.RootFactory, lease.Factory);
-        Assert.NotNull(lease.Client);
-        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
-
-        await lease.DisposeAsync();
+            Assert.NotSame(fixture.RootFactory, lease.Factory);
+            Assert.NotNull(lease.Client);
+            Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+        }
         Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
@@ -85,17 +99,17 @@ public sealed class PuestoWebTestFixtureLeaseContractTests
         var baseline = TestSentinel.AliveCount;
 
         await using var fixture = new PuestoWebTestFixture();
-        await using var lease = await fixture.CreateAuthenticatedClientAsync(
-            new FakeUnidadOrganizativaApiClient(),
-            new FakeCargoApiClient(),
-            new FakePuestosApiClient(),
-            adminRole: false);
+        {
+            await using var lease = await fixture.CreateAuthenticatedClientAsync(
+                new FakeUnidadOrganizativaApiClient(),
+                new FakeCargoApiClient(),
+                new FakePuestosApiClient(),
+                adminRole: false);
 
-        Assert.NotSame(fixture.RootFactory, lease.Factory);
-        Assert.NotNull(lease.Client);
-        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
-
-        await lease.DisposeAsync();
+            Assert.NotSame(fixture.RootFactory, lease.Factory);
+            Assert.NotNull(lease.Client);
+            Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+        }
         Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
@@ -106,8 +120,15 @@ public sealed class PuestoWebTestFixtureLeaseContractTests
     {
         await using var fixture = new PuestoWebTestFixture();
 
-        var firstLease = await fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
-        await firstLease.DisposeAsync();
+        // El primer lease debe liberarse ANTES de construir el segundo para
+        // verificar que la raíz compartida sobrevive. Se usa un bloque
+        // interno anidado en lugar de un `await firstLease.DisposeAsync()`
+        // manual: el `await using` cierra al final del bloque y dispara el
+        // dispose una sola vez, manteniendo la política "ningún dispose
+        // manual" de este archivo.
+        {
+            await using var firstLease = await fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+        }
 
         // Después de disponer la primera lease, la raíz compartida debe seguir
         // operativa: una segunda lease construida a partir del MISMO fixture

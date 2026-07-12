@@ -113,6 +113,47 @@ public sealed class WebClientLeaseTests
         Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
+    // ── Idempotencia de dispose ────────────────────────────────────
+    //
+    // RED: estos tests prueban que el dispose doble (manual + scope `await
+    // using`, o llamado dos veces explícitamente) no debe degradar
+    // `TestSentinel.AliveCount`. El bug histórico: `WebClientLease` y
+    // `TestSentinel` no eran idempotentes, así que cada contrato de Puesto
+    // podía decrementar el contador global dos veces y contaminar el estado
+    // compartido de los demás tests de la colección `WebIntegration`.
+
+    [Fact]
+    public async Task Lease_DisposeAsync_CalledTwice_KeepsAliveCountStable()
+    {
+        var baseline = TestSentinel.AliveCount;
+        var lease = await CreateLeaseAsync();
+        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+
+        await lease.DisposeAsync();
+        Assert.Equal(baseline, TestSentinel.AliveCount);
+
+        // Segunda llamada de dispose: NO debe volver a decrementar el
+        // contador global. Si lo hace, otros tests ven `AliveCount` falsamente
+        // bajo y la siguiente suite arranca con estado contaminado.
+        await lease.DisposeAsync();
+        Assert.Equal(baseline, TestSentinel.AliveCount);
+    }
+
+    [Fact]
+    public void TestSentinel_Dispose_CalledTwice_KeepsAliveCountStable()
+    {
+        var baseline = TestSentinel.AliveCount;
+        var sentinel = new TestSentinel();
+        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+
+        sentinel.Dispose();
+        Assert.Equal(baseline, TestSentinel.AliveCount);
+
+        // Segunda llamada de dispose: NO debe volver a decrementar.
+        sentinel.Dispose();
+        Assert.Equal(baseline, TestSentinel.AliveCount);
+    }
+
     private static Task<WebClientLease> CreateLeaseAsync()
         => Task.FromResult(new WebClientLease(
             new SgvWebApplicationFactory(),

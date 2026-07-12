@@ -11,12 +11,25 @@ namespace SGV.Tests.Web.Collections;
 /// </summary>
 public sealed class WebClientLease(SgvWebApplicationFactory factory, HttpClient client, TestSentinel sentinel) : IAsyncDisposable
 {
+    private int _disposed;
+
     public SgvWebApplicationFactory Factory => factory;
 
     public HttpClient Client => client;
 
     public async ValueTask DisposeAsync()
     {
+        // Idempotencia: una segunda llamada (p. ej. lease dentro de un
+        // `await using` que también se dispone explícitamente, o doble
+        // dispose manual) NO debe volver a cerrar el cliente, decrementar
+        // el sentinel, ni detener la factory. De lo contrario,
+        // `TestSentinel.AliveCount` baja dos veces y contamina el estado
+        // compartido de los demás tests de la colección `WebIntegration`.
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         client.Dispose();
         sentinel.Dispose();
         await factory.DisposeAsync();
