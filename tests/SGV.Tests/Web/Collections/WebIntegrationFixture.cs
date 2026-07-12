@@ -122,12 +122,27 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
     /// Diseñado para ser el punto único de cleanup del composite infra;
     /// todos los helpers públicos delegan acá.
     /// </summary>
+    internal Task<WebClientLease> CreateLeaseWithBootstrapAsync(
+        Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory,
+        Func<HttpClient, Task> bootstrap)
+        => CreateLeaseWithBootstrapAsync(configureFactory, bootstrap, captureFactory: null, captureClient: null);
+
+    /// <summary>
+    /// Overload de testing que acepta un <see cref="HttpClient"/> pre-construido
+    /// (típicamente un wrapper que tira en Dispose para simular fallas de
+    /// cleanup). Igual contrato de cleanup que el overload estándar: si el
+    /// callback tira, se dispone el cliente y la factory en orden
+    /// <c>client → factory</c>, suprimiendo cualquier excepción del dispose
+    /// para preservar la excepción original. La factory se construye vía el
+    /// callback <paramref name="configureFactory"/> para mantener la raíz
+    /// compartida intacta.
+    /// </summary>
     internal async Task<WebClientLease> CreateLeaseWithBootstrapAsync(
         Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory,
+        HttpClient client,
         Func<HttpClient, Task> bootstrap)
     {
         var factory = configureFactory(_root);
-        var client = factory.CreateClient(ClientOptions);
 
         try
         {
@@ -135,12 +150,93 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
         }
         catch
         {
-            client.Dispose();
-            await factory.DisposeAsync();
+            TryDisposeClient(client);
+            await TryDisposeFactoryAsync(factory);
             throw;
         }
 
         return new WebClientLease(factory, client, new TestSentinel());
+    }
+
+    /// <summary>
+    /// Overload canónico de testing. Construye la factory derivada y el
+    /// <see cref="HttpClient"/> desde la raíz compartida, ejecuta el
+    /// callback de bootstrap, y sólo construye el <see cref="WebClientLease"/>
+    /// al final. Si el callback tira, libera los recursos en orden
+    /// <c>client → factory</c> (mismo orden que
+    /// <see cref="WebClientLease.DisposeAsync"/> sin el paso del sentinel,
+    /// porque éste aún no fue construido) y vuelve a lanzar la excepción
+    /// original. La raíz compartida del fixture NO se ve afectada.
+    ///
+    /// PR 2b-4 review #995: el <c>factory.CreateClient</c> se ejecuta
+    /// DENTRO del try (antes estaba antes y un fallo del cliente
+    /// dejaba la factory perdida). El cleanup de cada recurso corre en
+    /// su propio try/catch anidado para que una falla del dispose NO
+    /// reemplace la excepción original del bootstrap.
+    ///
+    /// Los callbacks <paramref name="captureFactory"/> y
+    /// <paramref name="captureClient"/> son el único canal de
+    /// observación post-dispose que no depende de contadores estáticos
+    /// compartidos (inmunes a paralelismo inter-colección): el test
+    /// retiene la referencia al cliente derivado y verifica
+    /// posteriormente vía <c>HttpClient.GetAsync</c> que el dispose fue
+    /// efectivamente llamado (post-dispose lanza
+    /// <see cref="ObjectDisposedException"/>).
+    /// </summary>
+    internal async Task<WebClientLease> CreateLeaseWithBootstrapAsync(
+        Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory,
+        Func<HttpClient, Task> bootstrap,
+        Action<SgvWebApplicationFactory>? captureFactory,
+        Action<HttpClient>? captureClient)
+    {
+        var factory = configureFactory(_root);
+        HttpClient? client = null;
+
+        try
+        {
+            client = factory.CreateClient(ClientOptions);
+            captureClient?.Invoke(client);
+            captureFactory?.Invoke(factory);
+            await bootstrap(client);
+        }
+        catch
+        {
+            if (client is not null)
+            {
+                TryDisposeClient(client);
+            }
+
+            await TryDisposeFactoryAsync(factory);
+
+            throw;
+        }
+
+        return new WebClientLease(factory, client, new TestSentinel());
+    }
+
+    private static void TryDisposeClient(HttpClient client)
+    {
+        try
+        {
+            client.Dispose();
+        }
+        catch
+        {
+            // Suprimido: la falla del dispose no debe reemplazar la
+            // excepción original del bootstrap.
+        }
+    }
+
+    private static async Task TryDisposeFactoryAsync(SgvWebApplicationFactory factory)
+    {
+        try
+        {
+            await factory.DisposeAsync();
+        }
+        catch
+        {
+            // Suprimido: idem.
+        }
     }
 
     private static Task NoOpBootstrapAsync(HttpClient client) => Task.CompletedTask;
