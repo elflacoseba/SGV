@@ -5,9 +5,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
 
@@ -15,7 +13,7 @@ namespace SGV.Web.Pages.Auth;
 
 public sealed class SignInModel(
     IAuthApiClient authApiClient,
-    IOptions<JwtOptions> jwtOptions,
+    IAuthSessionFactory authSessionFactory,
     ILogger<SignInModel> logger) : PageModel
 {
     [BindProperty]
@@ -51,7 +49,7 @@ public sealed class SignInModel(
         ClaimsPrincipal principal;
         try
         {
-            principal = AuthSessionFactory.CreatePrincipal(logger, jwtOptions.Value, request, response);
+            principal = authSessionFactory.CreatePrincipal(request, response);
         }
         // Cubre las familias de excepciones que JwtSecurityTokenHandler.ValidateToken
         // puede emitir en Microsoft.IdentityModel.Tokens 8.x para un access_token
@@ -67,7 +65,7 @@ public sealed class SignInModel(
             return Page();
         }
 
-        var properties = AuthSessionFactory.CreateProperties(response);
+        var properties = authSessionFactory.CreateProperties(response);
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);
         return LocalRedirect("/");

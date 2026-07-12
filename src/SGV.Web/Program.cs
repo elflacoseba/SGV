@@ -53,6 +53,14 @@ builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<ApiBearerTokenHandler>();
 
+// Singleton: la fábrica sólo construye ClaimsPrincipal + AuthenticationProperties
+// desde opciones y un access token; no carga estado mutable propio. Cada host
+// (incluido cada WebApplicationFactory en la suite de tests) obtiene su propio
+// snapshot de IOptions<JwtOptions> gracias al aislamiento del IServiceProvider,
+// así que el reemplazo del cache estático previo por construcción por llamada
+// (issue #121) es seguro y no introduce contención entre tests paralelos.
+builder.Services.AddSingleton<IAuthSessionFactory, AuthSessionFactory>();
+
 builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;

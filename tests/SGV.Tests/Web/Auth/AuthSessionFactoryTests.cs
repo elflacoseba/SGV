@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
@@ -19,12 +20,22 @@ public sealed class AuthSessionFactoryTests
         SigningKey = AdminJwtTestHelper.SigningKey
     };
 
+    /// <summary>
+    /// Construye la fábrica con las opciones del test envueltas en
+    /// <see cref="IOptions{TOptions}"/>. La signatura de la nueva
+    /// <see cref="AuthSessionFactory"/> (issue #121) recibe el logger y las
+    /// opciones por DI; este helper mantiene los tests existentes al nivel
+    /// unitario, sin levantar un host completo.
+    /// </summary>
+    private static AuthSessionFactory CreateFactory(JwtOptions? options = null) =>
+        new(NullLogger<AuthSessionFactory>.Instance, Microsoft.Extensions.Options.Options.Create(options ?? Options));
+
     [Fact]
     public void CreatePrincipal_WithValidToken_AddsRoleAndTokenClaims()
     {
         var response = new LoginResponse(AdminJwtTestHelper.BuildAdminRoleJwt(), DateTimeOffset.UtcNow.AddHours(1));
 
-        var principal = AuthSessionFactory.CreatePrincipal(NullLogger.Instance, Options, Request, response);
+        var principal = CreateFactory().CreatePrincipal(Request, response);
 
         Assert.True(principal.Identity?.IsAuthenticated);
         Assert.True(principal.IsInRole(RolesSgv.Administrador));
@@ -38,7 +49,9 @@ public sealed class AuthSessionFactoryTests
         var response = new LoginResponse(token, DateTimeOffset.UtcNow.AddHours(1));
 
         Assert.ThrowsAny<SecurityTokenException>(() =>
-            AuthSessionFactory.CreatePrincipal(NullLogger.Instance, Options, Request, response));
+        {
+            CreateFactory().CreatePrincipal(Request, response);
+        });
     }
 
     public static IEnumerable<object[]> InvalidTokenCases()
@@ -68,7 +81,9 @@ public sealed class AuthSessionFactoryTests
         var response = new LoginResponse(token, DateTimeOffset.UtcNow.AddHours(1));
 
         Assert.ThrowsAny<ArgumentException>(() =>
-            AuthSessionFactory.CreatePrincipal(NullLogger.Instance, Options, Request, response));
+        {
+            CreateFactory().CreatePrincipal(Request, response);
+        });
     }
 
     // Los casos marcados como "plano" disparan ArgumentException (raíz, no
