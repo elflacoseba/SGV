@@ -71,17 +71,9 @@ public sealed class WebAuthenticationTests
     [Fact]
     public async Task Get_SignIn_ReturnsSuccessAndOmitsRecoveryLinks()
     {
-        // Anónimo: usamos factory local porque el lease anónimo del composite
-        // dispose la _root al terminar, rompiendo tests hermanos. (Bug
-        // documentado en apply-progress de PR 2b-1.)
-        using var localFactory = new SgvWebApplicationFactory();
-        using var client = localFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
 
-        var response = await client.GetAsync("/auth/sign-in");
+        var response = await lease.Client.GetAsync("/auth/sign-in");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadAsStringAsync();

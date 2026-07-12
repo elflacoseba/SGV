@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using Xunit;
 
@@ -37,6 +38,35 @@ public sealed class WebClientLeaseTests
         a.Dispose();
         b.Dispose();
         Assert.Equal(baseline, TestSentinel.AliveCount);
+    }
+
+    [Fact]
+    public async Task FixtureAnonymousLease_DisposeAsync_DoesNotStopSiblingLeaseOrSharedRoot()
+    {
+        await using var fixture = new WebIntegrationFixture();
+        var firstLease = await fixture.CreateAnonymousLeaseAsync();
+        await using var secondLease = await fixture.CreateAnonymousLeaseAsync();
+
+        await firstLease.DisposeAsync();
+
+        using var siblingResponse = await secondLease.Client.GetAsync("/auth/sign-in");
+        using var rootClient = fixture.RootFactory.CreateClient();
+        using var rootResponse = await rootClient.GetAsync("/auth/sign-in");
+        Assert.Equal(HttpStatusCode.OK, siblingResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, rootResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task FixtureDerivedLease_DisposeAsync_DoesNotStopSharedRoot()
+    {
+        await using var fixture = new WebIntegrationFixture();
+        var derivedLease = await fixture.CreateAuthOnlyLeaseAsync();
+
+        await derivedLease.DisposeAsync();
+
+        using var rootClient = fixture.RootFactory.CreateClient();
+        using var response = await rootClient.GetAsync("/auth/sign-in");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

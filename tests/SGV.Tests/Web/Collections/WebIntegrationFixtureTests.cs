@@ -80,12 +80,12 @@ public sealed class WebIntegrationFixtureTests
     }
 
     [Fact]
-    public async Task Fixture_CreateAnonymousLeaseAsync_SharesRootFactory()
+    public async Task Fixture_CreateAnonymousLeaseAsync_DerivesFactoryFromSharedRoot()
     {
         await using var fixture = new WebIntegrationFixture();
         var root = fixture.RootFactory;
-        var lease = await fixture.CreateAnonymousLeaseAsync();
-        Assert.Same(root, lease.Factory);
+        await using var lease = await fixture.CreateAnonymousLeaseAsync();
+        Assert.NotSame(root, lease.Factory);
     }
 
     [Fact]

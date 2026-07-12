@@ -39,6 +39,10 @@ Maintainer approved a single PR with `size:exception`; sdd-apply may proceed as 
 - [x] 3.3 6 clases (`Cargo*PageTests`+`CargoHabilidadesPageTests`+smoke) a `[Collection("WebIntegration")]`.
 - [x] 3.4 VERIFICAR `--filter ~Cargo|~WebShellSmoke|~WebAuthentication --no-build` verde.
 
+## Fix post-PR2b-1 — ownership de `WebClientLease`
+
+- [x] 3.5 FIX aplicar Approach C: toda lease, incluida la anónima, posee una factory derivada; agregar regresión shared-root/derived-root y migrar los 6 workarounds anónimos al lease estándar.
+
 ## Fase 4 — PR2b-2: Puesto (~153)
 
 - [ ] 4.1 Migrar `PuestoWebTestFixture.cs:89/96/103/120` (4 firmas) + 47 sites.

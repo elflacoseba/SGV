@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using System.Web;
-using Microsoft.AspNetCore.Mvc.Testing;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
@@ -33,17 +32,9 @@ public sealed class CargoEditPageTests
     [Fact]
     public async Task Get_Edit_WhenAnonymous_RedirectsToSignIn()
     {
-        // Anónimo: usamos factory local porque el lease anónimo del composite
-        // dispose la _root al terminar, rompiendo tests hermanos. (Bug
-        // documentado en apply-progress de PR 2b-1.)
-        using var localFactory = new SgvWebApplicationFactory();
-        using var client = localFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
 
-        var response = await client.GetAsync($"/organizacion/cargos/editar/{Guid.NewGuid()}");
+        var response = await lease.Client.GetAsync($"/organizacion/cargos/editar/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString, StringComparison.OrdinalIgnoreCase);

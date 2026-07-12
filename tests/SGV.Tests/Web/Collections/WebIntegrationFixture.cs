@@ -17,9 +17,9 @@ namespace SGV.Tests.Web.Collections;
 /// <summary>
 /// Fixture raíz de la suite web. Posee una única <see cref="SgvWebApplicationFactory"/>
 /// base y expone los 6 helpers <c>Task&lt;WebClientLease&gt;</c> firmados según
-/// design.md §"Firmas explícitas del composite". El lease libera la factory +
-/// cliente + sentinel en el orden contractual; el fixture sólo libera la root
-/// al cierre de la colección.
+/// design.md §"Firmas explícitas del composite". Cada helper deriva una factory
+/// que pertenece exclusivamente al lease; el fixture sólo libera la root al
+/// cierre de la colección.
 /// </summary>
 public sealed class WebIntegrationFixture : IAsyncLifetime
 {
@@ -41,7 +41,7 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
 
     public Task<WebClientLease> CreateCargoLeaseAsync(
         FakeCargoApiClient cargo, FakeHabilidadApiClient? habilidad = null, bool adminRole = false)
-        => CreateLeaseAsync(adminRole, f => f.WithOverrides(
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             cargoApiClient: cargo,
             habilidadApiClient: habilidad ?? new FakeHabilidadApiClient()));
@@ -51,7 +51,7 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
         IUnidadOrganizativaApiClient? unidad = null,
         ICargoApiClient? cargo = null,
         bool adminRole = false)
-        => CreateLeaseAsync(adminRole, f => f.WithOverrides(
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             unidadOrganizativaApiClient: unidad ?? new FakeUnidadOrganizativaApiClient(),
             cargoApiClient: cargo ?? new FakeCargoApiClient(),
@@ -59,23 +59,22 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
 
     public Task<WebClientLease> CreateHabilidadLeaseAsync(
         FakeHabilidadApiClient habilidad, bool adminRole = false)
-        => CreateLeaseAsync(adminRole, f => f.WithOverrides(
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             habilidadApiClient: habilidad));
 
     public Task<WebClientLease> CreateUnidadOrganizativaLeaseAsync(
         FakeUnidadOrganizativaApiClient unidad, bool adminRole = false)
-        => CreateLeaseAsync(adminRole, f => f.WithOverrides(
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             unidadOrganizativaApiClient: unidad));
 
-    /// <summary>Lease sin autenticar. Comparte la root factory (sin overrides).</summary>
+    /// <summary>Lease sin autenticar con una factory derivada y de propiedad exclusiva.</summary>
     public Task<WebClientLease> CreateAnonymousLeaseAsync()
-        => Task.FromResult(new WebClientLease(
-            _root, _root.CreateClient(ClientOptions), new TestSentinel()));
+        => CreateLeaseAsync(f => f.WithOverrides());
 
     public Task<WebClientLease> CreateAuthOnlyLeaseAsync(bool adminRole = false)
-        => CreateLeaseAsync(adminRole, f => f.WithOverrides(
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole)));
 
     private static void ConfigureBaseUrl(IServiceCollection services)
@@ -91,8 +90,15 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             });
     }
 
-    private async Task<WebClientLease> CreateLeaseAsync(
-        bool adminRole,
+    private Task<WebClientLease> CreateLeaseAsync(
+        Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory)
+    {
+        var factory = configureFactory(_root);
+        var client = factory.CreateClient(ClientOptions);
+        return Task.FromResult(new WebClientLease(factory, client, new TestSentinel()));
+    }
+
+    private async Task<WebClientLease> CreateAuthenticatedLeaseAsync(
         Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory)
     {
         var factory = configureFactory(_root);

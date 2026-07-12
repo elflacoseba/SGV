@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Collections;
@@ -25,18 +24,10 @@ public sealed class WebShellSmokeTests
     [Fact]
     public async Task Get_Index_WhenAnonymous_RedirectsToSignIn()
     {
-        // Anónimo: usamos factory local porque el lease anónimo del composite
-        // dispose la _root al terminar, rompiendo tests hermanos. (Bug
-        // documentado en apply-progress de PR 2b-1.)
-        using var localFactory = new SgvWebApplicationFactory();
-        using var client = localFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
 
         // Act
-        var response = await client.GetAsync("/");
+        var response = await lease.Client.GetAsync("/");
 
         // Assert
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
