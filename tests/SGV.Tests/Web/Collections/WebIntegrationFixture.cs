@@ -71,7 +71,7 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
 
     /// <summary>Lease sin autenticar con una factory derivada y de propiedad exclusiva.</summary>
     public Task<WebClientLease> CreateAnonymousLeaseAsync()
-        => CreateLeaseAsync(f => f.WithOverrides());
+        => CreateLeaseWithBootstrapAsync(f => f.WithOverrides(), NoOpBootstrapAsync);
 
     public Task<WebClientLease> CreateAuthOnlyLeaseAsync(bool adminRole = false)
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
@@ -111,24 +111,54 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             });
     }
 
-    private Task<WebClientLease> CreateLeaseAsync(
-        Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory)
+    /// <summary>
+    /// Crea una factory derivada y un <see cref="HttpClient"/> desde la raíz
+    /// compartida, ejecuta el callback de bootstrap y sólo construye el
+    /// <see cref="WebClientLease"/> al final. Si el callback tira, libera los
+    /// recursos en orden <c>client → factory</c> (mismo orden que
+    /// <see cref="WebClientLease.DisposeAsync"/> sin el paso del sentinel,
+    /// porque éste aún no fue construido) y vuelve a lanzar la excepción
+    /// original. La raíz compartida del fixture NO se ve afectada.
+    /// Diseñado para ser el punto único de cleanup del composite infra;
+    /// todos los helpers públicos delegan acá.
+    /// </summary>
+    internal async Task<WebClientLease> CreateLeaseWithBootstrapAsync(
+        Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory,
+        Func<HttpClient, Task> bootstrap)
     {
         var factory = configureFactory(_root);
         var client = factory.CreateClient(ClientOptions);
-        return Task.FromResult(new WebClientLease(factory, client, new TestSentinel()));
+
+        try
+        {
+            await bootstrap(client);
+        }
+        catch
+        {
+            client.Dispose();
+            await factory.DisposeAsync();
+            throw;
+        }
+
+        return new WebClientLease(factory, client, new TestSentinel());
     }
 
-    private async Task<WebClientLease> CreateAuthenticatedLeaseAsync(
-        Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory)
-    {
-        var factory = configureFactory(_root);
-        var client = factory.CreateClient(ClientOptions);
+    private static Task NoOpBootstrapAsync(HttpClient client) => Task.CompletedTask;
 
-        // La lease se devuelve siempre: si la autenticación falla (pre-existing:
-        // el endpoint devuelve 200 OK en vez de 302 Found en develop), el cliente
-        // queda sin cookie de auth pero sigue siendo útil. La validación de auth
-        // es per-test, no del composite infra.
+    private Task<WebClientLease> CreateAuthenticatedLeaseAsync(
+        Func<SgvWebApplicationFactory, SgvWebApplicationFactory> configureFactory)
+        => CreateLeaseWithBootstrapAsync(configureFactory, AuthenticateClientAsync);
+
+    /// <summary>
+    /// Bootstrap estándar: GET al sign-in, extracción del token antiforgery,
+    /// POST con credenciales. La lease se devuelve siempre: si la
+    /// autenticación falla (pre-existing: el endpoint devuelve 200 OK en
+    /// vez de 302 Found en develop), el cliente queda sin cookie de auth
+    /// pero sigue siendo útil. La validación de auth es per-test, no del
+    /// composite infra.
+    /// </summary>
+    internal static async Task AuthenticateClientAsync(HttpClient client)
+    {
         var signInResponse = await client.GetAsync("/auth/sign-in");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(signInResponse);
 
@@ -138,7 +168,5 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             ["Input.UserNameOrEmail"] = "admin",
             ["Input.Password"] = "Password1!"
         }));
-
-        return new WebClientLease(factory, client, new TestSentinel());
     }
 }

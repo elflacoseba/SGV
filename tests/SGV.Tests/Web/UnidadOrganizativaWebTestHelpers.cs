@@ -48,9 +48,11 @@ public sealed partial class UnidadOrganizativaWebTests
     /// fake privado con cobertura completa de la API (Query/Delete/Update/Reactivate/etc.).
     /// La cadena <c>root → override → lease</c> mantiene el contrato de
     /// propiedad: la root queda retenida por el fixture y la derivada queda
-    /// retenida por el lease, sin factories huérfanas.
+    /// retenida por el lease, sin factories huérfanas. El bootstrap pasa por
+    /// <see cref="WebIntegrationFixture.CreateLeaseWithBootstrapAsync"/> para
+    /// compartir el cleanup del composite infra (PR 2b-4 review).
     /// </summary>
-    private async Task<WebClientLease> CreateAuthenticatedClientAsync(FakeUnidadOrganizativaApiClient apiClient)
+    private Task<WebClientLease> CreateAuthenticatedClientAsync(FakeUnidadOrganizativaApiClient apiClient)
     {
         var authHandler = new WebTestBuilders.RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
@@ -58,28 +60,12 @@ public sealed partial class UnidadOrganizativaWebTests
                 Content = JsonContent.Create(new LoginResponse(AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
             });
 
-        var factory = _fixture.RootFactory.WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            unidadOrganizativaApiClient: apiClient);
-
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(signInResponse);
-
-        _ = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        return new WebClientLease(factory, client, new TestSentinel());
+        return _fixture.CreateLeaseWithBootstrapAsync(
+            f => f.WithOverrides(
+                configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
+                authApiHandler: authHandler,
+                unidadOrganizativaApiClient: apiClient),
+            WebIntegrationFixture.AuthenticateClientAsync);
     }
 
     private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
