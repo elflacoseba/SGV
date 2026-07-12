@@ -220,3 +220,32 @@ Reglas operativas:
 ### HSTS en `SGV.Web`
 
 `app.UseHsts()` ya está activo en `src/SGV.Web/Program.cs` para cualquier ambiente distinto de `Development`. El default de 30 días es suficiente para nuestros deployments internos; si en el futuro se sube a `max-age=31536000`, ese cambio requiere un SDD separado.
+
+## Política de paralelismo en la suite de tests
+
+La suite `SGV.Tests` usa `xunit.runner.json` con `parallelizeTestCollections: true` y `maxParallelThreads: 4` para limitar la competencia entre colecciones de tests que comparten instancias de `WebApplicationFactory`.
+
+### Arquitectura de aislamiento
+
+Cada test usa `WebIntegrationFixture` como `ICollectionFixture`. El fixture administra `WebClientLease` por test, y `TestSentinel` provee contadores atómicos que reemplazaron el estado estático compartido de `AuthSessionFactory`.
+
+La clave de la determinismo está en que `WebIntegrationFixture` **no usa estado estático**: cada host `SgvWebApplicationFactory` arranca con su propia clave JWT, su propio `AuthSessionFactory` Singleton (via DI), y su propia cookie de autenticación. No hay caché cross-test que se contamine.
+
+### Limitante de paralelismo
+
+El límite `maxParallelThreads: 4` protege dos cosas:
+
+1. **Saturación de hosts**: cada `WebApplicationFactory` arranca un Kestrel real. Con 4 hilos concurrentes × ~1 host por test, el límite evita que el scheduler de xUnit lance decenas de hosts simultáneos que agoten recursos del sistema o disparen `MSB4166`.
+
+2. **Sentinel cross-collection**: `TestSentinel.AliveCount` es atómico pero compartido entre colecciones. Aunque la suite completa es determinista (3 corridas consecutivas idénticas), `maxParallelThreads: 4` reduce la ventana de preemption que puede hacer que un test individual vea un `AliveCount` distinto al esperado.
+
+### Gate de 3 corridas
+
+Todo cambio que toque `tests/SGV.Tests/` debe validarse con **3 corridas consecutivas de `dotnet test SGV.slnx --no-build`** en la misma máquina y commit que reporten:
+
+- Mismo número total de tests pasados y fallados en las 3 corridas.
+- Sin `MSB4166` (MSBuild node reuse crash).
+- Cada corrida bajo `--no-build` para eliminar la variación de compilación.
+- < 15 minutos por corrida.
+
+Si las 3 corridas no son idénticas, el cambio reintroduce no-determinismo y no debe mergearse sin revisión y corrección.
