@@ -1,16 +1,8 @@
 using System.Net;
-using System.Net.Http.Json;
-using System.Diagnostics;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Web;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Seguridad.Usuarios;
-using SGV.Web.Integration.Auth;
-using SGV.Web.Integration.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Web;
@@ -26,7 +18,8 @@ public sealed partial class UnidadOrganizativaWebTests
             new UnidadOrganizativaDto(unitId, "R01", "Unidad Reactivada", Guid.NewGuid(), "Dirección", null, null, null, null, null, null));
         apiClient.GetByIdResult = null; // Initially null (deleted)
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?returnPage=1&returnSearch=test&returnSort=nombre_asc&returnView=tree");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -67,7 +60,8 @@ public sealed partial class UnidadOrganizativaWebTests
                 "Ya existe una unidad activa con el mismo código."));
         apiClient.GetByIdResult = null;
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -101,7 +95,8 @@ public sealed partial class UnidadOrganizativaWebTests
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(Guid.NewGuid(), "DIR", "Dirección")];
         apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -121,7 +116,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
         apiClient.GetByIdResult = null;
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{Guid.NewGuid()}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -147,7 +143,8 @@ public sealed partial class UnidadOrganizativaWebTests
                 null, null, null, parentId, "RECT", "Rectorado"));
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -184,7 +181,8 @@ public sealed partial class UnidadOrganizativaWebTests
         apiClient.ChangeParentCommandResult = UnidadOrganizativaCommandResult.Success(updatedUnit);
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?p=2&search=test&sort=nombre_desc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -240,7 +238,8 @@ public sealed partial class UnidadOrganizativaWebTests
             unitId, "DEPT01", "Departamento Test Updated", tipoId, "Departamento",
             null, null, null, oldParentId, "OLD", "Old Parent");
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}?p=1&search=test&sort=nombre_asc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -287,7 +286,8 @@ public sealed partial class UnidadOrganizativaWebTests
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
         apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -329,7 +329,8 @@ public sealed partial class UnidadOrganizativaWebTests
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
         apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -367,7 +368,8 @@ public sealed partial class UnidadOrganizativaWebTests
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
         apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -401,7 +403,8 @@ public sealed partial class UnidadOrganizativaWebTests
                 null, null, null, parentId, "RECT", "Rectorado"));
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync($"/organizacion/unidades-organizativas/editar/{unitId}");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);

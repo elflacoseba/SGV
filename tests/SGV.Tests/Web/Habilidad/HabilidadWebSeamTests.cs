@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
 
@@ -13,9 +14,18 @@ namespace SGV.Tests.Web.Habilidad;
 ///     service collection registered in <c>Program.cs</c>;
 ///   - 2.4 <see cref="SgvWebApplicationFactory.WithOverrides"/> swaps the
 ///     production client for a fake.
+///
+/// Se une a <c>[Collection("WebIntegration")]</c> para que las leases que
+/// sostienen el host de pruebas pertenezcan al composite compartido y no
+/// queden factories huérfanas fuera del scope.
 /// </summary>
+[Collection("WebIntegration")]
 public sealed class HabilidadWebSeamTests
 {
+    private readonly WebIntegrationFixture _fixture;
+
+    public HabilidadWebSeamTests(WebIntegrationFixture fixture) => _fixture = fixture;
+
     [Fact]
     public void HabilidadListItemViewModel_Constructor_ExposesAllProperties()
     {
@@ -96,10 +106,10 @@ public sealed class HabilidadWebSeamTests
     }
 
     [Fact]
-    public void ProductionRegistration_ResolvesHabilidadApiClient()
+    public async Task ProductionRegistration_ResolvesHabilidadApiClient()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var scope = factory.Services.CreateScope();
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        using var scope = lease.Factory.Services.CreateScope();
 
         var client = scope.ServiceProvider.GetRequiredService<IHabilidadApiClient>();
 
@@ -108,7 +118,7 @@ public sealed class HabilidadWebSeamTests
     }
 
     [Fact]
-    public void WithOverrides_HabilidadApiClient_SwapsToFakeImplementation()
+    public async Task WithOverrides_HabilidadApiClient_SwapsToFakeImplementation()
     {
         var fake = new FakeHabilidadApiClient
         {
@@ -119,8 +129,8 @@ public sealed class HabilidadWebSeamTests
                 Message: null)
         };
 
-        using var factory = new SgvWebApplicationFactory().WithHabilidadApiClient(fake);
-        using var scope = factory.Services.CreateScope();
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(fake);
+        using var scope = lease.Factory.Services.CreateScope();
 
         var resolved = scope.ServiceProvider.GetRequiredService<IHabilidadApiClient>();
 

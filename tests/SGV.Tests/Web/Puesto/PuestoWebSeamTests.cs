@@ -90,12 +90,12 @@ public class PuestoWebSeamTests
     }
 
     [Fact]
-    public void WithOverrides_PuestosApiClient_SwapsToFakeImplementation()
+    public async Task WithOverrides_PuestosApiClient_SwapsToFakeImplementation()
     {
         var fake = new FakePuestosApiClient();
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(puestosApiClient: fake);
-        using var scope = factory.Services.CreateScope();
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(fake);
+        using var scope = lease.Factory.Services.CreateScope();
 
         var resolved = scope.ServiceProvider.GetRequiredService<IPuestosApiClient>();
 

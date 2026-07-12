@@ -1,16 +1,6 @@
 using System.Net;
-using System.Net.Http.Json;
-using System.Diagnostics;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Web;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Seguridad.Usuarios;
-using SGV.Web.Integration.Auth;
-using SGV.Web.Integration.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Web;
@@ -20,12 +10,8 @@ public sealed partial class UnidadOrganizativaWebTests
     [Fact]
     public async Task Get_Index_WhenAnonymous_RedirectsToSignIn()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas");
 
@@ -39,7 +25,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(1, 10, 24, CreateItem("A01", "Rectorado", "Institución"), CreateItem("B01", "Dirección de Talento", "Dirección")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -67,7 +54,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(1, 10, 1, CreateItem("A01", "Rectorado", "Institución")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -86,7 +74,8 @@ public sealed partial class UnidadOrganizativaWebTests
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?search=zzz");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -102,7 +91,8 @@ public sealed partial class UnidadOrganizativaWebTests
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithFailure(new HttpRequestException("boom"));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -118,7 +108,8 @@ public sealed partial class UnidadOrganizativaWebTests
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithFailure(new HttpRequestException("boom"));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&search=dep");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -139,7 +130,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(2, 10, 25, CreateItem("C01", "Facultad de Ingeniería", "Facultad"), CreateItem("C02", "Facultad de Ciencias", "Facultad")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?p=2");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -160,7 +152,8 @@ public sealed partial class UnidadOrganizativaWebTests
                 CreateItem("C01", "Ágora", "Facultad"),
                 CreateItem("C02", "Gamma", "Facultad")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?p=2&sort=nombre_desc");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -184,7 +177,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var item = CreateItem("D01", "Secretaría General", "Secretaría");
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 1, item));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -201,7 +195,8 @@ public sealed partial class UnidadOrganizativaWebTests
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(1, 10, 1, CreateItem("A01", "Rectorado", "Institución")));
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -217,7 +212,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var item = CreateItem("A01", "Rectorado", "Institución");
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(1, 10, 1, item));
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -233,7 +229,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var item = CreateItem("A01", "Rectorado", "Institución");
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(2, 10, 25, item));
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?p=2&search=test&sort=nombre_desc");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -257,7 +254,8 @@ public sealed partial class UnidadOrganizativaWebTests
                 CreateItem("DEL01", "Unidad Eliminada A", "Dirección"),
                 CreateItem("DEL02", "Unidad Eliminada B", "Secretaría")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -274,7 +272,8 @@ public sealed partial class UnidadOrganizativaWebTests
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -290,7 +289,8 @@ public sealed partial class UnidadOrganizativaWebTests
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 1, CreateItem("DEL01", "Eliminada", "Dirección")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -308,7 +308,8 @@ public sealed partial class UnidadOrganizativaWebTests
                 CreateItem("DEL11", "Unidad Eliminada 11", "Dirección"),
                 CreateItem("DEL12", "Unidad Eliminada 12", "Secretaría")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&p=2&search=del");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -332,7 +333,8 @@ public sealed partial class UnidadOrganizativaWebTests
                 CreateItem("DEL21", "Unidad Eliminada B", "Dirección"),
                 CreateItem("DEL22", "Unidad Eliminada A", "Secretaría")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&p=2&search=del&sort=nombre_desc");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -356,7 +358,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(1, 10, 1, item));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -375,7 +378,8 @@ public sealed partial class UnidadOrganizativaWebTests
             CreatePage(2, 10, 25,
                 CreateItem("DEL11", "Unidad Eliminada 11", "Dirección")));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas?p=2&status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());

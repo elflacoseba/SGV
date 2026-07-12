@@ -29,12 +29,8 @@ public sealed class HabilidadIndexPageTests
     [Fact]
     public async Task Get_Index_WhenAnonymous_RedirectsToSignIn()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades");
 

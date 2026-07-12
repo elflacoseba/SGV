@@ -1,12 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Common;
-using SGV.Web.Integration.Auth;
 using Xunit;
 
 namespace SGV.Tests.Web.Cargo;
@@ -17,9 +14,17 @@ namespace SGV.Tests.Web.Cargo;
 /// principal on every cargo endpoint; without bearer propagation, the API
 /// rejects every request with 401 and the cargo listing page renders
 /// "No se pudo cargar el listado de cargos".
+///
+/// Se une a <c>[Collection("WebIntegration")]</c> para que el lease del
+/// bridge quede retenido por el composite compartido (no hay factory huérfana).
 /// </summary>
+[Collection("WebIntegration")]
 public sealed class ApiBearerTokenIntegrationTests
 {
+    private readonly WebIntegrationFixture _fixture;
+
+    public ApiBearerTokenIntegrationTests(WebIntegrationFixture fixture) => _fixture = fixture;
+
     [Fact]
     public async Task Get_CargosIndex_WhenAuthenticated_ForwardsBearerTokenToApi()
     {
@@ -29,29 +34,8 @@ public sealed class ApiBearerTokenIntegrationTests
         var authHandler = new StubAuthHandler(expectedJwt);
         var cargoHandler = new RecordingCargoHandler();
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            cargoApiHandler: cargoHandler);
-
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        // Act: sign in through the Web so the cookie ticket carries the JWT.
-        var signInPage = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInPage);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        await using var lease = await _fixture.CreateCargoBridgeLeaseAsync(authHandler, cargoHandler);
+        var client = lease.Client;
 
         // Hit the page that exercises the cargo API client.
         var indexResponse = await client.GetAsync("/organizacion/cargos");
@@ -64,19 +48,11 @@ public sealed class ApiBearerTokenIntegrationTests
         Assert.Equal(expectedJwt, cargoRequest.Headers.Authorization.Parameter);
     }
 
-    private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        var match = Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
-        Assert.True(match.Success, "Antiforgery token was not rendered.");
-        return match.Groups[1].Value;
-    }
-
     /// <summary>
-    /// Always responds with a successful login payload carrying the test JWT
-    /// so the Web issues a cookie ticket that stores it under "access_token".
-    /// </summary>
-    private sealed class StubAuthHandler(string accessToken) : HttpMessageHandler
+/// Always responds with a successful login payload carrying the test JWT
+/// so the Web issues a cookie ticket that stores it under "access_token".
+/// </summary>
+private sealed class StubAuthHandler(string accessToken) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)

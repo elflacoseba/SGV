@@ -9,29 +9,56 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Collections;
+using SGV.Tests.Web.Common;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Web;
 
+/// <summary>
+/// Suite web de Unidad Organizativa. Se une a <c>[Collection("WebIntegration")]</c>
+/// y comparte un único <see cref="WebIntegrationFixture"/> raíz. El lease
+/// devuelto por <see cref="CreateAuthenticatedClientAsync"/> retiene la factory
+/// derivada y el <see cref="TestSentinel"/> hasta su <c>await using</c>; los
+/// call sites consumen <c>lease.Client</c> dentro del scope.
+/// </summary>
+[Collection("WebIntegration")]
 public sealed partial class UnidadOrganizativaWebTests
 {
+    private readonly WebIntegrationFixture _fixture;
+
+    public UnidadOrganizativaWebTests(WebIntegrationFixture fixture) => _fixture = fixture;
+
     private static PagedResult<UnidadOrganizativaDto> CreatePage(int page, int pageSize, int totalCount, params UnidadOrganizativaDto[] items)
         => new(items, totalCount, page, pageSize);
 
     private static UnidadOrganizativaDto CreateItem(string codigo, string nombre, string tipoNombre)
         => new(Guid.NewGuid(), codigo, nombre, Guid.NewGuid(), tipoNombre, null, null, null, null, null, null);
 
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(FakeUnidadOrganizativaApiClient apiClient)
+    /// <summary>
+    /// Lease autenticado contra el módulo de Unidad Organizativa. Construye la
+    /// factory derivada con <see cref="SgvWebApplicationFactory.WithOverrides"/>
+    /// sobre la raíz compartida del fixture y la envuelve en un
+    /// <see cref="WebClientLease"/> con sentinel. Se hace así —y no vía el
+    /// helper <see cref="WebIntegrationFixture.CreateUnidadOrganizativaLeaseAsync"/>—
+    /// porque ese helper tipa su argumento con el fake público de Puesto, que
+    /// sólo implementa dos métodos de la interfaz; los tests de UO consumen un
+    /// fake privado con cobertura completa de la API (Query/Delete/Update/Reactivate/etc.).
+    /// La cadena <c>root → override → lease</c> mantiene el contrato de
+    /// propiedad: la root queda retenida por el fixture y la derivada queda
+    /// retenida por el lease, sin factories huérfanas.
+    /// </summary>
+    private async Task<WebClientLease> CreateAuthenticatedClientAsync(FakeUnidadOrganizativaApiClient apiClient)
     {
-        var authHandler = new RecordingHttpMessageHandler(
+        var authHandler = new WebTestBuilders.RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new LoginResponse(SGV.Tests.Web.Common.AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
+                Content = JsonContent.Create(new LoginResponse(AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
             });
 
-        var factory = new SgvWebApplicationFactory().WithOverrides(
+        var factory = _fixture.RootFactory.WithOverrides(
             configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
             authApiHandler: authHandler,
             unidadOrganizativaApiClient: apiClient);
@@ -43,17 +70,16 @@ public sealed partial class UnidadOrganizativaWebTests
         });
 
         var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(signInResponse);
 
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
+        _ = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["Input.UserNameOrEmail"] = "admin",
             ["Input.Password"] = "Password1!"
         }));
 
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
+        return new WebClientLease(factory, client, new TestSentinel());
     }
 
     private static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
@@ -178,12 +204,6 @@ main().catch(error => {
                 File.Delete(harnessPath);
             }
         }
-    }
-
-    private sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(response);
     }
 
     private sealed class FakeUnidadOrganizativaApiClient : IUnidadOrganizativaApiClient

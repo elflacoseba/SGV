@@ -40,12 +40,8 @@ public sealed class HabilidadesCargosModelTests
     [Fact]
     public async Task Get_CargosPage_Anonymous_RedirectsToSignIn()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true,
-        });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{Guid.NewGuid()}/cargos");
 
@@ -81,8 +77,8 @@ public sealed class HabilidadesCargosModelTests
                 1, 1, 20);
         };
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -123,8 +119,8 @@ public sealed class HabilidadesCargosModelTests
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(); // sin seed
         apiClient.GetByIdHandler = _ => null; // explícito: GetByIdAsync retorna null
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -147,8 +143,8 @@ public sealed class HabilidadesCargosModelTests
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         // Sin cargos seed → resultado vacío por defecto.
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos?status=archivo");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -168,8 +164,8 @@ public sealed class HabilidadesCargosModelTests
         var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -191,8 +187,8 @@ public sealed class HabilidadesCargosModelTests
         var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync(
             $"/organizacion/habilidades/{skillId}/cargos?p=2&pageSize=5&search=lid&sort=codigo_asc&status=activas");
@@ -238,8 +234,8 @@ public sealed class HabilidadesCargosModelTests
             1, 1, 20);
 
         // El fixture existente autentica SIN rol Administrador por defecto.
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -320,8 +316,8 @@ public sealed class HabilidadesCargosModelTests
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         // GetCargosResult por defecto es empty.
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -340,8 +336,8 @@ public sealed class HabilidadesCargosModelTests
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.GetByIdException = new HttpRequestException("network down");
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -364,8 +360,8 @@ public sealed class HabilidadesCargosModelTests
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         apiClient.GetCargosException = new HttpRequestException("subresource down");
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -391,8 +387,8 @@ public sealed class HabilidadesCargosModelTests
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         apiClient.GetCargosException = new System.Text.Json.JsonException("unexpected token");
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -412,8 +408,8 @@ public sealed class HabilidadesCargosModelTests
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.GetByIdException = new TaskCanceledException("timeout");
 
-        using var factory = new SgvWebApplicationFactory();
-        using var client = await CreateAuthenticatedClientAsync(factory, apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/{skillId}/cargos");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -427,47 +423,4 @@ public sealed class HabilidadesCargosModelTests
     // ──────────────────────────────────────────────
     // Helpers
     // ──────────────────────────────────────────────
-
-    /// <summary>
-    /// Login en la factory de SGV.Web con un principal SIN rol (paridad
-    /// con el flujo <c>HabilidadWebTestFixture.CreateAuthenticatedClientAsync</c>).
-    /// Reusado por todos los tests no-admin; los admin-tests delegan a
-    /// <c>CargoWebTestFixture.CreateAuthenticatedClientAsync(..., adminRole: true)</c>.
-    /// </summary>
-    private static async Task<HttpClient> CreateAuthenticatedClientAsync(
-        SgvWebApplicationFactory baseFactory,
-        FakeHabilidadApiClient apiClient)
-    {
-        var authHandler = new WebTestBuilders.RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = System.Net.Http.Json.JsonContent.Create(
-                    new LoginResponse(SGV.Tests.Web.Common.AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1))),
-            });
-
-        var factory = baseFactory.WithOverrides(
-            configureServices: services => services.Configure<SGV.Web.Integration.Auth.SgvApiOptions>(
-                options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            habilidadApiClient: apiClient);
-
-        var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true,
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(signInResponse);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!",
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
-    }
 }

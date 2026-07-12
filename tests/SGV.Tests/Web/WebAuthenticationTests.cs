@@ -37,10 +37,8 @@ public sealed class WebAuthenticationTests
                 Content = JsonContent.Create(new LoginResponse(accessToken, DateTimeOffset.UtcNow.AddHours(1)))
             });
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: handler);
-        using var scope = factory.Services.CreateScope();
+        await using var lease = CreateAuthLease(handler);
+        using var scope = lease.Factory.Services.CreateScope();
         var authApiClient = scope.ServiceProvider.GetRequiredService<IAuthApiClient>();
 
         var response = await authApiClient.LoginAsync(new LoginRequest("admin", "Password1!"));
@@ -56,10 +54,8 @@ public sealed class WebAuthenticationTests
     {
         var handler = new RecordingHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.Unauthorized));
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: handler);
-        using var scope = factory.Services.CreateScope();
+        await using var lease = CreateAuthLease(handler);
+        using var scope = lease.Factory.Services.CreateScope();
         var authApiClient = scope.ServiceProvider.GetRequiredService<IAuthApiClient>();
 
         var response = await authApiClient.LoginAsync(new LoginRequest("admin", "bad-password"));
@@ -87,14 +83,8 @@ public sealed class WebAuthenticationTests
     {
         var handler = new RecordingHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.Unauthorized));
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: handler);
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        await using var lease = CreateAuthLease(handler);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/auth/sign-in");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -121,14 +111,8 @@ public sealed class WebAuthenticationTests
                 Content = JsonContent.Create(new LoginResponse(AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
             });
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: handler);
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        await using var lease = CreateAuthLease(handler);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/auth/sign-in");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -155,14 +139,8 @@ public sealed class WebAuthenticationTests
                 Content = JsonContent.Create(new LoginResponse("token-123", DateTimeOffset.UtcNow.AddHours(1)))
             });
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: handler);
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        await using var lease = CreateAuthLease(handler);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/auth/sign-in");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -204,6 +182,26 @@ public sealed class WebAuthenticationTests
 
     private Task<WebClientLease> CreateAuthenticatedLeaseAsync()
         => _fixture.CreateAuthOnlyLeaseAsync();
+
+    /// <summary>
+    /// Construye un lease sobre una factory derivada de la raíz del fixture
+    /// con un <see cref="HttpMessageHandler"/> de auth API inyectado. La
+    /// factory derivada queda retenida por el lease y se dispone cuando el
+    /// scope <c>await using</c> cierra, preservando la regla "ninguna factory
+    /// anónima sobrevive al scope" (PR2b-1 §3.5 Approach C).
+    /// </summary>
+    private WebClientLease CreateAuthLease(HttpMessageHandler authHandler)
+    {
+        var factory = _fixture.RootFactory.WithOverrides(
+            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
+            authApiHandler: authHandler);
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+        return new WebClientLease(factory, client, new TestSentinel());
+    }
 
     private sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
     {

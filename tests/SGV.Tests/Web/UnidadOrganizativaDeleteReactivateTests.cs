@@ -1,15 +1,7 @@
 using System.Net;
-using System.Net.Http.Json;
-using System.Diagnostics;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Web;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Seguridad.Usuarios;
-using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -49,7 +41,8 @@ public sealed partial class UnidadOrganizativaWebTests
             CreatePage(1, 10, 10, remainingItem));
         apiClient.DeleteResult = new UnidadOrganizativaDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?p=2&search=dir&sort=nombre_desc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -85,7 +78,8 @@ public sealed partial class UnidadOrganizativaWebTests
             CreatePage(1, 10, 1, item));
         apiClient.DeleteResult = new UnidadOrganizativaDeleteResult(false, HttpStatusCode.Conflict, "unidad-organizativa-en-uso", "La unidad organizativa tiene dependencias activas.");
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?search=dep&sort=nombre_asc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -120,7 +114,8 @@ public sealed partial class UnidadOrganizativaWebTests
         apiClient.ReactivateResult = UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(reactivatedId, "R01", "Unidad Reactivada", Guid.NewGuid(), "Dirección", null, null, null, null, null, null));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&p=1&search=test&sort=nombre_asc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -161,7 +156,8 @@ public sealed partial class UnidadOrganizativaWebTests
             new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
                 "Ya existe una unidad activa con el mismo código."));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?status=eliminadas&p=1&search=test&sort=nombre_asc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -201,7 +197,8 @@ public sealed partial class UnidadOrganizativaWebTests
             CreatePage(1, 10, 10, remainingItem));
         apiClient.DeleteResult = new UnidadOrganizativaDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?p=2&search=dir&sort=nombre_desc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -235,7 +232,8 @@ public sealed partial class UnidadOrganizativaWebTests
         apiClient.ReactivateResult = UnidadOrganizativaCommandResult.Success(
             new UnidadOrganizativaDto(reactivatedId, "S01", "Unidad Reactivada", Guid.NewGuid(), "Dirección", null, null, null, null, null, null));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?p=2&search=test&sort=nombre_desc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);
@@ -269,7 +267,8 @@ public sealed partial class UnidadOrganizativaWebTests
             new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
                 "Ya existe una unidad activa con el mismo código."));
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var getResponse = await client.GetAsync("/organizacion/unidades-organizativas?p=1&search=conflict&sort=nombre_asc");
         var antiforgeryToken = await ExtractAntiforgeryTokenAsync(getResponse);

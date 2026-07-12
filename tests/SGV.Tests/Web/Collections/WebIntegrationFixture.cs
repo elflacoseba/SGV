@@ -77,6 +77,27 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole)));
 
+    /// <summary>
+    /// Lease autenticado contra el bridge web→API con un <see cref="HttpMessageHandler"/>
+    /// de cargo API configurable. Variante narrow introducida en PR 2b-4 para
+    /// eliminar el <c>using var factory = new SgvWebApplicationFactory().WithOverrides(...)</c>
+    /// anónimo de <c>ApiBearerTokenIntegrationTests</c>: ese test intercambia el
+    /// <c>PrimaryHandler</c> del typed-client de cargo para grabar las requests
+    /// salientes y verificar la propagación del bearer token. La firma estándar
+    /// <see cref="CreateCargoLeaseAsync"/> no cubre el override de handler (sólo
+    /// expone el fake tipado), por eso se requiere esta segunda entrada — única
+    /// adición de API en este lote, justificada por el conteo de 33 sitios sin
+    /// <c>using</c> en design.md §"Inventario source-backed (rg)" + la
+    /// imposibilidad de encajar el test sin una factory derivada sin dispose.
+    /// </summary>
+    public Task<WebClientLease> CreateCargoBridgeLeaseAsync(
+        HttpMessageHandler authApiHandler,
+        HttpMessageHandler cargoApiHandler)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl,
+            authApiHandler,
+            cargoApiHandler: cargoApiHandler));
+
     private static void ConfigureBaseUrl(IServiceCollection services)
         => services.Configure<SgvApiOptions>(o => o.BaseUrl = "https://api.test");
 

@@ -25,8 +25,8 @@ public sealed class HabilidadDetailsPageTests
     [Fact]
     public async Task Get_Details_WhenAnonymous_RedirectsToSignIn()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/detalles/{Guid.NewGuid()}");
 

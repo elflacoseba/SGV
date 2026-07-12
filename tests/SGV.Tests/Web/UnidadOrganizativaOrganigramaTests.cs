@@ -1,16 +1,6 @@
 using System.Net;
-using System.Net.Http.Json;
-using System.Diagnostics;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Web;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Seguridad.Usuarios;
-using SGV.Web.Integration.Auth;
-using SGV.Web.Integration.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Web;
@@ -42,7 +32,8 @@ public sealed partial class UnidadOrganizativaWebTests
                 ])
         ];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas/organigrama");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -70,7 +61,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
         apiClient.TreeResult = [];
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas/organigrama");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -87,7 +79,8 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
         apiClient.TreeException = new HttpRequestException("tree-boom");
 
-        using var client = await CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/unidades-organizativas/organigrama");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());

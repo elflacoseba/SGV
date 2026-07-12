@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -14,9 +15,18 @@ namespace SGV.Tests.Web.Cargo;
 ///   - 1.7 <see cref="SgvWebApplicationFactory.WithOverrides"/> swaps the
 ///     production client for a fake and the fake translates to the expected
 ///     <see cref="CargoDeleteResult"/> outcomes.
+///
+/// Se une a <c>[Collection("WebIntegration")]</c> para que las leases que
+/// sostienen el host de pruebas pertenezcan al composite compartido y no
+/// queden factories huérfanas fuera del scope.
 /// </summary>
+[Collection("WebIntegration")]
 public class CargoWebSeamTests
 {
+    private readonly WebIntegrationFixture _fixture;
+
+    public CargoWebSeamTests(WebIntegrationFixture fixture) => _fixture = fixture;
+
     [Fact]
     public void CargoListItemViewModel_Constructor_ExposesAllProperties()
     {
@@ -53,10 +63,10 @@ public class CargoWebSeamTests
     }
 
     [Fact]
-    public void ProductionRegistration_ResolvesCargoApiClient()
+    public async Task ProductionRegistration_ResolvesCargoApiClient()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var scope = factory.Services.CreateScope();
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        using var scope = lease.Factory.Services.CreateScope();
 
         var client = scope.ServiceProvider.GetRequiredService<ICargoApiClient>();
 
@@ -65,7 +75,7 @@ public class CargoWebSeamTests
     }
 
     [Fact]
-    public void WithOverrides_CargoApiClient_SwapsToFakeImplementation()
+    public async Task WithOverrides_CargoApiClient_SwapsToFakeImplementation()
     {
         var fake = new FakeCargoApiClient
         {
@@ -76,8 +86,8 @@ public class CargoWebSeamTests
                 Message: null)
         };
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(cargoApiClient: fake);
-        using var scope = factory.Services.CreateScope();
+        await using var lease = await _fixture.CreateCargoLeaseAsync(fake);
+        using var scope = lease.Factory.Services.CreateScope();
 
         var resolved = scope.ServiceProvider.GetRequiredService<ICargoApiClient>();
 

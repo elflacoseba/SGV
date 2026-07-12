@@ -27,8 +27,8 @@ public sealed class HabilidadEditPageTests
     [Fact]
     public async Task Get_Edit_WhenAnonymous_RedirectsToSignIn()
     {
-        using var factory = new SgvWebApplicationFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/editar/{Guid.NewGuid()}");
 
