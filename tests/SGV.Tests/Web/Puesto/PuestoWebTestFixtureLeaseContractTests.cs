@@ -1,95 +1,142 @@
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Json;
-using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Cargo;
 using SGV.Tests.Web.Collections;
-using SGV.Tests.Web.Common;
 using SGV.Tests.Web.Habilidad;
-using SGV.Web.Integration.Auth;
-using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
 namespace SGV.Tests.Web.Puesto;
 
 /// <summary>
-/// Tests RED (strict TDD) para la migración del módulo Puesto al composite
-/// <see cref="WebIntegrationFixture"/>. Cubren el contrato de las cuatro firmas
-/// heredadas de <c>PuestoWebTestFixture</c> (líneas 89/96/103/120 originales)
-/// ahora delegadas a <see cref="WebIntegrationFixture.CreatePuestoLeaseAsync"/>.
-/// Si el fixture deja de delegar al composite, estos tests rompen antes que
-/// los call sites de páginas, exponiendo drift durante el refactor.
+/// Tests RED (strict TDD) que validan la cadena de delegación de
+/// <see cref="PuestoWebTestFixture"/> al composite
+/// <see cref="WebIntegrationFixture"/>. Cada lease producido por el fixture
+/// MUST cumplir tres invariantes observables:
+///   1) proviene de una factory derivada, distinta de la raíz del fixture;
+///   2) retiene exactamente un <see cref="TestSentinel"/> y lo libera al hacer
+///      <see cref="WebClientLease.DisposeAsync"/> sin detener la raíz compartida;
+///   3) expone los overrides configurados al resolver servicios en su factory.
+/// Si <see cref="PuestoWebTestFixture"/> deja de delegar al composite, estos
+/// tests rompen antes que los call sites de páginas, exponiendo drift durante
+/// el refactor.
 /// </summary>
 public sealed class PuestoWebTestFixtureLeaseContractTests
 {
+    // ── Contrato por firma: lease + sentinel + factory derivada ────────
+
     [Fact]
-    public async Task CreateAuthenticatedClientAsync_ReturnsLeaseNotHttpClient()
+    public async Task CreateAuthenticatedClientAsync_ReturnsLeaseWithDerivedFactoryAndOwnsSentinel()
     {
+        var baseline = TestSentinel.AliveCount;
+
         await using var fixture = new PuestoWebTestFixture();
+        await using var lease = await fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
 
-        var lease = await fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
-
-        Assert.NotNull(lease);
+        // La lease debe provenir de una factory distinta de la raíz del fixture.
+        Assert.NotSame(fixture.RootFactory, lease.Factory);
         Assert.NotNull(lease.Client);
+        // El lease debe haber retenido exactamente un sentinel durante su vida.
+        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+
+        await lease.DisposeAsync();
+        Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
     [Fact]
-    public async Task CreateAdminClientAsync_WithFakeOnly_ReturnsLease()
+    public async Task CreateAdminClientAsync_WithFakeOnly_ReturnsLeaseWithDerivedFactoryAndOwnsSentinel()
     {
+        var baseline = TestSentinel.AliveCount;
+
         await using var fixture = new PuestoWebTestFixture();
+        await using var lease = await fixture.CreateAdminClientAsync(new FakePuestosApiClient());
 
-        var lease = await fixture.CreateAdminClientAsync(new FakePuestosApiClient());
-
-        Assert.NotNull(lease);
+        Assert.NotSame(fixture.RootFactory, lease.Factory);
         Assert.NotNull(lease.Client);
+        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+
+        await lease.DisposeAsync();
+        Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
     [Fact]
-    public async Task CreateAdminClientAsync_WithThreeFakes_ReturnsLease()
+    public async Task CreateAdminClientAsync_WithThreeFakes_ReturnsLeaseWithDerivedFactoryAndOwnsSentinel()
     {
-        await using var fixture = new PuestoWebTestFixture();
+        var baseline = TestSentinel.AliveCount;
 
-        var lease = await fixture.CreateAdminClientAsync(
+        await using var fixture = new PuestoWebTestFixture();
+        await using var lease = await fixture.CreateAdminClientAsync(
             new FakeUnidadOrganizativaApiClient(),
             new FakeCargoApiClient(),
             new FakePuestosApiClient());
 
-        Assert.NotNull(lease);
+        Assert.NotSame(fixture.RootFactory, lease.Factory);
         Assert.NotNull(lease.Client);
+        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+
+        await lease.DisposeAsync();
+        Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
     [Fact]
-    public async Task CreateAuthenticatedClientAsync_FourArgOverload_ReturnsLease()
+    public async Task CreateAuthenticatedClientAsync_FourArgOverload_ReturnsLeaseWithDerivedFactoryAndOwnsSentinel()
     {
-        await using var fixture = new PuestoWebTestFixture();
+        var baseline = TestSentinel.AliveCount;
 
-        var lease = await fixture.CreateAuthenticatedClientAsync(
+        await using var fixture = new PuestoWebTestFixture();
+        await using var lease = await fixture.CreateAuthenticatedClientAsync(
             new FakeUnidadOrganizativaApiClient(),
             new FakeCargoApiClient(),
             new FakePuestosApiClient(),
             adminRole: false);
 
-        Assert.NotNull(lease);
+        Assert.NotSame(fixture.RootFactory, lease.Factory);
         Assert.NotNull(lease.Client);
+        Assert.Equal(baseline + 1, TestSentinel.AliveCount);
+
+        await lease.DisposeAsync();
+        Assert.Equal(baseline, TestSentinel.AliveCount);
     }
 
+    // ── Aislamiento de dispose: la raíz compartida debe sobrevivir ─────
+
     [Fact]
-    public async Task Lease_DelegatedToComposite_HasDistinctFactoryFromRoot()
+    public async Task Lease_DisposeAsync_DoesNotDisposeSharedRoot()
     {
-        // Garantiza que el lease producido por el fixture NO comparte factory
-        // con la root del composite (mismo principio que
-        // WebIntegrationFixtureTests:Fixture_CreateAnonymousLeaseAsync_DerivesFactoryFromSharedRoot).
-        await using var integrationFixture = new WebIntegrationFixture();
-        await using var puestoFixture = new PuestoWebTestFixture();
+        await using var fixture = new PuestoWebTestFixture();
 
-        var lease = await puestoFixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+        var firstLease = await fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+        await firstLease.DisposeAsync();
 
-        Assert.NotNull(lease);
-        Assert.NotSame(integrationFixture.RootFactory, lease.Factory);
+        // Después de disponer la primera lease, la raíz compartida debe seguir
+        // operativa: una segunda lease construida a partir del MISMO fixture
+        // debe producir un cliente capaz de resolver rutas autenticadas.
+        await using var secondLease = await fixture.CreateAuthenticatedClientAsync(new FakePuestosApiClient());
+        using var response = await secondLease.Client.GetAsync("/auth/sign-in");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // ── Override observable: el fake configurado llega a DI ───────────
+
+    [Fact]
+    public async Task Lease_ConfiguredOverride_IsObservableThroughFactoryServices()
+    {
+        var fakePuestos = FakePuestosApiClient.WithPuestoList(
+            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null, null));
+
+        await using var fixture = new PuestoWebTestFixture();
+        await using var lease = await fixture.CreateAdminClientAsync(fakePuestos);
+
+        // La override configurada por el fixture debe quedar registrada en los
+        // servicios de la factory derivada del lease: al resolver
+        // IPuestosApiClient, recuperamos EXACTAMENTE el fake que pasamos y los
+        // datos sembrados en él son los que verá la página que invoque la API.
+        using var scope = lease.Factory.Services.CreateScope();
+        var resolved = scope.ServiceProvider.GetRequiredService<IPuestosApiClient>();
+
+        Assert.Same(fakePuestos, resolved);
+        Assert.Single(fakePuestos.GetAllResult);
     }
 }

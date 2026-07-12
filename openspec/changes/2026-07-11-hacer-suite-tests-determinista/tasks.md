@@ -45,9 +45,10 @@ Maintainer approved a single PR with `size:exception`; sdd-apply may proceed as 
 
 ## Fase 4 — PR2b-2: Puesto (~153)
 
-- [ ] 4.1 Migrar `PuestoWebTestFixture.cs:89/96/103/120` (4 firmas) + 47 sites.
-- [ ] 4.2 5 clases `Puesto*PageTests`+`PuestoWebSeamTests` a `[Collection("WebIntegration")]`.
-- [ ] 4.3 VERIFICAR `--filter ~Puesto --no-build` verde.
+- [x] 4.1 Migrar `PuestoWebTestFixture.cs:89/96/103/120` (4 firmas) + 47 sites.
+- [x] 4.2 5 clases `Puesto*PageTests`+`PuestoWebSeamTests` a `[Collection("WebIntegration")]`.
+- [x] 4.3 VERIFICAR `--filter ~Puesto --no-build` verde.
+- [x] 4.4 PR2b-2-1 Corrective review findings: (a) `await using` + behavioral assertions en los 5 contract tests (sentinel release); (b) eliminar helpers `WithPuestosApiClient`/`WithCargoApiClient`/`WithUnidadOrganizativaApiClient`/`WithCatalogFakes` (0 callers per `rg`); renombrar `BaseFactory` → `RootFactory` para simetría con el composite; (c) contract tests verifican factory derivada vs root propio del fixture, dispose no detiene la raíz compartida (segunda lease operativa), y override observable resolviendo `IPuestosApiClient` desde `lease.Factory.Services`. Mantener baseline 46 fallas preexistentes; `~Puesto` = 46/271 (baseline + 1 test intencional de override); composite infra 26/26 verde.
 
 ## Fase 5 — PR2b-3: Habilidad+HabilidadesCargos (~144)
 

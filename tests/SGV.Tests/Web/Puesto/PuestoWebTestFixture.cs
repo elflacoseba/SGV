@@ -1,23 +1,21 @@
-using Microsoft.AspNetCore.Mvc.Testing;
-using SGV.Tests.Web.Cargo;
 using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 
 namespace SGV.Tests.Web.Puesto;
 
 /// <summary>
-/// Shim histórico (PR 2b-2) sobre <see cref="WebIntegrationFixture"/> que
-/// conserva las cuatro firmas <c>Task&lt;WebClientLease&gt;</c> originales
+/// Shim sobre <see cref="WebIntegrationFixture"/> que conserva las cuatro
+/// firmas <c>Task&lt;WebClientLease&gt;</c> originales
 /// (<c>CreateAuthenticatedClientAsync(FakePuestosApiClient)</c>,
 /// <c>CreateAdminClientAsync(FakePuestosApiClient)</c>,
 /// <c>CreateAdminClientAsync(unidad, cargo, puestos)</c> y
 /// <c>CreateAuthenticatedClientAsync(unidad, cargo, puestos, bool)</c>)
 /// delegando a <see cref="WebIntegrationFixture.CreatePuestoLeaseAsync"/>.
-/// Los seeds de builders y el extractor antiforgery ahora viven en
-/// <see cref="WebTestBuilders"/>; las cuatro clases PageTests + PuestoWebSeamTests
-/// consumen <see cref="WebIntegrationFixture"/> directamente vía
-/// <c>[Collection("WebIntegration")]</c>, por lo que este fixture conserva
-/// los helpers sólo como superficie de compat para futuros cross-anchors.
+/// Las cuatro clases PageTests + PuestoWebSeamTests consumen
+/// <see cref="WebIntegrationFixture"/> directamente vía
+/// <c>[Collection("WebIntegration")]</c>; este fixture existe únicamente para
+/// <see cref="PuestoWebTestFixtureLeaseContractTests"/>, que valida que la
+/// delegación al composite sigue intacta.
 /// </summary>
 public sealed class PuestoWebTestFixture : IAsyncDisposable
 {
@@ -25,30 +23,14 @@ public sealed class PuestoWebTestFixture : IAsyncDisposable
 
     public PuestoWebTestFixture() => _root = new WebIntegrationFixture();
 
-    /// <summary>Raíz del composite para casos seam (inspect Services/CreateScope).</summary>
-    public SgvWebApplicationFactory BaseFactory => _root.RootFactory;
-
-    /// <summary>Factory con <see cref="IPuestosApiClient"/> reemplazado por el fake.</summary>
-    public SgvWebApplicationFactory WithPuestosApiClient(FakePuestosApiClient fake)
-        => _root.RootFactory.WithOverrides(puestosApiClient: fake);
-
-    /// <summary>Factory con <see cref="ICargoApiClient"/> reemplazado por el fake.</summary>
-    public SgvWebApplicationFactory WithCargoApiClient(ICargoApiClient fake)
-        => _root.RootFactory.WithOverrides(cargoApiClient: fake);
-
-    /// <summary>Factory con <see cref="IUnidadOrganizativaApiClient"/> reemplazado por el fake.</summary>
-    public SgvWebApplicationFactory WithUnidadOrganizativaApiClient(IUnidadOrganizativaApiClient fake)
-        => _root.RootFactory.WithOverrides(unidadOrganizativaApiClient: fake);
-
-    /// <summary>Factory con los tres fakes de catálogo inyectados (Create page).</summary>
-    public SgvWebApplicationFactory WithCatalogFakes(
-        IUnidadOrganizativaApiClient unidadFake,
-        ICargoApiClient cargoFake,
-        FakePuestosApiClient puestosFake)
-        => _root.RootFactory.WithOverrides(
-            unidadOrganizativaApiClient: unidadFake,
-            cargoApiClient: cargoFake,
-            puestosApiClient: puestosFake);
+    /// <summary>
+    /// Acceso a la raíz del composite. Sólo para los contract tests, que
+    /// necesitan comparar el <see cref="WebClientLease.Factory"/> del lease
+    /// contra la raíz compartida del fixture y verificar el aislamiento del
+    /// dispose. Las páginas no deben usar este accessor: consumen el lease
+    /// directamente vía <see cref="WebIntegrationFixture"/>.
+    /// </summary>
+    public SgvWebApplicationFactory RootFactory => _root.RootFactory;
 
     /// <summary>Lease autenticado (no admin) contra el módulo de Puestos.</summary>
     public Task<WebClientLease> CreateAuthenticatedClientAsync(FakePuestosApiClient apiClient)
