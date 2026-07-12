@@ -53,9 +53,9 @@ Maintainer approved a single PR with `size:exception`; sdd-apply may proceed as 
 
 ## Fase 5 — PR2b-3: Habilidad+HabilidadesCargos (~144)
 
-- [ ] 5.1 Migrar `HabilidadWebTestFixture.cs:40` + 32 sites; cross `HabilidadesCargosModelTests.cs:428`/`:290`.
-- [ ] 5.2 5 clases `Habilidad*PageTests` a `[Collection("WebIntegration")]`.
-- [ ] 5.3 VERIFICAR `--filter ~Habilidad --no-build` verde.
+- [x] 5.1 Migrar `HabilidadWebTestFixture.cs:40` + 32 sites; cross `HabilidadesCargosModelTests.cs:428`/`:290`.
+- [x] 5.2 5 clases `Habilidad*PageTests` a `[Collection("WebIntegration")]`.
+- [x] 5.3 VERIFICAR `--filter ~Habilidad --no-build` verde.
 
 ## Fase 6 — PR2b-4: UO + factory anónimos (~258)
 

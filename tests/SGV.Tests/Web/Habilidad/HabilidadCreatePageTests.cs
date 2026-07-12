@@ -8,6 +8,7 @@ using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
@@ -18,11 +19,12 @@ namespace SGV.Tests.Web.Habilidad;
 /// <summary>
 /// Tests del módulo web de Habilidades Create page.
 /// </summary>
-public sealed class HabilidadCreatePageTests : IClassFixture<HabilidadWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class HabilidadCreatePageTests
 {
-    private readonly HabilidadWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public HabilidadCreatePageTests(HabilidadWebTestFixture fixture) => _fixture = fixture;
+    public HabilidadCreatePageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task Get_Create_WhenAnonymous_RedirectsToSignIn()
@@ -41,7 +43,8 @@ public sealed class HabilidadCreatePageTests : IClassFixture<HabilidadWebTestFix
     {
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -70,14 +73,15 @@ public sealed class HabilidadCreatePageTests : IClassFixture<HabilidadWebTestFix
         // separa Edit/Create y este test blinda explícitamente el camino de
         // alta.
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(HabilidadWebTestFixture.HasInputNamed(content, "Input.Codigo"));
-        Assert.False(HabilidadWebTestFixture.InputHasAttribute(content, "Input.Codigo", "readonly"),
+        Assert.True(HabilidadMarkup.HasInputNamed(content, "Input.Codigo"));
+        Assert.False(HabilidadMarkup.InputHasAttribute(content, "Input.Codigo", "readonly"),
             "El campo Input.Codigo en Create no debe llevar readonly (debe ser editable).");
     }
 
@@ -89,7 +93,8 @@ public sealed class HabilidadCreatePageTests : IClassFixture<HabilidadWebTestFix
         apiClient.CreateResult = HabilidadCommandResult.Success(
             new HabilidadDto(createdId, "NVO", "Nueva Habilidad", "Desc", "Técnica"));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, "/organizacion/habilidades/crear");
 
         var formPost = await PostCreateAsync(client, token, "NVO", "Nueva Habilidad", "Técnica", "Desc");
@@ -112,7 +117,8 @@ public sealed class HabilidadCreatePageTests : IClassFixture<HabilidadWebTestFix
             new HabilidadError(HabilidadErrorType.Conflict, "CodigoDuplicado", "Ya existe una habilidad activa con ese código."),
             fieldErrors);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, "/organizacion/habilidades/crear");
 
         var formPost = await PostCreateAsync(client, token, "PROG", "Duplicado", null, null);
@@ -130,7 +136,8 @@ public sealed class HabilidadCreatePageTests : IClassFixture<HabilidadWebTestFix
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.CreateException = new HttpRequestException("API caída");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, "/organizacion/habilidades/crear");
 
         var formPost = await PostCreateAsync(client, token, "RST", "Reintento", null, null);
@@ -165,6 +172,6 @@ public sealed class HabilidadCreatePageTests : IClassFixture<HabilidadWebTestFix
     {
         var response = await client.GetAsync(url);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await HabilidadWebTestFixture.ExtractAntiforgeryTokenAsync(response);
+        return await WebTestBuilders.ExtractAntiforgeryTokenAsync(response);
     }
 }

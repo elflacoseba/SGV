@@ -7,6 +7,7 @@ using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
@@ -18,11 +19,12 @@ namespace SGV.Tests.Web.Habilidad;
 /// Tests del módulo web de Habilidades para PR 3A: listado activo, baja lógica
 /// confirmada y harness JS de <c>habilidades-index.js</c>.
 /// </summary>
-public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class HabilidadIndexPageTests
 {
-    private readonly HabilidadWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public HabilidadIndexPageTests(HabilidadWebTestFixture fixture) => _fixture = fixture;
+    public HabilidadIndexPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task Get_Index_WhenAnonymous_RedirectsToSignIn()
@@ -43,11 +45,12 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     [Fact]
     public async Task Get_Index_WhenAuthenticated_RendersActiveHabilidadesTable()
     {
-        var first = HabilidadWebTestFixture.BuildHabilidadDto("H-001", "Liderazgo", "Desc A", "Conductual");
-        var second = HabilidadWebTestFixture.BuildHabilidadDto("H-002", "Programación", null, "Técnica");
+        var first = WebTestBuilders.BuildHabilidadDto("H-001", "Liderazgo", "Desc A", "Conductual");
+        var second = WebTestBuilders.BuildHabilidadDto("H-002", "Programación", null, "Técnica");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(first, second);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -80,7 +83,8 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     {
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades?search=zzz");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -100,7 +104,8 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.QueryException = new HttpRequestException("boom");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -114,11 +119,12 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     [Fact]
     public async Task Get_Index_WhenSegmentoEliminadas_RendersReactivarButtonOnly()
     {
-        var first = HabilidadWebTestFixture.BuildHabilidadDto("H-DEL", "Eliminada", "Desc", "Conductual");
+        var first = WebTestBuilders.BuildHabilidadDto("H-DEL", "Eliminada", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(first);
         apiClient.QueryHandler = _ => new PagedResult<HabilidadDto>([first], 1, 1, 20);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -137,11 +143,12 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     [Fact]
     public async Task Post_Delete_WhenSuccessful_RedirectsPreservingFilters()
     {
-        var first = HabilidadWebTestFixture.BuildHabilidadDto("H-001", "Liderazgo", "Desc A", "Conductual");
+        var first = WebTestBuilders.BuildHabilidadDto("H-001", "Liderazgo", "Desc A", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(first);
         apiClient.DeleteResult = new HabilidadDeleteResult(true, HttpStatusCode.NoContent, null, null);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, "/organizacion/habilidades");
 
         var formPost = await PostDeleteAsync(client, token, first.Id, page: 1, search: "lid", sort: "nombre_desc");
@@ -159,7 +166,8 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.DeleteResult = new HabilidadDeleteResult(false, HttpStatusCode.Conflict, "CodigoDuplicado", "Conflicto");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, "/organizacion/habilidades");
 
         var formPost = await PostDeleteAsync(client, token, Guid.NewGuid(), page: 1, search: null, sort: null);
@@ -177,9 +185,10 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     {
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.ReactivateResult = HabilidadCommandResult.Success(
-            HabilidadWebTestFixture.BuildHabilidadDto("H-001", "Liderazgo", "Desc A", "Conductual"));
+            WebTestBuilders.BuildHabilidadDto("H-001", "Liderazgo", "Desc A", "Conductual"));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, "/organizacion/habilidades?status=eliminadas");
 
         var formPost = await PostReactivateAsync(client, token, Guid.NewGuid(), page: 1, search: null, sort: null);
@@ -200,7 +209,8 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
                 "CodigoDuplicado",
                 "Ya existe una habilidad activa con el mismo código."));
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, "/organizacion/habilidades?status=eliminadas");
 
         var formPost = await PostReactivateAsync(client, token, Guid.NewGuid(), page: 1, search: null, sort: "nombre_asc", status: "eliminadas");
@@ -221,15 +231,16 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
         // activas y eliminadas se preserva la búsqueda y el orden vigentes y se resetea
         // la página a 1.
 
-        var firstActive = HabilidadWebTestFixture.BuildHabilidadDto("H-001", "Liderazgo", "Desc", "Conductual");
-        var firstDeleted = HabilidadWebTestFixture.BuildHabilidadDto("H-DEL", "Habilidad Eliminada", "Desc", "Conductual");
+        var firstActive = WebTestBuilders.BuildHabilidadDto("H-001", "Liderazgo", "Desc", "Conductual");
+        var firstDeleted = WebTestBuilders.BuildHabilidadDto("H-DEL", "Habilidad Eliminada", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(firstActive);
         apiClient.QueryHandler = query =>
             string.Equals(query?.Status, "eliminadas", StringComparison.OrdinalIgnoreCase)
                 ? new PagedResult<HabilidadDto>([firstDeleted], 1, 1, 20)
                 : new PagedResult<HabilidadDto>([firstActive], 1, 1, 20);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         // Act 1: Index en activas con search='lid', sort='nombre_desc' y p=3.
         var activas = await client.GetAsync("/organizacion/habilidades?search=lid&sort=nombre_desc&p=3");
@@ -282,10 +293,11 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     public async Task Get_Index_NoExponePlaceholdersDeCargosNiFiltroPorNivel()
     {
         // Anti-drift centralizado para Slice 3A.
-        var first = HabilidadWebTestFixture.BuildHabilidadDto("H-001", "Liderazgo", "Desc", "Conductual");
+        var first = WebTestBuilders.BuildHabilidadDto("H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(first);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -310,10 +322,11 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
         // "Vista activas muestra acciones del catálogo activo": la fila
         // activa MUST exponer un enlace "Cargos" hacia
         // /organizacion/habilidades/{id}/cargos preservando p/search/sort/status.
-        var habilidad = HabilidadWebTestFixture.BuildHabilidadDto("HAB-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = WebTestBuilders.BuildHabilidadDto("HAB-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync(
             "/organizacion/habilidades?p=1&search=lid&sort=nombre_desc&status=activas");
@@ -348,14 +361,15 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
         // Req de habilidad-web-listado-detalle-baja MODIFIED escenario
         // "Vista eliminadas muestra solo reactivación": la fila eliminada
         // MUST NOT exponer el CTA "Cargos" (sólo Reactivar).
-        var habilidadEliminada = HabilidadWebTestFixture.BuildHabilidadDto("HAB-DEL", "Habilidad Eliminada", null, "Conductual");
+        var habilidadEliminada = WebTestBuilders.BuildHabilidadDto("HAB-DEL", "Habilidad Eliminada", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.QueryHandler = query =>
             string.Equals(query?.Status, "eliminadas", StringComparison.OrdinalIgnoreCase)
                 ? new PagedResult<HabilidadDto>([habilidadEliminada], 1, 1, 20)
                 : new PagedResult<HabilidadDto>([], 0, query!.Page, query.PageSize);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades?status=eliminadas");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -421,6 +435,6 @@ public sealed class HabilidadIndexPageTests : IClassFixture<HabilidadWebTestFixt
     {
         var response = await client.GetAsync(url);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await HabilidadWebTestFixture.ExtractAntiforgeryTokenAsync(response);
+        return await WebTestBuilders.ExtractAntiforgeryTokenAsync(response);
     }
 }

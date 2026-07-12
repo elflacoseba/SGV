@@ -1,118 +1,37 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using SGV.Contracts.Habilidades.Consultas.Dtos;
-using SGV.Contracts.Seguridad.Usuarios;
-using SGV.Web.Integration.Auth;
-using SGV.Web.Integration.Habilidades;
-using Xunit;
+using SGV.Tests.Web.Collections;
 
 namespace SGV.Tests.Web.Habilidad;
 
 /// <summary>
-/// Fixture compartida (<see cref="IClassFixture{TFixture}"/>) para los tests
-/// web de Habilidades. Configura el fake auth handler y un
-/// <see cref="FakeHabilidadApiClient"/> por test, devolviendo un cliente
-/// autenticado.
+/// Shim sobre <see cref="WebIntegrationFixture"/> que conserva la firma
+/// <c>Task&lt;WebClientLease&gt;</c> original
+/// (<c>CreateAuthenticatedClientAsync(FakeHabilidadApiClient)</c>) delegando a
+/// <see cref="WebIntegrationFixture.CreateHabilidadLeaseAsync"/>. Las cinco
+/// clases PageTests consumen <see cref="WebIntegrationFixture"/> directamente
+/// vía <c>[Collection("WebIntegration")]</c>; este fixture existe únicamente
+/// para <see cref="HabilidadWebTestFixtureLeaseContractTests"/>, que valida que
+/// la delegación al composite sigue intacta. Los helpers de estado (builders,
+/// markup, handler de auth y extractor de antiforgery) viven ahora en
+/// <see cref="WebTestBuilders"/> y <see cref="HabilidadMarkup"/>.
 /// </summary>
-public sealed class HabilidadWebTestFixture : IDisposable
+public sealed class HabilidadWebTestFixture : IAsyncDisposable
 {
-    private readonly SgvWebApplicationFactory _baseFactory;
+    private readonly WebIntegrationFixture _root;
 
-    public HabilidadWebTestFixture()
-    {
-        _baseFactory = new SgvWebApplicationFactory();
-    }
-
-    public SgvWebApplicationFactory BaseFactory => _baseFactory;
-
-    public SgvWebApplicationFactory WithHabilidadApiClient(FakeHabilidadApiClient fake)
-        => _baseFactory.WithOverrides(habilidadApiClient: fake);
+    public HabilidadWebTestFixture() => _root = new WebIntegrationFixture();
 
     /// <summary>
-    /// Construye un <see cref="HabilidadDto"/> con ids aleatorios.
+    /// Acceso a la raíz del composite. Sólo para los contract tests, que
+    /// necesitan comparar el <see cref="WebClientLease.Factory"/> del lease
+    /// contra la raíz compartida del fixture y verificar el aislamiento del
+    /// dispose. Las páginas no deben usar este accessor: consumen el lease
+    /// directamente vía <see cref="WebIntegrationFixture"/>.
     /// </summary>
-    public static HabilidadDto BuildHabilidadDto(string codigo, string nombre, string? descripcion, string? categoria)
-        => new(Guid.NewGuid(), codigo, nombre, descripcion, categoria);
+    public SgvWebApplicationFactory RootFactory => _root.RootFactory;
 
-    public async Task<HttpClient> CreateAuthenticatedClientAsync(FakeHabilidadApiClient apiClient)
-    {
-        var authHandler = new RecordingHttpMessageHandler(
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = JsonContent.Create(new LoginResponse(SGV.Tests.Web.Common.AdminJwtTestHelper.BuildUserJwt(), DateTimeOffset.UtcNow.AddHours(1)))
-            });
+    /// <summary>Lease autenticado (no admin) contra el módulo de Habilidades.</summary>
+    public Task<WebClientLease> CreateAuthenticatedClientAsync(FakeHabilidadApiClient apiClient)
+        => _root.CreateHabilidadLeaseAsync(apiClient);
 
-        var factory = _baseFactory.WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
-            authApiHandler: authHandler,
-            habilidadApiClient: apiClient);
-
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
-
-        var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await ExtractAntiforgeryTokenAsync(signInResponse);
-
-        var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.UserNameOrEmail"] = "admin",
-            ["Input.Password"] = "Password1!"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        return client;
-    }
-
-    public static async Task<string> ExtractAntiforgeryTokenAsync(HttpResponseMessage response)
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        var match = Regex.Match(content, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""");
-        Assert.True(match.Success, "Antiforgery token was not rendered.");
-        return match.Groups[1].Value;
-    }
-
-    /// <summary>
-    /// Indica si el HTML contiene un <c>&lt;input&gt;</c> con
-    /// <c>name="{inputName}"</c> (selector puntual, evita falsos positivos
-    /// por aparición textual del nombre en otro lugar del documento).
-    /// </summary>
-    public static bool HasInputNamed(string content, string inputName)
-    {
-        var pattern = $@"<input\b[^>]*\bname=""{Regex.Escape(inputName)}""[^>]*\/?>";
-        return Regex.IsMatch(content, pattern, RegexOptions.IgnoreCase);
-    }
-
-    /// <summary>
-    /// Indica si el <c>&lt;input&gt;</c> con <c>name="{inputName}"</c> tiene
-    /// el atributo <paramref name="attributeName"/>. El chequeo se hace sobre
-    /// el MISMO tag para no confundir con un input posterior.
-    /// </summary>
-    public static bool InputHasAttribute(string content, string inputName, string attributeName)
-    {
-        var pattern = $@"<input\b[^>]*\bname=""{Regex.Escape(inputName)}""[^>]*\/?>";
-        var match = Regex.Match(content, pattern, RegexOptions.IgnoreCase);
-        if (!match.Success) return false;
-
-        var inputTag = content.Substring(match.Index, match.Length);
-        return Regex.IsMatch(inputTag, $@"\b{Regex.Escape(attributeName)}\b(=""[^""]*"")?", RegexOptions.IgnoreCase);
-    }
-
-    public void Dispose() => _baseFactory?.Dispose();
-
-    /// <summary>
-    /// Minimal <see cref="HttpMessageHandler"/> que siempre devuelve un
-    /// <see cref="HttpResponseMessage"/> preconfigurado. Stub del auth.
-    /// </summary>
-    public sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(response);
-    }
+    public async ValueTask DisposeAsync() => await _root.DisposeAsync();
 }

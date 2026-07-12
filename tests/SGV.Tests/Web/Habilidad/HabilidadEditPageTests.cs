@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
@@ -16,11 +17,12 @@ namespace SGV.Tests.Web.Habilidad;
 /// <summary>
 /// Tests del módulo web de Habilidades Edit page.
 /// </summary>
-public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class HabilidadEditPageTests
 {
-    private readonly HabilidadWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public HabilidadEditPageTests(HabilidadWebTestFixture fixture) => _fixture = fixture;
+    public HabilidadEditPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task Get_Edit_WhenAnonymous_RedirectsToSignIn()
@@ -41,7 +43,8 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/editar/{id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -64,7 +67,8 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
     {
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(); // empty → GetByIdAsync returns null
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/editar/{Guid.NewGuid()}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -86,20 +90,21 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var response = await client.GetAsync($"/organizacion/habilidades/editar/{id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(HabilidadWebTestFixture.HasInputNamed(content, "Input.Codigo"),
+        Assert.True(HabilidadMarkup.HasInputNamed(content, "Input.Codigo"),
             "El campo Input.Codigo debe renderizarse en la página de edición.");
-        Assert.False(HabilidadWebTestFixture.InputHasAttribute(content, "Input.Codigo", "readonly"),
+        Assert.False(HabilidadMarkup.InputHasAttribute(content, "Input.Codigo", "readonly"),
             "El campo Input.Codigo NO debe llevar readonly en Edit (ahora es editable).");
         // El resto de los campos editables siguen sin llevar readonly por la
         // misma razón: el form es completamente editable.
         foreach (var other in new[] { "Input.Nombre", "Input.Categoria", "Input.Descripcion" })
         {
-            Assert.False(HabilidadWebTestFixture.InputHasAttribute(content, other, "readonly"),
+            Assert.False(HabilidadMarkup.InputHasAttribute(content, other, "readonly"),
                 $"El campo {other} no debe llevar readonly.");
         }
     }
@@ -112,7 +117,8 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
         apiClient.UpdateResult = HabilidadCommandResult.Success(dto);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
         var formPost = await PostEditAsync(client, token, id, "H-001", "Liderazgo Senior", "Conductual", "Desc actualizada");
@@ -136,7 +142,8 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(originalDto);
         apiClient.UpdateResult = HabilidadCommandResult.Success(dtoActualizado);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
         var formPost = await PostEditAsync(client, token, id, "H-002", "Liderazgo Senior", "Conductual", "Desc");
@@ -159,7 +166,8 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
             new HabilidadError(HabilidadErrorType.Conflict, "CodigoDuplicado", "El código ya está en uso por otra habilidad activa."),
             fieldErrors);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
         var formPost = await PostEditAsync(client, token, id, "H-002", "Nuevo nombre", null, null);
@@ -182,7 +190,8 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
         // Tres POST inválidos consecutivos. Cada uno debe ser rechazado por
@@ -223,7 +232,8 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
         apiClient.UpdateException = new HttpRequestException("API caída");
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{id}");
 
         var formPost = await PostEditAsync(client, token, id, "H-001", "Reintento", null, null);
@@ -263,7 +273,8 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
         var dtoActualizado = new HabilidadDto(idActiva, codigoReusado, "Liderazgo", "Desc", "Conductual");
         apiClient.UpdateResult = HabilidadCommandResult.Success(dtoActualizado);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
         var token = await GetAntiforgeryTokenAsync(client, $"/organizacion/habilidades/editar/{idActiva}");
 
         var formPost = await PostEditAsync(client, token, idActiva, codigoReusado, "Liderazgo", "Conductual", "Desc");
@@ -305,6 +316,6 @@ public sealed class HabilidadEditPageTests : IClassFixture<HabilidadWebTestFixtu
     {
         var response = await client.GetAsync(url);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await HabilidadWebTestFixture.ExtractAntiforgeryTokenAsync(response);
+        return await WebTestBuilders.ExtractAntiforgeryTokenAsync(response);
     }
 }

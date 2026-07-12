@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
@@ -18,18 +19,20 @@ namespace SGV.Tests.Web.Habilidad;
 /// <c>&lt;select&gt;</c> cuyo atributo contenga "Nivel", NO existe texto
 /// "Nivel" en el form y NO existe input <c>name="Input.NivelId"</c>.
 /// </summary>
-public sealed class HabilidadAntiDriftTests : IClassFixture<HabilidadWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class HabilidadAntiDriftTests
 {
-    private readonly HabilidadWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public HabilidadAntiDriftTests(HabilidadWebTestFixture fixture) => _fixture = fixture;
+    public HabilidadAntiDriftTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task CreatePage_NoExponeSelectDeNivel()
     {
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -45,7 +48,8 @@ public sealed class HabilidadAntiDriftTests : IClassFixture<HabilidadWebTestFixt
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/editar/{id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -60,7 +64,8 @@ public sealed class HabilidadAntiDriftTests : IClassFixture<HabilidadWebTestFixt
         // El partial _Form.cshtml se renderiza dentro del form de Create.
         // Verificamos explícitamente que el label "Nivel" no aparece.
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync("/organizacion/habilidades/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -77,7 +82,8 @@ public sealed class HabilidadAntiDriftTests : IClassFixture<HabilidadWebTestFixt
         var id = Guid.NewGuid();
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/editar/{id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());

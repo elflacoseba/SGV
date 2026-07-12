@@ -5,6 +5,7 @@ using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Cargo;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
@@ -22,8 +23,16 @@ namespace SGV.Tests.Web.Habilidad;
 ///   - Gating admin: el botón "Gestionar habilidades del cargo" sólo se
 ///     renderiza cuando el usuario pertenece al rol Administrador.
 /// </summary>
+[Collection("WebIntegration")]
 public sealed class HabilidadesCargosModelTests
 {
+    // La clase se une a la colección WebIntegration para serializarse frente a
+    // los demás tests web y evitar picos de factories concurrentes (objetivo de
+    // determinismo del change). Los sitios `new SgvWebApplicationFactory()` de
+    // cada test migran a leases sobre este fixture en PR2b-4 (tasks.md §6.2).
+    private readonly WebIntegrationFixture _fixture;
+
+    public HabilidadesCargosModelTests(WebIntegrationFixture fixture) => _fixture = fixture;
     // ──────────────────────────────────────────────
     // T9 (habilidades-navegacion-cargos WU-B): PageModel
     // ──────────────────────────────────────────────
@@ -429,7 +438,7 @@ public sealed class HabilidadesCargosModelTests
         SgvWebApplicationFactory baseFactory,
         FakeHabilidadApiClient apiClient)
     {
-        var authHandler = new HabilidadWebTestFixture.RecordingHttpMessageHandler(
+        var authHandler = new WebTestBuilders.RecordingHttpMessageHandler(
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = System.Net.Http.Json.JsonContent.Create(
@@ -449,7 +458,7 @@ public sealed class HabilidadesCargosModelTests
         });
 
         var signInResponse = await client.GetAsync("/auth/sign-in");
-        var antiforgeryToken = await HabilidadWebTestFixture.ExtractAntiforgeryTokenAsync(signInResponse);
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(signInResponse);
 
         var loginResponse = await client.PostAsync("/auth/sign-in", new FormUrlEncodedContent(new Dictionary<string, string>
         {

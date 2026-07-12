@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
@@ -14,11 +15,12 @@ namespace SGV.Tests.Web.Habilidad;
 /// <summary>
 /// Tests del módulo web de Habilidades Details page.
 /// </summary>
-public sealed class HabilidadDetailsPageTests : IClassFixture<HabilidadWebTestFixture>
+[Collection("WebIntegration")]
+public sealed class HabilidadDetailsPageTests
 {
-    private readonly HabilidadWebTestFixture _fixture;
+    private readonly WebIntegrationFixture _fixture;
 
-    public HabilidadDetailsPageTests(HabilidadWebTestFixture fixture) => _fixture = fixture;
+    public HabilidadDetailsPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     [Fact]
     public async Task Get_Details_WhenAnonymous_RedirectsToSignIn()
@@ -39,7 +41,8 @@ public sealed class HabilidadDetailsPageTests : IClassFixture<HabilidadWebTestFi
         var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Descripción completa", "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/detalles/{id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -60,7 +63,8 @@ public sealed class HabilidadDetailsPageTests : IClassFixture<HabilidadWebTestFi
     {
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(); // empty → GetByIdAsync returns null
 
-        using var client = await _fixture.CreateAuthenticatedClientAsync(apiClient);
+        await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
+        var client = lease.Client;
 
         var response = await client.GetAsync($"/organizacion/habilidades/detalles/{Guid.NewGuid()}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
