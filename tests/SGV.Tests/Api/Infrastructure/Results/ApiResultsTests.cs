@@ -221,6 +221,7 @@ public class ApiResultsTests
             CargoErrorType.Validation,
             "CategoriaError",
             "mensaje",
+            StatusCode: expectedStatusCode,
             Categoria: categoria);
 
         var objectResult = Assert.IsType<ObjectResult>(ApiResults.ToProblemResult(error));
