@@ -87,6 +87,36 @@ openssl rand -base64 48
 
 **Reactivación** — `ReactivarAsync` es el único flujo que sigue validando conflicto por código activo. La validación se hace contra `unidad.Codigo` (el código persistido en el record cargado), **no** contra un valor enviado por el cliente, porque el cliente nunca envía código en update. El índice único computado `ActiveCodigoUnique` (`CASE WHEN IsDeleted = 0 THEN Codigo ELSE NULL END`) en `UnidadOrganizativaConfiguracion` sigue siendo la red de seguridad a nivel DB.
 
+## Patrón catálogo vs listado — Unidades Organizativas
+
+`SGV.Web` distingue dos contratos de consumo del API de unidades organizativas según el caso de uso del lado web. Mezclarlos produce los bugs clásicos de la issue #120: catálogos truncados, round-trips sin consumidor y round-trips con `pageSize` mágico.
+
+### El catálogo (dropdown completo)
+
+- **Cuándo se usa** — Sólo cuando el PageModel debe renderizar un `<select>` con **todas** las UO activas (típicamente, formularios de creación).
+- **Cliente tipado** — `IUnidadOrganizativaApiClient.GetAllActivasAsync()` (sin parámetros de paginación hacia el PageModel). La implementación recorre internamente páginas hasta igualar `TotalCount`, así el caller no necesita saber de `pageSize`.
+- **Endpoint backend preferido** — `GET /api/v1/unidades-organizativas` (sin paginar, retorna `IReadOnlyList<UnidadOrganizativaDto>`). Para catálogos pequeños sirve; para cientos de UO, evaluar autocomplete.
+- **Único consumidor vigente** — `Puestos/Create` (PR 3A). Su PageModel requiere los tres catálogos (UO, Cargos, Puestos superiores) para poblar los selects visibles.
+
+### El listado paginado (Index / reportes)
+
+- **Cuándo se usa** — Para vistas de tabla con buscador, filtros, ordenamiento y paginación clásica (10/25/50 por página).
+- **Cliente tipado** — `IUnidadOrganizativaApiClient.QueryAsync(UnidadOrganizativaListQuery)`.
+- **Endpoint backend** — `GET /api/v1/unidades-organizativas/consulta?page=...&pageSize=...`.
+- **Consumidores vigentes** — `UnidadesOrganizativas/Index` (vista principal), reportes.
+
+### Por qué Puestos/Edit no carga catálogos
+
+`_Form.cshtml` envuelve los selects de `UnidadOrganizativaId` y `CargoId` en `@if (!Model.IsEdit) { ... }` — los campos son **inmutables** en un Puesto existente y el form de edición no los renderiza. Por construcción, ningún control visual consume `UnidadOrganizativaOptions` ni `CargoOptions` en Edit:
+
+- `IPuestoForm.UnidadOrganizativaOptions` y `IPuestoForm.CargoOptions` permanecen inicializados como `[]` (lista vacía) porque `IPuestoForm` los exige y Edit no tiene nada que poblar.
+- `EditModel` (PR 3B) recibe **únicamente** `IPuestosApiClient` + `ILogger<EditModel>` por constructor — el resto de los clientes se eliminaron en el change `2026-07-13-fix-120-uo-catalog-no-truncation` (issue #120). La firma del constructor es la primera línea de defensa contra reintroducir el dead code.
+- `PuestoSuperiorOptions` **sí** se carga: ese dropdown SÍ se renderiza en Edit (es el único campo de "selección" editable de un Puesto).
+
+### Regla operativa para próximos cambios
+
+> **Si querés mostrar un catálogo en Edit, primero modificá `_Form.cshtml` para renderizar el select correspondiente; después habilitá la carga en el PageModel. Nunca cargues un catálogo "por las dudas" — la suite `PuestoEditLoadCatalogsTests` asserta explícitamente que `QueryCalls` y `GetAllCalls` quedan en cero.**
+
 ## Autorización del API
 
 La API adopta una postura **default-deny** desde el change `2026-07-09-agregar-autorizacion-api-restantes` (issue #96). El patrón vigente replica los precedentes de `CargosController` (archive `2026-07-01-2026-07-01-cargos-crear-autorizacion-admin`) y `PuestosController` (issue #90).
