@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Cargos;
 
@@ -18,10 +20,16 @@ namespace SGV.Web.Pages.Organizacion.Cargos;
 /// duplicate <c>Codigo</c> is mapped to a field-level error on
 /// <c>Codigo</c>; on 400 the backend <c>ValidationProblemDetails</c> are
 /// translated via <see cref="CargoPostResultMapper.TryMap"/>.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/> (sin <c>default</c>). <c>Unauthorized</c>
+/// redirige vía <see cref="IAuthSessionRedirector"/>.
+/// </para>
 /// </summary>
 [Authorize]
 public sealed class EditModel(
     ICargoApiClient cargoApiClient,
+    IAuthSessionRedirector authRedirector,
     ILogger<EditModel> logger) : PageModel, ICargoForm
 {
     [BindProperty]
@@ -166,7 +174,7 @@ public sealed class EditModel(
             // Map to a recoverable error: keep user input, reload the catalog,
             // re-render the page so the user can retry.
             logger.LogError(ex, "Cargo update transport failure.");
-            ErrorMessage = "No se pudo contactar al servicio de cargos. Intentá nuevamente.";
+            ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
             await LoadCatalogsAsync(id, cancellationToken);
             return Page();
@@ -181,23 +189,58 @@ public sealed class EditModel(
 
         if (result.Error is not null)
         {
+            // Issue #125 / Slice 3: switch exhaustivo sobre ErrorCategoria.
+            if (result.Error.Categoria == ErrorCategoria.Unauthorized)
+            {
+                var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+                if (redirect is not null)
+                {
+                    return redirect;
+                }
+
+                ErrorMessage = PageFeedback.UnauthorizedMessage;
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                await LoadCatalogsAsync(id, cancellationToken);
+                return Page();
+            }
+
             // Conflict 409 (duplicate Codigo) → field-level error on Codigo.
-            if (result.Error.Type == CargoErrorType.Conflict)
+            if (result.Error.Categoria == ErrorCategoria.Conflict)
             {
                 ModelState.AddModelError(CargoFormKeys.CodigoKey, result.Error.Message);
             }
             else if (!CargoPostResultMapper.TryMap(result, ModelState))
             {
-                // No FieldErrors and no general error message; defensive fallback
-                // for unexpected shapes (e.g., null Error.Message on a non-Conflict).
-                ErrorMessage = result.Error.Message;
-                ModelState.AddModelError(string.Empty, result.Error.Message);
+                // No FieldErrors and no general error message; defensivo para
+                // ErrorCategoria.Validation/Transport/Unexpected/Forbidden.
+                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
 
         await LoadCatalogsAsync(id, cancellationToken);
         return Page();
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Verbatim del
+    /// patrón de <see cref="CreateModel.MapCategoriaToMessage"/>; espejado
+    /// para que cada PageModel pueda invocarlo sin pasar por el helper
+    /// de aplicación.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => "El cargo solicitado no está disponible.",
+        ErrorCategoria.Conflict => "Conflicto al persistir el cargo.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     private async Task LoadCatalogsAsync(Guid cargoId, CancellationToken cancellationToken)
     {
