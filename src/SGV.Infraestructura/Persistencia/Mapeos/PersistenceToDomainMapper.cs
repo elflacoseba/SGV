@@ -49,20 +49,20 @@ internal static class PersistenceToDomainMapper
 
     public static Habilidad ToDomain(HabilidadEntity entity)
     {
-        var habilidad = new Habilidad(entity.Codigo, entity.Nombre, entity.Categoria, entity.Descripcion)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        SetProperty(habilidad, nameof(Habilidad.IsActive), entity.IsActive);
-        return habilidad;
+        return Habilidad.Reconstitute(
+            entity.Id,
+            entity.Codigo,
+            entity.Nombre,
+            entity.Categoria,
+            entity.Descripcion,
+            entity.IsActive,
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static UnidadOrganizativa ToDomain(UnidadOrganizativaEntity entity)
