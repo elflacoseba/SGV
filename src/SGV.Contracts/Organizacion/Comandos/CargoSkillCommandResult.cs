@@ -1,3 +1,4 @@
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Contracts.Organizacion.Comandos;
@@ -23,6 +24,7 @@ namespace SGV.Contracts.Organizacion.Comandos;
 ///   recuperable.</description></item>
 /// </list>
 /// </remarks>
+[Obsolete("Use SGV.Contracts.Comun.ErrorCategoria. Will be removed in the archive of change 2026-07-13.")]
 public enum CargoSkillErrorType
 {
     NotFound,
@@ -39,8 +41,9 @@ public enum CargoSkillErrorType
 public sealed record CargoSkillError(
     CargoSkillErrorType Type,
     string Code,
-    string Message
-);
+    string Message,
+    int? StatusCode = null,
+    ErrorCategoria Categoria = ErrorCategoria.Unexpected);
 
 /// <summary>
 /// Result of a CargoSkill write operation: either a success DTO or a typed error.

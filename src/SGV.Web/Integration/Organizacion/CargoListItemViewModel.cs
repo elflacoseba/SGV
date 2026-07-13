@@ -1,4 +1,5 @@
 using System.Net;
+using SGV.Contracts.Comun;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -21,5 +22,15 @@ public sealed record CargoListQuery(int Page, int PageSize, string? Search, stri
 
 /// <summary>
 /// Resultado de la baja lógica de un cargo traducida desde la API.
+/// A partir del change <c>2026-07-13-taxonomia-errores-commandresult</c>
+/// (issue #125) el record expone además <see cref="Categoria"/> para
+/// alinear la forma con los demás <c>*DeleteResult</c> y permitir que la
+/// Razor Page ramifique por la nueva taxonomía común
+/// <see cref="ErrorCategoria"/>.
 /// </summary>
-public sealed record CargoDeleteResult(bool Succeeded, HttpStatusCode? StatusCode, string? Code, string? Message);
+public sealed record CargoDeleteResult(
+    bool Succeeded,
+    HttpStatusCode? StatusCode,
+    string? Code,
+    string? Message,
+    ErrorCategoria Categoria = ErrorCategoria.NotFound);

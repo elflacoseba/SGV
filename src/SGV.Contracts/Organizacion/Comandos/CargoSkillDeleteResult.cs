@@ -1,4 +1,5 @@
 using System.Net;
+using SGV.Contracts.Comun;
 
 namespace SGV.Contracts.Organizacion.Comandos;
 
@@ -13,9 +14,18 @@ namespace SGV.Contracts.Organizacion.Comandos;
 /// maps to a non-success result carrying the upstream <c>ProblemDetails</c>
 /// title/detail when available. The shape intentionally stays a sibling of
 /// <c>CargoDeleteResult</c> to keep the integration seam consistent.
+///
+/// <para>
+/// A partir del change <c>2026-07-13-taxonomia-errores-commandresult</c>
+/// (issue #125) el record expone además <see cref="Categoria"/> para
+/// permitir que las Razor Pages ramifiquen por la nueva taxonomía común
+/// <see cref="ErrorCategoria"/> en lugar de comparar
+/// <see cref="System.Net.HttpStatusCode"/> contra constantes HTTP.
+/// </para>
 /// </summary>
 public sealed record CargoSkillDeleteResult(
     bool Succeeded,
     HttpStatusCode? StatusCode,
     string? Code,
-    string? Message);
+    string? Message,
+    ErrorCategoria Categoria = ErrorCategoria.NotFound);

@@ -281,3 +281,43 @@ Todo cambio que toque `tests/SGV.Tests/` debe validarse con **3 corridas consecu
 Si las 3 corridas no son idénticas, el cambio reintroduce no-determinismo y no debe mergearse sin revisión y corrección.
 
 > **Nota (issue #121, PR size:exception)**: el presente change estableció el límite `maxParallelThreads: 4` por experimentación con la suite completa de 1773 tests (3 corridas consecutivas ~42 min c/u). Equipos que reduzcan la suite deberían re-evaluar este número. Ver `openspec/changes/2026-07-11-hacer-suite-tests-determinista/verify-report.md`.
+
+## Issue #125 — Taxonomía de errores para `CommandResult` y clientes HTTP de Web
+
+> Change: `2026-07-13-taxonomia-errores-commandresult` (slice 1 de 4). Artefactos SDD completos en `openspec/changes/2026-07-13-taxonomia-errores-commandresult/`.
+
+### Rationale
+
+`SGV.Contracts` convive con cinco taxonomías paralelas para fallos HTTP: `HabilidadErrorType.Infrastructure`, `CargoCommandResult`/`PuestoCommandResult`/`UnidadOrganizativaCommandResult` (que colapsan 401/403/5xx en `Validation` con magic code `Unexpected`), `CargoSkillCommandResult` (la aproximación más cercana al objetivo pero sin repositorio compartido), `MapSkillError` privado de `CargoApiClient`, y los cinco `*DeleteResult` que exponen `StatusCode/Code/Message` sin categoría semántica. El resultado: cada cliente HTTP repite su propia matriz de clasificación, los `PageModel` ramifican con `if (ex is X)` divergentes, y el mismo status produce un mensaje distinto para el usuario según el dominio.
+
+### Decisión
+
+Una sola taxonomía `ErrorCategoria` definida como `enum` append-only en `src/SGV.Contracts/Comun/ErrorCategoria.cs`. Mantiene `SGV.Contracts` como leaf (verificado: `SGV.Contracts.csproj` solo referencia `Microsoft.IdentityModel.Tokens 8.14.0`). Cada uno de los seis `*Error` records (`HabilidadError`, `CargoError`, `PuestoError`, `UnidadOrganizativaError`, `CargoSkillError`, `UsuarioError`) y los cinco `*DeleteResult` ganan `Categoria: ErrorCategoria`. Los enums `*ErrorType` vigentes se marcan `[Obsolete]` durante el ciclo del change y se eliminan al archivar.
+
+### Reglas invariantes
+
+- **Append-only**: las variantes y sus ordinales son contrato público estable. Agregar nuevas variantes SOLO al final; NO reordenar ni reasignar ordinales.
+- **Mapeo nombre-a-nombre**: la conversión entre los enums `*ErrorType` y `ErrorCategoria` se hace vía `ErrorCategoriaMappers.ToCategoria(...)` y `ToTipo<Domain>(...)`. Prohibido el cast `(ErrorCategoria)(int)type` — los ordinales NO coinciden (p.ej. `CargoSkillErrorType.Validation = 1` mientras `ErrorCategoria.Validation = 2`).
+- **Round-trip simétrico**: cada `ToCategoria`/`ToTipo<Domain>` es exhaustivo (sin `default:`). Categorías sin equivalente en el dominio origen lanzan `NotSupportedException` con mensaje claro.
+- **`[Obsolete]` durante el ciclo**: los enums `HabilidadErrorType`, `CargoErrorType`, `PuestoErrorType`, `UnidadOrganizativaErrorType`, `CargoSkillErrorType`, `UsuarioErrorType` se marcan con `[Obsolete("Use SGV.Contracts.Comun.ErrorCategoria. Will be removed in the archive of change 2026-07-13.")]`. Los call sites existentes siguen compilando porque el atributo se emite como warning por defecto.
+- **Eliminación al archivar**: los enums `[Obsolete]` se borran durante la fase `sdd-archive` del change `2026-07-13-taxonomia-errores-commandresult`, NO en este PR ni en los slices 2-4.
+
+### Compatibilidad
+
+- **Source-breaking**: NO. El nuevo parámetro `Categoria` se agrega con default `ErrorCategoria.Unexpected` a los records `*Error` para preservar source-compat. Los enums `[Obsolete]` emiten warning, no error.
+- **Wire-breaking**: NO. Los controllers no serializan los enums a `ProblemDetails`. La matriz de status HTTP se preserva.
+- **DB-breaking**: NO. La taxonomía es interna a `SGV.Contracts` y `SGV.Web`.
+
+### Archivos clave
+
+- `src/SGV.Contracts/Comun/ErrorCategoria.cs` — enum común (7 variantes, ordinales 0..6).
+- `src/SGV.Contracts/Comun/ErrorCategoriaMappers.cs` — mapeos nombre-a-nombre para los 6 enums vigentes.
+- `src/SGV.Contracts/*/Comandos/*CommandResult.cs` — 6 `*Error` records con `Categoria` agregado.
+- `src/SGV.Contracts/Organizacion/Comandos/CargoSkillDeleteResult.cs` — `Categoria` agregado.
+- `src/SGV.Web/Integration/*/...ViewModel.cs` — 4 `*DeleteResult` records con `Categoria` agregado; `PuestoDeleteResult.StatusCode` pasa de `HttpStatusCode` non-nullable a `HttpStatusCode?` nullable.
+
+### Follow-up documentado (fuera de este change)
+
+- `PersonaCommandResult`, `PersonaSkillCommandResult`, `OcupacionCommandResult` (viven en `SGV.Aplicacion`): no se migran en este change. Sólo exponen `NotFound`/`Conflict`/`Validation` hoy; no impactan flujos administrativos y la superficie a migrar sumaría otro bloque sin valor inmediato. Issue de follow-up sugerido tras archive del #125.
+- Los `ApiResults.Map*Status` de `SGV.Api/Infrastructure/Results/ApiResults.cs` se centralizan en un `MapCategoria(ErrorCategoria)` exhaustivo en el Slice 4 (issue #125, PR #4).
+

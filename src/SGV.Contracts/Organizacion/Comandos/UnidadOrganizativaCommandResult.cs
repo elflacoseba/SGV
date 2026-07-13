@@ -1,3 +1,4 @@
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Contracts.Organizacion.Comandos;
@@ -5,6 +6,7 @@ namespace SGV.Contracts.Organizacion.Comandos;
 /// <summary>
 /// Categorizes command-side failures for organizational units.
 /// </summary>
+[Obsolete("Use SGV.Contracts.Comun.ErrorCategoria. Will be removed in the archive of change 2026-07-13.")]
 public enum UnidadOrganizativaErrorType
 {
     NotFound,
@@ -18,8 +20,9 @@ public enum UnidadOrganizativaErrorType
 public sealed record UnidadOrganizativaError(
     UnidadOrganizativaErrorType Type,
     string Code,
-    string Message
-);
+    string Message,
+    int? StatusCode = null,
+    ErrorCategoria Categoria = ErrorCategoria.Unexpected);
 
 /// <summary>
 /// Result of an organizational-unit write operation: either a success DTO or a typed error.

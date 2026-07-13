@@ -1,4 +1,5 @@
 using System.Net;
+using SGV.Contracts.Comun;
 
 namespace SGV.Web.Integration.Habilidades;
 
@@ -26,9 +27,15 @@ public sealed record HabilidadListQuery(
 
 /// <summary>
 /// Resultado de la baja lógica de una habilidad traducido desde la API.
+/// A partir del change <c>2026-07-13-taxonomia-errores-commandresult</c>
+/// (issue #125) el record expone además <see cref="Categoria"/> para
+/// alinear la forma con los demás <c>*DeleteResult</c> y permitir que la
+/// Razor Page ramifique por la nueva taxonomía común
+/// <see cref="ErrorCategoria"/>.
 /// </summary>
 public sealed record HabilidadDeleteResult(
     bool Succeeded,
     HttpStatusCode? StatusCode,
     string? Code,
-    string? Message);
+    string? Message,
+    ErrorCategoria Categoria = ErrorCategoria.NotFound);

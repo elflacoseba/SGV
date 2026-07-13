@@ -1,3 +1,5 @@
+using SGV.Contracts.Comun;
+
 namespace SGV.Contracts.Seguridad.Usuarios;
 
 /// <summary>
@@ -41,6 +43,7 @@ public sealed record UsuarioDto(
 /// <summary>
 /// Categorizes failures produced by user-management write operations.
 /// </summary>
+[Obsolete("Use SGV.Contracts.Comun.ErrorCategoria. Will be removed in the archive of change 2026-07-13.")]
 public enum UsuarioErrorType
 {
     NotFound,
@@ -54,7 +57,12 @@ public enum UsuarioErrorType
 /// stable machine identifier; <see cref="Message"/> is a human-readable
 /// explanation suitable for client surfacing.
 /// </summary>
-public sealed record UsuarioError(UsuarioErrorType Type, string Code, string Message);
+public sealed record UsuarioError(
+    UsuarioErrorType Type,
+    string Code,
+    string Message,
+    int? StatusCode = null,
+    ErrorCategoria Categoria = ErrorCategoria.Unexpected);
 
 /// <summary>
 /// Discriminated result of a user-management write operation. Carries
