@@ -56,23 +56,17 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
     public async Task<CargoDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var response = await httpClient.DeleteAsync($"{BaseRoute}/{id}", cancellationToken);
-
-        if (response.StatusCode == HttpStatusCode.NoContent)
-        {
-            return new CargoDeleteResult(true, response.StatusCode, null, null);
-        }
-
-        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
-        var (categoria, _, _, _) = CommandResultMapper.Map(response, parsed);
+        var result = await DeleteResultMapper.BuildDeleteResultAsync(
+            response,
+            HttpStatusCode.NoContent,
+            cancellationToken);
 
         return new CargoDeleteResult(
-            false,
-            response.StatusCode,
-            parsed.Title,
-            parsed.Detail)
-        {
-            Categoria = categoria
-        };
+            result.Succeeded,
+            result.StatusCode,
+            result.Code,
+            result.Message,
+            result.Categoria);
     }
 
     /// <inheritdoc />
@@ -207,30 +201,17 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         var response = await httpClient
             .DeleteAsync($"{BaseRoute}/{cargoId}/skills/{skillId}", cancellationToken)
             .ConfigureAwait(false);
-
-        if (response.StatusCode == HttpStatusCode.NoContent)
-        {
-            return new CargoSkillDeleteResult(true, response.StatusCode, null, null);
-        }
-
-        // Slice 2 (#125): delega en CommandResultMapper; los antiguos
-        // MapSkillError / ReadSkillProblemAsync se eliminaron porque sus
-        // defaults están ahora centralizados en el mapper.
-        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
-        var (categoria, code, message, _) = CommandResultMapper.Map(response, parsed);
-        var legacyType = MapCategoriaToLegacySkillType(categoria);
-
-        var finalCode = string.IsNullOrEmpty(parsed.Title) ? code : parsed.Title;
-        var finalMessage = string.IsNullOrEmpty(parsed.Detail) ? message : parsed.Detail;
+        var result = await DeleteResultMapper.BuildDeleteResultAsync(
+            response,
+            HttpStatusCode.NoContent,
+            cancellationToken);
 
         return new CargoSkillDeleteResult(
-            false,
-            response.StatusCode,
-            finalCode,
-            finalMessage)
-        {
-            Categoria = categoria,
-        };
+            result.Succeeded,
+            result.StatusCode,
+            result.Code,
+            result.Message,
+            result.Categoria);
     }
 
     private static string BuildQueryUri(int page, int pageSize, string? search, string? sort = null, string? status = null)

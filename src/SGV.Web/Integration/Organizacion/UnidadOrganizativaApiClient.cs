@@ -162,23 +162,17 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
     public async Task<UnidadOrganizativaDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var response = await httpClient.DeleteAsync($"{BaseRoute}/{id}", cancellationToken);
-
-        if (response.StatusCode == HttpStatusCode.NoContent)
-        {
-            return new UnidadOrganizativaDeleteResult(true, response.StatusCode, null, null);
-        }
-
-        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
-        var (categoria, _, _, _) = CommandResultMapper.Map(response, parsed);
+        var result = await DeleteResultMapper.BuildDeleteResultAsync(
+            response,
+            HttpStatusCode.NoContent,
+            cancellationToken);
 
         return new UnidadOrganizativaDeleteResult(
-            false,
-            response.StatusCode,
-            parsed.Title,
-            parsed.Detail)
-        {
-            Categoria = categoria
-        };
+            result.Succeeded,
+            result.StatusCode,
+            result.Code,
+            result.Message,
+            result.Categoria);
     }
 
     private static async Task<UnidadOrganizativaCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)

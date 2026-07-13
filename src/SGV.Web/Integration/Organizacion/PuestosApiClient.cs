@@ -80,23 +80,17 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
     public async Task<PuestoDeleteResult> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var response = await httpClient.DeleteAsync($"{BaseRoute}/{id}", cancellationToken);
-
-        if (response.StatusCode == HttpStatusCode.NoContent)
-        {
-            return new PuestoDeleteResult(true, response.StatusCode, null, null);
-        }
-
-        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
-        var (categoria, _, _, _) = CommandResultMapper.Map(response, parsed);
+        var result = await DeleteResultMapper.BuildDeleteResultAsync(
+            response,
+            HttpStatusCode.NoContent,
+            cancellationToken);
 
         return new PuestoDeleteResult(
-            false,
-            response.StatusCode,
-            parsed.Title,
-            parsed.Detail)
-        {
-            Categoria = categoria
-        };
+            result.Succeeded,
+            result.StatusCode,
+            result.Code,
+            result.Message,
+            result.Categoria);
     }
 
     /// <inheritdoc />
