@@ -7,11 +7,36 @@ using Xunit;
 namespace SGV.Tests.Persistencia;
 
 /// <summary>
-/// Reflection guard: asserts that <c>PersistenceToDomainMapper.ToDomain(PersonaEntity)</c>
-/// does NOT call the internal <c>SetProperty</c> reflection helper. See issue #124.
+/// Reflection guard + behavior coverage for the Persona persistence mapper.
+/// See issue #124: <c>ToDomain(PersonaEntity)</c> must not call the internal
+/// <c>SetProperty</c> reflection helper; instead it should delegate to
+/// <c>Persona.Reconstitute(...)</c>.
 /// </summary>
 public sealed class PersonaMapperTests
 {
+    private static readonly Guid Id = Guid.Parse("d0000000-0000-0000-0000-000000000001");
+
+    private static PersonaEntity CrearEntidad(bool isActive, bool isDeleted = false)
+    {
+        return new PersonaEntity
+        {
+            Id = Id,
+            Nombres = "Juan",
+            Apellidos = "Perez",
+            Legajo = "LEG-001",
+            Email = "juan@test.com",
+            TipoDocumento = "DNI",
+            NumeroDocumento = "12345678",
+            Telefono = "+54911223344",
+            IsActive = isActive,
+            IsDeleted = isDeleted,
+            CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            CreatedByUserId = "system"
+        };
+    }
+
+    // ── IL reflection guard ─────────────────────────────────────
+
     [Fact]
     public void ToDomain_Persona_NoLlamaSetPropertyReflectionHelper()
     {
@@ -60,5 +85,129 @@ public sealed class PersonaMapperTests
         }
 
         Assert.Null(setPropertyCall);
+    }
+
+    // ── Reconstitute behavior ───────────────────────────────────
+
+    [Fact]
+    public void Reconstitute_MapsAllFields()
+    {
+        var entidad = CrearEntidad(isActive: true);
+
+        var dominio = Persona.Reconstitute(
+            entidad.Id,
+            entidad.Nombres,
+            entidad.Apellidos,
+            entidad.Legajo,
+            entidad.Email,
+            entidad.TipoDocumento,
+            entidad.NumeroDocumento,
+            entidad.Telefono,
+            entidad.IsActive,
+            entidad.CreatedAt,
+            entidad.CreatedByUserId,
+            entidad.UpdatedAt,
+            entidad.UpdatedByUserId,
+            entidad.IsDeleted,
+            entidad.DeletedAt,
+            entidad.DeletedByUserId);
+
+        Assert.Equal(entidad.Id, dominio.Id);
+        Assert.Equal("Juan", dominio.Nombres);
+        Assert.Equal("Perez", dominio.Apellidos);
+        Assert.Equal("LEG-001", dominio.Legajo);
+        Assert.Equal("juan@test.com", dominio.Email);
+        Assert.True(dominio.IsActive);
+    }
+
+    [Fact]
+    public void Reconstitute_MapsAllDocumentFields()
+    {
+        var entidad = CrearEntidad(isActive: true);
+
+        var dominio = Persona.Reconstitute(
+            entidad.Id, entidad.Nombres, entidad.Apellidos,
+            entidad.Legajo, entidad.Email,
+            entidad.TipoDocumento, entidad.NumeroDocumento, entidad.Telefono,
+            entidad.IsActive,
+            entidad.CreatedAt, entidad.CreatedByUserId,
+            entidad.UpdatedAt, entidad.UpdatedByUserId,
+            entidad.IsDeleted, entidad.DeletedAt, entidad.DeletedByUserId);
+
+        Assert.Equal("DNI", dominio.TipoDocumento);
+        Assert.Equal("12345678", dominio.NumeroDocumento);
+    }
+
+    [Fact]
+    public void Reconstitute_TelefonoAsignado()
+    {
+        var entidad = CrearEntidad(isActive: true);
+
+        var dominio = Persona.Reconstitute(
+            entidad.Id, entidad.Nombres, entidad.Apellidos,
+            entidad.Legajo, entidad.Email,
+            entidad.TipoDocumento, entidad.NumeroDocumento, entidad.Telefono,
+            entidad.IsActive,
+            entidad.CreatedAt, entidad.CreatedByUserId,
+            entidad.UpdatedAt, entidad.UpdatedByUserId,
+            entidad.IsDeleted, entidad.DeletedAt, entidad.DeletedByUserId);
+
+        Assert.Equal("+54911223344", dominio.Telefono);
+    }
+
+    [Fact]
+    public void Reconstitute_IsActiveFalsePreservaFlag()
+    {
+        var entidad = CrearEntidad(isActive: false);
+
+        var dominio = Persona.Reconstitute(
+            entidad.Id, entidad.Nombres, entidad.Apellidos,
+            entidad.Legajo, entidad.Email,
+            entidad.TipoDocumento, entidad.NumeroDocumento, entidad.Telefono,
+            entidad.IsActive,
+            entidad.CreatedAt, entidad.CreatedByUserId,
+            entidad.UpdatedAt, entidad.UpdatedByUserId,
+            entidad.IsDeleted, entidad.DeletedAt, entidad.DeletedByUserId);
+
+        Assert.False(dominio.IsActive);
+    }
+
+    [Fact]
+    public void Reconstitute_AuditFieldsPreservados()
+    {
+        var entidad = CrearEntidad(isActive: true);
+        entidad.UpdatedAt = new DateTime(2025, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        entidad.UpdatedByUserId = "user-42";
+
+        var dominio = Persona.Reconstitute(
+            entidad.Id, entidad.Nombres, entidad.Apellidos,
+            entidad.Legajo, entidad.Email,
+            entidad.TipoDocumento, entidad.NumeroDocumento, entidad.Telefono,
+            entidad.IsActive,
+            entidad.CreatedAt, entidad.CreatedByUserId,
+            entidad.UpdatedAt, entidad.UpdatedByUserId,
+            entidad.IsDeleted, entidad.DeletedAt, entidad.DeletedByUserId);
+
+        Assert.Equal(entidad.CreatedAt, dominio.CreatedAt);
+        Assert.Equal("system", dominio.CreatedByUserId);
+        Assert.Equal(entidad.UpdatedAt, dominio.UpdatedAt);
+        Assert.Equal("user-42", dominio.UpdatedByUserId);
+    }
+
+    [Fact]
+    public void Reconstitute_NombresVacio_LanzaArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            Persona.Reconstitute(
+                Guid.NewGuid(),
+                nombres: "",
+                apellidos: "Perez",
+                legajo: null,
+                email: null,
+                tipoDocumento: null,
+                numeroDocumento: null,
+                telefono: null,
+                isActive: true,
+                DateTime.UtcNow, null, null, null, false, null, null));
     }
 }

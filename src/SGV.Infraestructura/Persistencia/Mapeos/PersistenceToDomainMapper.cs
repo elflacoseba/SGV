@@ -170,24 +170,23 @@ internal static class PersistenceToDomainMapper
 
     public static Persona ToDomain(PersonaEntity entity)
     {
-        var persona = new Persona(entity.Nombres, entity.Apellidos, entity.Legajo, entity.Email)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        SetProperty(persona, nameof(Persona.IsActive), entity.IsActive);
-        SetProperty(persona, nameof(Persona.Telefono), entity.Telefono);
-        SetProperty(persona, nameof(Persona.TipoDocumento), entity.TipoDocumento);
-        SetProperty(persona, nameof(Persona.NumeroDocumento), entity.NumeroDocumento);
-
-        return persona;
+        return Persona.Reconstitute(
+            entity.Id,
+            entity.Nombres,
+            entity.Apellidos,
+            entity.Legajo,
+            entity.Email,
+            entity.TipoDocumento,
+            entity.NumeroDocumento,
+            entity.Telefono,
+            entity.IsActive,
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static Ocupacion ToDomain(OcupacionEntity entity)
