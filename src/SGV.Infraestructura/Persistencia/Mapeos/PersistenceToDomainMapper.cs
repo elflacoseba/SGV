@@ -104,32 +104,24 @@ internal static class PersistenceToDomainMapper
 
     public static Puesto ToDomain(PuestoEntity entity)
     {
-        var puesto = new Puesto(entity.UnidadOrganizativaId, entity.CargoId, entity.Codigo, entity.Nombre, entity.PuestoSuperiorId)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        puesto.CambiarDatos(entity.Codigo, entity.Nombre, entity.Descripcion);
-        SetProperty(puesto, nameof(Puesto.IsActive), entity.IsActive);
-
-        if (entity.UnidadOrganizativa is not null)
-        {
-            SetProperty(puesto, nameof(Puesto.UnidadOrganizativa), ToDomain(entity.UnidadOrganizativa));
-        }
-
-        if (entity.Cargo is not null)
-        {
-            SetProperty(puesto, nameof(Puesto.Cargo), ToDomain(entity.Cargo));
-        }
-
-        return puesto;
+        return Puesto.Reconstitute(
+            entity.Id,
+            entity.UnidadOrganizativaId,
+            entity.CargoId,
+            entity.PuestoSuperiorId,
+            entity.Codigo,
+            entity.Nombre,
+            entity.Descripcion,
+            entity.IsActive,
+            entity.UnidadOrganizativa is null ? null : ToDomain(entity.UnidadOrganizativa),
+            entity.Cargo is null ? null : ToDomain(entity.Cargo),
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static TipoUnidadOrganizativa ToDomain(TipoUnidadOrganizativaEntity entity)
