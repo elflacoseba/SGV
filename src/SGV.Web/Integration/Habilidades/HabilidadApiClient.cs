@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
@@ -55,12 +56,16 @@ public sealed class HabilidadApiClient(
         }
 
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, code, message, _) = CommandResultMapper.Map(response, parsed);
 
         return new HabilidadDeleteResult(
             false,
             response.StatusCode,
             parsed.Title,
-            parsed.Detail);
+            parsed.Detail)
+        {
+            Categoria = categoria
+        };
     }
 
     /// <inheritdoc />
@@ -210,47 +215,52 @@ public sealed class HabilidadApiClient(
         CancellationToken cancellationToken)
     {
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, code, message, statusCode) = CommandResultMapper.Map(response, parsed);
 
-        if (response.StatusCode == HttpStatusCode.BadRequest)
+        // Mantenemos observabilidad para errores no esperados / Transporte:
+        // el operador que lee logs debe ver el status crudo con método y URI.
+        if (categoria == ErrorCategoria.Unexpected || categoria == ErrorCategoria.Transport)
         {
-            if (parsed.FieldErrors is { Count: > 0 })
-            {
-                return HabilidadCommandResult.Failure(
-                    new HabilidadError(HabilidadErrorType.Validation, parsed.Title ?? "ValidationError", parsed.Detail ?? "Uno o más campos son inválidos."),
-                    parsed.FieldErrors);
-            }
-
-            return HabilidadCommandResult.Failure(
-                new HabilidadError(HabilidadErrorType.Validation, parsed.Title ?? "BadRequest", parsed.Detail ?? "Solicitud inválida."));
+            logger.LogError(
+                "HabilidadApiClient received {Categoria} status {StatusCode} on {Method} {Uri}.",
+                categoria,
+                statusCode,
+                response.RequestMessage?.Method,
+                response.RequestMessage?.RequestUri);
         }
 
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        var errorType = MapCategoriaToType(categoria);
+        var error = new HabilidadError(errorType, code, message, statusCode, categoria);
+
+        if (parsed.FieldErrors is { Count: > 0 })
         {
-            return HabilidadCommandResult.Failure(
-                new HabilidadError(HabilidadErrorType.NotFound, parsed.Title ?? "NotFound", parsed.Detail ?? "Recurso no encontrado."));
+            return HabilidadCommandResult.Failure(error, parsed.FieldErrors);
         }
 
-        if (response.StatusCode == HttpStatusCode.Conflict)
-        {
-            return HabilidadCommandResult.Failure(
-                new HabilidadError(HabilidadErrorType.Conflict, parsed.Title ?? "Conflict", parsed.Detail ?? "Conflicto."));
-        }
-
-        // Status inesperado (5xx, 408, 3xx que cuele, etc.): no lo enmascaremos
-        // como Validation. Loggeamos el status real con la respuesta y
-        // devolvemos Infrastructure preservando el status code para
-        // diagnóstico downstream (la página lo usa para mostrar error de
-        // servidor sin asociarlo a un campo del form).
-        var statusCode = (int)response.StatusCode;
-        logger.LogError(
-            "HabilidadApiClient received unexpected status {StatusCode} on {Method} {Uri}.",
-            statusCode,
-            response.RequestMessage?.Method,
-            response.RequestMessage?.RequestUri);
-        return HabilidadCommandResult.Failure(new HabilidadError(
-            HabilidadErrorType.Infrastructure,
-            "ServerError",
-            "El servicio de habilidades no respondió correctamente. Intentá nuevamente.",
-            StatusCode: statusCode));
+        return HabilidadCommandResult.Failure(error);
     }
+
+    /// <summary>
+    /// Mapea <see cref="ErrorCategoria"/> al <see cref="HabilidadErrorType"/>
+    /// vigente preservando source-compat:
+    /// <list type="bullet">
+    ///   <item><description><c>NotFound</c> → <see cref="HabilidadErrorType.NotFound"/></description></item>
+    ///   <item><description><c>Conflict</c> → <see cref="HabilidadErrorType.Conflict"/></description></item>
+    ///   <item><description><c>Validation</c> → <see cref="HabilidadErrorType.Validation"/></description></item>
+    ///   <item><description><c>Transport</c> → <see cref="HabilidadErrorType.Infrastructure"/></description></item>
+    ///   <item><description><c>Unauthorized</c>, <c>Forbidden</c>, <c>Unexpected</c> caen en <see cref="HabilidadErrorType.Validation"/> (no hay variante legacy; se preserva el campo <c>Type</c> no nulo para no romper callers que ramifican por el enum).</description></item>
+    /// </list>
+    /// La semántica completa vive en <see cref="ErrorCategoria"/>; los
+    /// callers nuevos deben ramificar por <c>Categoria</c>.
+    /// </summary>
+    private static HabilidadErrorType MapCategoriaToType(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => HabilidadErrorType.NotFound,
+        ErrorCategoria.Conflict => HabilidadErrorType.Conflict,
+        ErrorCategoria.Validation => HabilidadErrorType.Validation,
+        ErrorCategoria.Transport => HabilidadErrorType.Infrastructure,
+        ErrorCategoria.Unauthorized => HabilidadErrorType.Validation,
+        ErrorCategoria.Forbidden => HabilidadErrorType.Validation,
+        ErrorCategoria.Unexpected => HabilidadErrorType.Validation
+    };
 }
