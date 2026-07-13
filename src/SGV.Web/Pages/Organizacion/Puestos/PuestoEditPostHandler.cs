@@ -10,6 +10,15 @@ namespace SGV.Web.Pages.Organizacion.Puestos;
 /// <summary>
 /// POST handler extraction for <see cref="EditModel"/>. Encapsulates the
 /// pre-populate → validate → execute → PRG / error flow.
+/// <para>
+/// Pre-populates immutable fields (Codigo, UnidadOrganizativaId, CargoId)
+/// from the API before ModelState validation because Edit's form does NOT
+/// render these fields (decision locked — they are immutable on an existing
+/// Puesto). Their <c>[Required]</c> attributes from <see cref="PuestoInputModel"/>
+/// would cause <c>ModelState.IsValid == false</c> if not populated first.
+/// ModelState entries for these keys are then removed to avoid false
+/// validation errors.
+/// </para>
 /// </summary>
 internal static class PuestoEditPostHandler
 {
@@ -82,14 +91,12 @@ internal static class PuestoEditPostHandler
                 $"El puesto \"{result.Value.Nombre}\" se actualizó correctamente.";
             page.TempData[nameof(EditModel.StatusKind)] = "success";
 
-            return page.RedirectToPage("/Organizacion/Puestos/Details", new
-            {
-                id,
-                p = page.ReturnPage,
-                search = page.ReturnSearch,
-                sort = page.ReturnSort,
-                returnStatus = page.ReturnStatus,
-            });
+            var nav = ReturnNavigationContext.FromQuery(
+                p: page.ReturnPage,
+                search: page.ReturnSearch,
+                sort: page.ReturnSort,
+                returnStatus: page.ReturnStatus);
+            return page.RedirectToPage("/Organizacion/Puestos/Details", nav.ToRouteValues(id));
         }
 
         if (result.Error is not null)

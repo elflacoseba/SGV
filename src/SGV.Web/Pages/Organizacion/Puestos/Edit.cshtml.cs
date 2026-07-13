@@ -7,6 +7,7 @@ using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
 
@@ -84,12 +85,11 @@ public sealed class EditModel(
         if (!EsAdministrador)
             return Forbid();
 
-        ReturnPage = p ?? string.Empty;
-        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
-        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
-        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? "eliminadas"
-            : string.Empty;
+        var nav = ReturnNavigationContext.FromQuery(p: p, search: search, sort: sort, returnStatus: returnStatus);
+        ReturnPage = nav.Page ?? string.Empty;
+        ReturnSearch = nav.Search ?? string.Empty;
+        ReturnSort = nav.Sort ?? string.Empty;
+        ReturnStatus = nav.Status ?? string.Empty;
 
         try
         {
@@ -123,7 +123,7 @@ public sealed class EditModel(
     // POST — delega al handler extraído
     // ──────────────────────────────────────────────
 
-    public Task<IActionResult> OnPostAsync(
+    public async Task<IActionResult> OnPostAsync(
         Guid id,
         [FromQuery(Name = "p")] string? p = null,
         [FromQuery(Name = "search")] string? search = null,
@@ -132,16 +132,15 @@ public sealed class EditModel(
         CancellationToken cancellationToken = default)
     {
         if (!EsAdministrador)
-            return Task.FromResult<IActionResult>(Forbid());
+            return Forbid();
 
-        ReturnPage = p ?? string.Empty;
-        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
-        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
-        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? "eliminadas"
-            : string.Empty;
+        var nav = ReturnNavigationContext.FromQuery(p: p, search: search, sort: sort, returnStatus: returnStatus);
+        ReturnPage = nav.Page ?? string.Empty;
+        ReturnSearch = nav.Search ?? string.Empty;
+        ReturnSort = nav.Sort ?? string.Empty;
+        ReturnStatus = nav.Status ?? string.Empty;
 
-        return PuestoEditPostHandler.HandleAsync(this, id, cancellationToken);
+        return await PuestoEditPostHandler.HandleAsync(this, id, cancellationToken);
     }
 
     // ──────────────────────────────────────────────
