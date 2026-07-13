@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Personas.Comandos;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
@@ -61,7 +63,7 @@ public static class ApiResults
     /// selecting the HTTP status from <see cref="CargoErrorType"/>.
     /// </summary>
     public static ActionResult ToProblemResult(CargoError error, HttpContext? httpContext = null)
-        => BuildProblem(MapCargoStatus(error.Type), error.Code, error.Message, httpContext);
+        => BuildProblem(MapCargoStatus(error), error.Code, error.Message, httpContext);
 
     /// <summary>
     /// Builds a <see cref="ValidationProblemDetails"/> for a <see cref="CargoError"/>.
@@ -83,7 +85,7 @@ public static class ApiResults
     /// forwards every non-success through this single entry point.
     /// </summary>
     public static ActionResult ToProblemResult(CargoSkillError error, HttpContext? httpContext = null)
-        => BuildProblem(MapCargoSkillStatus(error.Type), error.Code, error.Message, httpContext);
+        => BuildProblem(MapCargoSkillStatus(error), error.Code, error.Message, httpContext);
 
     /// <summary>
     /// Builds a <see cref="ValidationProblemDetails"/> for a
@@ -101,7 +103,7 @@ public static class ApiResults
 
     /// <summary>Builds a <see cref="ProblemDetails"/> for a <see cref="HabilidadError"/>.</summary>
     public static ActionResult ToProblemResult(HabilidadError error, HttpContext? httpContext = null)
-        => BuildProblem(MapHabilidadStatus(error.Type), error.Code, error.Message, httpContext);
+        => BuildProblem(MapHabilidadStatus(error), error.Code, error.Message, httpContext);
 
     /// <summary>Builds a <see cref="ValidationProblemDetails"/> for a <see cref="HabilidadError"/>.</summary>
     public static ActionResult ToValidationProblemResult(
@@ -112,7 +114,7 @@ public static class ApiResults
 
     /// <summary>Builds a <see cref="ProblemDetails"/> for a <see cref="PuestoError"/>.</summary>
     public static ActionResult ToProblemResult(PuestoError error, HttpContext? httpContext = null)
-        => BuildProblem(MapPuestoStatus(error.Type), error.Code, error.Message, httpContext);
+        => BuildProblem(MapPuestoStatus(error), error.Code, error.Message, httpContext);
 
     /// <summary>Builds a <see cref="ValidationProblemDetails"/> for a <see cref="PuestoError"/>.</summary>
     public static ActionResult ToValidationProblemResult(
@@ -123,7 +125,7 @@ public static class ApiResults
 
     /// <summary>Builds a <see cref="ProblemDetails"/> for a <see cref="UnidadOrganizativaError"/>.</summary>
     public static ActionResult ToProblemResult(UnidadOrganizativaError error, HttpContext? httpContext = null)
-        => BuildProblem(MapUnidadOrganizativaStatus(error.Type), error.Code, error.Message, httpContext);
+        => BuildProblem(MapUnidadOrganizativaStatus(error), error.Code, error.Message, httpContext);
 
     /// <summary>Builds a <see cref="ValidationProblemDetails"/> for a <see cref="UnidadOrganizativaError"/>.</summary>
     public static ActionResult ToValidationProblemResult(
@@ -160,7 +162,7 @@ public static class ApiResults
 
     /// <summary>Builds a <see cref="ProblemDetails"/> for a <see cref="UsuarioError"/>.</summary>
     public static ActionResult ToProblemResult(UsuarioError error, HttpContext? httpContext = null)
-        => BuildProblem(MapUsuarioStatus(error.Type), error.Code, error.Message, httpContext);
+        => BuildProblem(MapUsuarioStatus(error), error.Code, error.Message, httpContext);
 
     // ---- Internal builders + per-enum mappers ----
 
@@ -239,78 +241,95 @@ public static class ApiResults
         }
     }
 
-    private static int MapCargoStatus(CargoErrorType type) => type switch
+    private static int MapCategoria(ErrorCategoria categoria) => categoria switch
     {
-        CargoErrorType.NotFound => StatusCodes.Status404NotFound,
-        CargoErrorType.Conflict => StatusCodes.Status409Conflict,
-        CargoErrorType.Validation => StatusCodes.Status400BadRequest,
-        _ => StatusCodes.Status400BadRequest
+        ErrorCategoria.Validation => StatusCodes.Status400BadRequest,
+        ErrorCategoria.NotFound => StatusCodes.Status404NotFound,
+        ErrorCategoria.Conflict => StatusCodes.Status409Conflict,
+        ErrorCategoria.Unauthorized => StatusCodes.Status401Unauthorized,
+        ErrorCategoria.Forbidden => StatusCodes.Status403Forbidden,
+        ErrorCategoria.Transport => StatusCodes.Status503ServiceUnavailable,
+        ErrorCategoria.Unexpected => StatusCodes.Status500InternalServerError,
+        _ => throw new SwitchExpressionException(categoria)
     };
 
-    private static int MapCargoSkillStatus(CargoSkillErrorType type) => type switch
+    private static int MapCargoStatus(CargoError error)
+        => error.Categoria is ErrorCategoria.Unexpected && error.StatusCode is null
+            ? MapCargoStatus(error.Type)
+            : MapCategoria(error.Categoria);
+
+    private static int MapCargoStatus(CargoErrorType type)
+        => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
+
+    private static int MapCargoSkillStatus(CargoSkillError error)
+        => error.Categoria is ErrorCategoria.Unexpected && error.StatusCode is null
+            ? MapCargoSkillStatus(error.Type)
+            : MapCategoria(error.Categoria);
+
+    private static int MapCargoSkillStatus(CargoSkillErrorType type)
+        => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
+
+    private static int MapHabilidadStatus(HabilidadError error)
+        => error.Categoria is ErrorCategoria.Unexpected && error.StatusCode is null
+            ? MapHabilidadStatus(error.Type)
+            : MapCategoria(error.Categoria);
+
+    private static int MapHabilidadStatus(HabilidadErrorType type)
+        => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
+
+    private static int MapPuestoStatus(PuestoError error)
+        => error.Categoria is ErrorCategoria.Unexpected && error.StatusCode is null
+            ? MapPuestoStatus(error.Type)
+            : MapCategoria(error.Categoria);
+
+    private static int MapPuestoStatus(PuestoErrorType type)
+        => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
+
+    private static int MapUnidadOrganizativaStatus(UnidadOrganizativaError error)
+        => error.Categoria is ErrorCategoria.Unexpected && error.StatusCode is null
+            ? MapUnidadOrganizativaStatus(error.Type)
+            : MapCategoria(error.Categoria);
+
+    private static int MapUnidadOrganizativaStatus(UnidadOrganizativaErrorType type)
+        => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
+
+    private static int MapOcupacionStatus(OcupacionErrorType type)
+        => MapCategoria(ToCategoria(type));
+
+    private static int MapPersonaStatus(PersonaErrorType type)
+        => MapCategoria(ToCategoria(type));
+
+    private static int MapPersonaSkillStatus(PersonaSkillErrorType type)
+        => MapCategoria(ToCategoria(type));
+
+    private static int MapUsuarioStatus(UsuarioError error)
+        => error.Categoria is ErrorCategoria.Unexpected && error.StatusCode is null
+            ? MapUsuarioStatus(error.Type)
+            : MapCategoria(error.Categoria);
+
+    private static int MapUsuarioStatus(UsuarioErrorType type)
+        => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
+
+    private static ErrorCategoria ToCategoria(OcupacionErrorType type) => type switch
     {
-        CargoSkillErrorType.NotFound => StatusCodes.Status404NotFound,
-        CargoSkillErrorType.Conflict => StatusCodes.Status409Conflict,
-        CargoSkillErrorType.Validation => StatusCodes.Status400BadRequest,
-        CargoSkillErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
-        CargoSkillErrorType.Forbidden => StatusCodes.Status403Forbidden,
-        CargoSkillErrorType.Transport => StatusCodes.Status503ServiceUnavailable,
-        _ => StatusCodes.Status400BadRequest
+        OcupacionErrorType.NotFound => ErrorCategoria.NotFound,
+        OcupacionErrorType.Conflict => ErrorCategoria.Conflict,
+        OcupacionErrorType.Validation => ErrorCategoria.Validation,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown OcupacionErrorType value.")
     };
 
-    private static int MapHabilidadStatus(HabilidadErrorType type) => type switch
+    private static ErrorCategoria ToCategoria(PersonaErrorType type) => type switch
     {
-        HabilidadErrorType.NotFound => StatusCodes.Status404NotFound,
-        HabilidadErrorType.Conflict => StatusCodes.Status409Conflict,
-        HabilidadErrorType.Validation => StatusCodes.Status400BadRequest,
-        HabilidadErrorType.Infrastructure => StatusCodes.Status503ServiceUnavailable,
-        _ => StatusCodes.Status400BadRequest
+        PersonaErrorType.NotFound => ErrorCategoria.NotFound,
+        PersonaErrorType.Conflict => ErrorCategoria.Conflict,
+        PersonaErrorType.Validation => ErrorCategoria.Validation,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown PersonaErrorType value.")
     };
 
-    private static int MapPuestoStatus(PuestoErrorType type) => type switch
+    private static ErrorCategoria ToCategoria(PersonaSkillErrorType type) => type switch
     {
-        PuestoErrorType.NotFound => StatusCodes.Status404NotFound,
-        PuestoErrorType.Conflict => StatusCodes.Status409Conflict,
-        PuestoErrorType.Validation => StatusCodes.Status400BadRequest,
-        _ => StatusCodes.Status400BadRequest
-    };
-
-    private static int MapUnidadOrganizativaStatus(UnidadOrganizativaErrorType type) => type switch
-    {
-        UnidadOrganizativaErrorType.NotFound => StatusCodes.Status404NotFound,
-        UnidadOrganizativaErrorType.Conflict => StatusCodes.Status409Conflict,
-        UnidadOrganizativaErrorType.Validation => StatusCodes.Status400BadRequest,
-        _ => StatusCodes.Status400BadRequest
-    };
-
-    private static int MapOcupacionStatus(OcupacionErrorType type) => type switch
-    {
-        OcupacionErrorType.NotFound => StatusCodes.Status404NotFound,
-        OcupacionErrorType.Conflict => StatusCodes.Status409Conflict,
-        OcupacionErrorType.Validation => StatusCodes.Status400BadRequest,
-        _ => StatusCodes.Status400BadRequest
-    };
-
-    private static int MapPersonaStatus(PersonaErrorType type) => type switch
-    {
-        PersonaErrorType.NotFound => StatusCodes.Status404NotFound,
-        PersonaErrorType.Conflict => StatusCodes.Status409Conflict,
-        PersonaErrorType.Validation => StatusCodes.Status400BadRequest,
-        _ => StatusCodes.Status400BadRequest
-    };
-
-    private static int MapPersonaSkillStatus(PersonaSkillErrorType type) => type switch
-    {
-        PersonaSkillErrorType.NotFound => StatusCodes.Status404NotFound,
-        PersonaSkillErrorType.Validation => StatusCodes.Status400BadRequest,
-        _ => StatusCodes.Status400BadRequest
-    };
-
-    private static int MapUsuarioStatus(UsuarioErrorType type) => type switch
-    {
-        UsuarioErrorType.NotFound => StatusCodes.Status404NotFound,
-        UsuarioErrorType.Conflict => StatusCodes.Status409Conflict,
-        UsuarioErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
-        _ => StatusCodes.Status400BadRequest
+        PersonaSkillErrorType.NotFound => ErrorCategoria.NotFound,
+        PersonaSkillErrorType.Validation => ErrorCategoria.Validation,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown PersonaSkillErrorType value.")
     };
 }
