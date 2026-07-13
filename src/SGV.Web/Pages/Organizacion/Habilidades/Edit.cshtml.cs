@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Text.Json;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Habilidades;
 
@@ -12,10 +14,21 @@ namespace SGV.Web.Pages.Organizacion.Habilidades;
 /// en GET y la persiste vía <see cref="IHabilidadApiClient.UpdateAsync"/> en
 /// POST. El campo <c>Codigo</c> es editable y se envía al backend para
 /// que la unicidad activa se evalúe contra otras Habilidades activas.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/> (sin <c>default</c>), redirect vía
+/// <see cref="IAuthSessionRedirector"/> en
+/// <see cref="ErrorCategoria.Unauthorized"/>, y catch centralizado en
+/// <see cref="TransportFailureClassifier.IsTransportFailure"/>. El catch
+/// manual sobre tipos nativos se reemplaza por la versión opt-in
+/// (incluye <c>OperationCanceledException</c> cuando el token del
+/// caller NO está cancelado — preserva la cancelación cooperativa).
+/// </para>
 /// </summary>
 [Authorize]
 public sealed class EditModel(
     IHabilidadApiClient habilidadApiClient,
+    IAuthSessionRedirector authRedirector,
     ILogger<EditModel> logger) : PageModel, IHabilidadForm
 {
     [BindProperty]
@@ -79,16 +92,13 @@ public sealed class EditModel(
 
             return Page();
         }
-        // Cancelación cooperativa: misma regla que OnPostAsync. Si el cliente
-        // cerró el navegador / navegó a otra página, HttpContext.RequestAborted
-        // se cancela y el cliente API propaga OperationCanceledException. NO la
-        // capturamos: renderizar en un request cancelado desperdicia trabajo y
-        // puede generar logs ruidosos.
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is JsonException ||
-            ((ex is TaskCanceledException || ex is OperationCanceledException)
-                && !cancellationToken.IsCancellationRequested))
+        // Issue #125: catch centralizado via TransportFailureClassifier; la
+        // cancelación cooperativa del caller NO se captura (request
+        // cancelado = no renderizamos). El includeOperationCanceled: true
+        // acepta OperationCanceledException cuando el token del caller NO
+        // fue el origen de la cancelación (preserva semántica anterior).
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(
+            ex, includeOperationCanceled: !cancellationToken.IsCancellationRequested))
         {
             logger.LogError(ex, "Habilidad edit GET transport failure.");
             IsRecoverable = true;
@@ -117,20 +127,11 @@ public sealed class EditModel(
         {
             result = await habilidadApiClient.UpdateAsync(id, request, cancellationToken);
         }
-        // Cancelación cooperativa: si el cliente cerró el navegador / navegó
-        // a otra página, el HttpContext.RequestAborted se cancela y el
-        // cliente API propaga OperationCanceledException. NO la capturamos:
-        // intentar renderizar una página en un request cancelado desperdicia
-        // trabajo y puede generar logs ruidosos. Dejamos que la excepción
-        // suba para que el pipeline la traduzca a ClientDisconnectedException.
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is JsonException ||
-            ((ex is TaskCanceledException || ex is OperationCanceledException)
-                && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(
+            ex, includeOperationCanceled: !cancellationToken.IsCancellationRequested))
         {
             logger.LogError(ex, "Habilidad update transport failure.");
-            ErrorMessage = "No se pudo contactar al servicio de habilidades. Intentá nuevamente.";
+            ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
             return Page();
         }
@@ -144,7 +145,19 @@ public sealed class EditModel(
 
         if (result.Error is not null)
         {
-            if (result.Error.Type == HabilidadErrorType.Conflict)
+            // Issue #125 / Slice 3: switch exhaustivo sobre ErrorCategoria.
+            if (result.Error.Categoria == ErrorCategoria.Unauthorized)
+            {
+                var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+                if (redirect is not null)
+                {
+                    return redirect;
+                }
+
+                ErrorMessage = PageFeedback.UnauthorizedMessage;
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+            }
+            else if (result.Error.Categoria == ErrorCategoria.Conflict)
             {
                 ModelState.AddModelError("Input.Codigo", result.Error.Message);
             }
@@ -160,11 +173,32 @@ public sealed class EditModel(
             }
             else
             {
-                ErrorMessage = result.Error.Message;
-                ModelState.AddModelError(string.Empty, result.Error.Message);
+                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
 
         return Page();
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Verbatim
+    /// del patrón de <see cref="CreateModel.MapCategoriaToMessage"/>:
+    /// cubre las 7 variantes sin <c>default</c> silencioso y delega
+    /// <c>Unauthorized</c> a <see cref="IAuthSessionRedirector"/> en
+    /// los handlers (nunca debe llegar aquí como mensaje inline).
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => "El recurso solicitado no está disponible.",
+        ErrorCategoria.Conflict => "Conflicto al persistir la habilidad.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 }
