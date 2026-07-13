@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Pages.Common;
 
@@ -14,9 +16,17 @@ namespace SGV.Web.Pages.Organizacion.Puestos;
 /// <c>/consulta?status=...</c> segmentado), con baja lógica
 /// (<c>?handler=Delete</c>) y reactivación (<c>?handler=Reactivate</c>) que
 /// preserva el contexto del listado.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/> en OnPostDelete y OnPostReactivate.
+/// <c>Unauthorized</c> redirige vía <see cref="IAuthSessionRedirector"/>.
+/// </para>
 /// </summary>
 [Authorize]
-public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<IndexModel> logger) : PageModel
+public sealed class IndexModel(
+    IPuestosApiClient puestosApiClient,
+    IAuthSessionRedirector authRedirector,
+    ILogger<IndexModel> logger) : PageModel
 {
     /// <summary>Etiqueta "Eliminadas" que se renderiza en el tooltip del toggle deshabilitado (locked #2).</summary>
     private const string DeletedView = "eliminadas";
@@ -142,11 +152,24 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
             });
         }
 
-        var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
-            ? $"No se pudo eliminar el puesto. {result.Message}".Trim()
-            : result.StatusCode == System.Net.HttpStatusCode.NotFound
-                ? "El puesto ya no está disponible."
-                : "No se pudo eliminar el puesto. Intentá nuevamente.";
+        // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+        if (result.Categoria == ErrorCategoria.Unauthorized)
+        {
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
+        var message = result.Categoria switch
+        {
+            ErrorCategoria.Conflict => $"No se pudo eliminar el puesto. {result.Message}".Trim(),
+            ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
+            ErrorCategoria.Transport => "No se pudo eliminar el puesto. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo eliminar el puesto. Intentá nuevamente.",
+            _ => MapCategoriaToMessage(result.Categoria)
+        };
 
         PageFeedback.SetDanger(TempData, message);
 
@@ -196,15 +219,26 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
             });
         }
 
+        // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+        if (result.Error?.Categoria == ErrorCategoria.Unauthorized)
+        {
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
         var errorCode = result.Error?.Code;
         var errorMessage = result.Error?.Message;
-        var message = result.Error?.Type switch
+        var categoria = result.Error?.Categoria ?? ErrorCategoria.Unexpected;
+        var message = categoria switch
         {
-            SGV.Contracts.Organizacion.Comandos.PuestoErrorType.Conflict =>
-                $"No se pudo reactivar el puesto. {errorMessage}",
-            SGV.Contracts.Organizacion.Comandos.PuestoErrorType.NotFound =>
-                "El puesto ya no está disponible para reactivar.",
-            _ => "No se pudo reactivar el puesto. Intentá nuevamente."
+            ErrorCategoria.Conflict => $"No se pudo reactivar el puesto. {errorMessage}",
+            ErrorCategoria.NotFound => "El puesto ya no está disponible para reactivar.",
+            ErrorCategoria.Transport => "No se pudo reactivar el puesto. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo reactivar el puesto. Intentá nuevamente.",
+            _ => MapCategoriaToMessage(categoria)
         };
 
         PageFeedback.SetDanger(TempData, message);
@@ -222,6 +256,26 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
             status = normalizedSegmento
         });
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
+    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
+    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
+    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
+        ErrorCategoria.Conflict => "Conflicto al procesar la operación.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     /// <summary>
     /// Construye la próxima expresión de orden al alternar la columna. Si
@@ -362,31 +416,19 @@ public sealed class IndexModel(IPuestosApiClient puestosApiClient, ILogger<Index
             Items = materialized;
             TotalCount = materialized.Length;
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
-            logger.LogError(ex, "Failed to load puestos page: transport error.");
-            SetLoadErrorState();
-        }
-        catch (TaskCanceledException ex)
-        {
-            // Cubre timeouts del HttpClient (Cancelación al superar Timeout=10s
-            // configurado en Program.cs para IPuestosApiClient).
-            logger.LogError(ex, "Failed to load puestos page: request timeout.");
-            SetLoadErrorState();
-        }
-        catch (System.Text.Json.JsonException ex)
-        {
-            // Cuerpo no parseable: el helper DeleteAsync del cliente lo absorbe,
-            // pero GetAllAsync puede propagar al deserializar respuestas malformadas.
-            logger.LogError(ex, "Failed to load puestos page: malformed response.");
+            logger.LogError(ex, "Failed to load puestos page: transport failure.");
             SetLoadErrorState();
         }
     }
 
     /// <summary>
     /// Resetea el estado de carga a un fallback vacío tras un fallo controlado
-    /// de carga inicial. Centralizado para mantener consistencia entre los
-    /// tres caminos de error capturados en <see cref="LoadAsync"/>.
+    /// de carga inicial. Centralizado para mantener consistencia en el camino
+    /// de error capturado en <see cref="LoadAsync"/> (cualquier excepción
+    /// considerada transporte/serialización por
+    /// <see cref="TransportFailureClassifier"/>).
     /// </summary>
     private void SetLoadErrorState()
     {
