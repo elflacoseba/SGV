@@ -2,8 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 using RecordingHandler = SGV.Tests.Web._Shared.HttpClientExceptionScenarios.RecordingHandler;
@@ -138,4 +140,82 @@ public class UnidadOrganizativaApiClientTests
 
     private static HttpClient NewHttpClient(HttpMessageHandler handler) =>
         new(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
+
+    private static HttpResponseMessage Json<T>(HttpStatusCode status, T payload) =>
+        new(status) { Content = JsonContent.Create(payload) };
+
+    // ──────────────────────────────────────────────
+    // Slice 2 (#125) — matriz REQ-2 + propagation en UnidadOrganizativaApiClient.
+    // ──────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, ErrorCategoria.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCategoria.Forbidden)]
+    [InlineData(HttpStatusCode.RequestTimeout, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.InternalServerError, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.BadGateway, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, ErrorCategoria.Transport)]
+    public async Task CreateAsync_NonSuccessStatus_ReturnsFailureWithCorrectCategoria(
+        HttpStatusCode status, ErrorCategoria expectedCategoria)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = (int)status,
+            Title = $"Err{status}",
+            Detail = $"Detalle del status {status}."
+        };
+        var handler = new RecordingHandler(_ => Json(status, problem));
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        var result = await client.CreateAsync(NewRequest());
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(expectedCategoria, result.Error!.Categoria);
+    }
+
+    [Fact]
+    public async Task CreateAsync_PreCanceledToken_PropagatesOperationCanceledException()
+    {
+        var handler = new RecordingHandler();
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.CreateAsync(NewRequest(), new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task CreateAsync_TransportFails_PropagatesNativeException_NotCategoriaTransport(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.CreateAsync(NewRequest()));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_Http409WithProblemDetails_PopulatesCategoriaConflict()
+    {
+        var problem = new ProblemDetails
+        {
+            Status = 409,
+            Title = "UnidadConDependientes",
+            Detail = "La unidad tiene subunidades activas"
+        };
+        var id = Guid.NewGuid();
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteAsync(id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal(ErrorCategoria.Conflict, result.Categoria);
+    }
 }
