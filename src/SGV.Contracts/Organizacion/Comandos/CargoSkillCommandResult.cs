@@ -1,3 +1,4 @@
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Contracts.Organizacion.Comandos;
@@ -40,8 +41,9 @@ public enum CargoSkillErrorType
 public sealed record CargoSkillError(
     CargoSkillErrorType Type,
     string Code,
-    string Message
-);
+    string Message,
+    int? StatusCode = null,
+    ErrorCategoria Categoria = ErrorCategoria.Unexpected);
 
 /// <summary>
 /// Result of a CargoSkill write operation: either a success DTO or a typed error.

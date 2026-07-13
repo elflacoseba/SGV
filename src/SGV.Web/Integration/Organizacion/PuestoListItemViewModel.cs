@@ -1,4 +1,5 @@
 using System.Net;
+using SGV.Contracts.Comun;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -23,8 +24,29 @@ public sealed record PuestoListItemViewModel(
 
 /// <summary>
 /// Resultado de la baja lógica de un puesto traducida desde la API.
+///
+/// <para>
+/// A partir del change <c>2026-07-13-taxonomia-errores-commandresult</c>
+/// (issue #125):
+/// </para>
+/// <list type="bullet">
+///   <item><description><see cref="StatusCode"/> migra de
+///   <see cref="HttpStatusCode"/> non-nullable a
+///   <see cref="HttpStatusCode?"/> nullable para alinearse con los demás
+///   <c>*DeleteResult</c> y absorber el caso "204 sin status code" sin
+///   inconsistencias.</description></item>
+///   <item><description>Se agrega <see cref="Categoria"/> para alinear la
+///   forma con los demás <c>*DeleteResult</c> y permitir que la Razor Page
+///   ramifique por la nueva taxonomía común
+///   <see cref="ErrorCategoria"/>.</description></item>
+/// </list>
 /// </summary>
-public sealed record PuestoDeleteResult(bool Succeeded, HttpStatusCode StatusCode, string? Code, string? Message);
+public sealed record PuestoDeleteResult(
+    bool Succeeded,
+    HttpStatusCode? StatusCode,
+    string? Code,
+    string? Message,
+    ErrorCategoria Categoria = ErrorCategoria.NotFound);
 
 /// <summary>
 /// Contrato de consulta para el listado web de puestos. El backend de Puestos

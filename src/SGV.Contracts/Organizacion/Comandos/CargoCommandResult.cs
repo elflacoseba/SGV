@@ -1,3 +1,4 @@
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Contracts.Organizacion.Comandos;
@@ -19,8 +20,9 @@ public enum CargoErrorType
 public sealed record CargoError(
     CargoErrorType Type,
     string Code,
-    string Message
-);
+    string Message,
+    int? StatusCode = null,
+    ErrorCategoria Categoria = ErrorCategoria.Unexpected);
 
 /// <summary>
 /// Result of a Cargo write operation: either a success DTO or a typed error.

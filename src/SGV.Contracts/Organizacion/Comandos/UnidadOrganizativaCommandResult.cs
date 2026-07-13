@@ -1,3 +1,4 @@
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Contracts.Organizacion.Comandos;
@@ -19,8 +20,9 @@ public enum UnidadOrganizativaErrorType
 public sealed record UnidadOrganizativaError(
     UnidadOrganizativaErrorType Type,
     string Code,
-    string Message
-);
+    string Message,
+    int? StatusCode = null,
+    ErrorCategoria Categoria = ErrorCategoria.Unexpected);
 
 /// <summary>
 /// Result of an organizational-unit write operation: either a success DTO or a typed error.
