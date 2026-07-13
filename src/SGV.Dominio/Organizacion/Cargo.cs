@@ -111,4 +111,62 @@ public sealed record class Cargo : EntidadAuditable
             throw new ArgumentException("El nivel de cargo es obligatorio.", nameof(NivelId));
         }
     }
+
+    /// <summary>
+    /// Factory de hidratación desde la capa de persistencia. Asigna todos los
+    /// campos persistibles (incluyendo audit + <see cref="IsActive"/> y la nav
+    /// <see cref="NivelCargo"/>) con setters tipados para evitar el path de
+    /// reflexión que <c>PersistenceToDomainMapper.SetProperty</c> implementaba.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Importante:</b> <paramref name="isActive"/> se asigna directamente
+    /// como flag sin invocar <see cref="Desactivar"/>, por lo que la invariante
+    /// "no desactivar un cargo con puestos subordinados activos" <b>no se
+    /// evalúa aquí</b>. Esta es la misma semántica que el path de reflexión
+    /// previo; un cargo persistido con <c>IsActive=false</c> pero con puestos
+    /// subordinados cargados se rehidrata sin lanzar. Endurecer esta
+    /// invariante queda fuera de scope de este change (ver
+    /// <c>archive-report</c>).
+    /// </para>
+    /// </remarks>
+    internal static Cargo Reconstitute(
+        Guid id,
+        string codigo,
+        string nombre,
+        Guid nivelId,
+        string? descripcion,
+        bool isActive,
+        NivelCargo? nivelCargo,
+        DateTime createdAt,
+        string? createdByUserId,
+        DateTime? updatedAt,
+        string? updatedByUserId,
+        bool isDeleted,
+        DateTime? deletedAt,
+        string? deletedByUserId)
+    {
+        ValidarNivelId(nivelId);
+
+        var self = new Cargo
+        {
+            Id = id,
+            CreatedAt = createdAt,
+            CreatedByUserId = createdByUserId,
+            UpdatedAt = updatedAt,
+            UpdatedByUserId = updatedByUserId,
+            IsDeleted = isDeleted,
+            DeletedAt = deletedAt,
+            DeletedByUserId = deletedByUserId
+        };
+
+        self.Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
+        self.Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
+        self.NivelId = nivelId;
+        self.Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
+        self.IsActive = isActive;
+        self.NivelCargo = nivelCargo;
+
+        return self;
+    }
 }

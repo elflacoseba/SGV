@@ -16,26 +16,21 @@ internal static class PersistenceToDomainMapper
 {
     public static Cargo ToDomain(CargoEntity entity)
     {
-        var cargo = new Cargo(entity.Codigo, entity.Nombre, entity.NivelId, entity.Descripcion)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        SetProperty(cargo, nameof(Cargo.IsActive), entity.IsActive);
-
-        if (entity.NivelCargo is not null)
-        {
-            SetProperty(cargo, nameof(Cargo.NivelCargo), ToDomain(entity.NivelCargo));
-        }
-
-        return cargo;
+        return Cargo.Reconstitute(
+            entity.Id,
+            entity.Codigo,
+            entity.Nombre,
+            entity.NivelId,
+            entity.Descripcion,
+            entity.IsActive,
+            entity.NivelCargo is null ? null : ToDomain(entity.NivelCargo),
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static NivelCargo ToDomain(NivelCargoEntity entity)
