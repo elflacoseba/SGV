@@ -1,4 +1,5 @@
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 
@@ -33,7 +34,8 @@ public sealed class UsuarioServicioComandos(
             return UsuarioCommandResult.Failure(new UsuarioError(
                 UsuarioErrorType.NotFound,
                 "PersonaNoEncontrada",
-                "La persona asociada al usuario no existe."));
+                "La persona asociada al usuario no existe.",
+                Categoria: ErrorCategoria.NotFound));
         }
 
         return await identityGateway.CrearAsync(request, cancellationToken).ConfigureAwait(false);
@@ -58,5 +60,9 @@ public sealed class UsuarioServicioComandos(
     }
 
     private static UsuarioCommandResult Validation(string code, string message)
-        => UsuarioCommandResult.Failure(new UsuarioError(UsuarioErrorType.Validation, code, message));
+        => UsuarioCommandResult.Failure(new UsuarioError(
+            UsuarioErrorType.Validation,
+            code,
+            message,
+            Categoria: ErrorCategoria.Validation));
 }
