@@ -126,7 +126,9 @@ public sealed class DetailsModel(
             ErrorCategoria.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
             ErrorCategoria.Transport => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
             ErrorCategoria.Unexpected => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
-            _ => MapCategoriaToMessage(categoria)
+            _ => ErrorCategoryMapper.Map(categoria,
+                notFoundMessage: "La unidad organizativa solicitada no está disponible.",
+                conflictMessage: "Conflicto al procesar la operación.")
         };
 
         TempData["StatusMessage"] = message;
@@ -137,23 +139,4 @@ public sealed class DetailsModel(
         CurrentId = id;
         return Page();
     }
-
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
-    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
-    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
-    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
-        ErrorCategoria.Conflict => "Conflicto al procesar la operación.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
 }

@@ -213,7 +213,9 @@ public sealed class EditModel(
             {
                 // No FieldErrors and no general error message; defensivo para
                 // ErrorCategoria.Validation/Transport/Unexpected/Forbidden.
-                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ErrorMessage = ErrorCategoryMapper.Map(result.Error.Categoria,
+                    notFoundMessage: "El cargo solicitado no está disponible.",
+                    conflictMessage: "Conflicto al persistir el cargo.");
                 ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
@@ -221,25 +223,6 @@ public sealed class EditModel(
         await LoadCatalogsAsync(id, cancellationToken);
         return Page();
     }
-
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Verbatim del
-    /// patrón de <see cref="CreateModel.MapCategoriaToMessage"/>; espejado
-    /// para que cada PageModel pueda invocarlo sin pasar por el helper
-    /// de aplicación.
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => "El cargo solicitado no está disponible.",
-        ErrorCategoria.Conflict => "Conflicto al persistir el cargo.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
 
     private async Task LoadCatalogsAsync(Guid cargoId, CancellationToken cancellationToken)
     {

@@ -128,7 +128,9 @@ public sealed class CreateModel(
             }
             else
             {
-                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ErrorMessage = ErrorCategoryMapper.Map(result.Error.Categoria,
+                    notFoundMessage: "El recurso solicitado no está disponible.",
+                    conflictMessage: "Conflicto al persistir la habilidad.");
                 ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
@@ -136,28 +138,4 @@ public sealed class CreateModel(
         return Page();
     }
 
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/> que produce el
-    /// mensaje visible al usuario. Verbatim del design §8.1: cubre las 7
-    /// variantes sin <c>default</c> silencioso; <c>Unauthorized</c> lanza
-    /// porque su flujo es redirigir vía <see cref="IAuthSessionRedirector"/>
-    /// antes de mostrar mensaje inline.
-    /// <para>
-    /// <c>internal static</c> para que el helper de exhaustividad del
-    /// proyecto de tests pueda invocarlo directamente sin bootear el
-    /// harness web (InternalsVisibleTo ya está concedido a SGV.Tests).
-    /// </para>
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => "El recurso solicitado no está disponible.",
-        ErrorCategoria.Conflict => "Conflicto al persistir la habilidad.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
 }

@@ -157,7 +157,9 @@ public sealed class CreateModel(
             {
                 // No FieldErrors and no general error message; defensivo para
                 // ErrorCategoria.Validation/Transport/Unexpected/Forbidden.
-                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ErrorMessage = ErrorCategoryMapper.Map(result.Error.Categoria,
+                    notFoundMessage: "El cargo solicitado no está disponible.",
+                    conflictMessage: "Conflicto al persistir el cargo.");
                 ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
@@ -165,25 +167,6 @@ public sealed class CreateModel(
         await LoadCatalogsAsync(cancellationToken);
         return Page();
     }
-
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
-    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
-    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
-    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => "El cargo solicitado no está disponible.",
-        ErrorCategoria.Conflict => "Conflicto al persistir el cargo.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
 
     private async Task LoadCatalogsAsync(CancellationToken cancellationToken)
     {

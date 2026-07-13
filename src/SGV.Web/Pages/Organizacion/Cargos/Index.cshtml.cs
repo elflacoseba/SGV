@@ -181,7 +181,7 @@ public sealed class IndexModel(
             ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
             ErrorCategoria.Transport => "No se pudo eliminar el cargo. Intentá nuevamente.",
             ErrorCategoria.Unexpected => "No se pudo eliminar el cargo. Intentá nuevamente.",
-            _ => MapCategoriaToMessage(result.Categoria)
+            _ => ErrorCategoryMapper.Map(result.Categoria)
         };
 
         PageFeedback.SetDanger(TempData, message);
@@ -240,7 +240,7 @@ public sealed class IndexModel(
             ErrorCategoria.NotFound => "El cargo ya no está disponible para reactivar.",
             ErrorCategoria.Transport => "No se pudo reactivar el cargo. Intentá nuevamente.",
             ErrorCategoria.Unexpected => "No se pudo reactivar el cargo. Intentá nuevamente.",
-            _ => MapCategoriaToMessage(categoria)
+            _ => ErrorCategoryMapper.Map(categoria)
         };
 
         PageFeedback.SetDanger(TempData, message);
@@ -252,25 +252,6 @@ public sealed class IndexModel(
         // Tras fallo, permanecer en la vista Eliminadas para permitir reintento.
         return RedirectToPage("/Organizacion/Cargos/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
     }
-
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
-    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
-    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
-    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
-        ErrorCategoria.Conflict => "Conflicto al procesar la operación.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
 
     public string GetSortRoute(string column)
     {

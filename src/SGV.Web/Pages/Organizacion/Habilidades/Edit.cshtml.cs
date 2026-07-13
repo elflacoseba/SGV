@@ -173,7 +173,9 @@ public sealed class EditModel(
             }
             else
             {
-                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ErrorMessage = ErrorCategoryMapper.Map(result.Error.Categoria,
+                    notFoundMessage: "El recurso solicitado no está disponible.",
+                    conflictMessage: "Conflicto al persistir la habilidad.");
                 ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
@@ -181,23 +183,4 @@ public sealed class EditModel(
         return Page();
     }
 
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Verbatim
-    /// del patrón de <see cref="CreateModel.MapCategoriaToMessage"/>:
-    /// cubre las 7 variantes sin <c>default</c> silencioso y delega
-    /// <c>Unauthorized</c> a <see cref="IAuthSessionRedirector"/> en
-    /// los handlers (nunca debe llegar aquí como mensaje inline).
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => "El recurso solicitado no está disponible.",
-        ErrorCategoria.Conflict => "Conflicto al persistir la habilidad.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
 }
