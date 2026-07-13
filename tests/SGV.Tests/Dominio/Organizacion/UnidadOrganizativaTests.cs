@@ -36,15 +36,16 @@ public sealed class UnidadOrganizativaTests
         var codigoProperty = typeof(UnidadOrganizativa).GetProperty(nameof(UnidadOrganizativa.Codigo));
         Assert.NotNull(codigoProperty);
 
-        // Para records con `init`, el setter existe a nivel IL pero está decorado
-        // con System.Runtime.CompilerServices.IsExternalInit, lo que lo hace
-        // inaccesible fuera del object initializer / `with`. Verificamos el modifier.
-        var setter = codigoProperty!.GetSetMethod(nonPublic: false);
-        Assert.NotNull(setter);
-        var hasInitModifier = setter!.ReturnParameter
-            .GetRequiredCustomModifiers()
-            .Any(m => m.FullName == "System.Runtime.CompilerServices.IsExternalInit");
-        Assert.True(hasInitModifier, "Codigo debe ser init-only, no public set.");
+        // Tras issue #124: las propiedades de UO pasaron de `init` a `private set`
+        // para paridad con las otras 5 entidades. El invariante "Codigo solo se
+        // asigna en el constructor / Reconstitute" se preserva verificando que
+        // el setter existe pero NO es accesible públicamente.
+        var publicSetter = codigoProperty!.GetSetMethod(nonPublic: false);
+        Assert.Null(publicSetter);
+
+        var nonPublicSetter = codigoProperty.GetSetMethod(nonPublic: true);
+        Assert.NotNull(nonPublicSetter);
+        Assert.False(nonPublicSetter!.IsPublic);
     }
 
     // ── Actualizar ──────────────────────────────────────────────
@@ -55,13 +56,14 @@ public sealed class UnidadOrganizativaTests
         var unidad = new UnidadOrganizativa("COD-03", "Unidad Original", TipoUnidadValido);
         var nuevoTipoId = Guid.Parse("60000000-0000-0000-0000-000000000002");
 
-        var actualizada = unidad.Actualizar("Unidad Modificada", "Descripción", nuevoTipoId, null, null, null);
+        // Tras issue #124: Actualizar devuelve void y muta la misma instancia.
+        unidad.Actualizar("Unidad Modificada", "Descripción", nuevoTipoId, null, null, null);
 
-        Assert.Equal(nuevoTipoId, actualizada.TipoUnidadOrganizativaId);
-        Assert.Equal("Unidad Modificada", actualizada.Nombre);
-        Assert.Equal("Descripción", actualizada.Descripcion);
+        Assert.Equal(nuevoTipoId, unidad.TipoUnidadOrganizativaId);
+        Assert.Equal("Unidad Modificada", unidad.Nombre);
+        Assert.Equal("Descripción", unidad.Descripcion);
         // Codigo preservado por el invariante: Actualizar no acepta codigo como parámetro.
-        Assert.Equal("COD-03", actualizada.Codigo);
+        Assert.Equal("COD-03", unidad.Codigo);
     }
 
     [Fact]
@@ -69,9 +71,9 @@ public sealed class UnidadOrganizativaTests
     {
         var unidad = new UnidadOrganizativa("RECT", "Rectorado", TipoUnidadValido);
 
-        var actualizada = unidad.Actualizar("Rectorado Actualizado", "Nueva descripción", TipoUnidadValido, null, null, null);
+        unidad.Actualizar("Rectorado Actualizado", "Nueva descripción", TipoUnidadValido, null, null, null);
 
-        Assert.Equal("RECT", actualizada.Codigo);
+        Assert.Equal("RECT", unidad.Codigo);
     }
 
     [Fact]

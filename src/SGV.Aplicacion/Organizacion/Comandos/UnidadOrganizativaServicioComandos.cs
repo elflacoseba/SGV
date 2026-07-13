@@ -85,7 +85,7 @@ public sealed class UnidadOrganizativaServicioComandos(
             {
                 Id = Guid.NewGuid()
             };
-            unidad = unidad.DefinirVigencia(request.VigenteDesde, request.VigenteHasta);
+            unidad.DefinirVigencia(request.VigenteDesde, request.VigenteHasta);
 
             await repository.AddAsync(unidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -129,9 +129,10 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            // El codigo se preserva por contrato: Actualizar no acepta codigo y el
-            // record se copia via with, manteniendo el Codigo original intacto.
-            unidad = unidad.Actualizar(
+            // El codigo se preserva por contrato: Actualizar no acepta codigo
+            // y el record se muta via private set, manteniendo el Codigo
+            // original intacto.
+            unidad.Actualizar(
                 request.Nombre,
                 request.Descripcion,
                 request.TipoUnidadOrganizativaId,
@@ -188,7 +189,7 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            unidad = unidad.CambiarUnidadPadre(request.UnidadPadreId);
+            unidad.CambiarUnidadPadre(request.UnidadPadreId);
 
             await repository.UpdateAsync(unidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -227,7 +228,7 @@ public sealed class UnidadOrganizativaServicioComandos(
                     "No se puede eliminar una unidad organizativa que tiene puestos activos asociados."));
         }
 
-        unidad = unidad.Desactivar();
+        unidad.Desactivar();
         await repository.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -264,7 +265,7 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         try
         {
-            unidad = unidad.Activar();
+            unidad.Activar();
 
             await repository.ReactivateAsync(id, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
