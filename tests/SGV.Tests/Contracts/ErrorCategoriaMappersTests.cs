@@ -56,7 +56,7 @@ public sealed class ErrorCategoriaMappersTests
         ErrorCategoria categoria,
         HabilidadErrorType expected)
     {
-        var actual = ErrorCategoriaMappers.ToTipo(categoria);
+        var actual = ErrorCategoriaMappers.ToTipoHabilidad(categoria);
 
         Assert.Equal(expected, actual);
     }
@@ -67,7 +67,7 @@ public sealed class ErrorCategoriaMappersTests
     [InlineData(ErrorCategoria.Unexpected)]
     public void ToTipo_HabilidadErrorType_NoEquivalente_ThrowsNotSupported(ErrorCategoria unsupported)
     {
-        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipo(unsupported));
+        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipoHabilidad(unsupported));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class ErrorCategoriaMappersTests
         ErrorCategoria categoria,
         CargoErrorType expected)
     {
-        Assert.Equal(expected, ErrorCategoriaMappers.ToTipo(categoria));
+        Assert.Equal(expected, ErrorCategoriaMappers.ToTipoCargo(categoria));
     }
 
     [Theory]
@@ -110,7 +110,7 @@ public sealed class ErrorCategoriaMappersTests
     [InlineData(ErrorCategoria.Forbidden)]
     public void ToTipo_CargoErrorType_NoEquivalente_ThrowsNotSupported(ErrorCategoria unsupported)
     {
-        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipo(unsupported));
+        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipoCargo(unsupported));
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public sealed class ErrorCategoriaMappersTests
         ErrorCategoria categoria,
         PuestoErrorType expected)
     {
-        Assert.Equal(expected, ErrorCategoriaMappers.ToTipo(categoria));
+        Assert.Equal(expected, ErrorCategoriaMappers.ToTipoPuesto(categoria));
     }
 
     [Theory]
@@ -153,7 +153,7 @@ public sealed class ErrorCategoriaMappersTests
     [InlineData(ErrorCategoria.Forbidden)]
     public void ToTipo_PuestoErrorType_NoEquivalente_ThrowsNotSupported(ErrorCategoria unsupported)
     {
-        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipo(unsupported));
+        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipoPuesto(unsupported));
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public sealed class ErrorCategoriaMappersTests
         ErrorCategoria categoria,
         UnidadOrganizativaErrorType expected)
     {
-        Assert.Equal(expected, ErrorCategoriaMappers.ToTipo(categoria));
+        Assert.Equal(expected, ErrorCategoriaMappers.ToTipoUnidadOrganizativa(categoria));
     }
 
     [Theory]
@@ -196,7 +196,7 @@ public sealed class ErrorCategoriaMappersTests
     [InlineData(ErrorCategoria.Forbidden)]
     public void ToTipo_UnidadOrganizativaErrorType_NoEquivalente_ThrowsNotSupported(ErrorCategoria unsupported)
     {
-        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipo(unsupported));
+        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipoUnidadOrganizativa(unsupported));
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public sealed class ErrorCategoriaMappersTests
         ErrorCategoria categoria,
         CargoSkillErrorType expected)
     {
-        Assert.Equal(expected, ErrorCategoriaMappers.ToTipo(categoria));
+        Assert.Equal(expected, ErrorCategoriaMappers.ToTipoCargoSkill(categoria));
     }
 
     /// <summary>
@@ -265,7 +265,7 @@ public sealed class ErrorCategoriaMappersTests
     public void ToTipo_CargoSkillErrorType_Unexpected_ThrowsNotSupported()
     {
         Assert.Throws<NotSupportedException>(
-            () => ErrorCategoriaMappers.ToTipo(ErrorCategoria.Unexpected));
+            () => ErrorCategoriaMappers.ToTipoCargoSkill(ErrorCategoria.Unexpected));
     }
 
     [Fact]
@@ -302,14 +302,14 @@ public sealed class ErrorCategoriaMappersTests
         ErrorCategoria categoria,
         UsuarioErrorType expected)
     {
-        Assert.Equal(expected, ErrorCategoriaMappers.ToTipo(categoria));
+        Assert.Equal(expected, ErrorCategoriaMappers.ToTipoUsuario(categoria));
     }
 
     [Fact]
     public void ToTipo_UsuarioErrorType_Forbidden_ThrowsNotSupported()
     {
         Assert.Throws<NotSupportedException>(
-            () => ErrorCategoriaMappers.ToTipo(ErrorCategoria.Forbidden));
+            () => ErrorCategoriaMappers.ToTipoUsuario(ErrorCategoria.Forbidden));
     }
 
     [Fact]
