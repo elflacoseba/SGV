@@ -1,15 +1,30 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.UnidadesOrganizativas;
 
+/// <summary>
+/// PageModel para la página Edit de unidades organizativas.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/>. <c>Unauthorized</c> redirige vía
+/// <see cref="IAuthSessionRedirector"/>. El filtro manual de
+/// <c>OperationCanceledException</c> (exploration §3) se reemplaza por
+/// <see cref="TransportFailureClassifier.IsTransportFailure"/> con
+/// <c>includeOperationCanceled: true</c> explícito (opt-in).
+/// </para>
+/// </summary>
 [Authorize]
 public sealed class EditModel(
     IUnidadOrganizativaApiClient unidadOrganizativaApiClient,
+    IAuthSessionRedirector authRedirector,
     ILogger<EditModel> logger) : PageModel, IUnidadOrganizativaForm
 {
     public Guid CurrentId { get; private set; }
@@ -129,11 +144,8 @@ public sealed class EditModel(
             Input.Codigo = current.Codigo;
             ModelState.Remove("Input.Codigo");
         }
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is System.Text.Json.JsonException ||
-            ex is OperationCanceledException)
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(
+            ex, includeOperationCanceled: true))
         {
             logger.LogError(ex, "Failed to load unidad {Id} during POST prepopulate.", id);
             ErrorMessage = "No se pudo cargar la unidad organizativa. Intentá nuevamente.";
@@ -188,14 +200,29 @@ public sealed class EditModel(
 
         if (result.Error is not null)
         {
+            // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+            if (result.Error.Categoria == ErrorCategoria.Unauthorized)
+            {
+                var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+                if (redirect is not null)
+                {
+                    return redirect;
+                }
+
+                ErrorMessage = PageFeedback.UnauthorizedMessage;
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                await LoadCatalogsAsync(id, cancellationToken);
+                return Page();
+            }
+
             if (result.FieldErrors is { Count: > 0 })
             {
                 UnidadOrganizativaFormHelpers.ApplyFieldErrorsToModelState(ModelState, result.FieldErrors);
             }
             else
             {
-                ErrorMessage = result.Error.Message;
-                ModelState.AddModelError(string.Empty, result.Error.Message);
+                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
 
@@ -220,11 +247,24 @@ public sealed class EditModel(
             return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus });
         }
 
-        var message = result.Error?.Type switch
+        // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+        if (result.Error?.Categoria == ErrorCategoria.Unauthorized)
         {
-            UnidadOrganizativaErrorType.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
-            UnidadOrganizativaErrorType.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
-            _ => "No se pudo reactivar la unidad organizativa. Intentá nuevamente."
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
+        var categoria = result.Error?.Categoria ?? ErrorCategoria.Unexpected;
+        var message = categoria switch
+        {
+            ErrorCategoria.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
+            ErrorCategoria.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
+            ErrorCategoria.Transport => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
+            _ => MapCategoriaToMessage(categoria)
         };
 
         TempData["StatusMessage"] = message;
@@ -233,6 +273,26 @@ public sealed class EditModel(
         CurrentId = id;
         return Page();
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Verbatim del
+    /// patrón de <see cref="CreateModel.MapCategoriaToMessage"/>; espejado
+    /// para que cada PageModel pueda invocarlo sin pasar por el helper
+    /// de aplicación.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => "La unidad organizativa solicitada no está disponible.",
+        ErrorCategoria.Conflict => "Conflicto al persistir la unidad organizativa.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     private async Task LoadCatalogsAsync(Guid currentId, CancellationToken cancellationToken)
     {

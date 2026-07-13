@@ -1,15 +1,27 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.UnidadesOrganizativas;
 
+/// <summary>
+/// PageModel para la página Create de unidades organizativas.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/>. <c>Unauthorized</c> redirige vía
+/// <see cref="IAuthSessionRedirector"/>.
+/// </para>
+/// </summary>
 [Authorize]
 public sealed class CreateModel(
     IUnidadOrganizativaApiClient unidadOrganizativaApiClient,
+    IAuthSessionRedirector authRedirector,
     ILogger<CreateModel> logger) : PageModel, IUnidadOrganizativaForm
 {
     [BindProperty]
@@ -80,20 +92,55 @@ public sealed class CreateModel(
         // Validation or conflict
         if (result.Error is not null)
         {
+            // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+            if (result.Error.Categoria == ErrorCategoria.Unauthorized)
+            {
+                var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+                if (redirect is not null)
+                {
+                    return redirect;
+                }
+
+                ErrorMessage = PageFeedback.UnauthorizedMessage;
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                await LoadCatalogsAsync(cancellationToken);
+                return Page();
+            }
+
             if (result.FieldErrors is { Count: > 0 })
             {
                 UnidadOrganizativaFormHelpers.ApplyFieldErrorsToModelState(ModelState, result.FieldErrors);
             }
             else
             {
-                ErrorMessage = result.Error.Message;
-                ModelState.AddModelError(string.Empty, result.Error.Message);
+                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
 
         await LoadCatalogsAsync(cancellationToken);
         return Page();
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
+    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
+    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
+    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => "La unidad organizativa solicitada no está disponible.",
+        ErrorCategoria.Conflict => "Conflicto al persistir la unidad organizativa.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     private async Task LoadCatalogsAsync(CancellationToken cancellationToken)
     {
