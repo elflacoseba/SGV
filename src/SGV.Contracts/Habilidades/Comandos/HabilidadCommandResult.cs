@@ -5,6 +5,7 @@ namespace SGV.Contracts.Habilidades.Comandos;
 /// <summary>
 /// Categorizes command-side failures for Habilidad operations.
 /// </summary>
+[Obsolete("Use SGV.Contracts.Comun.ErrorCategoria. Will be removed in the archive of change 2026-07-13.")]
 public enum HabilidadErrorType
 {
     NotFound,

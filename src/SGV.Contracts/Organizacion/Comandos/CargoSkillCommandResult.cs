@@ -23,6 +23,7 @@ namespace SGV.Contracts.Organizacion.Comandos;
 ///   recuperable.</description></item>
 /// </list>
 /// </remarks>
+[Obsolete("Use SGV.Contracts.Comun.ErrorCategoria. Will be removed in the archive of change 2026-07-13.")]
 public enum CargoSkillErrorType
 {
     NotFound,
