@@ -336,9 +336,13 @@ public partial class CargoApiClientTests
         // Para que la Razor Page de PR3b pueda redirigir a login ante una
         // sesión expirada, la rama 401 debe quedar bifurcada con un Code
         // por defecto ("Unauthorized") cuando el backend no entrega un
-        // ProblemDetails parseable. Sin esta rama, el cliente devuelve
-        // Code=null, Message=null y la página no tiene cómo decidir
-        // entre "redirigir a login" y "error genérico".
+        // ProblemDetails parseable.
+        //
+        // Slice 2 (#125): el cliente ya no mantiene un MapSkillError
+        // privado; delega en CommandResultMapper.Map. El default message
+        // 401 del mapper es "Su sesión expiró. Vuelva a iniciar sesión."
+        // (design §5.4 / copy canónica). Tests pre-existentes adaptados a
+        // la nueva copy unificada.
         var cargoId = Guid.NewGuid();
         var skillId = Guid.NewGuid();
         var response = new HttpResponseMessage(HttpStatusCode.Unauthorized)
@@ -352,8 +356,9 @@ public partial class CargoApiClientTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(HttpStatusCode.Unauthorized, result.StatusCode);
+        Assert.Equal(ErrorCategoria.Unauthorized, result.Categoria);
         Assert.Equal("Unauthorized", result.Code);
-        Assert.Equal("Acceso no autorizado.", result.Message);
+        Assert.Equal("Su sesión expiró. Vuelva a iniciar sesión.", result.Message);
     }
 
     [Fact]
@@ -408,11 +413,12 @@ public partial class CargoApiClientTests
     [Fact]
     public async Task DeleteSkillAsync_Http500WithJsonProblem_ReturnsFailureWithTransport()
     {
-        // PR3a review follow-up (R3): 5xx debe traducirse a StatusCode
-        // preservado más Code/Message tipados como "TransportError" cuando
-        // el body no es parseable. Antes del fix, code=message=null;
-        // después, code="TransportError" + message "Servicio no
-        // disponible." (alineado con la rama equivalente de PUT).
+        // PR3a review follow-up (R3) + Slice 2 (#125): 5xx → StatusCode
+        // preservado + Code/Message del CommandResultMapper.Map (default
+        // "TransportError" / "El servicio no respondió correctamente.
+        // Intentá nuevamente." cuando el body no es ProblemDetails
+        // parseable). El cliente delega; ya no bifurca en `MapSkillError`
+        // privado.
         var cargoId = Guid.NewGuid();
         var skillId = Guid.NewGuid();
         var response = new HttpResponseMessage(HttpStatusCode.InternalServerError)
@@ -426,8 +432,9 @@ public partial class CargoApiClientTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
+        Assert.Equal(ErrorCategoria.Transport, result.Categoria);
         Assert.Equal("TransportError", result.Code);
-        Assert.Equal("Servicio no disponible.", result.Message);
+        Assert.Equal("El servicio no respondió correctamente. Intentá nuevamente.", result.Message);
     }
 
     [Fact]
@@ -461,11 +468,9 @@ public partial class CargoApiClientTests
     {
         // AC de cargo-skill-ui-tabla-editable Req 5: errores 5xx deben
         // traducirse en un Failure con StatusCode preservado, sin filtrar
-        // stack traces al usuario. Tras el fix de PR3a R3, el helper
-        // bifurca 5xx al default "TransportError"/"Servicio no disponible."
-        // cuando el body no es parseable; este test sigue asegurando que
-        // no se propaga JsonException sin capturar, ahora con asserts
-        // ajustados al nuevo contrato.
+        // stack traces al usuario. Slice 2 (#125): el mapper común
+        // provee defaults "TransportError" / "El servicio no respondió
+        // correctamente. Intentá nuevamente." — copy canónica del helper.
         var cargoId = Guid.NewGuid();
         var skillId = Guid.NewGuid();
         var response = new HttpResponseMessage(HttpStatusCode.InternalServerError)
@@ -479,8 +484,9 @@ public partial class CargoApiClientTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
+        Assert.Equal(ErrorCategoria.Transport, result.Categoria);
         Assert.Equal("TransportError", result.Code);
-        Assert.Equal("Servicio no disponible.", result.Message);
+        Assert.Equal("El servicio no respondió correctamente. Intentá nuevamente.", result.Message);
     }
 
     [Theory]

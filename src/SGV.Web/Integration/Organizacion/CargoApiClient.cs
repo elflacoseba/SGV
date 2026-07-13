@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Common;
@@ -11,6 +12,17 @@ namespace SGV.Web.Integration.Organizacion;
 /// <summary>
 /// Cliente HTTP que consume los endpoints de cargos de la API.
 /// </summary>
+/// <remarks>
+/// Slice 2 (#125): este cliente ya no mantiene una matriz privada
+/// status→categoría. La rama no exitosa delega en
+/// <see cref="CommandResultMapper.Map"/>, única fuente de verdad del
+/// shell web. Los records de error de dominio (<see cref="CargoError"/>,
+/// <see cref="CargoSkillError"/>) preservan <c>Categoria</c> poblado por
+/// el mapper; los enums legacy (<see cref="CargoErrorType"/>,
+/// <see cref="CargoSkillErrorType"/>) se siguen alimentando vía los
+/// mapeos a-legacy para mantener source-compat durante el ciclo del
+/// change.
+/// </remarks>
 public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 {
     private const string BaseRoute = "/api/v1/cargos";
@@ -22,7 +34,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         var response = await httpClient.GetAsync(BaseRoute, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<IReadOnlyList<CargoDto>>(cancellationToken: cancellationToken)
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<CargoDto>>(cancellationToken)
             ?? [];
     }
 
@@ -51,12 +63,16 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         }
 
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, _, _, _) = CommandResultMapper.Map(response, parsed);
 
         return new CargoDeleteResult(
             false,
             response.StatusCode,
             parsed.Title,
-            parsed.Detail);
+            parsed.Detail)
+        {
+            Categoria = categoria
+        };
     }
 
     /// <inheritdoc />
@@ -66,7 +82,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 
         if (response.IsSuccessStatusCode)
         {
-            var dto = await response.Content.ReadFromJsonAsync<CargoDto>(cancellationToken: cancellationToken);
+            var dto = await response.Content.ReadFromJsonAsync<CargoDto>(cancellationToken);
             return CargoCommandResult.Success(dto!);
         }
 
@@ -80,7 +96,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 
         if (response.IsSuccessStatusCode)
         {
-            var dto = await response.Content.ReadFromJsonAsync<CargoDto>(cancellationToken: cancellationToken);
+            var dto = await response.Content.ReadFromJsonAsync<CargoDto>(cancellationToken);
             return CargoCommandResult.Success(dto!);
         }
 
@@ -93,7 +109,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         var response = await httpClient.GetAsync(NivelesRoute, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<IReadOnlyList<NivelCargoDto>>(cancellationToken: cancellationToken)
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<NivelCargoDto>>(cancellationToken)
             ?? [];
     }
 
@@ -104,7 +120,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         var response = await httpClient.GetAsync(requestUri, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<PagedResult<CargoDto>>(cancellationToken: cancellationToken)
+        return await response.Content.ReadFromJsonAsync<PagedResult<CargoDto>>(cancellationToken)
             ?? new PagedResult<CargoDto>([], 0, query.Page, query.PageSize);
     }
 
@@ -115,7 +131,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 
         if (response.IsSuccessStatusCode)
         {
-            var dto = await response.Content.ReadFromJsonAsync<CargoDto>(cancellationToken: cancellationToken);
+            var dto = await response.Content.ReadFromJsonAsync<CargoDto>(cancellationToken);
             return CargoCommandResult.Success(dto!);
         }
 
@@ -129,9 +145,7 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 
         // 404 → estado vacío recuperable para la grilla editable de PR3b;
         // cualquier otro status que no sea 2xx sigue propagándose como
-        // excepción para que la Razor Page muestre un error recuperable
-        // (alineado con el patrón GetByIdAsync, que devuelve null en 404 y
-        // deja pasar el resto a EnsureSuccessStatusCode).
+        // excepción para que la Razor Page muestre un error recuperable.
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return [];
@@ -155,14 +169,10 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         if (response.IsSuccessStatusCode)
         {
             // PR3a review follow-up (R1): si el backend responde 2xx con body
-            // vacío o con el literal JSON `null`, ReadFromJsonAsync o devuelve
-            // null o tira JsonException. La rama `Success(dto!)` original
-            // propagaba esa anomalía como un "éxito con DTO null" o como un
-            // crash — ninguno de los dos es aceptable para PR3b, que necesita
-            // distinguir "asignación persistida" de "asignación sin payload".
-            // Capturamos ambos casos y devolvemos un Failure tipado
-            // Validation/EmptyBody para que la Razor Page muestre el mensaje
-            // estándar sin filtrar una excepción nativa al usuario.
+            // vacío, ReadFromJsonAsync devuelve null o tira JsonException.
+            // Capturamos ambos y devolvemos un Failure tipado Validation/
+            // EmptyBody para que la Razor Page muestre el mensaje estándar
+            // sin filtrar una excepción nativa al usuario.
             CargoSkillDto? dto;
             try
             {
@@ -181,7 +191,8 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
                     new CargoSkillError(
                         CargoSkillErrorType.Validation,
                         "EmptyBody",
-                        "El servidor respondió 200 sin payload."));
+                        "El servidor respondió 200 sin payload.",
+                        Categoria: ErrorCategoria.Validation));
             }
 
             return CargoSkillCommandResult.Success(dto);
@@ -202,76 +213,24 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
             return new CargoSkillDeleteResult(true, response.StatusCode, null, null);
         }
 
-        // PR3a review follow-up (R3): el helper previo colapsaba 401/403/409/4xx
-        // en un Failure genérico con Code=null/Message=null cuando el body no
-        // traía ProblemDetails parseable. Bifurcamos por status, reutilizando
-        // <see cref="MapSkillError"/> + <see cref="ReadSkillProblemAsync"/>
-        // que comparten la lógica de parseo + try/catch con
-        // <see cref="ToSkillCommandResultAsync"/>. Así la Razor Page de
-        // PR3b puede decidir entre "redirigir a login" (401), "mostrar
-        // Acceso denegado" (403), "mostrar conflicto" (409) o "Servicio no
-        // disponible" (5xx) sin depender de StatusCode parsing manual.
-        var (_, code, message) = MapSkillError(response.StatusCode);
-        var parsed = await ReadSkillProblemAsync(response, (code, message), cancellationToken)
-            .ConfigureAwait(false);
+        // Slice 2 (#125): delega en CommandResultMapper; los antiguos
+        // MapSkillError / ReadSkillProblemAsync se eliminaron porque sus
+        // defaults están ahora centralizados en el mapper.
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, code, message, _) = CommandResultMapper.Map(response, parsed);
+        var legacyType = MapCategoriaToLegacySkillType(categoria);
+
+        var finalCode = string.IsNullOrEmpty(parsed.Title) ? code : parsed.Title;
+        var finalMessage = string.IsNullOrEmpty(parsed.Detail) ? message : parsed.Detail;
 
         return new CargoSkillDeleteResult(
             false,
             response.StatusCode,
-            parsed.Code,
-            parsed.Message);
-    }
-
-    /// <summary>
-    /// Defaults tipados por status para la respuesta de error del subrecurso
-    /// <c>PUT/DELETE /api/v1/cargos/{cargoId}/skills/{skillId}</c>. Cuando el
-    /// backend no entrega un <see cref="ProblemDetails"/> parseable (e.g. un
-    /// 401 con body vacío, un 5xx con HTML), usamos estos valores para
-    /// poblar <c>Code</c>/<c>Message</c> del resultado tipado y, para el
-    /// helper <see cref="ToSkillCommandResultAsync"/>, el
-    /// <see cref="CargoSkillErrorType"/> que la UI necesita. El mapping
-    /// refleja los códigos que efectivamente emite el controller de PR2
-    /// (200/400/401/403/404 para PUT, 204/401/403/404 para DELETE) más un
-    /// fallback 5xx preparado para evoluciones futuras del backend.
-    /// </summary>
-    private static (CargoSkillErrorType Type, string Code, string Message) MapSkillError(HttpStatusCode status) =>
-        status switch
+            finalCode,
+            finalMessage)
         {
-            HttpStatusCode.BadRequest => (CargoSkillErrorType.Validation, "BadRequest", "Solicitud inválida."),
-            HttpStatusCode.NotFound => (CargoSkillErrorType.NotFound, "NotFound", "Recurso no encontrado."),
-            HttpStatusCode.Unauthorized => (CargoSkillErrorType.Unauthorized, "Unauthorized", "Acceso no autorizado."),
-            HttpStatusCode.Forbidden => (CargoSkillErrorType.Forbidden, "Forbidden", "Acceso denegado."),
-            HttpStatusCode.Conflict => (CargoSkillErrorType.Conflict, "Conflict", "Conflicto."),
-            _ when (int)status >= 500 => (CargoSkillErrorType.Transport, "TransportError", "Servicio no disponible."),
-            _ => (CargoSkillErrorType.Validation, "Unexpected", "Respuesta inesperada del servidor.")
+            Categoria = categoria,
         };
-
-    /// <summary>
-    /// Lee el body de una respuesta como <see cref="ProblemDetails"/>,
-    /// absorbiendo <see cref="NotSupportedException"/>,
-    /// <see cref="HttpRequestException"/> y
-    /// <see cref="System.Text.Json.JsonException"/> para no propagar
-    /// excepciones nativas al consumidor del cliente. Si el parseo
-    /// devuelve <c>null</c> (body vacío o literal <c>null</c>), devuelve
-    /// los <paramref name="defaults"/> provistos; si devuelve un
-    /// <see cref="ProblemDetails"/> válido, devuelve <c>Title</c>/<c>Detail</c>
-    /// cuando estén poblados y los <paramref name="defaults"/> cuando
-    /// alguno esté vacío. Es la base compartida por
-    /// <see cref="ToSkillCommandResultAsync"/> y
-    /// <see cref="DeleteSkillAsync"/>.
-    /// </summary>
-    private static async Task<(string Code, string Message)> ReadSkillProblemAsync(
-        HttpResponseMessage response,
-        (string Code, string Message) defaults,
-        CancellationToken cancellationToken)
-    {
-        var parsed = await ApiProblemReader
-            .ReadAsync(response, cancellationToken)
-            .ConfigureAwait(false);
-
-        var code = string.IsNullOrEmpty(parsed.Title) ? defaults.Code : parsed.Title;
-        var message = string.IsNullOrEmpty(parsed.Detail) ? defaults.Message : parsed.Detail;
-        return (code, message);
     }
 
     private static string BuildQueryUri(int page, int pageSize, string? search, string? sort = null, string? status = null)
@@ -302,85 +261,75 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
     private static async Task<CargoCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, code, message, statusCode) = CommandResultMapper.Map(response, parsed);
 
-        if (response.StatusCode == HttpStatusCode.BadRequest)
+        var legacyType = MapCategoriaToLegacyType(categoria);
+        var error = new CargoError(legacyType, code, message, statusCode, categoria);
+
+        if (parsed.FieldErrors is { Count: > 0 })
         {
-            if (parsed.FieldErrors is { Count: > 0 })
-            {
-                return CargoCommandResult.Failure(
-                    new CargoError(CargoErrorType.Validation, parsed.Title ?? "ValidationError", parsed.Detail ?? "Uno o más campos son inválidos."),
-                    parsed.FieldErrors);
-            }
-
-            return CargoCommandResult.Failure(
-                new CargoError(CargoErrorType.Validation, parsed.Title ?? "BadRequest", parsed.Detail ?? "Solicitud inválida."));
+            return CargoCommandResult.Failure(error, parsed.FieldErrors);
         }
 
-        if (response.StatusCode == HttpStatusCode.NotFound)
-        {
-            return CargoCommandResult.Failure(
-                new CargoError(CargoErrorType.NotFound, parsed.Title ?? "NotFound", parsed.Detail ?? "Recurso no encontrado."));
-        }
-
-        if (response.StatusCode == HttpStatusCode.Conflict)
-        {
-            return CargoCommandResult.Failure(
-                new CargoError(CargoErrorType.Conflict, parsed.Title ?? "Conflict", parsed.Detail ?? "Conflicto."));
-        }
-
-        return CargoCommandResult.Failure(
-            new CargoError(CargoErrorType.Validation, "Unexpected", "Respuesta inesperada del servidor."));
+        return CargoCommandResult.Failure(error);
     }
 
     /// <summary>
-    /// Traduce una respuesta no exitosa del subrecurso <c>PUT
-    /// /api/v1/cargos/{cargoId}/skills/{skillId}</c> a un
-    /// <see cref="CargoSkillCommandResult"/>. Para 400 bifurca entre
-    /// <c>ValidationProblemDetails</c> (errores por campo) y
-    /// <c>ProblemDetails</c> (fallo plano) porque sólo ese status puede
-    /// traer <c>FieldErrors</c>. El resto de los códigos
-    /// (404/401/403/409/5xx/fallback) pasan por
-    /// <see cref="ReadSkillProblemAsync"/> + <see cref="MapSkillError"/>,
-    /// helpers compartidos con <see cref="DeleteSkillAsync"/> (R2+R5 del
-    /// review follow-up). Se mantiene deliberadamente separada de
-    /// <see cref="ToCommandResultAsync"/> — el subrecurso sólo emite
-    /// 200/400/401/403/404/409/5xx en la rama de errores; cada código se
-    /// traduce a un <see cref="CargoSkillErrorType"/> específico para que
-    /// la Razor Page de PR3b pueda distinguir entre validación,
-    /// conflicto, falta de autenticación, falta de autorización y errores
-    /// de servidor/transporte sin depender del texto del mensaje.
+    /// Mapea <see cref="ErrorCategoria"/> al <see cref="CargoErrorType"/>
+    /// legacy preservando source-compat: <c>NotFound/Conflict/Validation</c>
+    /// son 1-a-1; el resto (<c>Unauthorized/Forbidden/Transport/Unexpected</c>)
+    /// cae en <see cref="CargoErrorType.Validation"/> (no hay variante
+    /// legacy; se preserva el campo <c>Type</c> no nulo).
+    /// </summary>
+    private static CargoErrorType MapCategoriaToLegacyType(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => CargoErrorType.NotFound,
+        ErrorCategoria.Conflict => CargoErrorType.Conflict,
+        ErrorCategoria.Validation => CargoErrorType.Validation,
+        ErrorCategoria.Unauthorized => CargoErrorType.Validation,
+        ErrorCategoria.Forbidden => CargoErrorType.Validation,
+        ErrorCategoria.Transport => CargoErrorType.Validation,
+        ErrorCategoria.Unexpected => CargoErrorType.Validation
+    };
+
+    /// <summary>
+    /// Mapea <see cref="ErrorCategoria"/> al <see cref="CargoSkillErrorType"/>
+    /// legacy. La relación es 1-a-1 salvo para <see cref="ErrorCategoria.Unexpected"/>
+    /// que no tiene variante legacy y colapsa a <see cref="CargoSkillErrorType.Validation"/>.
+    /// </summary>
+    private static CargoSkillErrorType MapCategoriaToLegacySkillType(ErrorCategoria categoria)
+    {
+        try
+        {
+            return ErrorCategoriaMappers.ToTipoCargoSkill(categoria);
+        }
+        catch (NotSupportedException)
+        {
+            // Unexpected no tiene equivalente en CargoSkillErrorType legacy
+            // (sólo cubre NotFound/Validation/Conflict/Unauthorized/Forbidden/Transport).
+            return CargoSkillErrorType.Validation;
+        }
+    }
+
+    /// <summary>
+    /// Construye un <see cref="CargoSkillCommandResult"/> a partir de una
+    /// respuesta HTTP no exitosa del subrecurso <c>PUT /api/v1/cargos/{cargoId}/skills/{skillId}</c>.
+    /// Para 400 con <c>ValidationProblemDetails</c> conserva los FieldErrors;
+    /// el resto pasa por el mapper común.
     /// </summary>
     private static async Task<CargoSkillCommandResult> ToSkillCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        if (response.StatusCode == HttpStatusCode.BadRequest)
-        {
-            var parsed = await ApiProblemReader
-                .ReadAsync(response, cancellationToken)
-                .ConfigureAwait(false);
-            if (parsed.FieldErrors is { Count: > 0 })
-            {
-                return CargoSkillCommandResult.Failure(
-                    new CargoSkillError(
-                        CargoSkillErrorType.Validation,
-                        parsed.Title ?? "DatosInvalidos",
-                        parsed.Detail ?? "Uno o más campos del vínculo contienen errores de validación."),
-                    parsed.FieldErrors);
-            }
+        var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, code, message, statusCode) = CommandResultMapper.Map(response, parsed);
 
-            return CargoSkillCommandResult.Failure(
-                new CargoSkillError(
-                    CargoSkillErrorType.Validation,
-                    parsed.Title ?? "BadRequest",
-                    parsed.Detail ?? "Solicitud inválida."));
+        var legacyType = MapCategoriaToLegacySkillType(categoria);
+        var error = new CargoSkillError(legacyType, code, message, statusCode, categoria);
+
+        if (parsed.FieldErrors is { Count: > 0 })
+        {
+            return CargoSkillCommandResult.Failure(error, parsed.FieldErrors);
         }
 
-        var defaults = MapSkillError(response.StatusCode);
-        var (code, message) = await ReadSkillProblemAsync(
-            response,
-            (defaults.Code, defaults.Message),
-            cancellationToken).ConfigureAwait(false);
-
-        return CargoSkillCommandResult.Failure(
-            new CargoSkillError(defaults.Type, code, message));
+        return CargoSkillCommandResult.Failure(error);
     }
 }
