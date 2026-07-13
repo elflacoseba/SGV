@@ -102,7 +102,7 @@ public class HabilidadApiClientTests
     }
 
     [Fact]
-    public async Task DeleteAsync_Http500WithNonJsonBody_ReturnsFailedResultWithoutCrashing()
+    public async Task DeleteAsync_Http500WithNonJsonBody_ReturnsTransportDefaultsWithoutCrashing()
     {
         var id = Guid.NewGuid();
         var response = new HttpResponseMessage(HttpStatusCode.InternalServerError)
@@ -115,9 +115,10 @@ public class HabilidadApiClientTests
         var result = await client.DeleteAsync(id);
 
         Assert.False(result.Succeeded);
+        Assert.Equal(ErrorCategoria.Transport, result.Categoria);
         Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
-        Assert.Null(result.Code);
-        Assert.Null(result.Message);
+        Assert.Equal("TransportError", result.Code);
+        Assert.Equal("El servicio no respondió correctamente. Intentá nuevamente.", result.Message);
     }
 
     [Fact]
