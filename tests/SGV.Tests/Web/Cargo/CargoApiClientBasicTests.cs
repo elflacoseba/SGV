@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
@@ -453,5 +454,82 @@ public partial class CargoApiClientTests
             client.QueryAsync(new CargoListQuery(1, 20, null, null, null), new CancellationToken(canceled: true)));
 
         Assert.Null(handler.LastRequest);
+    }
+
+    // ──────────────────────────────────────────────
+    // Slice 2 (#125) — matriz REQ-2 + propagation en CargoApiClient.
+    // ──────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, ErrorCategoria.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCategoria.Forbidden)]
+    [InlineData(HttpStatusCode.RequestTimeout, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.InternalServerError, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.BadGateway, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, ErrorCategoria.Transport)]
+    public async Task CreateAsync_NonSuccessStatus_ReturnsFailureWithCorrectCategoria(
+        HttpStatusCode status, ErrorCategoria expectedCategoria)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = (int)status,
+            Title = $"Err{status}",
+            Detail = $"Detalle del status {status}."
+        };
+        var handler = new RecordingHandler(_ => Json(status, problem));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.CreateAsync(new CrearCargoRequest("C-001", "Analista", Guid.NewGuid()));
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(expectedCategoria, result.Error!.Categoria);
+    }
+
+    [Fact]
+    public async Task CreateAsync_PreCanceledToken_PropagatesOperationCanceledException()
+    {
+        var handler = new RecordingHandler();
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.CreateAsync(
+                new CrearCargoRequest("C-001", "Analista", Guid.NewGuid()),
+                new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task CreateAsync_TransportFails_PropagatesNativeException_NotCategoriaTransport(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.CreateAsync(new CrearCargoRequest("C-001", "Analista", Guid.NewGuid())));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_Http409WithProblemDetails_PopulatesCategoriaConflict()
+    {
+        var problem = new ProblemDetails
+        {
+            Status = 409,
+            Title = "CargoConPuestosActivos",
+            Detail = "El cargo tiene puestos activos"
+        };
+        var id = Guid.NewGuid();
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteAsync(id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal(ErrorCategoria.Conflict, result.Categoria);
     }
 }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
@@ -529,6 +530,75 @@ public partial class CargoApiClientTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             client.DeleteSkillAsync(Guid.NewGuid(), Guid.NewGuid(), new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
+    // ──────────────────────────────────────────────
+    // Slice 2 (#125) — migración CargoSkill al mapper común.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task UpsertSkillAsync_Http403WithNonJsonBody_FallsBackToForbiddenDefaults()
+    {
+        // Sin ProblemDetails parseable, el mapper usa defaults Forbidden / Acceso denegado.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        };
+        var handler = new RecordingHandler(_ => response);
+        var client = new CargoApiClient(NewHttpClient(handler));
+        var request = new AsignarCargoSkillRequest(Guid.NewGuid());
+
+        var result = await client.UpsertSkillAsync(cargoId, skillId, request);
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(ErrorCategoria.Forbidden, result.Error!.Categoria);
+        Assert.Equal(CargoSkillErrorType.Forbidden, result.Error.Type);
+        Assert.Equal("Forbidden", result.Error.Code);
+        Assert.Equal("Acceso denegado.", result.Error.Message);
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task UpsertSkillAsync_TransportFails_PropagatesNativeException_NotCategoriaTransport(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new CargoApiClient(NewHttpClient(handler));
+        var request = new AsignarCargoSkillRequest(Guid.NewGuid());
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.UpsertSkillAsync(Guid.NewGuid(), Guid.NewGuid(), request));
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task DeleteSkillAsync_TransportFails_PropagatesNativeException_NotCategoriaTransport(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.DeleteSkillAsync(Guid.NewGuid(), Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task DeleteSkillAsync_PreCanceledToken_PropagatesOperationCanceledException()
+    {
+        var handler = new RecordingHandler();
+        var client = new CargoApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.DeleteSkillAsync(
+                Guid.NewGuid(), Guid.NewGuid(),
+                new CancellationToken(canceled: true)));
 
         Assert.Null(handler.LastRequest);
     }
