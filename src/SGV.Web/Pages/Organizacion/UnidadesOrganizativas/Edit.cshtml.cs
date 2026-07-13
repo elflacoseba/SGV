@@ -221,7 +221,9 @@ public sealed class EditModel(
             }
             else
             {
-                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ErrorMessage = ErrorCategoryMapper.Map(result.Error.Categoria,
+                    notFoundMessage: "La unidad organizativa solicitada no está disponible.",
+                    conflictMessage: "Conflicto al persistir la unidad organizativa.");
                 ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
@@ -264,7 +266,7 @@ public sealed class EditModel(
             ErrorCategoria.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
             ErrorCategoria.Transport => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
             ErrorCategoria.Unexpected => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
-            _ => MapCategoriaToMessage(categoria)
+            _ => ErrorCategoryMapper.Map(categoria)
         };
 
         TempData["StatusMessage"] = message;
@@ -273,25 +275,6 @@ public sealed class EditModel(
         CurrentId = id;
         return Page();
     }
-
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Verbatim del
-    /// patrón de <see cref="CreateModel.MapCategoriaToMessage"/>; espejado
-    /// para que cada PageModel pueda invocarlo sin pasar por el helper
-    /// de aplicación.
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => "La unidad organizativa solicitada no está disponible.",
-        ErrorCategoria.Conflict => "Conflicto al persistir la unidad organizativa.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
 
     private async Task LoadCatalogsAsync(Guid currentId, CancellationToken cancellationToken)
     {

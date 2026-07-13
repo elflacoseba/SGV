@@ -196,7 +196,9 @@ public sealed class CreateModel(
             else if (!PuestoPostResultMapper.TryMap(result, ModelState))
             {
                 // No FieldErrors y no hay mensaje general: fallback defensivo.
-                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ErrorMessage = ErrorCategoryMapper.Map(result.Error.Categoria,
+                    notFoundMessage: "El puesto solicitado no está disponible.",
+                    conflictMessage: "Conflicto al persistir el puesto.");
                 ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
@@ -204,25 +206,6 @@ public sealed class CreateModel(
         await LoadCatalogsAsync(cancellationToken);
         return Page();
     }
-
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
-    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
-    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
-    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => "El puesto solicitado no está disponible.",
-        ErrorCategoria.Conflict => "Conflicto al persistir el puesto.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
 
     private int ParseReturnPage() =>
         int.TryParse(ReturnPage, out var page) ? Math.Max(1, page) : 1;

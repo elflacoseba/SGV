@@ -7,24 +7,13 @@ using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
-using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
 
 /// <summary>
-/// PageModel de Edit del módulo Puestos (PR 3B). Maneja los cuatro caminos
-/// del POST: <c>Success</c> (PRG a Details), <c>FieldErrors</c> (vía
-/// <see cref="PuestoFormHelpers.ApplyFieldErrorsToModelState"/>),
-/// <c>Conflict</c> (mensaje general recuperable, no hay campo Codigo
-/// editable) y <c>HttpFailure</c> (error general que conserva input + catálogos).
-/// El pre-populate del GET/POST es un workaround para los <c>[Required]</c>
-/// heredados de Create en los campos inmutables (Codigo/UnidadOrganizativaId/
-/// CargoId) que el form de Edit NO renderiza.
-/// <para>
-/// Issue #125 / Slice 3: switch exhaustivo sobre
-/// <see cref="ErrorCategoria"/>. <c>Unauthorized</c> redirige vía
-/// <see cref="IAuthSessionRedirector"/>.
-/// </para>
+/// PageModel de Edit del módulo Puestos. Maneja GET (carga + catálogos) y
+/// POST (pre-populate → validar → ejecutar → PRG / error). La lógica POST
+/// pesada delega a <see cref="PuestoEditPostHandler"/>.
 /// </summary>
 [Authorize]
 public sealed class EditModel(
@@ -32,6 +21,18 @@ public sealed class EditModel(
     IAuthSessionRedirector authRedirector,
     ILogger<EditModel> logger) : PageModel, IPuestoForm
 {
+    // ──────────────────────────────────────────────
+    // Exposed for PuestoEditPostHandler
+    // ──────────────────────────────────────────────
+
+    internal IPuestosApiClient PuestosApiClient => puestosApiClient;
+    internal IAuthSessionRedirector AuthRedirector => authRedirector;
+    internal ILogger<EditModel> Logger => logger;
+
+    // ──────────────────────────────────────────────
+    // Properties
+    // ──────────────────────────────────────────────
+
     [BindProperty]
     public PuestoInputModel Input { get; set; } = new();
 
@@ -41,18 +42,12 @@ public sealed class EditModel(
 
     public IReadOnlyList<PuestoListItemViewModel> PuestoSuperiorOptions { get; private set; } = [];
 
-    public string? ErrorMessage { get; private set; }
+    public string? ErrorMessage { get; internal set; }
 
     public bool IsEdit => true;
 
-    /// <summary>
-    /// Indica si el puesto solicitado no pudo cargarse (404 o error de
-    /// transporte). En ese estado la vista muestra un mensaje
-    /// recuperable y oculta el formulario.
-    /// </summary>
-    public bool IsRecoverable { get; private set; }
+    public bool IsRecoverable { get; internal set; }
 
-    /// <summary>Mensaje de estado (success/warning) que llega vía TempData tras un PRG.</summary>
     public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
 
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
@@ -70,35 +65,14 @@ public sealed class EditModel(
     public string? ReturnStatus { get; set; }
 
     public string ReturnToListUrl => PuestoFormHelpers.BuildReturnToListUrl(
-        Url,
-        ReturnPage,
-        ReturnSearch,
-        ReturnSort,
-        ReturnStatus);
+        Url, ReturnPage, ReturnSearch, ReturnSort, ReturnStatus);
 
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
 
-    private void CaptureReturnContext(
-        string? p, string? search, string? sort, string? returnStatus)
-    {
-        ReturnPage = p ?? string.Empty;
-        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
-        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
-        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? "eliminadas"
-            : string.Empty;
-    }
+    // ──────────────────────────────────────────────
+    // GET
+    // ──────────────────────────────────────────────
 
-    /// <summary>
-    /// GET handler. Si el puesto no existe (<see cref="IPuestosApiClient.GetByIdAsync"/>
-    /// devuelve <c>null</c>) o falla el transporte, marca
-    /// <see cref="IsRecoverable"/> y muestra un mensaje recuperable sin
-    /// renderizar el formulario. Los parámetros <c>p</c>, <c>search</c>,
-    /// <c>sort</c> y <c>returnStatus</c> se preservan para los enlaces de
-    /// retorno (paridad con <c>Puestos/Details</c>, que también bindea
-    /// <c>returnStatus</c>; el helper <c>BuildEditRouteValues</c> del Index
-    /// emite este mismo nombre).
-    /// </summary>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         [FromQuery(Name = "p")] string? p = null,
@@ -108,15 +82,14 @@ public sealed class EditModel(
         CancellationToken cancellationToken = default)
     {
         if (!EsAdministrador)
-        {
-            // Patrón canónico del repo (ver Habilidades.cshtml.cs): Forbid()
-            // delega al cookie scheme, que redirige a AccessDeniedPath
-            // ("/error/403" configurado en Program.cs). Es testeable y
-            // simétrico con el POST handler de este mismo PageModel.
             return Forbid();
-        }
 
-        CaptureReturnContext(p, search, sort, returnStatus);
+        ReturnPage = p ?? string.Empty;
+        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
+        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
+        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? "eliminadas"
+            : string.Empty;
 
         try
         {
@@ -130,10 +103,6 @@ public sealed class EditModel(
                 return Page();
             }
 
-            // Prepopula los tres campos editables; los inmutables quedan en
-            // su valor por defecto (Codigo="", UnidadOrganizativaId=null,
-            // CargoId=null) y NO se renderizan en el HTML porque el partial
-            // _Form.cshtml oculta esos inputs cuando IsEdit=true.
             Input.Nombre = puesto.Nombre;
             Input.Descripcion = puesto.Descripcion;
             Input.PuestoSuperiorId = puesto.PuestoSuperiorId;
@@ -150,14 +119,11 @@ public sealed class EditModel(
         }
     }
 
-    /// <summary>
-    /// POST handler. Maneja los 4 caminos: <c>Success</c> (PRG hard-code a
-    /// <c>/organizacion/puestos/detalles/{id}</c> hasta PR 3C),
-    /// <c>FieldErrors</c> (vía <see cref="PuestoPostResultMapper.TryMap"/>),
-    /// <c>Conflict</c> (mensaje general recuperable) y <c>HttpFailure</c>
-    /// (error general que conserva input + catálogos).
-    /// </summary>
-    public async Task<IActionResult> OnPostAsync(
+    // ──────────────────────────────────────────────
+    // POST — delega al handler extraído
+    // ──────────────────────────────────────────────
+
+    public Task<IActionResult> OnPostAsync(
         Guid id,
         [FromQuery(Name = "p")] string? p = null,
         [FromQuery(Name = "search")] string? search = null,
@@ -166,185 +132,29 @@ public sealed class EditModel(
         CancellationToken cancellationToken = default)
     {
         if (!EsAdministrador)
-        {
-            return Forbid();
-        }
+            return Task.FromResult<IActionResult>(Forbid());
 
-        CaptureReturnContext(p, search, sort, returnStatus);
+        ReturnPage = p ?? string.Empty;
+        ReturnSearch = string.IsNullOrWhiteSpace(search) ? string.Empty : search;
+        ReturnSort = string.IsNullOrWhiteSpace(sort) ? string.Empty : sort;
+        ReturnStatus = string.Equals(returnStatus, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? "eliminadas"
+            : string.Empty;
 
-        // Pre-poblar los campos inmutables (Codigo, UnidadOrganizativaId,
-        // CargoId) desde el DTO antes de validar ModelState. Razón: estos
-        // campos tienen [Required] en PuestoInputModel para que Create los
-        // valide, pero Edit NO los renderiza en el form (decisión locked
-        // #3 — son inmutables en un Puesto existente), por lo que el POST
-        // no los envía y ModelState.IsValid sería false. Recuperarlos del
-        // API preserva el contrato del modelo compartido sin filtrar
-        // inputs del usuario al backend (ActualizarPuestoRequest sólo
-        // recibe los 3 campos editables).
-        try
-        {
-            var current = await puestosApiClient.GetByIdAsync(id, cancellationToken);
-            if (current is null)
-            {
-                IsRecoverable = true;
-                ErrorMessage = "El puesto solicitado no está disponible.";
-                logger.LogWarning("Puesto with Id {PuestoId} was not found during POST.", id);
-                return Page();
-            }
-            Input.Codigo = current.Codigo;
-            Input.UnidadOrganizativaId = current.UnidadOrganizativaId;
-            Input.CargoId = current.CargoId;
-            // Limpia los errores de ModelState que el binder agregó por los
-            // [Required] de los campos inmutables: ya están poblados desde
-            // el DTO y NO vienen del form (el form de Edit no los renderiza).
-            ModelState.Remove(PuestoFormKeys.CodigoKey);
-            ModelState.Remove(PuestoFormKeys.UnidadOrganizativaIdKey);
-            ModelState.Remove(PuestoFormKeys.CargoIdKey);
-        }
-        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
-        {
-            logger.LogError(ex, "Failed to load puesto {Id} during POST prepopulate.", id);
-            ErrorMessage = "No se pudo cargar el puesto. Intentá nuevamente.";
-            // LoadCatalogsAsync arranca con ErrorMessage = null y sólo lo
-            // restaura si alguna llamada falla. Si los catálogos responden
-            // OK, pisa nuestro mensaje; preservamos el valor de pre-populate
-            // y lo re-asignamos si quedó vacío.
-            var preservedError = ErrorMessage;
-            await LoadCatalogsAsync(cancellationToken);
-            if (string.IsNullOrWhiteSpace(ErrorMessage))
-            {
-                ErrorMessage = preservedError;
-            }
-            return Page();
-        }
-
-        if (!ModelState.IsValid)
-        {
-            await LoadCatalogsAsync(cancellationToken);
-            return Page();
-        }
-
-        var request = new ActualizarPuestoRequest(
-            Input.Nombre,
-            string.IsNullOrWhiteSpace(Input.Descripcion) ? null : Input.Descripcion.Trim(),
-            Input.PuestoSuperiorId);
-
-        PuestoCommandResult result;
-        try
-        {
-            result = await puestosApiClient.UpdateAsync(id, request, cancellationToken);
-        }
-        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
-        {
-            // Transport-level failure (network down, timeout, malformed body).
-            // Map to a recoverable error: keep user input, reload the catalog,
-            // re-render the page so the user can retry.
-            logger.LogError(ex, "Puesto update transport failure.");
-            ErrorMessage = PageFeedback.TransportMessage;
-            ModelState.AddModelError(string.Empty, ErrorMessage);
-            await LoadCatalogsAsync(cancellationToken);
-            return Page();
-        }
-
-        if (result.IsSuccess && result.Value is not null)
-        {
-            TempData[nameof(StatusMessage)] = $"El puesto \"{result.Value.Nombre}\" se actualizó correctamente.";
-            TempData[nameof(StatusKind)] = "success";
-
-            // PR 3C — refactor del PRG a Details. Antes la página Details no
-            // existía, por lo que el PRG usaba un hard-code del URL. Ahora que
-            // la página existe (PR 3C), usamos RedirectToPage que resuelve el
-            // URL a través del routing y propaga el contexto de navegación
-            // (p/search/sort/returnStatus) para que el Details pueda mostrar el
-            // link "Volver al listado" preservando el origen.
-            return RedirectToPage("/Organizacion/Puestos/Details", new
-            {
-                id,
-                p,
-                search,
-                sort,
-                returnStatus
-            });
-        }
-
-        if (result.Error is not null)
-        {
-            // Issue #125 / Slice 3: switch exhaustivo sobre ErrorCategoria.
-            if (result.Error.Categoria == ErrorCategoria.Unauthorized)
-            {
-                var redirect = authRedirector.TryRedirectToLogin(Request.Path);
-                if (redirect is not null)
-                {
-                    return redirect;
-                }
-
-                ErrorMessage = PageFeedback.UnauthorizedMessage;
-                ModelState.AddModelError(string.Empty, ErrorMessage);
-                await LoadCatalogsAsync(cancellationToken);
-                return Page();
-            }
-
-            // 409 (CodigoDuplicado / PuestoSuperiorInvalido) → no podemos
-            // mapear a un campo específico porque Codigo no es editable y
-            // PuestoSuperiorInvalido cae bajo la key del campo pero el
-            // contrato backend puede variar. Fallback: mapper que aplica
-            // FieldErrors si los hay, o mensaje general bajo string.Empty.
-            if (!PuestoPostResultMapper.TryMap(result, ModelState))
-            {
-                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
-                ModelState.AddModelError(string.Empty, ErrorMessage);
-            }
-        }
-
-        await LoadCatalogsAsync(cancellationToken);
-        return Page();
+        return PuestoEditPostHandler.HandleAsync(this, id, cancellationToken);
     }
 
-    /// <summary>
-    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Verbatim del
-    /// patrón de <see cref="CreateModel.MapCategoriaToMessage"/>; espejado
-    /// para que cada PageModel pueda invocarlo sin pasar por el helper
-    /// de aplicación.
-    /// </summary>
-    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => "El puesto solicitado no está disponible.",
-        ErrorCategoria.Conflict => "Conflicto al persistir el puesto.",
-        ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
-        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
-        ErrorCategoria.Transport => PageFeedback.TransportMessage,
-        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
-        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            $"Unhandled categoria: {categoria}"),
-    };
+    // ──────────────────────────────────────────────
+    // Internal — reused by PuestoEditPostHandler
+    // ──────────────────────────────────────────────
 
-    /// <summary>
-    /// Carga el catálogo de puestos superiores (único catálogo que Edit
-    /// necesita, ya que <see cref="IPuestoForm.UnidadOrganizativaOptions"/> y
-    /// <see cref="IPuestoForm.CargoOptions"/> no se renderizan en el formulario
-    /// de edición: esos campos son inmutables en un Puesto existente — ver
-    /// <c>docs/decisiones-implementacion.md</c> §"Patrón catálogo vs listado
-    /// — Unidades Organizativas"). Si la carga falla, el catálogo queda vacío y
-    /// el form sigue visible para permitir reintento manual.
-    /// <para>
-    /// <c>internal</c> (no <c>private</c>) para que las pruebas unitarias
-    /// aisladas del PageModel puedan invocarlo sin pasar por el harness web
-    /// (el baseline de autenticación de <see cref="PuestoEditPageTests"/> está
-    /// roto en la rama; <c>InternalsVisibleTo</c> ya está concedido a
-    /// <c>SGV.Tests</c>).
-    /// </para>
-    /// </summary>
     internal async Task LoadCatalogsAsync(CancellationToken cancellationToken)
     {
         ErrorMessage = null;
         var anyFailure = false;
 
-        // Único catálogo que Edit necesita: PuestoSuperiorOptions. UnidadOrganizativaOptions
-        // y CargoOptions se mantienen vacíos porque _Form.cshtml oculta esos selects
-        // cuando IsEdit == true (campos inmutables). Ver
-        // docs/decisiones-implementacion.md §"Patrón catálogo vs listado".
-        var puestosTask = PuestoFormHelpers.LaunchSafeAsync(() => puestosApiClient.GetAllAsync(cancellationToken));
+        var puestosTask = PuestoFormHelpers.LaunchSafeAsync(
+            () => puestosApiClient.GetAllAsync(cancellationToken));
 
         try
         {
@@ -352,17 +162,14 @@ public sealed class EditModel(
         }
         catch
         {
-            // Task.WhenAll throws on the first faulted task. Capturamos
-            // localmente y consolidamos el estado del catálogo por separado
-            // vía Task.Status a continuación.
+            // Consolidated via Task.Status below
         }
 
         if (puestosTask.Status == TaskStatus.RanToCompletion)
         {
-            // Mapea DTO → view model (igual que Create). El puesto actual puede
-            // no aparecer en la lista si no está sembrado en GetAllResult; el
-            // <option selected> del helper asp-for de Razor lo mantiene visible.
-            PuestoSuperiorOptions = puestosTask.Result.Select(PuestoFormHelpers.MapToSuperiorViewModel).ToArray();
+            PuestoSuperiorOptions = puestosTask.Result
+                .Select(PuestoFormHelpers.MapToSuperiorViewModel)
+                .ToArray();
         }
         else
         {
@@ -371,8 +178,6 @@ public sealed class EditModel(
         }
 
         if (anyFailure)
-        {
             ErrorMessage = "No se pudo cargar el catálogo necesario. Intentá nuevamente.";
-        }
     }
 }
