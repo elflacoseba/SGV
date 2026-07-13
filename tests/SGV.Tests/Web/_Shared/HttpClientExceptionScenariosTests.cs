@@ -10,14 +10,21 @@ namespace SGV.Tests.Web._Shared;
 public class HttpClientExceptionScenariosTests
 {
     [Fact]
-    public void TransportExceptionData_HasTwoRows_ForTaskCanceledAndHttpRequest()
+    public void TransportExceptionData_HasThreeRows_ForTaskCanceledHttpRequestAndDns()
     {
+        // Slice 2 (#125) agrega la fila "DnsFailure" para cubrir la
+        // propagación de HttpRequestException con SocketException.NameResolutionFailure.
+        // Si se reduce este número accidentalmente (refactor del helper
+        // que omite la fila DNS), los tests de los 5 clientes fallan —
+        // mantenemos esta pin para blindar el contrato del dataset.
         var rows = HttpClientExceptionScenarios.TransportExceptionData.ToList();
 
-        Assert.Equal(2, rows.Count);
+        Assert.Equal(3, rows.Count);
         var types = rows.Select(row => (Type)row[2]).ToArray();
+        var scenarios = rows.Select(row => (string)row[0]).ToArray();
         Assert.Contains(typeof(TaskCanceledException), types);
         Assert.Contains(typeof(HttpRequestException), types);
+        Assert.Contains("DnsFailure", scenarios);
     }
 
     [Fact]
