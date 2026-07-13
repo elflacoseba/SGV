@@ -22,8 +22,6 @@ namespace SGV.Web.Pages.Organizacion.Puestos;
 [Authorize]
 public sealed class EditModel(
     IPuestosApiClient puestosApiClient,
-    IUnidadOrganizativaApiClient unidadOrganizativaApiClient,
-    ICargoApiClient cargoApiClient,
     ILogger<EditModel> logger) : PageModel, IPuestoForm
 {
     [BindProperty]
@@ -280,56 +278,41 @@ public sealed class EditModel(
     }
 
     /// <summary>
-    /// Carga los tres catálogos en paralelo vía <c>Task.WhenAll</c>.
-    /// Cualquier excepción (sincrónica o asincrónica) de uno o más
-    /// catálogos se registra con <see cref="ErrorMessage"/> y el catálogo
-    /// correspondiente queda vacío. El form sigue visible para permitir
-    /// reintento manual. El helper <see cref="LaunchSafeAsync"/> convierte
-    /// throws sincrónicos en faulted tasks (mismo workaround que Create).
+    /// Carga el catálogo de puestos superiores (único catálogo que Edit
+    /// necesita, ya que <see cref="IPuestoForm.UnidadOrganizativaOptions"/> y
+    /// <see cref="IPuestoForm.CargoOptions"/> no se renderizan en el formulario
+    /// de edición: esos campos son inmutables en un Puesto existente — ver
+    /// <c>docs/decisiones-implementacion.md</c> §"Patrón catálogo vs listado
+    /// — Unidades Organizativas"). Si la carga falla, el catálogo queda vacío y
+    /// el form sigue visible para permitir reintento manual.
+    /// <para>
+    /// <c>internal</c> (no <c>private</c>) para que las pruebas unitarias
+    /// aisladas del PageModel puedan invocarlo sin pasar por el harness web
+    /// (el baseline de autenticación de <see cref="PuestoEditPageTests"/> está
+    /// roto en la rama; <c>InternalsVisibleTo</c> ya está concedido a
+    /// <c>SGV.Tests</c>).
+    /// </para>
     /// </summary>
-    private async Task LoadCatalogsAsync(CancellationToken cancellationToken)
+    internal async Task LoadCatalogsAsync(CancellationToken cancellationToken)
     {
         ErrorMessage = null;
         var anyFailure = false;
 
-        // Las unidades y cargos se cargan aunque sean inmutables en Edit
-        // (paridad con Create: el dropdown de PuestoSuperiorId los referencia
-        // vía CodigoYNombre). Si una falla, los demás siguen disponibles.
-        var unidadesTask = PuestoFormHelpers.LaunchSafeAsync(() => unidadOrganizativaApiClient.QueryAsync(
-            new UnidadOrganizativaListQuery(1, 200, null, null, "activas"),
-            cancellationToken));
-        var cargosTask = PuestoFormHelpers.LaunchSafeAsync(() => cargoApiClient.GetAllAsync(cancellationToken));
+        // Único catálogo que Edit necesita: PuestoSuperiorOptions. UnidadOrganizativaOptions
+        // y CargoOptions se mantienen vacíos porque _Form.cshtml oculta esos selects
+        // cuando IsEdit == true (campos inmutables). Ver
+        // docs/decisiones-implementacion.md §"Patrón catálogo vs listado".
         var puestosTask = PuestoFormHelpers.LaunchSafeAsync(() => puestosApiClient.GetAllAsync(cancellationToken));
 
         try
         {
-            await Task.WhenAll(unidadesTask, cargosTask, puestosTask);
+            await Task.WhenAll(puestosTask);
         }
         catch
         {
             // Task.WhenAll throws on the first faulted task. Capturamos
-            // localmente y consolidamos el estado de cada catálogo por
-            // separado vía Task.Status a continuación.
-        }
-
-        if (unidadesTask.Status == TaskStatus.RanToCompletion)
-        {
-            UnidadOrganizativaOptions = unidadesTask.Result.Items;
-        }
-        else
-        {
-            UnidadOrganizativaOptions = [];
-            anyFailure = true;
-        }
-
-        if (cargosTask.Status == TaskStatus.RanToCompletion)
-        {
-            CargoOptions = cargosTask.Result;
-        }
-        else
-        {
-            CargoOptions = [];
-            anyFailure = true;
+            // localmente y consolidamos el estado del catálogo por separado
+            // vía Task.Status a continuación.
         }
 
         if (puestosTask.Status == TaskStatus.RanToCompletion)
