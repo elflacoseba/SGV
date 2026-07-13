@@ -2,8 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 using RecordingHandler = SGV.Tests.Web._Shared.HttpClientExceptionScenarios.RecordingHandler;
@@ -28,7 +30,12 @@ public class UnidadOrganizativaApiClientTests
     {
         // 500 con body HTML: ni éxito ni un status mapeado (400/404/409).
         // Antes de la corrección esto pasaba por EnsureSuccessStatusCode y
-        // tiraba HttpRequestException. Ahora degrada a un Failure tipado.
+        // tiraba HttpRequestException. Tras Slice 2 (#125) la matriz
+        // REQ-2 sitúa 5xx en Categoria.Transport (no en Unexpected/Validation
+        // como el helper local anterior). El cliente delega en
+        // CommandResultMapper.Map por lo que el fallback message "El
+        // servicio no respondió correctamente. Intentá nuevamente." sustituye
+        // al antiguo "Unexpected" / "Respuesta inesperada del servidor."
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
         {
             Content = new StringContent("<html>boom</html>", Encoding.UTF8, "text/html")
@@ -39,16 +46,16 @@ public class UnidadOrganizativaApiClientTests
 
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
-        Assert.Equal(UnidadOrganizativaErrorType.Validation, result.Error!.Type);
-        Assert.Equal("Unexpected", result.Error.Code);
+        Assert.Equal(ErrorCategoria.Transport, result.Error!.Categoria);
+        Assert.Equal("TransportError", result.Error.Code);
     }
 
     [Fact]
-    public async Task UpdateAsync_UnexpectedStatusWithProblemDetails_PreservesTitleAndDetail()
+    public async Task UpdateAsync_UnauthorizedStatusWithProblemDetails_PreservesTitleAndDetail()
     {
-        // 401 con ProblemDetails: status no mapeado explícitamente, pero el
-        // backend envió title/detail. El fallback debe preservarlos en vez de
-        // perderlos (o de tirar excepción).
+        // Slice 2 (#125): 401 ahora se bifurca como ErrorCategoria.Unauthorized
+        // (era Validation/Unexpected antes del mapper). El backend envió
+        // title/detail ProblemDetails; el cliente preserva ambos verbatim.
         var problem = new ProblemDetails
         {
             Status = 401,
@@ -65,7 +72,7 @@ public class UnidadOrganizativaApiClientTests
 
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
-        Assert.Equal(UnidadOrganizativaErrorType.Validation, result.Error!.Type);
+        Assert.Equal(ErrorCategoria.Unauthorized, result.Error!.Categoria);
         Assert.Equal("NoAutorizado", result.Error.Code);
         Assert.Equal("El token expiró.", result.Error.Message);
     }
@@ -138,4 +145,82 @@ public class UnidadOrganizativaApiClientTests
 
     private static HttpClient NewHttpClient(HttpMessageHandler handler) =>
         new(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
+
+    private static HttpResponseMessage Json<T>(HttpStatusCode status, T payload) =>
+        new(status) { Content = JsonContent.Create(payload) };
+
+    // ──────────────────────────────────────────────
+    // Slice 2 (#125) — matriz REQ-2 + propagation en UnidadOrganizativaApiClient.
+    // ──────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, ErrorCategoria.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCategoria.Forbidden)]
+    [InlineData(HttpStatusCode.RequestTimeout, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.InternalServerError, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.BadGateway, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, ErrorCategoria.Transport)]
+    public async Task CreateAsync_NonSuccessStatus_ReturnsFailureWithCorrectCategoria(
+        HttpStatusCode status, ErrorCategoria expectedCategoria)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = (int)status,
+            Title = $"Err{status}",
+            Detail = $"Detalle del status {status}."
+        };
+        var handler = new RecordingHandler(_ => Json(status, problem));
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        var result = await client.CreateAsync(NewRequest());
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(expectedCategoria, result.Error!.Categoria);
+    }
+
+    [Fact]
+    public async Task CreateAsync_PreCanceledToken_PropagatesOperationCanceledException()
+    {
+        var handler = new RecordingHandler();
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.CreateAsync(NewRequest(), new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task CreateAsync_TransportFails_PropagatesNativeException_NotCategoriaTransport(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.CreateAsync(NewRequest()));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_Http409WithProblemDetails_PopulatesCategoriaConflict()
+    {
+        var problem = new ProblemDetails
+        {
+            Status = 409,
+            Title = "UnidadConDependientes",
+            Detail = "La unidad tiene subunidades activas"
+        };
+        var id = Guid.NewGuid();
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var client = new UnidadOrganizativaApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteAsync(id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal(ErrorCategoria.Conflict, result.Categoria);
+    }
 }

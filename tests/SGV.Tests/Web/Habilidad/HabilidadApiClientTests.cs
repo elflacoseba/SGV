@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
@@ -366,6 +367,124 @@ public class HabilidadApiClientTests
             client.QueryAsync(new HabilidadListQuery(1, 20, null, null, null), new CancellationToken(canceled: true)));
 
         Assert.Null(handler.LastRequest);
+    }
+
+    // ──────────────────────────────────────────────
+    // Slice 2 (#125) — matriz REQ-2 + cancel/timeout/DNS en HabilidadApiClient.
+    // Cada test verifica que el cliente delega en CommandResultMapper.Map
+    // y NO convierte HttpRequestException / TaskCanceledException a
+    // Categoria.Transport (preserva web-apiclient-transport-contract).
+    // ──────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, ErrorCategoria.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCategoria.Forbidden)]
+    [InlineData(HttpStatusCode.RequestTimeout, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.InternalServerError, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.BadGateway, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, ErrorCategoria.Transport)]
+    public async Task CreateAsync_NonSuccessStatus_ReturnsFailureWithCorrectCategoria(
+        HttpStatusCode status, ErrorCategoria expectedCategoria)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = (int)status,
+            Title = $"Err{status}",
+            Detail = $"Detalle del status {status}."
+        };
+        var handler = new RecordingHandler(_ => Json(status, problem));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        var result = await client.CreateAsync(new CrearHabilidadRequest("H-001", "Liderazgo"));
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(expectedCategoria, result.Error!.Categoria);
+    }
+
+    [Fact]
+    public async Task CreateAsync_Http403WithNonJsonBody_FallsBackToForbiddenDefaults()
+    {
+        // Sin ProblemDetails parseable, el mapper usa defaults Forbidden / Acceso denegado.
+        var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        };
+        var handler = new RecordingHandler(_ => response);
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        var result = await client.CreateAsync(new CrearHabilidadRequest("H-001", "Liderazgo"));
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(ErrorCategoria.Forbidden, result.Error!.Categoria);
+        Assert.Equal("Forbidden", result.Error.Code);
+        Assert.Equal("Acceso denegado.", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task CreateAsync_PreCanceledToken_PropagatesOperationCanceledException()
+    {
+        // Cancelación cooperativa: el cliente debe propagar OperationCanceledException
+        // sin convertirla a Categoria.Transport (cumple web-apiclient-transport-contract).
+        var handler = new RecordingHandler();
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.CreateAsync(
+                new CrearHabilidadRequest("H-001", "Liderazgo"),
+                new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task CreateAsync_TransportFails_PropagatesNativeException_NotCategoriaTransport(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        // Slice 2: la excepción nativa (TaskCanceled, HttpRequest o DNS) debe
+        // propagarse, NO convertirse a Categoria.Transport. Esta fila incluye
+        // "DnsFailure" (HttpRequestException con SocketException.HostNotFound).
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.CreateAsync(new CrearHabilidadRequest("H-001", "Liderazgo")));
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task DeleteAsync_TransportFails_PropagatesNativeException_NotCategoriaTransport(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.DeleteAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_Http409WithProblemDetails_PopulatesCategoriaConflict()
+    {
+        var problem = new ProblemDetails
+        {
+            Status = 409,
+            Title = "CodigoDuplicado",
+            Detail = "Ya existe una habilidad activa con ese código."
+        };
+        var id = Guid.NewGuid();
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
+
+        var result = await client.DeleteAsync(id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal(ErrorCategoria.Conflict, result.Categoria);
     }
 
     private static HttpClient NewHttpClient(HttpMessageHandler handler) =>

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 
 namespace SGV.Tests.Web._Shared;
 
@@ -18,10 +19,23 @@ public static class HttpClientExceptionScenarios
     /// Filas parametrizadas para <c>[Theory]</c> con <c>[MemberData]</c>.
     /// Cada fila es <c>[string scenario, Func&lt;Exception&gt; factory, Type expectedExceptionType]</c>.
     /// </summary>
+    /// <remarks>
+    /// La fila <c>DnsFailure</c> representa la única vía de DNS-failure
+    /// observable en el pipeline HTTP: <see cref="HttpRequestException"/>
+    /// envolviendo un <see cref="SocketException"/> con
+    /// <see cref="SocketError.HostNotFound"/> (= <c>NameResolutionFailure</c>
+    /// en targets legacy). Los tests parametrizados de Slice 2 (#125) usan
+    /// esta fila para asserterar que la excepción nativa sigue
+    /// propagándose, no se convierte a <c>CommandResult.Transport</c>
+    /// (cumple <c>web-apiclient-transport-contract</c>).
+    /// </remarks>
     public static IEnumerable<object[]> TransportExceptionData =>
     [
         ["TaskCanceled", () => new TaskCanceledException("Simulated timeout"), typeof(TaskCanceledException)],
-        ["HttpRequest", () => new HttpRequestException("Simulated transport failure"), typeof(HttpRequestException)]
+        ["HttpRequest", () => new HttpRequestException("Simulated transport failure"), typeof(HttpRequestException)],
+        ["DnsFailure", () => new HttpRequestException(
+            "No such host is known",
+            new SocketException((int)SocketError.HostNotFound)), typeof(HttpRequestException)]
     ];
 
     /// <summary>

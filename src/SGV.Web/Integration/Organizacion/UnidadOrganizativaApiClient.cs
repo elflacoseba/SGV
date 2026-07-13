@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Common;
@@ -12,6 +13,16 @@ namespace SGV.Web.Integration.Organizacion;
 /// <summary>
 /// Typed HTTP client for unidades organizativas endpoints.
 /// </summary>
+/// <remarks>
+/// Slice 2 (#125): este cliente ya no mantiene una matriz privada
+/// status→categoría. La rama no exitosa delega en
+/// <see cref="CommandResultMapper.Map"/>; los records de error
+/// (<see cref="UnidadOrganizativaError"/>,
+/// <see cref="UnidadOrganizativaDeleteResult"/>) preservan <c>Categoria</c>
+/// poblado por el mapper. El enum legacy
+/// (<see cref="UnidadOrganizativaErrorType"/>) se sigue alimentando vía
+/// mapeo a-legacy para mantener source-compat durante el ciclo del change.
+/// </remarks>
 public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidadOrganizativaApiClient
 {
     private const string BaseRoute = "/api/v1/unidades-organizativas";
@@ -24,7 +35,7 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
         var response = await httpClient.GetAsync(requestUri, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<PagedResult<UnidadOrganizativaDto>>(cancellationToken: cancellationToken)
+        return await response.Content.ReadFromJsonAsync<PagedResult<UnidadOrganizativaDto>>(cancellationToken)
             ?? new PagedResult<UnidadOrganizativaDto>([], 0, query.Page, query.PageSize);
     }
 
@@ -77,7 +88,7 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
         var response = await httpClient.GetAsync($"{BaseRoute}/arbol", cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>(cancellationToken: cancellationToken)
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>(cancellationToken)
             ?? [];
     }
 
@@ -87,7 +98,7 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
         var response = await httpClient.GetAsync(TiposRoute, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<IReadOnlyList<TipoUnidadOrganizativaDto>>(cancellationToken: cancellationToken)
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<TipoUnidadOrganizativaDto>>(cancellationToken)
             ?? [];
     }
 
@@ -158,54 +169,49 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
         }
 
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, _, _, _) = CommandResultMapper.Map(response, parsed);
 
         return new UnidadOrganizativaDeleteResult(
             false,
             response.StatusCode,
             parsed.Title,
-            parsed.Detail);
+            parsed.Detail)
+        {
+            Categoria = categoria
+        };
     }
 
     private static async Task<UnidadOrganizativaCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, code, message, statusCode) = CommandResultMapper.Map(response, parsed);
 
-        if (response.StatusCode == HttpStatusCode.BadRequest)
+        var legacyType = MapCategoriaToLegacyType(categoria);
+        var error = new UnidadOrganizativaError(legacyType, code, message, statusCode, categoria);
+
+        if (parsed.FieldErrors is { Count: > 0 })
         {
-            if (parsed.FieldErrors is { Count: > 0 })
-            {
-                return UnidadOrganizativaCommandResult.Failure(
-                    new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, parsed.Title ?? "ValidationError", parsed.Detail ?? "One or more fields are invalid."),
-                    parsed.FieldErrors);
-            }
-
-            return UnidadOrganizativaCommandResult.Failure(
-                new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, parsed.Title ?? "BadRequest", parsed.Detail ?? "Invalid request."));
+            return UnidadOrganizativaCommandResult.Failure(error, parsed.FieldErrors);
         }
 
-        if (response.StatusCode == HttpStatusCode.NotFound)
-        {
-            return UnidadOrganizativaCommandResult.Failure(
-                new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, parsed.Title ?? "NotFound", parsed.Detail ?? "Resource not found."));
-        }
-
-        if (response.StatusCode == HttpStatusCode.Conflict)
-        {
-            return UnidadOrganizativaCommandResult.Failure(
-                new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, parsed.Title ?? "Conflict", parsed.Detail ?? "Conflict occurred."));
-        }
-
-        // Cualquier otro status (401/403/5xx/status no mapeado) degrada de
-        // forma elegante a un resultado tipado en vez de propagar una
-        // excepción vía EnsureSuccessStatusCode. Preserva el título/detalle
-        // del ProblemDetails cuando el backend lo envió; si no, usa un
-        // fallback estable que la UI puede mostrar sin romperse.
-        return UnidadOrganizativaCommandResult.Failure(
-            new UnidadOrganizativaError(
-                UnidadOrganizativaErrorType.Validation,
-                parsed.Title ?? "Unexpected",
-                parsed.Detail ?? "Unexpected response status."));
+        return UnidadOrganizativaCommandResult.Failure(error);
     }
+
+    /// <summary>
+    /// Mapea <see cref="ErrorCategoria"/> al <see cref="UnidadOrganizativaErrorType"/>
+    /// legacy preservando source-compat: <c>NotFound/Conflict/Validation</c>
+    /// son 1-a-1; el resto cae en <see cref="UnidadOrganizativaErrorType.Validation"/>.
+    /// </summary>
+    private static UnidadOrganizativaErrorType MapCategoriaToLegacyType(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => UnidadOrganizativaErrorType.NotFound,
+        ErrorCategoria.Conflict => UnidadOrganizativaErrorType.Conflict,
+        ErrorCategoria.Validation => UnidadOrganizativaErrorType.Validation,
+        ErrorCategoria.Unauthorized => UnidadOrganizativaErrorType.Validation,
+        ErrorCategoria.Forbidden => UnidadOrganizativaErrorType.Validation,
+        ErrorCategoria.Transport => UnidadOrganizativaErrorType.Validation,
+        ErrorCategoria.Unexpected => UnidadOrganizativaErrorType.Validation
+    };
 
     private static string BuildQueryUri(int page, int pageSize, string? search, string? status = null)
     {

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Common;
@@ -10,6 +11,15 @@ namespace SGV.Web.Integration.Organizacion;
 /// <summary>
 /// Cliente HTTP que consume los endpoints de puestos de la API.
 /// </summary>
+/// <remarks>
+/// Slice 2 (#125): este cliente ya no mantiene una matriz privada
+/// status→categoría. La rama no exitosa delega en
+/// <see cref="CommandResultMapper.Map"/>; los records de error de
+/// dominio (<see cref="PuestoError"/>, <see cref="PuestoDeleteResult"/>)
+/// preservan <c>Categoria</c> poblado por el mapper. Los enums legacy
+/// (<see cref="PuestoErrorType"/>) se siguen alimentando vía
+/// mapeo a-legacy para mantener source-compat durante el ciclo del change.
+/// </remarks>
 public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
 {
     private const string BaseRoute = "/api/v1/puestos";
@@ -20,7 +30,7 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
         var response = await httpClient.GetAsync(BaseRoute, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<IReadOnlyList<PuestoDto>>(cancellationToken: cancellationToken)
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<PuestoDto>>(cancellationToken)
             ?? [];
     }
 
@@ -45,7 +55,7 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
 
         if (response.IsSuccessStatusCode)
         {
-            var dto = await response.Content.ReadFromJsonAsync<PuestoDto>(cancellationToken: cancellationToken);
+            var dto = await response.Content.ReadFromJsonAsync<PuestoDto>(cancellationToken);
             return PuestoCommandResult.Success(dto!);
         }
 
@@ -59,7 +69,7 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
 
         if (response.IsSuccessStatusCode)
         {
-            var dto = await response.Content.ReadFromJsonAsync<PuestoDto>(cancellationToken: cancellationToken);
+            var dto = await response.Content.ReadFromJsonAsync<PuestoDto>(cancellationToken);
             return PuestoCommandResult.Success(dto!);
         }
 
@@ -77,12 +87,16 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
         }
 
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, _, _, _) = CommandResultMapper.Map(response, parsed);
 
         return new PuestoDeleteResult(
             false,
             response.StatusCode,
             parsed.Title,
-            parsed.Detail);
+            parsed.Detail)
+        {
+            Categoria = categoria
+        };
     }
 
     /// <inheritdoc />
@@ -92,51 +106,43 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
 
         if (response.IsSuccessStatusCode)
         {
-            var dto = await response.Content.ReadFromJsonAsync<PuestoDto>(cancellationToken: cancellationToken);
+            var dto = await response.Content.ReadFromJsonAsync<PuestoDto>(cancellationToken);
             return PuestoCommandResult.Success(dto!);
         }
 
         return await ToCommandResultAsync(response, cancellationToken);
     }
 
-    /// <summary>
-    /// Traduce respuestas no exitosas a <see cref="PuestoCommandResult.Failure(PuestoError)"/>.
-    /// Para 400 bifurca entre <c>ValidationProblemDetails</c> (errores por campo)
-    /// y <c>ProblemDetails</c> plano. 404/409 caen en Failure con Code/Message
-    /// del <c>ProblemDetails</c>. Es el espejo de
-    /// <c>CargoApiClient.ToCommandResultAsync</c>, ajustado al shape del backend
-    /// de Puestos.
-    /// </summary>
     private static async Task<PuestoCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
+        var (categoria, code, message, statusCode) = CommandResultMapper.Map(response, parsed);
 
-        if (response.StatusCode == HttpStatusCode.BadRequest)
+        var legacyType = MapCategoriaToLegacyType(categoria);
+        var error = new PuestoError(legacyType, code, message, statusCode, categoria);
+
+        if (parsed.FieldErrors is { Count: > 0 })
         {
-            if (parsed.FieldErrors is { Count: > 0 })
-            {
-                return PuestoCommandResult.Failure(
-                    new PuestoError(PuestoErrorType.Validation, parsed.Title ?? "DatosInvalidos", parsed.Detail ?? "Uno o más campos son inválidos."),
-                    parsed.FieldErrors);
-            }
-
-            return PuestoCommandResult.Failure(
-                new PuestoError(PuestoErrorType.Validation, parsed.Title ?? "BadRequest", parsed.Detail ?? "Solicitud inválida."));
+            return PuestoCommandResult.Failure(error, parsed.FieldErrors);
         }
 
-        if (response.StatusCode == HttpStatusCode.NotFound)
-        {
-            return PuestoCommandResult.Failure(
-                new PuestoError(PuestoErrorType.NotFound, parsed.Title ?? "PuestoNoEncontrado", parsed.Detail ?? "Recurso no encontrado."));
-        }
-
-        if (response.StatusCode == HttpStatusCode.Conflict)
-        {
-            return PuestoCommandResult.Failure(
-                new PuestoError(PuestoErrorType.Conflict, parsed.Title ?? "Conflict", parsed.Detail ?? "Conflicto."));
-        }
-
-        return PuestoCommandResult.Failure(
-            new PuestoError(PuestoErrorType.Validation, "Unexpected", "Respuesta inesperada del servidor."));
+        return PuestoCommandResult.Failure(error);
     }
+
+    /// <summary>
+    /// Mapea <see cref="ErrorCategoria"/> al <see cref="PuestoErrorType"/>
+    /// legacy preservando source-compat: <c>NotFound/Conflict/Validation</c>
+    /// son 1-a-1; el resto cae en <see cref="PuestoErrorType.Validation"/>
+    /// (no hay variante legacy; se preserva el campo <c>Type</c> no nulo).
+    /// </summary>
+    private static PuestoErrorType MapCategoriaToLegacyType(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => PuestoErrorType.NotFound,
+        ErrorCategoria.Conflict => PuestoErrorType.Conflict,
+        ErrorCategoria.Validation => PuestoErrorType.Validation,
+        ErrorCategoria.Unauthorized => PuestoErrorType.Validation,
+        ErrorCategoria.Forbidden => PuestoErrorType.Validation,
+        ErrorCategoria.Transport => PuestoErrorType.Validation,
+        ErrorCategoria.Unexpected => PuestoErrorType.Validation
+    };
 }
