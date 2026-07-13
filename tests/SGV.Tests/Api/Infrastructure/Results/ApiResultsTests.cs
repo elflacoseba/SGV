@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Infrastructure.Results;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
@@ -202,6 +203,31 @@ public class ApiResultsTests
         Assert.Equal(code, problem.Title);
         Assert.Equal("msg", problem.Detail);
         Assert.Equal($"https://httpstatuses.com/{expectedStatusCode}", problem.Type);
+    }
+
+    [Theory]
+    [InlineData(ErrorCategoria.Validation, StatusCodes.Status400BadRequest)]
+    [InlineData(ErrorCategoria.NotFound, StatusCodes.Status404NotFound)]
+    [InlineData(ErrorCategoria.Conflict, StatusCodes.Status409Conflict)]
+    [InlineData(ErrorCategoria.Unauthorized, StatusCodes.Status401Unauthorized)]
+    [InlineData(ErrorCategoria.Forbidden, StatusCodes.Status403Forbidden)]
+    [InlineData(ErrorCategoria.Transport, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(ErrorCategoria.Unexpected, StatusCodes.Status500InternalServerError)]
+    public void ToProblemResult_ErrorCategoriaMatrix_MapsCategoriaToStatusCode(
+        ErrorCategoria categoria,
+        int expectedStatusCode)
+    {
+        var error = new CargoError(
+            CargoErrorType.Validation,
+            "CategoriaError",
+            "mensaje",
+            Categoria: categoria);
+
+        var objectResult = Assert.IsType<ObjectResult>(ApiResults.ToProblemResult(error));
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+
+        Assert.Equal(expectedStatusCode, objectResult.StatusCode);
+        Assert.Equal(expectedStatusCode, problem.Status);
     }
 
     [Fact]
