@@ -1,4 +1,3 @@
-using System.Reflection;
 using SGV.Dominio.Comun;
 using SGV.Dominio.Habilidades;
 using SGV.Dominio.Ocupaciones;
@@ -181,19 +180,10 @@ internal static class PersistenceToDomainMapper
             entity.Puesto is null ? null : ToDomain(entity.Puesto),
             entity.CreatedAt,
             entity.CreatedByUserId,
-            entity.UpdatedAt,
-            entity.UpdatedByUserId,
-            entity.IsDeleted,
-            entity.DeletedAt,
-            entity.DeletedByUserId);
-    }
-
-    private static void SetProperty<T>(T target, string propertyName, object? value)
-        where T : EntidadBase
-    {
-        var property = typeof(T).GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException($"No se encontró la propiedad '{propertyName}' en {typeof(T).Name}.");
-
-        property.SetValue(target, value);
+entity.UpdatedAt,
+             entity.UpdatedByUserId,
+             entity.IsDeleted,
+             entity.DeletedAt,
+             entity.DeletedByUserId);
     }
 }
