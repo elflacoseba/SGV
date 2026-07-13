@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Auth;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 
@@ -52,6 +53,13 @@ builder.Services.AddAuthorization();
 // [Authorize] guard would reject it.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<ApiBearerTokenHandler>();
+
+// Issue #125 (Slice 3): helper que traduce ErrorCategoria.Unauthorized en
+// una redirección a /auth/sign-in con guard anti open-redirect. Scoped
+// porque depende de IHttpContextAccessor (también scoped). El helper
+// construye el URL destino directamente (no usa IUrlHelperFactory) para
+// no acoplarse al routing context del PageModel que lo invoca.
+builder.Services.AddScoped<IAuthSessionRedirector, AuthSessionRedirector>();
 
 // Singleton: la fábrica sólo construye ClaimsPrincipal + AuthenticationProperties
 // desde opciones y un access token; no carga estado mutable propio. Cada host
