@@ -193,8 +193,7 @@ public sealed class EditModel(
         ErrorCategoria.NotFound => "El recurso solicitado no está disponible.",
         ErrorCategoria.Conflict => "Conflicto al persistir la habilidad.",
         ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
         ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
         ErrorCategoria.Transport => PageFeedback.TransportMessage,
         ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,

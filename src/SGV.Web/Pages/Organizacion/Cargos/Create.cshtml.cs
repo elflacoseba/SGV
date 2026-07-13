@@ -177,8 +177,7 @@ public sealed class CreateModel(
         ErrorCategoria.NotFound => "El cargo solicitado no está disponible.",
         ErrorCategoria.Conflict => "Conflicto al persistir el cargo.",
         ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
         ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
         ErrorCategoria.Transport => PageFeedback.TransportMessage,
         ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,

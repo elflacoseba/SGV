@@ -149,8 +149,7 @@ public sealed class DetailsModel(
         ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
         ErrorCategoria.Conflict => "Conflicto al procesar la operación.",
         ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
         ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
         ErrorCategoria.Transport => PageFeedback.TransportMessage,
         ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,

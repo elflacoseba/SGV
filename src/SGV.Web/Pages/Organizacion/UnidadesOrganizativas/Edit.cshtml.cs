@@ -285,8 +285,7 @@ public sealed class EditModel(
         ErrorCategoria.NotFound => "La unidad organizativa solicitada no está disponible.",
         ErrorCategoria.Conflict => "Conflicto al persistir la unidad organizativa.",
         ErrorCategoria.Validation => "Revisá los datos ingresados.",
-        ErrorCategoria.Unauthorized => throw new System.Runtime.CompilerServices.SwitchExpressionException(
-            "Unauthorized se redirige vía IAuthSessionRedirector antes de mostrar mensaje inline."),
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
         ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
         ErrorCategoria.Transport => PageFeedback.TransportMessage,
         ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
