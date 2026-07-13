@@ -30,7 +30,12 @@ public class UnidadOrganizativaApiClientTests
     {
         // 500 con body HTML: ni éxito ni un status mapeado (400/404/409).
         // Antes de la corrección esto pasaba por EnsureSuccessStatusCode y
-        // tiraba HttpRequestException. Ahora degrada a un Failure tipado.
+        // tiraba HttpRequestException. Tras Slice 2 (#125) la matriz
+        // REQ-2 sitúa 5xx en Categoria.Transport (no en Unexpected/Validation
+        // como el helper local anterior). El cliente delega en
+        // CommandResultMapper.Map por lo que el fallback message "El
+        // servicio no respondió correctamente. Intentá nuevamente." sustituye
+        // al antiguo "Unexpected" / "Respuesta inesperada del servidor."
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
         {
             Content = new StringContent("<html>boom</html>", Encoding.UTF8, "text/html")
@@ -41,16 +46,16 @@ public class UnidadOrganizativaApiClientTests
 
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
-        Assert.Equal(UnidadOrganizativaErrorType.Validation, result.Error!.Type);
-        Assert.Equal("Unexpected", result.Error.Code);
+        Assert.Equal(ErrorCategoria.Transport, result.Error!.Categoria);
+        Assert.Equal("TransportError", result.Error.Code);
     }
 
     [Fact]
-    public async Task UpdateAsync_UnexpectedStatusWithProblemDetails_PreservesTitleAndDetail()
+    public async Task UpdateAsync_UnauthorizedStatusWithProblemDetails_PreservesTitleAndDetail()
     {
-        // 401 con ProblemDetails: status no mapeado explícitamente, pero el
-        // backend envió title/detail. El fallback debe preservarlos en vez de
-        // perderlos (o de tirar excepción).
+        // Slice 2 (#125): 401 ahora se bifurca como ErrorCategoria.Unauthorized
+        // (era Validation/Unexpected antes del mapper). El backend envió
+        // title/detail ProblemDetails; el cliente preserva ambos verbatim.
         var problem = new ProblemDetails
         {
             Status = 401,
@@ -67,7 +72,7 @@ public class UnidadOrganizativaApiClientTests
 
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
-        Assert.Equal(UnidadOrganizativaErrorType.Validation, result.Error!.Type);
+        Assert.Equal(ErrorCategoria.Unauthorized, result.Error!.Categoria);
         Assert.Equal("NoAutorizado", result.Error.Code);
         Assert.Equal("El token expiró.", result.Error.Message);
     }
