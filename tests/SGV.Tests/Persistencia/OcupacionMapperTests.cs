@@ -243,4 +243,84 @@ public sealed class OcupacionMapperTests
 
         Assert.Null(setPropertyCall);
     }
+
+    // ── Reconstitute behavior (issue #124) ───────────────────────
+
+    [Fact]
+    public void Reconstitute_MapsAllFields()
+    {
+        var fechaInicio = new DateOnly(2024, 1, 1);
+        var fechaFin = new DateOnly(2024, 12, 31);
+
+        var dominio = Ocupacion.Reconstitute(
+            id: Guid.NewGuid(),
+            personaId: Guid.NewGuid(),
+            puestoId: Guid.NewGuid(),
+            fechaInicio: fechaInicio,
+            fechaFin: fechaFin,
+            tipoAsignacion: TipoAsignacion.Permanente,
+            observaciones: "Obs",
+            persona: null,
+            puesto: null,
+            DateTime.UtcNow, null, null, null, false, null, null);
+
+        Assert.Equal(fechaInicio, dominio.FechaInicio);
+        Assert.Equal(fechaFin, dominio.FechaFin);
+        Assert.Equal(TipoAsignacion.Permanente, dominio.TipoAsignacion);
+        Assert.Equal("Obs", dominio.Observaciones);
+        Assert.False(dominio.EsVigente);
+    }
+
+    [Fact]
+    public void Reconstitute_FechaFinBeforeFechaInicio_Lanza()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            Ocupacion.Reconstitute(
+                id: Guid.NewGuid(),
+                personaId: Guid.NewGuid(),
+                puestoId: Guid.NewGuid(),
+                fechaInicio: new DateOnly(2024, 6, 1),
+                fechaFin: new DateOnly(2024, 1, 1),
+                tipoAsignacion: TipoAsignacion.Interina,
+                observaciones: null,
+                persona: null,
+                puesto: null,
+                DateTime.UtcNow, null, null, null, false, null, null));
+    }
+
+    [Fact]
+    public void Reconstitute_EsVigenteTrueSinFechaFin()
+    {
+        var dominio = Ocupacion.Reconstitute(
+            id: Guid.NewGuid(),
+            personaId: Guid.NewGuid(),
+            puestoId: Guid.NewGuid(),
+            fechaInicio: new DateOnly(2024, 1, 1),
+            fechaFin: null,
+            tipoAsignacion: TipoAsignacion.Permanente,
+            observaciones: null,
+            persona: null,
+            puesto: null,
+            DateTime.UtcNow, null, null, null, false, null, null);
+
+        Assert.True(dominio.EsVigente);
+    }
+
+    [Fact]
+    public void Reconstitute_EsVigenteFalseConFechaFin()
+    {
+        var dominio = Ocupacion.Reconstitute(
+            id: Guid.NewGuid(),
+            personaId: Guid.NewGuid(),
+            puestoId: Guid.NewGuid(),
+            fechaInicio: new DateOnly(2024, 1, 1),
+            fechaFin: new DateOnly(2024, 12, 31),
+            tipoAsignacion: TipoAsignacion.Permanente,
+            observaciones: null,
+            persona: null,
+            puesto: null,
+            DateTime.UtcNow, null, null, null, false, null, null);
+
+        Assert.False(dominio.EsVigente);
+    }
 }

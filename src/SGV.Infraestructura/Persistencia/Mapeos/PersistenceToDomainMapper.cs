@@ -192,29 +192,23 @@ internal static class PersistenceToDomainMapper
 
     public static Ocupacion ToDomain(OcupacionEntity entity)
     {
-        var ocupacion = new Ocupacion(entity.PersonaId, entity.PuestoId, entity.FechaInicio, entity.TipoAsignacion, entity.FechaFin, entity.Observaciones)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        if (entity.Persona is not null)
-        {
-            SetProperty(ocupacion, nameof(Ocupacion.Persona), ToDomain(entity.Persona));
-        }
-
-        if (entity.Puesto is not null)
-        {
-            SetProperty(ocupacion, nameof(Ocupacion.Puesto), ToDomain(entity.Puesto));
-        }
-
-        return ocupacion;
+        return Ocupacion.Reconstitute(
+            entity.Id,
+            entity.PersonaId,
+            entity.PuestoId,
+            entity.FechaInicio,
+            entity.FechaFin,
+            entity.TipoAsignacion,
+            entity.Observaciones,
+            entity.Persona is null ? null : ToDomain(entity.Persona),
+            entity.Puesto is null ? null : ToDomain(entity.Puesto),
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     private static void SetProperty<T>(T target, string propertyName, object? value)

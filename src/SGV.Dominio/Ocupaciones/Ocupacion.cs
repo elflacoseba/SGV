@@ -132,4 +132,64 @@ public sealed record class Ocupacion : EntidadAuditable
         DeletedAt = null;
         DeletedByUserId = null;
     }
+
+    /// <summary>
+    /// Factory de hidratación desde la capa de persistencia. Replica la
+    /// validación temporal del constructor primario (<paramref name="fechaFin"/>
+    /// no puede ser anterior a <paramref name="fechaInicio"/>) y asigna todos
+    /// los campos persistibles con setters tipados para evitar el path de
+    /// reflexión que <c>PersistenceToDomainMapper.SetProperty</c> implementaba.
+    /// </summary>
+    /// <remarks>
+    /// Orden canónico: id + audit + <c>IsDeleted</c> primero, luego los datos
+    /// primarios (incluyendo <c>FechaFin</c>), y por último las nav properties.
+    /// Esto garantiza que <see cref="EsVigente"/> (<c>FechaFin is null &amp;&amp; !IsDeleted</c>)
+    /// quede correctamente calculado tras la reconstitución.
+    /// </remarks>
+    internal static Ocupacion Reconstitute(
+        Guid id,
+        Guid personaId,
+        Guid puestoId,
+        DateOnly fechaInicio,
+        DateOnly? fechaFin,
+        TipoAsignacion tipoAsignacion,
+        string? observaciones,
+        Persona? persona,
+        Puesto? puesto,
+        DateTime createdAt,
+        string? createdByUserId,
+        DateTime? updatedAt,
+        string? updatedByUserId,
+        bool isDeleted,
+        DateTime? deletedAt,
+        string? deletedByUserId)
+    {
+        if (fechaFin.HasValue && fechaFin.Value < fechaInicio)
+        {
+            throw new InvalidOperationException("La fecha de fin no puede ser anterior a la fecha de inicio.");
+        }
+
+        var self = new Ocupacion
+        {
+            Id = id,
+            CreatedAt = createdAt,
+            CreatedByUserId = createdByUserId,
+            UpdatedAt = updatedAt,
+            UpdatedByUserId = updatedByUserId,
+            IsDeleted = isDeleted,
+            DeletedAt = deletedAt,
+            DeletedByUserId = deletedByUserId
+        };
+
+        self.PersonaId = personaId;
+        self.PuestoId = puestoId;
+        self.FechaInicio = fechaInicio;
+        self.FechaFin = fechaFin;
+        self.TipoAsignacion = tipoAsignacion;
+        self.Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 1000);
+        self.Persona = persona!;
+        self.Puesto = puesto!;
+
+        return self;
+    }
 }
