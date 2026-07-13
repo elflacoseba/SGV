@@ -136,6 +136,7 @@ public class CommandResultMapperTests
     public void Map_Status422_WithoutFieldErrors_ReturnsValidation()
     {
         // 422 sin errores de campo también cae en Validation (mismo que 400).
+        // El status code numérico se preserva verbatim para diagnóstico.
         var response = BuildResponse((HttpStatusCode)422, title: null, detail: null);
         var parsed = new ApiProblemReader.Result(
             (HttpStatusCode)422, Title: null, Detail: null, FieldErrors: null);
@@ -144,9 +145,7 @@ public class CommandResultMapperTests
 
         Assert.Equal(ErrorCategoria.Validation, categoria);
         Assert.Equal("BadRequest", code);
-        Assert.Equal(400, status);
-        // Message or category-specific text; any non-null Message is acceptable
-        // per design §2.3 (Unprocessable Entity still = Validation).
+        Assert.Equal(422, status);
         Assert.False(string.IsNullOrWhiteSpace(message));
     }
 
