@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web._Shared;
@@ -401,4 +402,102 @@ public class PuestosApiClientTests
 
     private static HttpResponseMessage Json<T>(HttpStatusCode status, T payload) =>
         new(status) { Content = JsonContent.Create(payload) };
+
+    // ──────────────────────────────────────────────
+    // Slice 2 (#125) — matriz REQ-2 + propagation en PuestosApiClient.
+    // ──────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, ErrorCategoria.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden, ErrorCategoria.Forbidden)]
+    [InlineData(HttpStatusCode.RequestTimeout, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.InternalServerError, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.BadGateway, ErrorCategoria.Transport)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, ErrorCategoria.Transport)]
+    public async Task CreateAsync_NonSuccessStatus_ReturnsFailureWithCorrectCategoria(
+        HttpStatusCode status, ErrorCategoria expectedCategoria)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = (int)status,
+            Title = $"Err{status}",
+            Detail = $"Detalle del status {status}."
+        };
+        var handler = new RecordingHandler(_ => Json(status, problem));
+        var client = new PuestosApiClient(NewHttpClient(handler));
+
+        var result = await client.CreateAsync(new CrearPuestoRequest("P-001", "Analista", Guid.NewGuid(), Guid.NewGuid()));
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(expectedCategoria, result.Error!.Categoria);
+    }
+
+    [Fact]
+    public async Task CreateAsync_Http401WithNonJsonBody_FallsBackToUnauthorizedDefaults()
+    {
+        // Sin ProblemDetails parseable, el mapper usa defaults
+        // "Unauthorized" / "Su sesión expiró. Vuelva a iniciar sesión.".
+        var response = new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            Content = new StringContent("not-json", System.Text.Encoding.UTF8, "text/plain")
+        };
+        var handler = new RecordingHandler(_ => response);
+        var client = new PuestosApiClient(NewHttpClient(handler));
+
+        var result = await client.CreateAsync(new CrearPuestoRequest("P-001", "Analista", Guid.NewGuid(), Guid.NewGuid()));
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
+        Assert.Equal(ErrorCategoria.Unauthorized, result.Error!.Categoria);
+        Assert.Equal("Unauthorized", result.Error.Code);
+        Assert.Equal("Su sesión expiró. Vuelva a iniciar sesión.", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task CreateAsync_PreCanceledToken_PropagatesOperationCanceledException()
+    {
+        var handler = new RecordingHandler();
+        var client = new PuestosApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.CreateAsync(
+                new CrearPuestoRequest("P-001", "Analista", Guid.NewGuid(), Guid.NewGuid()),
+                new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task CreateAsync_TransportFails_PropagatesNativeException_NotCategoriaTransport(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new PuestosApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.CreateAsync(new CrearPuestoRequest("P-001", "Analista", Guid.NewGuid(), Guid.NewGuid())));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_Http409WithProblemDetails_PopulatesCategoriaConflict()
+    {
+        var problem = new ProblemDetails
+        {
+            Status = 409,
+            Title = "PuestoConDependientes",
+            Detail = "El puesto tiene puestos dependientes"
+        };
+        var id = Guid.NewGuid();
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
+        var client = new PuestosApiClient(NewHttpClient(handler));
+
+        var result = await client.DeleteAsync(id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal(ErrorCategoria.Conflict, result.Categoria);
+    }
 }
