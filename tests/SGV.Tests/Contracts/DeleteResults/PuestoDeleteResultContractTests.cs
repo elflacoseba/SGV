@@ -1,6 +1,7 @@
 using System.Net;
 using System.Reflection;
 using SGV.Contracts.Comun;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -66,24 +67,19 @@ public sealed class PuestoDeleteResultContractTests
     }
 
     [Fact]
-    public void Record_SucceededFalse_CategoriaPobladaSegunStatus()
+    public async Task Record_SucceededFalse_CategoriaPobladaSegunStatus()
     {
-        var conflict = new PuestoDeleteResult(
-            Succeeded: false,
-            StatusCode: HttpStatusCode.Conflict,
-            Code: "PuestoConflicto",
-            Message: "El puesto no puede eliminarse",
-            Categoria: ErrorCategoria.Conflict);
+        var handler = HttpClientExceptionScenarios.NewRecordingHandler(
+            _ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost") };
+        var client = new PuestosApiClient(httpClient);
 
-        Assert.Equal(ErrorCategoria.Conflict, conflict.Categoria);
+        var result = await client.DeleteAsync(Guid.NewGuid());
 
-        var notFound = new PuestoDeleteResult(
-            Succeeded: false,
-            StatusCode: HttpStatusCode.NotFound,
-            Code: "PuestoNoExiste",
-            Message: "El puesto no existe",
-            Categoria: ErrorCategoria.NotFound);
-
-        Assert.Equal(ErrorCategoria.NotFound, notFound.Categoria);
+        Assert.False(result.Succeeded);
+        Assert.Equal(ErrorCategoria.Transport, result.Categoria);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, result.StatusCode);
+        Assert.Equal("TransportError", result.Code);
+        Assert.Equal("El servicio no respondió correctamente. Intentá nuevamente.", result.Message);
     }
 }

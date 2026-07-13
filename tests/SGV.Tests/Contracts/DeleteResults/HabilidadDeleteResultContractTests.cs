@@ -1,6 +1,7 @@
 using System.Net;
 using System.Reflection;
 using SGV.Contracts.Comun;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Habilidades;
 using Xunit;
 
@@ -61,27 +62,21 @@ public sealed class HabilidadDeleteResultContractTests
     }
 
     [Fact]
-    public void Record_SucceededFalse_CategoriaPobladaSegunStatus()
+    public async Task Record_SucceededFalse_CategoriaPobladaSegunStatus()
     {
-        var conflictResult = new HabilidadDeleteResult(
-            Succeeded: false,
-            StatusCode: HttpStatusCode.Conflict,
-            Code: "HabilidadEnUso",
-            Message: "La habilidad está en uso",
-            Categoria: ErrorCategoria.Conflict);
+        var handler = HttpClientExceptionScenarios.NewRecordingHandler(
+            _ => new HttpResponseMessage(HttpStatusCode.Conflict));
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost") };
+        var client = new HabilidadApiClient(
+            httpClient,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<HabilidadApiClient>.Instance);
 
-        Assert.False(conflictResult.Succeeded);
-        Assert.Equal(ErrorCategoria.Conflict, conflictResult.Categoria);
-        Assert.Equal(HttpStatusCode.Conflict, conflictResult.StatusCode);
+        var result = await client.DeleteAsync(Guid.NewGuid());
 
-        var transportResult = new HabilidadDeleteResult(
-            Succeeded: false,
-            StatusCode: HttpStatusCode.BadGateway,
-            Code: "TransportError",
-            Message: "Servicio no disponible",
-            Categoria: ErrorCategoria.Transport);
-
-        Assert.Equal(ErrorCategoria.Transport, transportResult.Categoria);
-        Assert.Equal(HttpStatusCode.BadGateway, transportResult.StatusCode);
+        Assert.False(result.Succeeded);
+        Assert.Equal(ErrorCategoria.Conflict, result.Categoria);
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Equal("Conflict", result.Code);
+        Assert.Equal("Conflicto.", result.Message);
     }
 }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Reflection;
 using SGV.Contracts.Comun;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -52,24 +53,19 @@ public sealed class UnidadOrganizativaDeleteResultContractTests
     }
 
     [Fact]
-    public void Record_SucceededFalse_CategoriaPobladaSegunStatus()
+    public async Task Record_SucceededFalse_CategoriaPobladaSegunStatus()
     {
-        var conflict = new UnidadOrganizativaDeleteResult(
-            Succeeded: false,
-            StatusCode: HttpStatusCode.Conflict,
-            Code: "UoTieneHijos",
-            Message: "La unidad tiene hijos activos",
-            Categoria: ErrorCategoria.Conflict);
+        var handler = HttpClientExceptionScenarios.NewRecordingHandler(
+            _ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost") };
+        var client = new UnidadOrganizativaApiClient(httpClient);
 
-        Assert.Equal(ErrorCategoria.Conflict, conflict.Categoria);
+        var result = await client.DeleteAsync(Guid.NewGuid());
 
-        var unauthorized = new UnidadOrganizativaDeleteResult(
-            Succeeded: false,
-            StatusCode: HttpStatusCode.Unauthorized,
-            Code: "Unauthorized",
-            Message: "sesión expirada",
-            Categoria: ErrorCategoria.Unauthorized);
-
-        Assert.Equal(ErrorCategoria.Unauthorized, unauthorized.Categoria);
+        Assert.False(result.Succeeded);
+        Assert.Equal(ErrorCategoria.Unauthorized, result.Categoria);
+        Assert.Equal(HttpStatusCode.Unauthorized, result.StatusCode);
+        Assert.Equal("Unauthorized", result.Code);
+        Assert.Equal("Su sesión expiró. Vuelva a iniciar sesión.", result.Message);
     }
 }

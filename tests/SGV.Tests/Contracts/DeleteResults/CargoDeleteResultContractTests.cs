@@ -1,6 +1,7 @@
 using System.Net;
 using System.Reflection;
 using SGV.Contracts.Comun;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 
@@ -52,24 +53,19 @@ public sealed class CargoDeleteResultContractTests
     }
 
     [Fact]
-    public void Record_SucceededFalse_CategoriaPobladaSegunStatus()
+    public async Task Record_SucceededFalse_CategoriaPobladaSegunStatus()
     {
-        var notFound = new CargoDeleteResult(
-            Succeeded: false,
-            StatusCode: HttpStatusCode.NotFound,
-            Code: "CargoNoExiste",
-            Message: "El cargo no existe",
-            Categoria: ErrorCategoria.NotFound);
+        var handler = HttpClientExceptionScenarios.NewRecordingHandler(
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://localhost") };
+        var client = new CargoApiClient(httpClient);
 
-        Assert.Equal(ErrorCategoria.NotFound, notFound.Categoria);
+        var result = await client.DeleteAsync(Guid.NewGuid());
 
-        var unexpected = new CargoDeleteResult(
-            Succeeded: false,
-            StatusCode: HttpStatusCode.InternalServerError,
-            Code: "Unexpected",
-            Message: "Error inesperado",
-            Categoria: ErrorCategoria.Unexpected);
-
-        Assert.Equal(ErrorCategoria.Unexpected, unexpected.Categoria);
+        Assert.False(result.Succeeded);
+        Assert.Equal(ErrorCategoria.NotFound, result.Categoria);
+        Assert.Equal(HttpStatusCode.NotFound, result.StatusCode);
+        Assert.Equal("NotFound", result.Code);
+        Assert.Equal("Recurso no encontrado.", result.Message);
     }
 }
