@@ -525,7 +525,7 @@ dotnet test SGV.slnx                                                            
 
 ## Fase 4 — Slice 4: `ApiResults.MapCategoria` exhaustivo + tests DeleteResultContract
 
-### T-4.1 — RED `ApiResultsTests` [Theory] exhaustivo por `ErrorCategoria`
+### [x] T-4.1 — RED `ApiResultsTests` [Theory] exhaustivo por `ErrorCategoria`
 - **Slice**: 4
 - **Files**: `tests/SGV.Tests/Api/Infrastructure/Results/ApiResultsTests.cs` (mod).
 - **RED**: `[Theory]` parametrizada contra `Enum.GetValues<ErrorCategoria>()` con 7 InlineData (uno por variante). Cada fila assertea:
@@ -545,7 +545,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 50 ± 5 LoC tests.
 - **Commit guidance**: 1 commit `test(api): add ApiResults exhaustive [Theory] over seven ErrorCategoria variants`.
 
-### T-4.2 — GREEN agregar `MapCategoria` a `ApiResults` + refactor `Map*Status`
+### [x] T-4.2 — GREEN agregar `MapCategoria` a `ApiResults` + refactor `Map*Status`
 - **Slice**: 4
 - **Files**: `src/SGV.Api/Infrastructure/Results/ApiResults.cs` (mod).
 - **RED**: —
@@ -560,7 +560,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 50 ± 10 LoC producción (1 helper nuevo + 9 refactors de mapeo).
 - **Commit guidance**: 1 commit `refactor(api): centralize ApiResults status mapping via MapCategoria helper`.
 
-### T-4.3 — RED `DeleteResultContractTests` para 4 DeleteResults adicionales
+### [x] T-4.3 — RED `DeleteResultContractTests` para 4 DeleteResults adicionales
 - **Slice**: 4
 - **Files**: `tests/SGV.Tests/Contracts/DeleteResults/HabilidadDeleteResultContractTests.cs` (new); `tests/SGV.Tests/Contracts/DeleteResults/CargoDeleteResultContractTests.cs` (new); `tests/SGV.Tests/Contracts/DeleteResults/PuestoDeleteResultContractTests.cs` (new); `tests/SGV.Tests/Contracts/DeleteResults/UnidadOrganizativaDeleteResultContractTests.cs` (new).
 - **RED**: Cada archivo tiene 4 tests:
@@ -575,7 +575,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 110 ± 10 LoC tests (4 archivos × ~28 LoC cada uno).
 - **Commit guidance**: 1 commit `test(contracts): add DeleteResultContractTests for four remaining DeleteResults`.
 
-### T-4.4 — GREEN verificar que los 5 clientes HTTP popular `Categoria` en `*DeleteResult`
+### [x] T-4.4 — GREEN verificar que los 5 clientes HTTP popular `Categoria` en `*DeleteResult`
 - **Slice**: 4
 - **Files**: `src/SGV.Web/Integration/Habilidades/HabilidadApiClient.cs` (mod — `DeleteAsync`); `src/SGV.Web/Integration/Organizacion/CargoApiClient.cs` (mod — `DeleteAsync`, `DeleteSkillAsync`); `src/SGV.Web/Integration/Organizacion/PuestosApiClient.cs` (mod — `DeleteAsync`); `src/SGV.Web/Integration/Organizacion/UnidadOrganizativaApiClient.cs` (mod — `DeleteAsync`).
 - **RED**: —
@@ -587,7 +587,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 50 ± 10 LoC producción.
 - **Commit guidance**: 1 commit `refactor(web): populate Categoria on DeleteResult via CommandResultMapper across five clients`.
 
-### T-4.5 — GREEN popular `Categoria` en `SGV.Aplicacion/*ServicioComandos`
+### [x] T-4.5 — GREEN popular `Categoria` en `SGV.Aplicacion/*ServicioComandos`
 - **Slice**: 4
 - **Files**: `src/SGV.Aplicacion/Organizacion/Comandos/CargoServicioComandos.cs` (mod — 16 sitios); `src/SGV.Aplicacion/Habilidades/Comandos/HabilidadServicioComandos.cs` (mod); `src/SGV.Aplicacion/Organizacion/Comandos/PuestoServicioComandos.cs` (mod); `src/SGV.Aplicacion/Organizacion/Comandos/UnidadOrganizativaServicioComandos.cs` (mod); `src/SGV.Aplicacion/Organizacion/Comandos/CargoSkillServicio.cs` (mod); `src/SGV.Aplicacion/Seguridad/Usuarios/UsuarioServicioComandos.cs` (mod — 2 sitios).
 - **RED**: —
@@ -599,7 +599,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 60 ± 15 LoC producción (cambio mecánico en ~30 sitios).
 - **Commit guidance**: 1 commit `feat(aplicacion): populate Categoria on every Error construction in service commands`.
 
-### T-4.6 — GREEN documentar bloqueo de `[Obsolete]` removal
+### [x] T-4.6 — GREEN documentar bloqueo de `[Obsolete]` removal
 - **Slice**: 4
 - **Files**: `openspec/changes/2026-07-13-taxonomia-errores-commandresult/tasks.md` (este archivo, mod — nota explícita); code review checklist.
 - **RED**: —
