@@ -141,17 +141,18 @@ public sealed class UnidadOrganizativaRepositoryTests
 
             var codigoOriginal = unidad!.Codigo;
 
-            // PR1 compatibility: Actualizar retorna una nueva instancia via `with`.
-            // El test verifica que el Codigo PERSISTIDO es el ORIGINAL, no el que
-            // se intento setear, porque Actualizar no acepta codigo como parametro.
-            var actualizada = unidad.Actualizar(
+            // Issue #124: Actualizar ahora devuelve void y muta la misma
+            // instancia via private set. El test verifica que el Codigo
+            // PERSISTIDO es el ORIGINAL, no el que se intento setear, porque
+            // Actualizar no acepta codigo como parametro.
+            unidad.Actualizar(
                 "Nombre actualizado",
                 "Actualizado",
                 TipoUnidadOrganizativaConstantes.DireccionId,
                 null,
                 null,
                 null);
-            await repo.UpdateAsync(actualizada, default);
+            await repo.UpdateAsync(unidad, default);
             await context.SaveChangesAsync();
 
             var updated = await context.Set<UnidadOrganizativaEntity>()

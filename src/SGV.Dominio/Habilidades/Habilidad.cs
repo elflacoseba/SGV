@@ -73,4 +73,63 @@ public sealed record class Habilidad : EntidadAuditable
     {
         IsActive = true;
     }
+
+    /// <summary>
+    /// Factory de hidratación desde la capa de persistencia. Replica las
+    /// invariantes de shape del constructor primario y asigna todos los campos
+    /// persistibles (incluyendo audit + <see cref="IsActive"/>) con setters
+    /// tipados para evitar el path de reflexión que
+    /// <c>PersistenceToDomainMapper.SetProperty</c> implementaba. Sólo accesible
+    /// desde <c>SGV.Infraestructura</c> y <c>SGV.Tests</c>.
+    /// </summary>
+    /// <param name="id">Identificador persistido.</param>
+    /// <param name="codigo">Código único, requerido, máx. <see cref="HabilidadRules.CodigoMaxLength"/>.</param>
+    /// <param name="nombre">Nombre requerido, máx. 200 caracteres.</param>
+    /// <param name="categoria">Categoría opcional, máx. 100 caracteres.</param>
+    /// <param name="descripcion">Descripción opcional, máx. 1000 caracteres.</param>
+    /// <param name="isActive">Flag activo persistido.</param>
+    /// <param name="createdAt">Marca de auditoría de creación.</param>
+    /// <param name="createdByUserId">Usuario creador (nullable).</param>
+    /// <param name="updatedAt">Marca de auditoría de última edición.</param>
+    /// <param name="updatedByUserId">Usuario de última edición (nullable).</param>
+    /// <param name="isDeleted">Flag de soft delete.</param>
+    /// <param name="deletedAt">Marca de auditoría de borrado lógico.</param>
+    /// <param name="deletedByUserId">Usuario de borrado lógico (nullable).</param>
+    internal static Habilidad Reconstitute(
+        Guid id,
+        string codigo,
+        string nombre,
+        string? categoria,
+        string? descripcion,
+        bool isActive,
+        DateTime createdAt,
+        string? createdByUserId,
+        DateTime? updatedAt,
+        string? updatedByUserId,
+        bool isDeleted,
+        DateTime? deletedAt,
+        string? deletedByUserId)
+    {
+        var self = new Habilidad
+        {
+            Id = id,
+            CreatedAt = createdAt,
+            CreatedByUserId = createdByUserId,
+            UpdatedAt = updatedAt,
+            UpdatedByUserId = updatedByUserId,
+            IsDeleted = isDeleted,
+            DeletedAt = deletedAt,
+            DeletedByUserId = deletedByUserId
+        };
+
+        // Aplicamos las mismas reglas de shape que CambiarDatos, evitando
+        // reasignar después de la construcción del record.
+        self.Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), HabilidadRules.CodigoMaxLength);
+        self.Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
+        self.Categoria = ValidacionesDominio.Opcional(categoria, nameof(Categoria), 100);
+        self.Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
+        self.IsActive = isActive;
+
+        return self;
+    }
 }

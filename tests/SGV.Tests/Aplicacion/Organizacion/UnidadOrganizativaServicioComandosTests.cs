@@ -375,12 +375,12 @@ public sealed class UnidadOrganizativaServicioComandosTests
         {
             Id = PadreId
         };
-        padre = padre.Desactivar(); // padre inactivo
+        padre.Desactivar(); // padre inactivo
         var hijo = new UnidadOrganizativa("HIJO", "Hijo", TipoUnidadOrganizativaConstantes.FacultadId, null, PadreId)
         {
             Id = HijoId
         };
-        hijo = hijo.Desactivar(); // hijo también inactivo
+        hijo.Desactivar(); // hijo también inactivo
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
@@ -405,7 +405,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         {
             Id = HijoId
         };
-        hijo = hijo.Desactivar();
+        hijo.Desactivar();
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
@@ -444,7 +444,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var uow = new FakeUnitOfWork();
         var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
         var padre = CrearUnidadActiva("PADRE", PadreId);
-        padre = padre.DefinirVigencia(new DateOnly(2025, 1, 1), new DateOnly(2025, 6, 30));
+        padre.DefinirVigencia(new DateOnly(2025, 1, 1), new DateOnly(2025, 6, 30));
         repo.Datos.Add(padre);
         // Hija vigente DESPUÉS del rango del padre
         var request = new CrearUnidadOrganizativaRequest(

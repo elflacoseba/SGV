@@ -97,4 +97,62 @@ public sealed record class Puesto : EntidadAuditable
     {
         IsActive = true;
     }
+
+    /// <summary>
+    /// Factory de hidratación desde la capa de persistencia. Replica las
+    /// invariantes de shape del constructor primario vía
+    /// <see cref="ValidacionesDominio"/> y reusa <see cref="CambiarPuestoSuperior"/>
+    /// para validar la invariante <c>puestoSuperiorId != Id</c>.
+    /// </summary>
+    internal static Puesto Reconstitute(
+        Guid id,
+        Guid unidadOrganizativaId,
+        Guid cargoId,
+        Guid? puestoSuperiorId,
+        string codigo,
+        string nombre,
+        string? descripcion,
+        bool isActive,
+        UnidadOrganizativa? unidadOrganizativa,
+        Cargo? cargo,
+        DateTime createdAt,
+        string? createdByUserId,
+        DateTime? updatedAt,
+        string? updatedByUserId,
+        bool isDeleted,
+        DateTime? deletedAt,
+        string? deletedByUserId)
+    {
+        if (unidadOrganizativaId == Guid.Empty)
+            throw new ArgumentException("La unidad organizativa es obligatoria.", nameof(UnidadOrganizativaId));
+        if (cargoId == Guid.Empty)
+            throw new ArgumentException("El cargo es obligatorio.", nameof(CargoId));
+
+        var self = new Puesto
+        {
+            Id = id,
+            CreatedAt = createdAt,
+            CreatedByUserId = createdByUserId,
+            UpdatedAt = updatedAt,
+            UpdatedByUserId = updatedByUserId,
+            IsDeleted = isDeleted,
+            DeletedAt = deletedAt,
+            DeletedByUserId = deletedByUserId
+        };
+
+        self.UnidadOrganizativaId = unidadOrganizativaId;
+        self.CargoId = cargoId;
+        self.Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), 50);
+        self.Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
+        self.Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
+        // CambiarPuestoSuperior valida la invariante Id != puestoSuperiorId
+        // y setea PuestoSuperiorId. La lanzamos contra la instancia recién
+        // creada, no contra el ctor primario, para evitar duplicar asignaciones.
+        self.CambiarPuestoSuperior(puestoSuperiorId);
+        self.IsActive = isActive;
+        self.UnidadOrganizativa = unidadOrganizativa!;
+        self.Cargo = cargo!;
+
+        return self;
+    }
 }

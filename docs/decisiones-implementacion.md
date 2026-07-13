@@ -87,6 +87,34 @@ openssl rand -base64 48
 
 **Reactivación** — `ReactivarAsync` es el único flujo que sigue validando conflicto por código activo. La validación se hace contra `unidad.Codigo` (el código persistido en el record cargado), **no** contra un valor enviado por el cliente, porque el cliente nunca envía código en update. El índice único computado `ActiveCodigoUnique` (`CASE WHEN IsDeleted = 0 THEN Codigo ELSE NULL END`) en `UnidadOrganizativaConfiguracion` sigue siendo la red de seguridad a nivel DB.
 
+### Generalización post #124 — `Reconstitute(...)` en las 6 entidades principales
+
+Tras el change **#124** (archivado en `openspec/changes/archive/2026-07-13-fix-124-persistence-mapper-reconstitute/`), la estrategia `Reconstitute(...)` dejó de ser una excepción para `UnidadOrganizativa` y se extendió como **patrón único** a las 6 entidades principales que el mapper reconstituye desde persistencia:
+
+| Entidad | `Reconstitute(...)` | Migración adicional |
+|---|---|---|
+| `Cargo` | `src/SGV.Dominio/Organizacion/Cargo.cs` | — |
+| `Habilidad` | `src/SGV.Dominio/Habilidades/Habilidad.cs` | — |
+| `Puesto` | `src/SGV.Dominio/Organizacion/Puesto.cs` | reusa `CambiarPuestoSuperior` para invariante `Id != puestoSuperiorId` |
+| `Persona` | `src/SGV.Dominio/Personas/Persona.cs` | acepta `telefono` / `tipoDocumento` / `numeroDocumento` explícitos |
+| `Ocupacion` | `src/SGV.Dominio/Ocupaciones/Ocupacion.cs` | replica validación `FechaFin >= FechaInicio` del ctor primario |
+| `UnidadOrganizativa` | `src/SGV.Dominio/Organizacion/UnidadOrganizativa.cs` | migrada de `init` + `with`-returning a `private set` + `void`-return mutators para paridad total |
+
+**Consecuencias del cambio:**
+
+1. **`UnidadOrganizativa` pierde la asimetría `init`-only / `with`-returning** que documentaban los puntos (1) y (3) anteriores. Sus propiedades (`Codigo`, `Nombre`, `TipoUnidadOrganizativaId`, `Descripcion`, `UnidadPadreId`, `VigenteDesde`, `VigenteHasta`) ahora son `private set` (no `init`). Sus mutadores (`Actualizar`, `DefinirVigencia`, `CambiarUnidadPadre`, `Activar`, `Desactivar`) retornan `void` y mutan `this` (no devuelven nueva instancia vía `with`). El test `Codigo_EsInmutableTrasCreacion` se reformuló para chequear **"setter NO público"** (sigue garantizando que `Codigo` solo se asigna dentro de la entidad), no el modifier `IsExternalInit`.
+2. **`PersistenceToDomainMapper.cs` ya no usa `PropertyInfo.SetValue` ni `SetProperty<T>`**. Los 12 call sites anteriores (`SetProperty(cargo, "IsActive", ...)` etc.) fueron reemplazados por invocación directa de cada factory `X.Reconstitute(...)`. El helper `SetProperty<T>` (`PersistenceToDomainMapper.cs:225-232` pre-#124) y la directiva `using System.Reflection;` están eliminados.
+3. **Asimetría con `Cargo` desaparece**: el punto (1) original aclaraba que `Puesto` (no `UnidadOrganizativa`) mantiene `private set`. Tras #124, **las 6 entidades comparten el mismo shape** (`internal Reconstitute` + `private set` + `void`-return mutators). El equipo ya no necesita recordar la excepción de UO.
+
+**Defensa contra reintroducción de reflexión:** la suite incluye **6 tests IL estructurales** (1 por entidad, replicando el patrón de `UnidadOrganizativaRepositoryTests.cs:984-1045`) que recorren el cuerpo IL de cada `ToDomain(TEntity)` y fallan si alguien re-introduce el helper `SetProperty<T>` o cualquier llamada a `PropertyInfo.SetValue`. El de `UnidadOrganizativa` ya existía pre-#124; los otros 5 (`Cargo`, `Habilidad`, `Puesto`, `Persona`, `Ocupacion`) son nuevos.
+
+**`InternalsVisibleTo`** — el factory `Reconstitute(...)` es `internal static`, por lo que `SGV.Dominio.csproj` declara:
+
+- `<InternalsVisibleTo("SGV.Tests") />` — para que los tests IL y de comportamiento puedan invocar el factory directamente.
+- `<InternalsVisibleTo("SGV.Infraestructura") />` — para que `PersistenceToDomainMapper` pueda invocar el factory. **`InternalsVisibleTo` no es transitivo** entre assemblies de Clean Architecture, así que Infraestructura necesita su propia visibilidad explícita.
+
+> **Detalle completo** (firmas exactas, orden canónico de asignaciones, lista de consumers UO actualizados, evidencia de TDD): ver `openspec/changes/archive/2026-07-13-fix-124-persistence-mapper-reconstitute/archive-report.md` y `design.md §2`.
+
 ## Patrón catálogo vs listado — Unidades Organizativas
 
 `SGV.Web` distingue dos contratos de consumo del API de unidades organizativas según el caso de uso del lado web. Mezclarlos produce los bugs clásicos de la issue #120: catálogos truncados, round-trips sin consumidor y round-trips con `pageSize` mágico.

@@ -1,4 +1,3 @@
-using System.Reflection;
 using SGV.Dominio.Comun;
 using SGV.Dominio.Habilidades;
 using SGV.Dominio.Ocupaciones;
@@ -16,26 +15,21 @@ internal static class PersistenceToDomainMapper
 {
     public static Cargo ToDomain(CargoEntity entity)
     {
-        var cargo = new Cargo(entity.Codigo, entity.Nombre, entity.NivelId, entity.Descripcion)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        SetProperty(cargo, nameof(Cargo.IsActive), entity.IsActive);
-
-        if (entity.NivelCargo is not null)
-        {
-            SetProperty(cargo, nameof(Cargo.NivelCargo), ToDomain(entity.NivelCargo));
-        }
-
-        return cargo;
+        return Cargo.Reconstitute(
+            entity.Id,
+            entity.Codigo,
+            entity.Nombre,
+            entity.NivelId,
+            entity.Descripcion,
+            entity.IsActive,
+            entity.NivelCargo is null ? null : ToDomain(entity.NivelCargo),
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static NivelCargo ToDomain(NivelCargoEntity entity)
@@ -49,92 +43,70 @@ internal static class PersistenceToDomainMapper
 
     public static Habilidad ToDomain(HabilidadEntity entity)
     {
-        var habilidad = new Habilidad(entity.Codigo, entity.Nombre, entity.Categoria, entity.Descripcion)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        SetProperty(habilidad, nameof(Habilidad.IsActive), entity.IsActive);
-        return habilidad;
+        return Habilidad.Reconstitute(
+            entity.Id,
+            entity.Codigo,
+            entity.Nombre,
+            entity.Categoria,
+            entity.Descripcion,
+            entity.IsActive,
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static UnidadOrganizativa ToDomain(UnidadOrganizativaEntity entity)
     {
-        // PR2: persistencia de la inmutabilidad del record. `Codigo` solo se
-        // asigna en el constructor primario. Toda mutacion posterior se hace
-        // con `with` para que las propiedades `init`-only de UnidadOrganizativa
-        // se respeten sin recurrir a `SetProperty` + `BindingFlags.NonPublic`
-        // (que evitarian el chequeo del modifier `IsExternalInit` en runtime).
-        var unidad = new UnidadOrganizativa(
+        // Issue #124: la hidratación se hace vía Reconstitute en lugar de `with`,
+        // para mantener un único patrón con las otras 5 entidades y eliminar la
+        // dependencia del record `init` (las propiedades de UO migraron a
+        // `private set` para paridad). `Codigo` sigue asignándose solo en el
+        // constructor (o en el factory Reconstitute, que es interno).
+        return UnidadOrganizativa.Reconstitute(
+            entity.Id,
             entity.Codigo,
             entity.Nombre,
             entity.TipoUnidadOrganizativaId,
             entity.Descripcion,
-            entity.UnidadPadreId)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        if (entity.UnidadPadre is not null)
-        {
-            unidad = unidad with { UnidadPadre = ToDomain(entity.UnidadPadre) };
-        }
-
-        if (entity.TipoUnidadOrganizativa is not null)
-        {
-            unidad = unidad with { TipoUnidadOrganizativa = ToDomain(entity.TipoUnidadOrganizativa) };
-        }
-
-        // DefinirVigencia valida el rango (lanza si VigenteHasta < VigenteDesde)
-        // y devuelve una nueva instancia via `with`. Encadenamos otro `with`
-        // para fijar IsActive segun el flag persistido (puede ser false en
-        // soft-delete) sin salir del contrato del record.
-        return unidad.DefinirVigencia(entity.VigenteDesde, entity.VigenteHasta)
-            with { IsActive = entity.IsActive };
+            entity.UnidadPadreId,
+            entity.VigenteDesde,
+            entity.VigenteHasta,
+            entity.IsActive,
+            entity.UnidadPadre is null ? null : ToDomain(entity.UnidadPadre),
+            entity.TipoUnidadOrganizativa is null ? null : ToDomain(entity.TipoUnidadOrganizativa),
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static Puesto ToDomain(PuestoEntity entity)
     {
-        var puesto = new Puesto(entity.UnidadOrganizativaId, entity.CargoId, entity.Codigo, entity.Nombre, entity.PuestoSuperiorId)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        puesto.CambiarDatos(entity.Codigo, entity.Nombre, entity.Descripcion);
-        SetProperty(puesto, nameof(Puesto.IsActive), entity.IsActive);
-
-        if (entity.UnidadOrganizativa is not null)
-        {
-            SetProperty(puesto, nameof(Puesto.UnidadOrganizativa), ToDomain(entity.UnidadOrganizativa));
-        }
-
-        if (entity.Cargo is not null)
-        {
-            SetProperty(puesto, nameof(Puesto.Cargo), ToDomain(entity.Cargo));
-        }
-
-        return puesto;
+        return Puesto.Reconstitute(
+            entity.Id,
+            entity.UnidadOrganizativaId,
+            entity.CargoId,
+            entity.PuestoSuperiorId,
+            entity.Codigo,
+            entity.Nombre,
+            entity.Descripcion,
+            entity.IsActive,
+            entity.UnidadOrganizativa is null ? null : ToDomain(entity.UnidadOrganizativa),
+            entity.Cargo is null ? null : ToDomain(entity.Cargo),
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static TipoUnidadOrganizativa ToDomain(TipoUnidadOrganizativaEntity entity)
@@ -175,59 +147,43 @@ internal static class PersistenceToDomainMapper
 
     public static Persona ToDomain(PersonaEntity entity)
     {
-        var persona = new Persona(entity.Nombres, entity.Apellidos, entity.Legajo, entity.Email)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        SetProperty(persona, nameof(Persona.IsActive), entity.IsActive);
-        SetProperty(persona, nameof(Persona.Telefono), entity.Telefono);
-        SetProperty(persona, nameof(Persona.TipoDocumento), entity.TipoDocumento);
-        SetProperty(persona, nameof(Persona.NumeroDocumento), entity.NumeroDocumento);
-
-        return persona;
+        return Persona.Reconstitute(
+            entity.Id,
+            entity.Nombres,
+            entity.Apellidos,
+            entity.Legajo,
+            entity.Email,
+            entity.TipoDocumento,
+            entity.NumeroDocumento,
+            entity.Telefono,
+            entity.IsActive,
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
     }
 
     public static Ocupacion ToDomain(OcupacionEntity entity)
     {
-        var ocupacion = new Ocupacion(entity.PersonaId, entity.PuestoId, entity.FechaInicio, entity.TipoAsignacion, entity.FechaFin, entity.Observaciones)
-        {
-            Id = entity.Id,
-            CreatedAt = entity.CreatedAt,
-            CreatedByUserId = entity.CreatedByUserId,
-            UpdatedAt = entity.UpdatedAt,
-            UpdatedByUserId = entity.UpdatedByUserId,
-            IsDeleted = entity.IsDeleted,
-            DeletedAt = entity.DeletedAt,
-            DeletedByUserId = entity.DeletedByUserId
-        };
-
-        if (entity.Persona is not null)
-        {
-            SetProperty(ocupacion, nameof(Ocupacion.Persona), ToDomain(entity.Persona));
-        }
-
-        if (entity.Puesto is not null)
-        {
-            SetProperty(ocupacion, nameof(Ocupacion.Puesto), ToDomain(entity.Puesto));
-        }
-
-        return ocupacion;
-    }
-
-    private static void SetProperty<T>(T target, string propertyName, object? value)
-        where T : EntidadBase
-    {
-        var property = typeof(T).GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException($"No se encontró la propiedad '{propertyName}' en {typeof(T).Name}.");
-
-        property.SetValue(target, value);
+        return Ocupacion.Reconstitute(
+            entity.Id,
+            entity.PersonaId,
+            entity.PuestoId,
+            entity.FechaInicio,
+            entity.FechaFin,
+            entity.TipoAsignacion,
+            entity.Observaciones,
+            entity.Persona is null ? null : ToDomain(entity.Persona),
+            entity.Puesto is null ? null : ToDomain(entity.Puesto),
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+entity.UpdatedAt,
+             entity.UpdatedByUserId,
+             entity.IsDeleted,
+             entity.DeletedAt,
+             entity.DeletedByUserId);
     }
 }

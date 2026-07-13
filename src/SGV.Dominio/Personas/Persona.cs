@@ -82,4 +82,55 @@ public sealed record class Persona : EntidadAuditable
         _habilidades.Add(personaHabilidad);
         return personaHabilidad;
     }
+
+    /// <summary>
+    /// Factory de hidratación desde la capa de persistencia. Acepta los tres
+    /// campos de documento (<see cref="TipoDocumento"/>, <see cref="NumeroDocumento"/>
+    /// y <see cref="Telefono"/>) como parámetros explícitos para que el mapper
+    /// no necesite setter externo: los asigna vía <c>private set</c> en el
+    /// orden canónico. No toca las colecciones internas
+    /// <c>_habilidades</c>/<c>_ocupaciones</c> — esas se hidratan por los
+    /// repositorios a través de los métodos de negocio.
+    /// </summary>
+    internal static Persona Reconstitute(
+        Guid id,
+        string nombres,
+        string apellidos,
+        string? legajo,
+        string? email,
+        string? tipoDocumento,
+        string? numeroDocumento,
+        string? telefono,
+        bool isActive,
+        DateTime createdAt,
+        string? createdByUserId,
+        DateTime? updatedAt,
+        string? updatedByUserId,
+        bool isDeleted,
+        DateTime? deletedAt,
+        string? deletedByUserId)
+    {
+        var self = new Persona
+        {
+            Id = id,
+            CreatedAt = createdAt,
+            CreatedByUserId = createdByUserId,
+            UpdatedAt = updatedAt,
+            UpdatedByUserId = updatedByUserId,
+            IsDeleted = isDeleted,
+            DeletedAt = deletedAt,
+            DeletedByUserId = deletedByUserId
+        };
+
+        self.Nombres = ValidacionesDominio.Requerido(nombres, nameof(Nombres), 100);
+        self.Apellidos = ValidacionesDominio.Requerido(apellidos, nameof(Apellidos), 100);
+        self.Legajo = ValidacionesDominio.Opcional(legajo, nameof(Legajo), 50);
+        self.Email = ValidacionesDominio.Opcional(email, nameof(Email), 320);
+        self.TipoDocumento = ValidacionesDominio.Opcional(tipoDocumento, nameof(TipoDocumento), 50);
+        self.NumeroDocumento = ValidacionesDominio.Opcional(numeroDocumento, nameof(NumeroDocumento), 50);
+        self.Telefono = ValidacionesDominio.Opcional(telefono, nameof(Telefono), 50);
+        self.IsActive = isActive;
+
+        return self;
+    }
 }

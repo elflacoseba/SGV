@@ -1,6 +1,8 @@
+using System.Reflection;
 using SGV.Dominio.Ocupaciones;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
+using SGV.Infraestructura.Persistencia.Repositorios;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -188,5 +190,137 @@ public sealed class OcupacionMapperTests
         DomainToPersistenceMapper.UpdateEntity(entity, domain);
 
         Assert.Equal(new DateOnly(2024, 12, 31), entity.FechaFin);
+    }
+
+    // ── Mapper reflection guard (issue #124) ─────────────────────
+
+    [Fact]
+    public void ToDomain_Ocupacion_NoLlamaSetPropertyReflectionHelper()
+    {
+        var assembly = typeof(OcupacionRepository).Assembly;
+        var mapperType = assembly.GetType(
+            "SGV.Infraestructura.Persistencia.Mapeos.PersistenceToDomainMapper",
+            throwOnError: true)!;
+        var method = mapperType.GetMethod(
+            "ToDomain",
+            new[] { typeof(OcupacionEntity) })
+            ?? throw new InvalidOperationException(
+                "PersistenceToDomainMapper.ToDomain(OcupacionEntity) not found.");
+        var methodBody = method.GetMethodBody()
+            ?? throw new InvalidOperationException(
+                "ToDomain has no IL body (abstract/extern?).");
+        var il = methodBody.GetILAsByteArray()
+            ?? throw new InvalidOperationException(
+                "ToDomain IL body returned no bytes.");
+        var module = method.Module;
+
+        MethodInfo? setPropertyCall = null;
+        for (var i = 0; i < il.Length; i++)
+        {
+            if ((il[i] != 0x28 && il[i] != 0x6F) || i + 4 >= il.Length)
+            {
+                continue;
+            }
+
+            var token = BitConverter.ToInt32(il, i + 1);
+            try
+            {
+                if (module.ResolveMethod(token) is MethodInfo called
+                    && called.Name == "SetProperty"
+                    && called.DeclaringType == mapperType)
+                {
+                    setPropertyCall = called;
+                    break;
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Token may resolve to a field reference rather than a method.
+            }
+
+            i += 4;
+        }
+
+        Assert.Null(setPropertyCall);
+    }
+
+    // ── Reconstitute behavior (issue #124) ───────────────────────
+
+    [Fact]
+    public void Reconstitute_MapsAllFields()
+    {
+        var fechaInicio = new DateOnly(2024, 1, 1);
+        var fechaFin = new DateOnly(2024, 12, 31);
+
+        var dominio = Ocupacion.Reconstitute(
+            id: Guid.NewGuid(),
+            personaId: Guid.NewGuid(),
+            puestoId: Guid.NewGuid(),
+            fechaInicio: fechaInicio,
+            fechaFin: fechaFin,
+            tipoAsignacion: TipoAsignacion.Permanente,
+            observaciones: "Obs",
+            persona: null,
+            puesto: null,
+            DateTime.UtcNow, null, null, null, false, null, null);
+
+        Assert.Equal(fechaInicio, dominio.FechaInicio);
+        Assert.Equal(fechaFin, dominio.FechaFin);
+        Assert.Equal(TipoAsignacion.Permanente, dominio.TipoAsignacion);
+        Assert.Equal("Obs", dominio.Observaciones);
+        Assert.False(dominio.EsVigente);
+    }
+
+    [Fact]
+    public void Reconstitute_FechaFinBeforeFechaInicio_Lanza()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            Ocupacion.Reconstitute(
+                id: Guid.NewGuid(),
+                personaId: Guid.NewGuid(),
+                puestoId: Guid.NewGuid(),
+                fechaInicio: new DateOnly(2024, 6, 1),
+                fechaFin: new DateOnly(2024, 1, 1),
+                tipoAsignacion: TipoAsignacion.Interina,
+                observaciones: null,
+                persona: null,
+                puesto: null,
+                DateTime.UtcNow, null, null, null, false, null, null));
+    }
+
+    [Fact]
+    public void Reconstitute_EsVigenteTrueSinFechaFin()
+    {
+        var dominio = Ocupacion.Reconstitute(
+            id: Guid.NewGuid(),
+            personaId: Guid.NewGuid(),
+            puestoId: Guid.NewGuid(),
+            fechaInicio: new DateOnly(2024, 1, 1),
+            fechaFin: null,
+            tipoAsignacion: TipoAsignacion.Permanente,
+            observaciones: null,
+            persona: null,
+            puesto: null,
+            DateTime.UtcNow, null, null, null, false, null, null);
+
+        Assert.True(dominio.EsVigente);
+    }
+
+    [Fact]
+    public void Reconstitute_EsVigenteFalseConFechaFin()
+    {
+        var dominio = Ocupacion.Reconstitute(
+            id: Guid.NewGuid(),
+            personaId: Guid.NewGuid(),
+            puestoId: Guid.NewGuid(),
+            fechaInicio: new DateOnly(2024, 1, 1),
+            fechaFin: new DateOnly(2024, 12, 31),
+            tipoAsignacion: TipoAsignacion.Permanente,
+            observaciones: null,
+            persona: null,
+            puesto: null,
+            DateTime.UtcNow, null, null, null, false, null, null);
+
+        Assert.False(dominio.EsVigente);
     }
 }
