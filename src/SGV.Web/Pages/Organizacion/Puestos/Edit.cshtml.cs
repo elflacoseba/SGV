@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
 
@@ -18,10 +20,16 @@ namespace SGV.Web.Pages.Organizacion.Puestos;
 /// El pre-populate del GET/POST es un workaround para los <c>[Required]</c>
 /// heredados de Create en los campos inmutables (Codigo/UnidadOrganizativaId/
 /// CargoId) que el form de Edit NO renderiza.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/>. <c>Unauthorized</c> redirige vía
+/// <see cref="IAuthSessionRedirector"/>.
+/// </para>
 /// </summary>
 [Authorize]
 public sealed class EditModel(
     IPuestosApiClient puestosApiClient,
+    IAuthSessionRedirector authRedirector,
     ILogger<EditModel> logger) : PageModel, IPuestoForm
 {
     [BindProperty]
@@ -232,7 +240,7 @@ public sealed class EditModel(
             // Map to a recoverable error: keep user input, reload the catalog,
             // re-render the page so the user can retry.
             logger.LogError(ex, "Puesto update transport failure.");
-            ErrorMessage = "No se pudo contactar al servicio de puestos. Intentá nuevamente.";
+            ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
             await LoadCatalogsAsync(cancellationToken);
             return Page();
@@ -261,6 +269,21 @@ public sealed class EditModel(
 
         if (result.Error is not null)
         {
+            // Issue #125 / Slice 3: switch exhaustivo sobre ErrorCategoria.
+            if (result.Error.Categoria == ErrorCategoria.Unauthorized)
+            {
+                var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+                if (redirect is not null)
+                {
+                    return redirect;
+                }
+
+                ErrorMessage = PageFeedback.UnauthorizedMessage;
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                await LoadCatalogsAsync(cancellationToken);
+                return Page();
+            }
+
             // 409 (CodigoDuplicado / PuestoSuperiorInvalido) → no podemos
             // mapear a un campo específico porque Codigo no es editable y
             // PuestoSuperiorInvalido cae bajo la key del campo pero el
@@ -268,14 +291,33 @@ public sealed class EditModel(
             // FieldErrors si los hay, o mensaje general bajo string.Empty.
             if (!PuestoPostResultMapper.TryMap(result, ModelState))
             {
-                ErrorMessage = result.Error.Message;
-                ModelState.AddModelError(string.Empty, result.Error.Message);
+                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
 
         await LoadCatalogsAsync(cancellationToken);
         return Page();
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Verbatim del
+    /// patrón de <see cref="CreateModel.MapCategoriaToMessage"/>; espejado
+    /// para que cada PageModel pueda invocarlo sin pasar por el helper
+    /// de aplicación.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => "El puesto solicitado no está disponible.",
+        ErrorCategoria.Conflict => "Conflicto al persistir el puesto.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     /// <summary>
     /// Carga el catálogo de puestos superiores (único catálogo que Edit

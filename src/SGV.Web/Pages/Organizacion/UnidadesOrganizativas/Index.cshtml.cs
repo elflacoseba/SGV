@@ -2,14 +2,28 @@ using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.UnidadesOrganizativas;
 
+/// <summary>
+/// PageModel del listado y árbol de unidades organizativas.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/> en OnPostDelete y OnPostReactivate.
+/// <c>Unauthorized</c> redirige vía <see cref="IAuthSessionRedirector"/>.
+/// </para>
+/// </summary>
 [Authorize]
-public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaApiClient, ILogger<IndexModel> logger) : PageModel
+public sealed class IndexModel(
+    IUnidadOrganizativaApiClient unidadOrganizativaApiClient,
+    IAuthSessionRedirector authRedirector,
+    ILogger<IndexModel> logger) : PageModel
 {
     private const int DefaultPageSize = 10;
     private const string ListView = "list";
@@ -88,11 +102,24 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, deletedId = id, status = normalizedSegmento });
         }
 
-        var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
-            ? $"No se pudo eliminar la unidad organizativa. {result.Message}".Trim()
-            : result.StatusCode == System.Net.HttpStatusCode.NotFound
-                ? "La unidad organizativa ya no está disponible."
-                : "No se pudo eliminar la unidad organizativa. Intentá nuevamente.";
+        // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+        if (result.Categoria == ErrorCategoria.Unauthorized)
+        {
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
+        var message = result.Categoria switch
+        {
+            ErrorCategoria.Conflict => $"No se pudo eliminar la unidad organizativa. {result.Message}".Trim(),
+            ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
+            ErrorCategoria.Transport => "No se pudo eliminar la unidad organizativa. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo eliminar la unidad organizativa. Intentá nuevamente.",
+            _ => MapCategoriaToMessage(result.Categoria)
+        };
 
         TempData[nameof(StatusMessage)] = message;
         TempData[nameof(StatusKind)] = "danger";
@@ -119,11 +146,24 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
             return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView });
         }
 
-        var message = result.Error?.Type switch
+        // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+        if (result.Error?.Categoria == ErrorCategoria.Unauthorized)
         {
-            UnidadOrganizativaErrorType.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
-            UnidadOrganizativaErrorType.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
-            _ => "No se pudo reactivar la unidad organizativa. Intentá nuevamente."
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
+        var categoria = result.Error?.Categoria ?? ErrorCategoria.Unexpected;
+        var message = categoria switch
+        {
+            ErrorCategoria.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
+            ErrorCategoria.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
+            ErrorCategoria.Transport => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
+            _ => MapCategoriaToMessage(categoria)
         };
 
         TempData[nameof(StatusMessage)] = message;
@@ -132,6 +172,25 @@ public sealed class IndexModel(IUnidadOrganizativaApiClient unidadOrganizativaAp
         // After failure, stay in the same segment (eliminadas) so user can retry
         return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, status = normalizedSegmento });
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
+    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
+    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
+    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
+        ErrorCategoria.Conflict => "Conflicto al procesar la operación.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     public string GetSortRoute(string column)
     {

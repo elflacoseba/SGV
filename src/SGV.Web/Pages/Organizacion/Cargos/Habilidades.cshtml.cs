@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
@@ -26,11 +27,20 @@ namespace SGV.Web.Pages.Organizacion.Cargos;
 /// evita depender de <c>[Authorize(Roles = ...)]</c> y mantiene la
 /// respuesta <c>403 Forbidden</c> coherente con la frontera de admin que
 /// aplica <c>CargosController</c> sobre los endpoints del subrecurso.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/> en handlers de Delete. <c>Unauthorized</c>
+/// redirige vía <see cref="IAuthSessionRedirector"/>. Se elimina el
+/// filtro manual <c>IsTransportFailure</c> privado (que duplicaba la
+/// lógica de <see cref="TransportFailureClassifier"/>) en favor del
+/// helper centralizado.
+/// </para>
 /// </summary>
 [Authorize]
 public sealed class HabilidadesModel(
     ICargoApiClient cargoApiClient,
     IHabilidadApiClient habilidadApiClient,
+    IAuthSessionRedirector authRedirector,
     ILogger<HabilidadesModel> logger) : PageModel
 {
     /// <summary>
@@ -273,11 +283,21 @@ public sealed class HabilidadesModel(
             return RedirectToPage(new { id });
         }
 
+        // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+        if (result.Categoria == ErrorCategoria.Unauthorized)
+        {
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
         // 404 al quitar = la asociación ya no existe. Reflejo del estado
         // real (probable race con otra pestaña / un refresh sobre una fila
         // stale). No es un error fatal: redirigimos con TempData warning
         // para que el siguiente GET refresque la grilla.
-        if (result.StatusCode == System.Net.HttpStatusCode.NotFound)
+        if (result.Categoria == ErrorCategoria.NotFound)
         {
             PageFeedback.SetWarning(TempData, "La asociación ya no existe. La grilla fue actualizada.");
             return RedirectToPage(new { id });
@@ -285,10 +305,29 @@ public sealed class HabilidadesModel(
 
         var failureMessage = !string.IsNullOrWhiteSpace(result.Message)
             ? result.Message
-            : "No se pudo quitar la habilidad del cargo.";
+            : MapCategoriaToMessage(result.Categoria);
         PageFeedback.SetDanger(TempData, failureMessage);
         return RedirectToPage(new { id });
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
+    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
+    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
+    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
+        ErrorCategoria.Conflict => "Conflicto al procesar la operación.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     // ──────────────────────────────────────────────
     // Helpers privados

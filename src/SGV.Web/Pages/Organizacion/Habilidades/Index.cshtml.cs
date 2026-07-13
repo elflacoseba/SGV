@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Pages.Common;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;
@@ -16,9 +18,20 @@ namespace SGV.Web.Pages.Organizacion.Habilidades;
 /// la baja lógica (<c>?handler=Delete</c>) y agrega reactivación
 /// (<c>?handler=Reactivate</c>) preservando el segmento cuando la
 /// operación falla.
+/// <para>
+/// Issue #125 / Slice 3: el switch sobre <see cref="HabilidadErrorType"/>
+/// en <c>OnPostReactivar</c> se reemplaza por switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/>. El switch sobre
+/// <see cref="HabilidadDeleteResult.StatusCode"/> en <c>OnPostDelete</c>
+/// se reemplaza por uno sobre <see cref="HabilidadDeleteResult.Categoria"/>.
+/// <c>Unauthorized</c> redirige vía <see cref="IAuthSessionRedirector"/>.
+/// </para>
 /// </summary>
 [Authorize]
-public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<IndexModel> logger) : PageModel
+public sealed class IndexModel(
+    IHabilidadApiClient habilidadApiClient,
+    IAuthSessionRedirector authRedirector,
+    ILogger<IndexModel> logger) : PageModel
 {
     private const int DefaultPageSize = 10;
     private const string DeletedView = "eliminadas";
@@ -142,11 +155,26 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
             return RedirectToPage("/Organizacion/Habilidades/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento, deletedId = id });
         }
 
-        var message = result.StatusCode == System.Net.HttpStatusCode.Conflict
-            ? $"No se pudo eliminar la habilidad. {result.Message}".Trim()
-            : result.StatusCode == System.Net.HttpStatusCode.NotFound
-                ? "La habilidad ya no está disponible."
-                : "No se pudo eliminar la habilidad. Intentá nuevamente.";
+        // Issue #125 / Slice 3: switch sobre DeleteResult.Categoria en lugar
+        // de StatusCode crudo. Unauthorized redirige vía IAuthSessionRedirector
+        // (no se muestra mensaje inline).
+        if (result.Categoria == ErrorCategoria.Unauthorized)
+        {
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
+        var message = result.Categoria switch
+        {
+            ErrorCategoria.Conflict => $"No se pudo eliminar la habilidad. {result.Message}".Trim(),
+            ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
+            ErrorCategoria.Transport => "No se pudo eliminar la habilidad. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo eliminar la habilidad. Intentá nuevamente.",
+            _ => MapCategoriaToMessage(result.Categoria)
+        };
 
         PageFeedback.SetDanger(TempData, message);
 
@@ -177,13 +205,26 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
             return RedirectToPage("/Organizacion/Habilidades/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort });
         }
 
+        // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+        if (result.Error?.Categoria == ErrorCategoria.Unauthorized)
+        {
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
         var errorCode = result.Error?.Code;
         var errorMessage = result.Error?.Message;
-        var message = result.Error?.Type switch
+        var categoria = result.Error?.Categoria ?? ErrorCategoria.Unexpected;
+        var message = categoria switch
         {
-            SGV.Contracts.Habilidades.Comandos.HabilidadErrorType.Conflict => $"No se pudo reactivar la habilidad. {errorMessage}",
-            SGV.Contracts.Habilidades.Comandos.HabilidadErrorType.NotFound => "La habilidad ya no está disponible para reactivar.",
-            _ => "No se pudo reactivar la habilidad. Intentá nuevamente."
+            ErrorCategoria.Conflict => $"No se pudo reactivar la habilidad. {errorMessage}",
+            ErrorCategoria.NotFound => "La habilidad ya no está disponible para reactivar.",
+            ErrorCategoria.Transport => "No se pudo reactivar la habilidad. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo reactivar la habilidad. Intentá nuevamente.",
+            _ => MapCategoriaToMessage(categoria)
         };
 
         PageFeedback.SetDanger(TempData, message);
@@ -194,6 +235,26 @@ public sealed class IndexModel(IHabilidadApiClient habilidadApiClient, ILogger<I
 
         return RedirectToPage("/Organizacion/Habilidades/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, status = normalizedSegmento });
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/> que produce el
+    /// mensaje visible al usuario. Cubre las 7 variantes sin <c>default</c>
+    /// silencioso (design §8.1, F3). <c>Unauthorized</c> lanza porque su
+    /// flujo es redirigir vía <see cref="IAuthSessionRedirector"/> antes
+    /// de mostrar mensaje inline.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
+        ErrorCategoria.Conflict => "Conflicto al procesar la operación.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     public string GetSortRoute(string column)
     {

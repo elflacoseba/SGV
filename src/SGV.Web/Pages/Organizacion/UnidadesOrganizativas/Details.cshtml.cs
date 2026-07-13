@@ -1,15 +1,27 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.UnidadesOrganizativas;
 
+/// <summary>
+/// PageModel para la página Details de unidades organizativas.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/> en OnPostReactivateAsync.
+/// <c>Unauthorized</c> redirige vía <see cref="IAuthSessionRedirector"/>.
+/// </para>
+/// </summary>
 [Authorize]
 public sealed class DetailsModel(
     IUnidadOrganizativaApiClient unidadOrganizativaApiClient,
+    IAuthSessionRedirector authRedirector,
     ILogger<DetailsModel> logger) : PageModel
 {
     public UnidadOrganizativaDto? Unidad { get; private set; }
@@ -97,11 +109,24 @@ public sealed class DetailsModel(
             return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus });
         }
 
-        var message = result.Error?.Type switch
+        // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
+        if (result.Error?.Categoria == ErrorCategoria.Unauthorized)
         {
-            UnidadOrganizativaErrorType.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
-            UnidadOrganizativaErrorType.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
-            _ => "No se pudo reactivar la unidad organizativa. Intentá nuevamente."
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
+        var categoria = result.Error?.Categoria ?? ErrorCategoria.Unexpected;
+        var message = categoria switch
+        {
+            ErrorCategoria.Conflict => $"No se pudo reactivar la unidad organizativa. {result.Error.Message}",
+            ErrorCategoria.NotFound => "La unidad organizativa ya no está disponible para reactivar.",
+            ErrorCategoria.Transport => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo reactivar la unidad organizativa. Intentá nuevamente.",
+            _ => MapCategoriaToMessage(categoria)
         };
 
         TempData["StatusMessage"] = message;
@@ -112,4 +137,23 @@ public sealed class DetailsModel(
         CurrentId = id;
         return Page();
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
+    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
+    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
+    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => PageFeedback.NotFoundDeleteMessage,
+        ErrorCategoria.Conflict => "Conflicto al procesar la operación.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 }

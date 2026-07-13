@@ -51,6 +51,7 @@ public sealed class PuestoEditLoadCatalogsTests
         // es la primera línea de defensa contra el dead code reintroducido.
         var sut = new EditModel(
             puestosClient,
+            new NullAuthSessionRedirector(),
             NullLogger<EditModel>.Instance);
 
         await sut.LoadCatalogsAsync(CancellationToken.None);
@@ -76,6 +77,7 @@ public sealed class PuestoEditLoadCatalogsTests
         // Después del GREEN, el ctor de EditModel ya no recibe ICargoApiClient.
         var sut = new EditModel(
             puestosClient,
+            new NullAuthSessionRedirector(),
             NullLogger<EditModel>.Instance);
 
         await sut.LoadCatalogsAsync(CancellationToken.None);
@@ -106,6 +108,7 @@ public sealed class PuestoEditLoadCatalogsTests
 
         var sut = new EditModel(
             puestosClient,
+            new NullAuthSessionRedirector(),
             NullLogger<EditModel>.Instance);
 
         await sut.LoadCatalogsAsync(CancellationToken.None);

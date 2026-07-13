@@ -371,7 +371,7 @@ dotnet test SGV.slnx                                                            
 
 ## Fase 3 — Slice 3: `IAuthSessionRedirector` + 14 PageModels exhaustivos
 
-### T-3.1 — RED `AuthSessionRedirectorTests` (6 casos)
+### [x] T-3.1 — RED `AuthSessionRedirectorTests` (6 casos)
 - **Slice**: 3
 - **Files**: `tests/SGV.Tests/Web/Common/AuthSessionRedirectorTests.cs` (new).
 - **RED**: 6 tests (uno por caso del design §11.3): `TryRedirectToLogin_NoHttpContext_ReturnsNull`, `TryRedirectToLogin_WithLocalPath_PreservesReturnUrl`, `TryRedirectToLogin_WithAbsoluteExternalUrl_DropsReturnUrl_RedirectsToLogin` (F9), `TryRedirectToLogin_WithProtocolRelativeUrl_DropsReturnUrl_RedirectsToLogin` (F9), `TryRedirectToLogin_WithLoopbackAbsoluteUrl_PreservesReturnUrl`, `TryRedirectToLogin_EmptyPath_OmitsReturnUrl`. Cada test instancia un `DefaultHttpContext` con `Request.Host = "localhost"`, inyecta un `IUrlHelperFactory` falso que devuelve paths predecibles, y assertea el `RedirectResult` emitido.
@@ -382,7 +382,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 100 ± 15 LoC tests (6 casos × ~15 LoC + setup).
 - **Commit guidance**: 1 commit `test(web): add AuthSessionRedirector tests for local/absolute/protocol-relative cases`.
 
-### T-3.2 — GREEN `IAuthSessionRedirector` + `AuthSessionRedirector`
+### [x] T-3.2 — GREEN `IAuthSessionRedirector` + `AuthSessionRedirector`
 - **Slice**: 3
 - **Files**: `src/SGV.Web/Integration/Common/IAuthSessionRedirector.cs` (new); `src/SGV.Web/Integration/Common/AuthSessionRedirector.cs` (new).
 - **RED**: —
@@ -394,7 +394,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 50 ± 10 LoC producción.
 - **Commit guidance**: 1 commit `feat(web): add IAuthSessionRedirector with open-redirect guard`.
 
-### T-3.3 — GREEN registrar `IAuthSessionRedirector` + `IUrlHelperFactory` en DI
+### [x] T-3.3 — GREEN registrar `IAuthSessionRedirector` + `IUrlHelperFactory` en DI
 - **Slice**: 3
 - **Files**: `src/SGV.Web/Program.cs` (mod — agregar 2 líneas de registro scoped).
 - **RED**: —
@@ -406,7 +406,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 3 ± 1 LoC producción.
 - **Commit guidance**: 1 commit `chore(web): register IAuthSessionRedirector and IUrlHelperFactory in DI`.
 
-### T-3.4 — RED PageModel exhaustivity tests infra + 14 smoke tests parametrizados
+### [x] T-3.4 — RED PageModel exhaustivity tests infra + 14 smoke tests parametrizados
 - **Slice**: 3
 - **Files**: `tests/SGV.Tests/Web/PageModelExhaustivityTests.cs` (new).
 - **RED**: 
@@ -420,7 +420,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 220 ± 20 LoC tests (helper + 14 tests parametrizados).
 - **Commit guidance**: 1 commit `test(web): add exhaustivity coverage for 14 PageModels against seven ErrorCategoria`. Si >400 LoC, dividir en (a) helper + smoke Habilidades + Cargos; (b) smoke Puestos + UnidadesOrganizativas.
 
-### T-3.5 — GREEN migrar Habilidades/Create + Habilidades/Edit (los más simples)
+### [x] T-3.5 — GREEN migrar Habilidades/Create + Habilidades/Edit (los más simples)
 - **Slice**: 3
 - **Files**: `src/SGV.Web/Pages/Organizacion/Habilidades/Create.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/Habilidades/Edit.cshtml.cs` (mod).
 - **RED**: —
@@ -436,7 +436,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 80 ± 15 LoC producción (2 PageModels).
 - **Commit guidance**: 1 commit `refactor(web): migrate Habilidades Create and Edit to Categoria-based exhaustivity`.
 
-### T-3.6 — GREEN migrar Habilidades/Index (reactivar + delete)
+### [x] T-3.6 — GREEN migrar Habilidades/Index (reactivar + delete)
 - **Slice**: 3
 - **Files**: `src/SGV.Web/Pages/Organizacion/Habilidades/Index.cshtml.cs` (mod).
 - **RED**: —
@@ -452,7 +452,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 50 ± 10 LoC producción.
 - **Commit guidance**: 1 commit `refactor(web): migrate Habilidades Index to Categoria-based exhaustivity`.
 
-### T-3.7 — GREEN migrar Cargos/{Index,Create,Edit,Habilidades} (4 PageModels)
+### [x] T-3.7 — GREEN migrar Cargos/{Index,Create,Edit,Habilidades} (4 PageModels)
 - **Slice**: 3
 - **Files**: `src/SGV.Web/Pages/Organizacion/Cargos/Index.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/Cargos/Create.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/Cargos/Edit.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/Cargos/Habilidades.cshtml.cs` (mod).
 - **RED**: —
@@ -469,7 +469,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 160 ± 25 LoC producción (4 PageModels × ~40 LoC cada uno).
 - **Commit guidance**: 1 commit `refactor(web): migrate four Cargos PageModels to Categoria-based exhaustivity`. Si >400 LoC, dividir: (a) Index + Create + Edit; (b) Habilidades + cleanup de IsTransportFailure privado.
 
-### T-3.8 — GREEN migrar Puestos/{Index,Create,Edit} (3 PageModels)
+### [x] T-3.8 — GREEN migrar Puestos/{Index,Create,Edit} (3 PageModels)
 - **Slice**: 3
 - **Files**: `src/SGV.Web/Pages/Organizacion/Puestos/Index.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/Puestos/Create.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/Puestos/Edit.cshtml.cs` (mod).
 - **RED**: —
@@ -481,7 +481,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 120 ± 20 LoC producción (3 PageModels × ~40 LoC).
 - **Commit guidance**: 1 commit `refactor(web): migrate three Puestos PageModels to Categoria-based exhaustivity`.
 
-### T-3.9 — GREEN migrar UnidadesOrganizativas/{Index,Create,Edit,Details} (4 PageModels)
+### [x] T-3.9 — GREEN migrar UnidadesOrganizativas/{Index,Create,Edit,Details} (4 PageModels)
 - **Slice**: 3
 - **Files**: `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Index.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml.cs` (mod); `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Details.cshtml.cs` (mod).
 - **RED**: —
@@ -493,7 +493,7 @@ dotnet test SGV.slnx                                                            
 - **Estimación**: 160 ± 25 LoC producción (4 PageModels × ~40 LoC).
 - **Commit guidance**: 1 commit `refactor(web): migrate four UnidadesOrganizativas PageModels to Categoria-based exhaustivity`. Si >400 LoC, dividir: (a) Index + Create; (b) Edit + Details + cleanup de OperationCanceledException manual.
 
-### T-3.10 — GREEN unificación de copy canónica vía `PageFeedback`
+### [x] T-3.10 — GREEN unificación de copy canónica vía `PageFeedback`
 - **Slice**: 3
 - **Files**: `src/SGV.Web/Pages/Common/PageFeedback.cs` (mod — agregar constantes).
 - **RED**: —

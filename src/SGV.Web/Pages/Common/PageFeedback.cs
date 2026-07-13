@@ -11,6 +11,43 @@ public static class PageFeedback
     public const string StatusKindKey = "StatusKind";
     public const string LastDeletedIdKey = "LastDeletedId";
 
+    // ─────────────────────────────────────────────────────────────────
+    // Issue #125 / Slice 3: copy canónica para los mensajes inline de los
+    // 14 PageModels que ahora ramifican por ErrorCategoria. Estas cadenas
+    // son la fuente de verdad única; cualquier ajuste de wording debe
+    // hacerse acá (no en cada switch individual). Verbatim del design §8.3.
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Mensaje para <see cref="SGV.Contracts.Comun.ErrorCategoria.Transport"/>
+    /// — fallo de red, timeout, body malformado.
+    /// </summary>
+    public const string TransportMessage = "No se pudo contactar al servicio. Intentá nuevamente.";
+
+    /// <summary>
+    /// Mensaje inline que antecede al redirect a login para
+    /// <see cref="SGV.Contracts.Comun.ErrorCategoria.Unauthorized"/>.
+    /// </summary>
+    public const string UnauthorizedMessage = "Su sesión expiró. Vuelva a iniciar sesión.";
+
+    /// <summary>
+    /// Mensaje para <see cref="SGV.Contracts.Comun.ErrorCategoria.Forbidden"/>
+    /// — usuario autenticado sin permisos suficientes.
+    /// </summary>
+    public const string ForbiddenMessage = "No tiene permisos para realizar esta operación.";
+
+    /// <summary>
+    /// Mensaje fallback para
+    /// <see cref="SGV.Contracts.Comun.ErrorCategoria.Unexpected"/> — status
+    /// code no anticipado por la matriz del mapper.
+    /// </summary>
+    public const string UnexpectedMessage = "Respuesta inesperada del servidor.";
+
+    /// <summary>
+    /// Mensaje para bajas donde el recurso ya no está disponible (404).
+    /// </summary>
+    public const string NotFoundDeleteMessage = "El recurso ya no está disponible.";
+
     public static string? GetStatusMessage(ITempDataDictionary tempData)
     {
         ArgumentNullException.ThrowIfNull(tempData);

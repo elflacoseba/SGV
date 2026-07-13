@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
@@ -20,12 +21,18 @@ namespace SGV.Web.Pages.Organizacion.Puestos;
 /// <c>ValidationProblemDetails</c> aplica <see cref="PuestoFormHelpers.ApplyFieldErrorsToModelState"/>.
 /// Fallos de transporte se traducen a un error general recuperable y conservan
 /// la entrada del usuario.
+/// <para>
+/// Issue #125 / Slice 3: switch exhaustivo sobre
+/// <see cref="ErrorCategoria"/>. <c>Unauthorized</c> redirige vía
+/// <see cref="IAuthSessionRedirector"/>.
+/// </para>
 /// </summary>
 [Authorize]
 public sealed class CreateModel(
     IPuestosApiClient puestosApiClient,
     IUnidadOrganizativaApiClient unidadOrganizativaApiClient,
     ICargoApiClient cargoApiClient,
+    IAuthSessionRedirector authRedirector,
     ILogger<CreateModel> logger) : PageModel, IPuestoForm
 {
     [BindProperty]
@@ -146,7 +153,7 @@ public sealed class CreateModel(
             // Transport-level failure (network down, timeout, malformed
             // body). El usuario podrá reintentar conservando su input.
             logger.LogError(ex, "Puesto create transport failure.");
-            ErrorMessage = "No se pudo contactar al servicio de puestos. Intentá nuevamente.";
+            ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
             await LoadCatalogsAsync(cancellationToken);
             return Page();
@@ -166,23 +173,56 @@ public sealed class CreateModel(
 
         if (result.Error is not null)
         {
+            // Issue #125 / Slice 3: switch exhaustivo sobre ErrorCategoria.
+            if (result.Error.Categoria == ErrorCategoria.Unauthorized)
+            {
+                var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+                if (redirect is not null)
+                {
+                    return redirect;
+                }
+
+                ErrorMessage = PageFeedback.UnauthorizedMessage;
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                await LoadCatalogsAsync(cancellationToken);
+                return Page();
+            }
+
             // 409 con código CodigoDuplicado → error a nivel de campo Codigo.
-            if (result.Error.Type == PuestoErrorType.Conflict)
+            if (result.Error.Categoria == ErrorCategoria.Conflict)
             {
                 ModelState.AddModelError(PuestoFormKeys.CodigoKey, result.Error.Message);
             }
             else if (!PuestoPostResultMapper.TryMap(result, ModelState))
             {
-                // No FieldErrors y no hay mensaje general (e.g., Error.Message
-                // null en un failure inesperado): fallback defensivo.
-                ErrorMessage = result.Error.Message;
-                ModelState.AddModelError(string.Empty, result.Error.Message);
+                // No FieldErrors y no hay mensaje general: fallback defensivo.
+                ErrorMessage = MapCategoriaToMessage(result.Error.Categoria);
+                ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }
 
         await LoadCatalogsAsync(cancellationToken);
         return Page();
     }
+
+    /// <summary>
+    /// Switch exhaustivo sobre <see cref="ErrorCategoria"/>. Cubre las 7
+    /// variantes sin <c>default</c> silencioso (design §8.1, F3).
+    /// <c>Unauthorized</c> lanza porque su flujo es redirigir vía
+    /// <see cref="IAuthSessionRedirector"/> antes de mostrar mensaje inline.
+    /// </summary>
+    internal static string MapCategoriaToMessage(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => "El puesto solicitado no está disponible.",
+        ErrorCategoria.Conflict => "Conflicto al persistir el puesto.",
+        ErrorCategoria.Validation => "Revisá los datos ingresados.",
+        ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
+        ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+        ErrorCategoria.Transport => PageFeedback.TransportMessage,
+        ErrorCategoria.Unexpected => PageFeedback.UnexpectedMessage,
+        _ => throw new System.Runtime.CompilerServices.SwitchExpressionException(
+            $"Unhandled categoria: {categoria}"),
+    };
 
     private int ParseReturnPage() =>
         int.TryParse(ReturnPage, out var page) ? Math.Max(1, page) : 1;
