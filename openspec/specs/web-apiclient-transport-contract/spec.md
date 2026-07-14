@@ -126,3 +126,64 @@ además de preservar `StatusCode` como metadata. `Succeeded` MUST ser
 - GIVEN un `HabilidadApiClient.DeleteAsync` con backend respondiendo 204
 - WHEN se obtiene el `HabilidadDeleteResult`
 - THEN MUST tener `Succeeded == true`, `Categoria` igual al valor por defecto documentado y `StatusCode == 204`.
+
+## ADDED Requirements
+
+> Delta introducida por el change `2026-07-14-fix-126-operational-tech-debt` (issue #126). Verificado en `openspec/changes/archive/2026-07-14-fix-126-operational-tech-debt/verify-report.md`.
+
+### Requirement: AuthApiClient timeout 10s
+
+`AuthApiClient` MUST set `Timeout = TimeSpan.FromSeconds(10)` on its
+inner `HttpClient`. This timeout governs the entire request lifecycle
+including connection, sending, and receiving.
+
+#### Scenario: AuthApiClient timeout raises TaskCanceledException
+
+- **GIVEN** `AuthApiClient` is configured with `Timeout = 10s`
+- **AND** the upstream API does not respond within 10 seconds
+- **WHEN** `SignInModel.OnPostAsync` invokes `AuthApiClient.LoginAsync`
+- **THEN** a `TaskCanceledException` MUST be thrown
+- **AND** the exception MUST NOT be caught and swallowed by the client.
+
+### Requirement: UnidadOrganizativaApiClient timeout 10s
+
+`UnidadOrganizativaApiClient` MUST set `Timeout =
+TimeSpan.FromSeconds(10)` on its inner `HttpClient`. This timeout
+governs the entire request lifecycle including connection, sending,
+and receiving.
+
+#### Scenario: UnidadOrganizativaApiClient timeout raises TaskCanceledException
+
+- **GIVEN** `UnidadOrganizativaApiClient` is configured with `Timeout = 10s`
+- **AND** the upstream API does not respond within 10 seconds
+- **WHEN** a consumer invokes any operation on `UnidadOrganizativaApiClient`
+- **THEN** a `TaskCanceledException` MUST be thrown
+- **AND** the exception MUST NOT be caught and swallowed by the client.
+
+### Requirement: SignIn UX for transport exceptions
+
+`SignInModel.OnPostAsync` MUST catch `HttpRequestException` and
+display a Spanish error message: "No se pudo conectar con el
+servidor. Verificá tu conexión y volvé a intentar." MUST catch
+`TaskCanceledException` when the `CancellationToken` was NOT canceled
+by the caller and display: "El servidor tardó demasiado en responder.
+Volvé a intentar en unos segundos." When the `CancellationToken` IS
+cancelled by the caller, `TaskCanceledException` MUST propagate
+without being caught by this handler.
+
+#### Scenario: HttpRequestException shows Spanish error message
+
+- **GIVEN** `SignInModel.OnPostAsync` attempts to call `AuthApiClient.LoginAsync`
+- **AND** the API is unreachable (network failure, DNS resolution failure, connection refused)
+- **WHEN** `AuthApiClient.LoginAsync` throws `HttpRequestException`
+- **THEN** the page MUST render with a Spanish error message: "No se pudo conectar con el servidor. Verificá tu conexión y volvé a intentar."
+- **AND** the user MUST remain on the sign-in page (no redirect to `/Error`).
+
+#### Scenario: TaskCanceledException (non-CT) shows timeout message
+
+- **GIVEN** `SignInModel.OnPostAsync` attempts to call `AuthApiClient.LoginAsync`
+- **AND** the API does not respond within the client timeout (10s)
+- **AND** the `CancellationToken` was NOT cancelled by the caller
+- **WHEN** `AuthApiClient.LoginAsync` throws `TaskCanceledException`
+- **THEN** the page MUST render with a Spanish error message: "El servidor tardó demasiado en responder. Volvé a intentar en unos segundos."
+- **AND** the user MUST remain on the sign-in page (no redirect to `/Error`).

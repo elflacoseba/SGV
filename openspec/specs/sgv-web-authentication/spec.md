@@ -123,3 +123,34 @@ La cookie que carga el ticket de autenticación de `SGV.Web` DEBE aplicar atribu
 - **CUANDO** `SGV.Web` procesa el login
 - **ENTONCES** la sesión web NO DEBE crearse
 - **Y** la pantalla de login DEBE mostrar un error de autenticación controlado.
+
+## Requisitos AÑADIDOS
+
+> Delta introducida por el change `2026-07-14-fix-126-operational-tech-debt` (issue #126). Verificado en `openspec/changes/archive/2026-07-14-fix-126-operational-tech-debt/verify-report.md`.
+
+### Requisito: Consistencia lingüística del copy de error en login
+
+El PageModel de login (`SignIn.cshtml.cs`) DEBE mostrar mensajes de
+error de transporte (`HttpRequestException`, `TaskCanceledException`)
+en español neutro/profesional, consistente con el tono del resto de la
+UI de SGV. Los mensajes DEBEN ser accibles (texto plano, no
+dependientes de color ni ícono exclusivamente).
+
+#### Escenario: Mensaje de error de transporte es legible y en español
+
+- **DADO** que `SignInModel.OnPostAsync` intenta llamar a `AuthApiClient.LoginAsync`
+- **Y** la API no es accesible (fallo de red, resolución DNS, conexión rechazada)
+- **CUANDO** `AuthApiClient.LoginAsync` lanza `HttpRequestException`
+- **ENTONCES** la página DEBE renderizarse con un mensaje en español neutro/profesional
+- **Y** el mensaje DEBE ser texto plano visible (no oculto detrás de un ícono o color)
+- **Y** el usuario DEBE permanecer en la página de login (sin redirección a `/Error`).
+
+#### Escenario: Mensaje de timeout es legible y en español
+
+- **DADO** que `SignInModel.OnPostAsync` intenta llamar a `AuthApiClient.LoginAsync`
+- **Y** la API no responde dentro del timeout del cliente (10s)
+- **Y** el `CancellationToken` NO fue cancelado por el caller
+- **CUANDO** `AuthApiClient.LoginAsync` lanza `TaskCanceledException`
+- **ENTONCES** la página DEBE renderizarse con un mensaje de timeout en español neutro/profesional
+- **Y** el mensaje DEBE ser texto plano visible (no oculto detrás de un ícono o color)
+- **Y** el usuario DEBE permanecer en la página de login (sin redirección a `/Error`).
