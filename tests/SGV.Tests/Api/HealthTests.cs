@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using SGV.Infraestructura.Persistencia;
+using Microsoft.Extensions.Configuration;
 using SGV.Tests.Persistencia;
 using Xunit;
 
@@ -42,15 +40,16 @@ public sealed class HealthTests
     [Fact]
     public async Task Ready_DbUnhealthy_Returns503()
     {
-        var factory = new ApiWebApplicationFactory(configureServices: services =>
+        // Use a deliberately unreachable connection string so the raw MySQL probe fails fast.
+        // The connection string is well-formed (passes startup validation) but points to a
+        // closed port, so OpenAsync times out / fails and the check returns Unhealthy.
+        var factory = new ApiWebApplicationFactory(configureConfig: config =>
         {
-            // Remove existing IDbContextFactory<SgvDbContext> (registered by AddDbContextFactory
-            // in Program.cs once 0a-GREEN is applied) and add a stub that returns false from
-            // CanConnectAsync. The RemoveService is a no-op during RED (no registration yet),
-            // but ensures the stub is used when the factory IS registered in GREEN.
-            services.RemoveService<IDbContextFactory<SgvDbContext>>();
-            services.AddSingleton<IDbContextFactory<SgvDbContext>>(
-                new StubUnhealthyDbContextFactory());
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:SgvDatabase"] =
+                    "Server=127.0.0.1;Port=65000;Database=sgv_test_unreachable;User=root;Password=wrong;Connection Timeout=2;"
+            });
         });
 
         await using (factory)

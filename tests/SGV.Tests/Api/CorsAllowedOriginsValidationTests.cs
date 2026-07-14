@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace SGV.Tests.Api;
@@ -28,7 +27,9 @@ public sealed class CorsAllowedOriginsValidationTests
 {
     private const string JwtSigningKeyConfigKey = "Jwt:SigningKey";
     private const string AllowedOriginsConfigKey = "AllowedOrigins";
+    private const string ConnectionStringConfigKey = "ConnectionStrings:SgvDatabase";
     private const string DevValidSigningKey = "0123456789abcdef0123456789abcdef";
+    private const string DevValidConnectionString = "Server=localhost;Database=sgv_test;Uid=root;Connection Timeout=5;";
 
     [Fact]
     public void HostBuild_Production_SinAllowedOrigins_LanzaInvalidOperationException()
@@ -39,11 +40,8 @@ public sealed class CorsAllowedOriginsValidationTests
         using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Production")
-                .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
-                    new Dictionary<string, string?>
-                    {
-                        [JwtSigningKeyConfigKey] = DevValidSigningKey
-                    })));
+                .UseSetting(JwtSigningKeyConfigKey, DevValidSigningKey)
+                .UseSetting(ConnectionStringConfigKey, DevValidConnectionString));
 
         // Act + Assert — CreateClient triggers host build; the validator must throw before
         // the host is fully constructed.
@@ -58,12 +56,9 @@ public sealed class CorsAllowedOriginsValidationTests
         using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Production")
-                .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
-                    new Dictionary<string, string?>
-                    {
-                        [JwtSigningKeyConfigKey] = DevValidSigningKey,
-                        ["AllowedOrigins:0"] = "https://app.example.com"
-                    })));
+                .UseSetting(JwtSigningKeyConfigKey, DevValidSigningKey)
+                .UseSetting(ConnectionStringConfigKey, DevValidConnectionString)
+                .UseSetting("AllowedOrigins:0", "https://app.example.com"));
 
         // Act — host build must succeed; CreateClient must not throw.
         using var client = factory.CreateClient();
@@ -81,11 +76,8 @@ public sealed class CorsAllowedOriginsValidationTests
         using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Development")
-                .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
-                    new Dictionary<string, string?>
-                    {
-                        [JwtSigningKeyConfigKey] = DevValidSigningKey
-                    })));
+                .UseSetting(JwtSigningKeyConfigKey, DevValidSigningKey)
+                .UseSetting(ConnectionStringConfigKey, DevValidConnectionString));
 
         // Act + Assert — host build succeeds; no exception is thrown.
         using var client = factory.CreateClient();

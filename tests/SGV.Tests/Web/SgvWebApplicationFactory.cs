@@ -94,8 +94,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
                     var apiOptions = serviceProvider.GetRequiredService<IOptions<SgvApiOptions>>().Value;
                     var client = new HttpClient(_authApiHandler, disposeHandler: false)
                     {
-                        BaseAddress = new Uri(apiOptions.BaseUrl, UriKind.Absolute),
-                        Timeout = TimeSpan.FromSeconds(10)
+                        BaseAddress = new Uri(apiOptions.BaseUrl, UriKind.Absolute)
                     };
 
                     return new AuthApiClient(client);

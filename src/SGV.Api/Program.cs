@@ -68,7 +68,7 @@ builder.Services.AddSwaggerGen(c =>
 var connectionString = builder.Configuration.GetConnectionString("SgvDatabase");
 
 // Validate connection string at startup — fail-loud before AutoDetect or first request.
-// This must run before AddDbContextFactory so the validator is registered first,
+// This must run before AddDbContext so the validator is registered first,
 // allowing ValidateOnStart to trigger on Build() for the tests.
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new OptionsValidationException(
@@ -82,17 +82,6 @@ if (!connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase)
         typeof(DbContextOptions<SgvDbContext>),
         ["ConnectionStrings:SgvDatabase inválida: debe incluir Server= y Database=."]);
 
-// DbContext factory for health checks and background work — no interceptor needed.
-// Registered BEFORE AddDbContext so DbContextOptions<SgvDbContext> becomes singleton,
-// allowing the singleton factory to consume it without scope conflicts.
-builder.Services.AddDbContextFactory<SgvDbContext>((sp, options) =>
-{
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-});
-
-// Request-scoped DbContext for HTTP requests — includes the audit interceptor.
-// AddDbContext will reuse the existing singleton DbContextOptions<SgvDbContext>
-// registration from the factory above (uses TryAdd internally).
 builder.Services.AddScoped<AuditoriaSaveChangesInterceptor>();
 builder.Services.AddDbContext<SgvDbContext>((sp, options) =>
 {
@@ -102,6 +91,7 @@ builder.Services.AddDbContext<SgvDbContext>((sp, options) =>
 
 // Connection string — register the IValidateOptions for the warn-on-missing-timeout case.
 // Hard failures (null, whitespace, missing Server= or Database=) are thrown inline above.
+// The health check uses a raw MySqlConnection and does NOT trigger ServerVersion.AutoDetect.
 builder.Services.AddSingleton<IValidateOptions<DbContextOptions<SgvDbContext>>,
     SgvDbContextOptionsValidator>();
 builder.Services.AddOptions<DbContextOptions<SgvDbContext>>()
