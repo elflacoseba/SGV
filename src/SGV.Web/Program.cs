@@ -1,11 +1,15 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
+using SGV.Api.Infrastructure.Health;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Integration.Health;
 
 [assembly: InternalsVisibleTo("SGV.Tests")]
 
@@ -69,6 +73,14 @@ builder.Services.AddScoped<IAuthSessionRedirector, AuthSessionRedirector>();
 // (issue #121) es seguro y no introduce contención entre tests paralelos.
 builder.Services.AddSingleton<IAuthSessionFactory, AuthSessionFactory>();
 
+// Named HTTP client for health probe (anonymous, no bearer token).
+builder.Services.AddHttpClient(SgvApiHealthProbeHttpClient.Name, (sp, client) =>
+{
+    var opts = sp.GetRequiredService<IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(opts.BaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(3);
+});
+
 builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
@@ -127,6 +139,10 @@ builder.Services.AddHttpClient<IHabilidadApiClient, HabilidadApiClient>((service
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
+// Health checks — upstream probe and response writer
+builder.Services.AddHealthChecks()
+    .AddCheck<SgvApiUpstreamHealthCheck>("sgv-api-upstream", tags: new[] { "ready" });
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -142,6 +158,21 @@ app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Health check endpoints — anonymous, no auth required.
+// /health/live responds 200 unconditionally (process is alive).
+// /health/ready probes the SGV API upstream via SgvApiUpstreamHealthCheck.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResponseWriter = HealthCheckResponseWriter.WriteJson
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckResponseWriter.WriteJson
+}).AllowAnonymous();
 
 app.MapStaticAssets();
 app.MapRazorPages()
