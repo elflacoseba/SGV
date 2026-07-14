@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
@@ -146,7 +147,8 @@ public sealed class CargoCreatePageTests
                 new CargoError(
                     CargoErrorType.Conflict,
                     "CodigoDuplicado",
-                    "Ya existe un cargo activo con el código C-DUP."))
+                    "Ya existe un cargo activo con el código C-DUP.",
+                    Categoria: ErrorCategoria.Conflict))
         };
 
         await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);

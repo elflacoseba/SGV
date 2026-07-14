@@ -105,16 +105,25 @@ public sealed class HabilidadesModel(
     // POST handlers — delegan a la extracción estática
     // ──────────────────────────────────────────────
 
-    public Task<IActionResult> OnPostAsignarAsync(Guid id, CancellationToken cancellationToken)
-        => CargoHabilidadesPostHandlers.HandleAsignarAsync(this, id, cancellationToken);
+    public async Task<IActionResult> OnPostAsignarAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!EsAdministrador) return Forbid();
+        return await CargoHabilidadesPostHandlers.HandleAsignarAsync(this, id, cancellationToken);
+    }
 
-    public Task<IActionResult> OnPostActualizarAsync(
+    public async Task<IActionResult> OnPostActualizarAsync(
         Guid id, Guid skillId, CancellationToken cancellationToken)
-        => CargoHabilidadesPostHandlers.HandleActualizarAsync(this, id, skillId, cancellationToken);
+    {
+        if (!EsAdministrador) return Forbid();
+        return await CargoHabilidadesPostHandlers.HandleActualizarAsync(this, id, skillId, cancellationToken);
+    }
 
-    public Task<IActionResult> OnPostQuitarAsync(
+    public async Task<IActionResult> OnPostQuitarAsync(
         Guid id, Guid skillId, CancellationToken cancellationToken)
-        => CargoHabilidadesPostHandlers.HandleQuitarAsync(this, id, skillId, cancellationToken);
+    {
+        if (!EsAdministrador) return Forbid();
+        return await CargoHabilidadesPostHandlers.HandleQuitarAsync(this, id, skillId, cancellationToken);
+    }
 
     // ──────────────────────────────────────────────
     // Internal helpers — reused by POST handlers via page parameter

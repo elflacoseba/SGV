@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using System.Web;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
@@ -278,7 +279,8 @@ public sealed class CargoIndexPageTests
             Succeeded: false,
             StatusCode: HttpStatusCode.Conflict,
             Code: "CargoConPuestosActivos",
-            Message: "El cargo tiene puestos activos asociados.");
+            Message: "El cargo tiene puestos activos asociados.",
+            Categoria: ErrorCategoria.Conflict);
 
         await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);
 
@@ -338,7 +340,7 @@ public sealed class CargoIndexPageTests
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
-        Assert.Contains("ya no está disponible", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("El recurso ya no está disponible.", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(cargo.Nombre, refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 

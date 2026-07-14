@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using System.Web;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
@@ -174,7 +175,8 @@ public sealed class CargoEditPageTests
             new CargoError(
                 CargoErrorType.Conflict,
                 "CodigoDuplicado",
-                "Ya existe un cargo activo con el código C-DUP."));
+                "Ya existe un cargo activo con el código C-DUP.",
+                Categoria: ErrorCategoria.Conflict));
 
         await using var lease = await _fixture.CreateCargoLeaseAsync(apiClient, adminRole: true);
 
@@ -298,7 +300,7 @@ public sealed class CargoEditPageTests
         Assert.Contains("Editar", content, StringComparison.OrdinalIgnoreCase);
 
         // El banner rojo de error recuperable debe estar visible.
-        Assert.Contains("No se pudo contactar al servicio de cargos", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No se pudo contactar al servicio", content, StringComparison.OrdinalIgnoreCase);
 
         // El catálogo se recarga también en el camino de transporte-failure.
         Assert.Equal(2, apiClient.NivelesCalls);
