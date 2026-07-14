@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Contracts.Seguridad;
 using SGV.Contracts.Auth;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Common;
@@ -189,11 +190,30 @@ public sealed class WebAuthenticationTests
     /// factory derivada queda retenida por el lease y se dispone cuando el
     /// scope <c>await using</c> cierra, preservando la regla "ninguna factory
     /// anónima sobrevive al scope" (PR2b-1 §3.5 Approach C).
+    ///
+    /// Configura tanto <see cref="SgvApiOptions"/> como <see cref="JwtOptions"/>
+    /// para mantener la coherencia clave↔token: el JWT servido por el handler
+    /// se firma con <see cref="AdminJwtTestHelper.SigningKey"/> y el host debe
+    /// validar contra la misma clave. Si se omite <see cref="JwtOptions"/>, la
+    /// signing key queda tomada de la configuración del entorno de test
+    /// (típicamente <c>dotnet user-secrets</c>) y <see cref="AuthSessionFactory"/>
+    /// lanza <c>SecurityTokenSignatureKeyNotFoundException</c>, que el handler
+    /// de <c>SignIn.cshtml</c> convierte en 200 con "No se pudo validar la
+    /// sesión de autenticación." en lugar del 302 esperado.
     /// </summary>
     private WebClientLease CreateAuthLease(HttpMessageHandler authHandler)
     {
         var factory = _fixture.RootFactory.WithOverrides(
-            configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
+            configureServices: services =>
+            {
+                services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test");
+                services.Configure<JwtOptions>(options =>
+                {
+                    options.SigningKey = AdminJwtTestHelper.SigningKey;
+                    options.Issuer = AdminJwtTestHelper.Issuer;
+                    options.Audience = AdminJwtTestHelper.Audience;
+                });
+            },
             authApiHandler: authHandler);
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
