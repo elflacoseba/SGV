@@ -8,11 +8,15 @@ using SGV.Contracts.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class CargoSkillControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public CargoSkillControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private static readonly Guid ExistingCargoId = FakeCargoServicio.CargoId1;
@@ -90,7 +94,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task GetSkills_ReturnsOkWithDtoArray()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -114,7 +118,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task GetSkills_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -129,7 +133,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task GetSkills_WithAuthenticatedNonAdmin_ReturnsOk()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -148,7 +152,7 @@ public sealed class CargoSkillControllerTests
     public async Task GetSkills_WhenEmpty_ReturnsOkWithEmptyArray()
     {
         var fake = new FakeCargoSkillServicio { Skills = [] };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -171,7 +175,7 @@ public sealed class CargoSkillControllerTests
             ListHandler = (cargoId, ct) =>
                 Task.FromResult<IReadOnlyList<CargoSkillDetailDto>>([])
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -187,7 +191,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task GetSkills_ResponseContainsNestedSkillAndNivel()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -212,7 +216,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task PutSkill_ValidRequest_Returns200OkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -232,7 +236,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task PutSkill_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -257,7 +261,7 @@ public sealed class CargoSkillControllerTests
                     new CargoSkillError(CargoSkillErrorType.Validation, "NivelInvalido",
                         "El nivel de habilidad especificado no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -283,7 +287,7 @@ public sealed class CargoSkillControllerTests
                     new CargoSkillError(CargoSkillErrorType.NotFound, "CargoNoEncontrado",
                         "El cargo no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -309,7 +313,7 @@ public sealed class CargoSkillControllerTests
                     new CargoSkillError(CargoSkillErrorType.NotFound, "HabilidadNoEncontrada",
                         "La habilidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -328,7 +332,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task DeleteSkill_ExistingAssignment_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -344,7 +348,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task DeleteSkill_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -363,7 +367,7 @@ public sealed class CargoSkillControllerTests
     [InlineData("DELETE", "/api/v1/cargos/00000000-0000-0000-0000-000000000001/skills/00000000-0000-0000-0000-000000000002")]
     public async Task SkillMutation_WithoutCredentials_ReturnsUnauthorized(string method, string path)
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();
@@ -390,7 +394,7 @@ public sealed class CargoSkillControllerTests
                     new CargoSkillError(CargoSkillErrorType.NotFound, "AsignacionNoEncontrada",
                         "La asignación de habilidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -415,7 +419,7 @@ public sealed class CargoSkillControllerTests
                     new CargoSkillError(CargoSkillErrorType.NotFound, "CargoNoEncontrado",
                         "El cargo no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -447,7 +451,7 @@ public sealed class CargoSkillControllerTests
                         "El nivel de habilidad referenciado no existe."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -485,7 +489,7 @@ public sealed class CargoSkillControllerTests
                         "Uno o más campos del vínculo contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -518,7 +522,7 @@ public sealed class CargoSkillControllerTests
                     new CargoSkillError(CargoSkillErrorType.Validation, "NivelInvalido",
                         "El nivel de habilidad especificado no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio>(fake);
@@ -542,7 +546,7 @@ public sealed class CargoSkillControllerTests
     [Fact]
     public async Task PutSkill_DoesNotConflictWithSkillsCatalogRoute()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoSkillServicio>();
             services.AddSingleton<ICargoSkillServicio, FakeCargoSkillServicio>();

@@ -32,12 +32,12 @@ public sealed class CorsAllowedOriginsValidationTests
     private const string DevValidConnectionString = "Server=localhost;Database=sgv_test;Uid=root;Connection Timeout=5;";
 
     [Fact]
-    public void HostBuild_Production_SinAllowedOrigins_LanzaInvalidOperationException()
+    public async Task HostBuild_Production_SinAllowedOrigins_LanzaInvalidOperationException()
     {
         // Arrange — Production env with a valid JWT key and no AllowedOrigins override.
         // The override collection intentionally omits "AllowedOrigins" so the section is
         // absent (not just empty) from the effective configuration.
-        using var factory = new WebApplicationFactory<SGV.Api.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Production")
                 .UseSetting(JwtSigningKeyConfigKey, DevValidSigningKey)
@@ -50,10 +50,10 @@ public sealed class CorsAllowedOriginsValidationTests
     }
 
     [Fact]
-    public void HostBuild_Production_AllowedOriginsPoblado_Arranca()
+    public async Task HostBuild_Production_AllowedOriginsPoblado_Arranca()
     {
         // Arrange — Production env with a valid JWT key and an explicit AllowedOrigins entry.
-        using var factory = new WebApplicationFactory<SGV.Api.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Production")
                 .UseSetting(JwtSigningKeyConfigKey, DevValidSigningKey)
@@ -68,12 +68,12 @@ public sealed class CorsAllowedOriginsValidationTests
     }
 
     [Fact]
-    public void HostBuild_Development_AllowedOriginsVacio_Arranca()
+    public async Task HostBuild_Development_AllowedOriginsVacio_Arranca()
     {
         // Arrange — Development env (the validator is bypassed). AllowedOrigins stays
         // absent from the override collection; the dev appsettings supplies the
         // placeholder, but for this test we still need a valid JWT key.
-        using var factory = new WebApplicationFactory<SGV.Api.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Development")
                 .UseSetting(JwtSigningKeyConfigKey, DevValidSigningKey)

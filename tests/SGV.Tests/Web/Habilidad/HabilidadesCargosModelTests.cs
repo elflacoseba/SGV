@@ -290,7 +290,7 @@ public sealed class HabilidadesCargosModelTests
         // CargoWebTestFixture.CreateAuthenticatedClientAsync(..., adminRole: true)).
         // El cliente resultante vive contra la MISMA Program (SGV.Web), así
         // que el cliente es válido para invocar /organizacion/habilidades/.../cargos.
-        using var cargoFixture = new CargoWebTestFixture();
+        await using var cargoFixture = new CargoWebTestFixture();
         var cargoApiClient = FakeCargoApiClient.WithCargoList();
         using var adminClient = await cargoFixture.CreateAuthenticatedClientAsync(cargoApiClient, apiClient, adminRole: true);
 

@@ -35,7 +35,7 @@ public sealed class JwtRealAuthTests
     [MySqlFact]
     public async Task TokenEmitido_ConClaveConfigurada_AccedeEndpointProtegido_200()
     {
-        using var factory = new JwtRealWebApplicationFactory(signingKey: TestKeys.Host);
+        await using var factory = new JwtRealWebApplicationFactory(signingKey: TestKeys.Host);
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -56,7 +56,7 @@ public sealed class JwtRealAuthTests
     [MySqlFact]
     public async Task TokenFirmado_ConClaveDistinta_Rechazado_401()
     {
-        using var factory = new JwtRealWebApplicationFactory(signingKey: TestKeys.Host);
+        await using var factory = new JwtRealWebApplicationFactory(signingKey: TestKeys.Host);
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -80,7 +80,7 @@ public sealed class JwtRealAuthTests
     [MySqlFact]
     public async Task TokenExpirado_DentroDelClockSkewDefault_Rechazado_401()
     {
-        using var factory = new JwtRealWebApplicationFactory(signingKey: TestKeys.Host);
+        await using var factory = new JwtRealWebApplicationFactory(signingKey: TestKeys.Host);
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 

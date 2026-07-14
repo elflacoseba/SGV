@@ -10,11 +10,15 @@ using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class SkillsControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public SkillsControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     // ---- Helpers ----
@@ -59,7 +63,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/skills");
@@ -75,7 +79,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetAll_WhenNoData_ReturnsOkWithEmptyArray()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(
@@ -94,7 +98,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -110,7 +114,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/skills/{Guid.NewGuid()}");
@@ -127,7 +131,7 @@ public sealed class SkillsControllerTests
         // la consulta por id MUST responder 404. El repository filtra por
         // IsActive, así que GetByIdAsync devuelve null y el controller
         // NotFound.
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(
@@ -160,7 +164,7 @@ public sealed class SkillsControllerTests
     {
         // Sin cabecera Authorization, GetAll debe responder 401 porque el
         // controller tiene [Authorize] aplicado a nivel de clase.
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/skills");
@@ -171,7 +175,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/v1/skills/{Guid.NewGuid()}");
@@ -186,7 +190,7 @@ public sealed class SkillsControllerTests
         // debe contener nivelId, nivelNombre ni NivelId en el payload
         // JSON. La entidad Habilidad del dominio no modela nivel propio,
         // así que el catálogo maestro debe ser consumer-safe.
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
 
@@ -207,7 +211,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Post_ValidRequest_Returns201CreatedWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "NVO", nombre = "Nueva Habilidad", categoria = "Técnica" });
 
@@ -235,7 +239,7 @@ public sealed class SkillsControllerTests
                     new HabilidadError(HabilidadErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -261,7 +265,7 @@ public sealed class SkillsControllerTests
                 HabilidadCommandResult.Failure(
                     new HabilidadError(HabilidadErrorType.Conflict, "CodigoDuplicado", "Ya existe una habilidad activa con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -281,7 +285,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Put_ValidRequest_WithCodigo_Returns200OkWithUpdatedDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new
         {
@@ -309,7 +313,7 @@ public sealed class SkillsControllerTests
                 HabilidadCommandResult.Failure(
                     new HabilidadError(HabilidadErrorType.NotFound, "HabilidadNoEncontrada", "La habilidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -338,7 +342,7 @@ public sealed class SkillsControllerTests
                     new HabilidadError(HabilidadErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -367,7 +371,7 @@ public sealed class SkillsControllerTests
                         ["codigo"] = ["'Codigo' no debe estar vacío."]
                     }))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -394,7 +398,7 @@ public sealed class SkillsControllerTests
                         ["codigo"] = ["'Codigo' debe tener 50 caracteres o menos."]
                     }))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -418,7 +422,7 @@ public sealed class SkillsControllerTests
                     new HabilidadError(HabilidadErrorType.Conflict, "CodigoDuplicado",
                         "Ya existe una habilidad activa con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -439,7 +443,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Delete_ExistingId_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
@@ -457,7 +461,7 @@ public sealed class SkillsControllerTests
                 HabilidadCommandResult.Failure(
                     new HabilidadError(HabilidadErrorType.NotFound, "HabilidadNoEncontrada", "La habilidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -476,7 +480,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
@@ -496,7 +500,7 @@ public sealed class SkillsControllerTests
                 HabilidadCommandResult.Failure(
                     new HabilidadError(HabilidadErrorType.NotFound, "HabilidadNoEncontrada", "La habilidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -521,7 +525,7 @@ public sealed class SkillsControllerTests
                     new HabilidadError(HabilidadErrorType.Conflict, "CodigoDuplicado",
                         "Ya existe una habilidad activa con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioComandos>();
             services.AddSingleton<IHabilidadServicioComandos>(fakeComandos);
@@ -541,7 +545,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetConsulta_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/skills/consulta");
@@ -552,7 +556,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetConsulta_StatusEliminadas_RetornaSoloEliminadas()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(
@@ -575,7 +579,7 @@ public sealed class SkillsControllerTests
     public async Task GetConsulta_StatusInvalido_CaeA_Activas()
     {
         // status=archivo no es un valor conocido: el controller debe caer a activas.
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(new FakeHabilidadServicio());
@@ -594,7 +598,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task GetConsulta_SinStatus_RetornaActivas()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(new FakeHabilidadServicio());
@@ -621,7 +625,7 @@ public sealed class SkillsControllerTests
             return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
         };
 
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
@@ -648,7 +652,7 @@ public sealed class SkillsControllerTests
             return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
         };
 
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
@@ -679,7 +683,7 @@ public sealed class SkillsControllerTests
             return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
         };
 
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
@@ -707,7 +711,7 @@ public sealed class SkillsControllerTests
             return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
         };
 
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
@@ -734,7 +738,7 @@ public sealed class SkillsControllerTests
             return new PagedResult<HabilidadDto>([], 0, q.Page, q.PageSize);
         };
 
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IHabilidadServicioConsulta>();
             services.AddSingleton<IHabilidadServicioConsulta>(fakeServicio);
@@ -754,7 +758,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Create_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var body = ToJsonBody(new { codigo = "NVO", nombre = "Nueva" });
 
@@ -766,7 +770,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Create_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
         var body = ToJsonBody(new { codigo = "NVO", nombre = "Nueva" });
@@ -779,7 +783,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Update_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
         var body = ToJsonBody(new { nombre = "X" });
@@ -792,7 +796,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
 
@@ -804,7 +808,7 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
 

@@ -124,7 +124,7 @@ public sealed class AuthApiClientTimeoutTests
     {
         var upstreamTcs = new TaskCompletionSource();
 
-        using var factory = new SgvWebApplicationFactory().WithOverrides(
+        await using var factory = new SgvWebApplicationFactory().WithOverrides(
             configureServices: s => s.Configure<SgvApiOptions>(o => o.BaseUrl = "https://api.test"),
             authApiHandler: new SlowUpstreamHandler(upstreamTcs));
 

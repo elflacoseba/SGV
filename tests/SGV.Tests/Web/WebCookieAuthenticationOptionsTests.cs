@@ -32,11 +32,11 @@ public sealed class WebCookieAuthenticationOptionsTests
     private const string DevWebBaseUrl = "https://api.example.com";
 
     [Fact]
-    public void WebCookieAuthOptions_Production_SecurePolicyAlways()
+    public async Task WebCookieAuthOptions_Production_SecurePolicyAlways()
     {
         // Arrange — Production env with a valid SgvApi:BaseUrl so the
         // ValidateOnStart on SgvApiOptions does not block host construction.
-        using var factory = new WebApplicationFactory<SGV.Web.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Web.Program>()
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Production")
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
@@ -58,10 +58,10 @@ public sealed class WebCookieAuthenticationOptionsTests
     }
 
     [Fact]
-    public void WebCookieAuthOptions_Development_SecurePolicySameAsRequest()
+    public async Task WebCookieAuthOptions_Development_SecurePolicySameAsRequest()
     {
         // Arrange — Development env with a valid SgvApi:BaseUrl override.
-        using var factory = new WebApplicationFactory<SGV.Web.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Web.Program>()
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Development")
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(

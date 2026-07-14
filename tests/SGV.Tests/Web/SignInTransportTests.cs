@@ -100,7 +100,7 @@ public sealed class SignInTransportTests
     [Fact]
     public async Task SignIn_TaskCanceledExceptionCancelled_Propagates()
     {
-        using var factory = new SgvWebApplicationFactory().WithOverrides(
+        await using var factory = new SgvWebApplicationFactory().WithOverrides(
             configureServices: s =>
             {
                 s.Configure<SgvApiOptions>(o => o.BaseUrl = "https://api.test");

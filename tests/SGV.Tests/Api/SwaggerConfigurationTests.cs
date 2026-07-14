@@ -1,18 +1,21 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using SGV.Tests.Api.Collections;
 using Xunit;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class SwaggerConfigurationTests
-    : IClassFixture<WebApplicationFactory<SGV.Api.Program>>
 {
+    private readonly ApiIntegrationFixture _fixture;
     private readonly WebApplicationFactory<SGV.Api.Program> _factory;
 
-    public SwaggerConfigurationTests(WebApplicationFactory<SGV.Api.Program> factory)
+    public SwaggerConfigurationTests(ApiIntegrationFixture fixture)
     {
-        _factory = factory;
+        _fixture = fixture;
+        _factory = fixture.RootFactory;
     }
 
     [Fact]
@@ -89,7 +92,7 @@ public sealed class SwaggerConfigurationTests
         // NO reintroducimos un GET anónimo contra /api/v1/personas para
         // "honrar el nombre viejo": PR-1 quiere exactamente lo contrario
         // (que ese endpoint requiera token).
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/swagger/v1/swagger.json");

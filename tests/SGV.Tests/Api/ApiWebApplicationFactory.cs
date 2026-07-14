@@ -833,8 +833,31 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
     }
 
     /// <summary>
-    /// Crea un cliente HTTP autenticado con el rol <c>Administrador</c>.
+    /// Deriva una nueva factory que aplica los overrides provistos encima
+    /// de la configuración de esta factory. La factory devuelta es
+    /// <see cref="IAsyncDisposable"/> y pertenece al caller — idealmente
+    /// usada con <c>await using</c>. No comparte el host con la raíz.
     /// </summary>
+    public ApiWebApplicationFactory WithOverrides(
+        Action<IServiceCollection>? configureServices = null,
+        Action<IConfigurationBuilder>? configureConfig = null)
+    {
+        return new ApiWebApplicationFactory(
+            Merge(_configureServices, configureServices),
+            Merge(_configureConfig, configureConfig));
+    }
+
+    private static Action<T>? Merge<T>(Action<T>? current, Action<T>? next) where T : class
+    {
+        return (current, next) switch
+        {
+            (null, null) => null,
+            (null, not null) => next,
+            (not null, null) => current,
+            _ => arg => { current(arg); next!(arg); },
+        };
+    }
+
     public HttpClient CreateAdminClient()
     {
         var client = CreateClient();
@@ -842,10 +865,6 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
         return client;
     }
 
-    /// <summary>
-    /// Crea un cliente HTTP autenticado sin rol <c>Administrador</c>
-    /// (usuario no-administrador válido para tests de <c>403</c>).
-    /// </summary>
     public HttpClient CreateNonAdminClient()
     {
         var client = CreateClient();

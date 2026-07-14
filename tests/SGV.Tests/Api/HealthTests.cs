@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.Configuration;
 using SGV.Tests.Persistencia;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
@@ -10,12 +11,15 @@ namespace SGV.Tests.Api;
 /// Tests for health check endpoints in SGV.Api.
 /// Covers liveness (no auth, no deps) and readiness (MySQL-dependent).
 /// </summary>
+[Collection("ApiIntegration")]
 public sealed class HealthTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public HealthTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     [Fact]
     public async Task Live_NoAuth_Returns200()
     {
-        await using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/health/live");
@@ -26,7 +30,7 @@ public sealed class HealthTests
     [MySqlFact]
     public async Task Ready_MySqlUp_Returns200()
     {
-        await using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/health/ready");
@@ -43,7 +47,7 @@ public sealed class HealthTests
         // Use a deliberately unreachable connection string so the raw MySQL probe fails fast.
         // The connection string is well-formed (passes startup validation) but points to a
         // closed port, so OpenAsync times out / fails and the check returns Unhealthy.
-        var factory = new ApiWebApplicationFactory(configureConfig: config =>
+        var factory = _fixture.RootFactory.WithOverrides(configureConfig: config =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -69,7 +73,7 @@ public sealed class HealthTests
     [InlineData("/health/ready")]
     public async Task Ready_ResponseHasNoStackTrace(string path)
     {
-        await using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync(path);

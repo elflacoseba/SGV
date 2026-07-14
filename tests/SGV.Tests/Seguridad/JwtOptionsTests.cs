@@ -27,9 +27,9 @@ public sealed class JwtOptionsTests
     private const string SigningKeyConfigKey = "Jwt:SigningKey";
 
     [Fact]
-    public void HostBuild_SinSigningKey_LanzaOptionsValidationException()
+    public async Task HostBuild_SinSigningKey_LanzaOptionsValidationException()
     {
-        using var factory = new WebApplicationFactory<SGV.Api.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
                     new Dictionary<string, string?> { [SigningKeyConfigKey] = string.Empty })));
@@ -39,9 +39,9 @@ public sealed class JwtOptionsTests
     }
 
     [Fact]
-    public void HostBuild_SigningKeyCorto_LanzaOptionsValidationException()
+    public async Task HostBuild_SigningKeyCorto_LanzaOptionsValidationException()
     {
-        using var factory = new WebApplicationFactory<SGV.Api.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
                     new Dictionary<string, string?> { [SigningKeyConfigKey] = "short-key" })));
@@ -51,12 +51,12 @@ public sealed class JwtOptionsTests
     }
 
     [Fact]
-    public void HostBuild_SigningKey31Bytes_Lanza()
+    public async Task HostBuild_SigningKey31Bytes_Lanza()
     {
         // 31 ASCII chars — UTF-8 byte count == 31, must fail the >= 32 validator.
         var clave31Bytes = new string('a', 31);
 
-        using var factory = new WebApplicationFactory<SGV.Api.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
                     new Dictionary<string, string?> { [SigningKeyConfigKey] = clave31Bytes })));
@@ -66,12 +66,12 @@ public sealed class JwtOptionsTests
     }
 
     [Fact]
-    public void HostBuild_SigningKey32Bytes_Arranca()
+    public async Task HostBuild_SigningKey32Bytes_Arranca()
     {
         // 32 ASCII chars — UTF-8 byte count == 32, must pass the >= 32 validator.
         var clave32Bytes = new string('b', 32);
 
-        using var factory = new WebApplicationFactory<SGV.Api.Program>()
+        await using var factory = new WebApplicationFactory<SGV.Api.Program>()
             .WithWebHostBuilder(builder => builder
                 .ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(
                     new Dictionary<string, string?> { [SigningKeyConfigKey] = clave32Bytes })));
@@ -85,9 +85,9 @@ public sealed class JwtOptionsTests
     /// pass validation so a fresh <c>dotnet run</c> works without additional setup.
     /// </summary>
     [Fact]
-    public void HostBuild_PlaceholderDev_Arranca()
+    public async Task HostBuild_PlaceholderDev_Arranca()
     {
-        using var factory = new WebApplicationFactory<SGV.Api.Program>();
+        await using var factory = new WebApplicationFactory<SGV.Api.Program>();
         using var client = factory.CreateClient();
 
         Assert.NotNull(client);

@@ -7,11 +7,15 @@ using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class PersonaSkillControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public PersonaSkillControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private static readonly Guid ExistingPersonaId = FakePersonaServicioConsulta.PersonaId1;
@@ -89,7 +93,7 @@ public sealed class PersonaSkillControllerTests
     [Fact]
     public async Task GetSkills_ReturnsOkWithDtoArray()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
@@ -114,7 +118,7 @@ public sealed class PersonaSkillControllerTests
     public async Task GetSkills_WhenEmpty_ReturnsOkWithEmptyArray()
     {
         var fake = new FakePersonaSkillServicio { Skills = [] };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
@@ -132,7 +136,7 @@ public sealed class PersonaSkillControllerTests
     [Fact]
     public async Task GetSkills_ResponseContainsSkillIdAndNivelId()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
@@ -157,7 +161,7 @@ public sealed class PersonaSkillControllerTests
     [Fact]
     public async Task PutSkill_ValidRequest_Returns200OkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
@@ -184,7 +188,7 @@ public sealed class PersonaSkillControllerTests
                     new PersonaSkillError(PersonaSkillErrorType.Validation, "NivelInvalido",
                         "El nivel de habilidad especificado no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
@@ -210,7 +214,7 @@ public sealed class PersonaSkillControllerTests
                     new PersonaSkillError(PersonaSkillErrorType.NotFound, "PersonaNoEncontrada",
                         "La persona no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
@@ -231,7 +235,7 @@ public sealed class PersonaSkillControllerTests
     [Fact]
     public async Task DeleteSkill_ExistingAssignment_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
@@ -254,7 +258,7 @@ public sealed class PersonaSkillControllerTests
                     new PersonaSkillError(PersonaSkillErrorType.NotFound, "AsignacionNoEncontrada",
                         "La asignación de habilidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
@@ -279,7 +283,7 @@ public sealed class PersonaSkillControllerTests
                     new PersonaSkillError(PersonaSkillErrorType.NotFound, "PersonaNoEncontrada",
                         "La persona no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio>(fake);
@@ -297,7 +301,7 @@ public sealed class PersonaSkillControllerTests
     [Fact]
     public async Task PutSkill_DoesNotConflictWithSkillsCatalogRoute()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();
@@ -316,7 +320,7 @@ public sealed class PersonaSkillControllerTests
     [Fact]
     public async Task GetPersonaSkills_IsSeparateFromPersonaDto()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, FakePersonaSkillServicio>();

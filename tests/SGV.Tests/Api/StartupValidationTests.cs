@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SGV.Infraestructura.Persistencia;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
@@ -14,12 +15,15 @@ namespace SGV.Tests.Api;
 /// Verifies that SGV.Api fails loud when ConnectionStrings:SgvDatabase is missing,
 /// whitespace, or malformed, and succeeds with a valid connection string.
 /// </summary>
+[Collection("ApiIntegration")]
 public sealed class StartupValidationTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public StartupValidationTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     [Fact]
-    public void HostBuild_ThrowsWhenConnectionStringMissing()
+    public async Task HostBuild_ThrowsWhenConnectionStringMissing()
     {
-        using var factory = new ApiWebApplicationFactory(
+        await using var factory = _fixture.RootFactory.WithOverrides(
             configureConfig: config =>
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -37,9 +41,9 @@ public sealed class StartupValidationTests
     }
 
     [Fact]
-    public void HostBuild_ThrowsWhenWhitespace()
+    public async Task HostBuild_ThrowsWhenWhitespace()
     {
-        using var factory = new ApiWebApplicationFactory(
+        await using var factory = _fixture.RootFactory.WithOverrides(
             configureConfig: config =>
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -57,9 +61,9 @@ public sealed class StartupValidationTests
     }
 
     [Fact]
-    public void HostBuild_ThrowsWhenMalformed_NoServerNoDatabase()
+    public async Task HostBuild_ThrowsWhenMalformed_NoServerNoDatabase()
     {
-        using var factory = new ApiWebApplicationFactory(
+        await using var factory = _fixture.RootFactory.WithOverrides(
             configureConfig: config =>
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -79,9 +83,9 @@ public sealed class StartupValidationTests
     }
 
     [Fact]
-    public void HostBuild_WarnsWhenConnectionTimeoutMissing()
+    public async Task HostBuild_WarnsWhenConnectionTimeoutMissing()
     {
-        using var factory = new ApiWebApplicationFactory(
+        await using var factory = _fixture.RootFactory.WithOverrides(
             configureConfig: config =>
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -96,9 +100,9 @@ public sealed class StartupValidationTests
     }
 
     [Fact]
-    public void HostBuild_SucceedsWithValidConnectionString()
+    public async Task HostBuild_SucceedsWithValidConnectionString()
     {
-        using var factory = new ApiWebApplicationFactory(
+        await using var factory = _fixture.RootFactory.WithOverrides(
             configureConfig: config =>
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>

@@ -6,17 +6,21 @@ using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class NivelesCargoControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public NivelesCargoControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     [Fact]
     public async Task GetAll_Returns200With2SeedDtos()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/niveles-cargo");
@@ -33,7 +37,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task GetAll_WithoutCredentials_Returns401()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/niveles-cargo");
@@ -44,7 +48,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task GetById_WithoutCredentials_Returns401()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/v1/niveles-cargo/{Guid.NewGuid()}");
@@ -55,7 +59,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task GetAll_WhenNoData_Returns200WithEmptyArray()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<INivelCargoServicioConsulta>();
             services.AddSingleton<INivelCargoServicioConsulta>(
@@ -75,7 +79,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task GetById_ExistingId_Returns200WithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -92,7 +96,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task GetById_NonExistentId_Returns404()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -104,7 +108,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task GetById_InvalidGuid_Returns400()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -116,7 +120,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task Post_Returns405MethodNotAllowed()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.PostAsync(
@@ -128,7 +132,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task Put_Returns405MethodNotAllowed()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.PutAsync(
@@ -140,7 +144,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task Delete_Returns405MethodNotAllowed()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
@@ -152,7 +156,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task Patch_Returns405MethodNotAllowed()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var request = new HttpRequestMessage(HttpMethod.Patch,
@@ -169,7 +173,7 @@ public sealed class NivelesCargoControllerTests
     [Fact]
     public async Task Dto_Shape_OnlyExpectedProperties()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/niveles-cargo");

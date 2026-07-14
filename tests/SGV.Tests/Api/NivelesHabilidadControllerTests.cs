@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
@@ -12,15 +13,18 @@ namespace SGV.Tests.Api;
 /// Mirrors the pattern of <c>NivelesCargoControllerTests</c>: list +
 /// get-by-id + auth (401 without credentials).
 /// </summary>
+[Collection("ApiIntegration")]
 public sealed class NivelesHabilidadControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public NivelesHabilidadControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly Guid BasicoId = Guid.Parse("91000000-0000-0000-0000-000000000001");
     private static readonly Guid AvanzadoId = Guid.Parse("91000000-0000-0000-0000-000000000002");
 
     [Fact]
     public async Task GetAll_ReturnsOkWithDtos()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<INivelHabilidadServicioConsulta>();
             services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio());
@@ -39,7 +43,7 @@ public sealed class NivelesHabilidadControllerTests
     [Fact]
     public async Task GetById_ExistingId_ReturnsOk()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<INivelHabilidadServicioConsulta>();
             services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio());
@@ -58,7 +62,7 @@ public sealed class NivelesHabilidadControllerTests
     [Fact]
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<INivelHabilidadServicioConsulta>();
             services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio());
@@ -74,7 +78,7 @@ public sealed class NivelesHabilidadControllerTests
     [Fact]
     public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/niveles-habilidad");
@@ -87,7 +91,7 @@ public sealed class NivelesHabilidadControllerTests
     {
         // Spec CRITICAL-05 escenario 2: cuando el catálogo de niveles está
         // vacío, el endpoint MUST responder 200 OK con una colección vacía.
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<INivelHabilidadServicioConsulta>();
             services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio(isEmpty: true));

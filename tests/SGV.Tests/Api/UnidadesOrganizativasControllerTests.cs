@@ -11,11 +11,15 @@ using SGV.Infraestructura.Persistencia.Catalogos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class UnidadesOrganizativasControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public UnidadesOrganizativasControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly Guid UnidadId = Guid.Parse("a0000000-0000-0000-0000-000000000001");
     private static readonly Guid UnidadPadreId = Guid.Parse("b0000000-0000-0000-0000-000000000002");
@@ -80,7 +84,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas");
@@ -91,7 +95,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetAll_WithAuthenticatedNonAdmin_ReturnsOk()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas");
@@ -102,7 +106,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas");
@@ -119,7 +123,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetAll_WhenNoData_ReturnsOkWithEmptyArray()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioConsulta>();
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
@@ -139,7 +143,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync(
@@ -151,7 +155,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -168,7 +172,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetById_JsonResponseContieneUnidadPadreCodigoYNombre()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -196,7 +200,7 @@ public sealed class UnidadesOrganizativasControllerTests
             FakeUnidadOrganizativaServicio.UnidadId1,
             "GER", "Gerencia General");
 
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioConsulta>();
             var fakeWithParent = new FakeUnidadOrganizativaServicio(withPadreData: true);
@@ -225,7 +229,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/unidades-organizativas/{Guid.NewGuid()}");
@@ -251,7 +255,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Post_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
@@ -263,7 +267,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Post_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
@@ -275,7 +279,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Post_ValidRequest_Returns201CreatedWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "NUEVO", nombre = "Nueva Unidad", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId });
 
@@ -303,7 +307,7 @@ public sealed class UnidadesOrganizativasControllerTests
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -329,7 +333,7 @@ public sealed class UnidadesOrganizativasControllerTests
                 UnidadOrganizativaCommandResult.Failure(
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado", "Ya existe una unidad activa con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -349,7 +353,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Put_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var body = ToJsonBody(new { codigo = "GER", nombre = "Actualizada", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId });
 
@@ -361,7 +365,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Put_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var body = ToJsonBody(new { codigo = "GER", nombre = "Actualizada", tipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.DireccionId });
 
@@ -398,7 +402,7 @@ public sealed class UnidadesOrganizativasControllerTests
                         null,
                         null)))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -444,7 +448,7 @@ public sealed class UnidadesOrganizativasControllerTests
                         null,
                         null)))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -481,7 +485,7 @@ public sealed class UnidadesOrganizativasControllerTests
                 UnidadOrganizativaCommandResult.Failure(
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -510,7 +514,7 @@ public sealed class UnidadesOrganizativasControllerTests
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -531,7 +535,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task PatchParent_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var body = ToJsonBody(new { unidadPadreId = UnidadPadreId });
 
@@ -544,7 +548,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task PatchParent_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var body = ToJsonBody(new { unidadPadreId = UnidadPadreId });
 
@@ -557,7 +561,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task PatchParent_ValidRequest_Returns200OkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { unidadPadreId = UnidadPadreId });
 
@@ -578,7 +582,7 @@ public sealed class UnidadesOrganizativasControllerTests
                 UnidadOrganizativaCommandResult.Failure(
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "CicloJerarquico", "Una unidad no puede ser padre de sí misma.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -599,7 +603,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetAll_JsonResponseContieneTipoUnidadOrganizativaId()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas");
@@ -618,7 +622,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetById_JsonResponseContieneTipoUnidadOrganizativaId()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -639,7 +643,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Consulta_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
@@ -650,7 +654,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Consulta_SinFiltros_RetornaPagedResult()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
@@ -667,7 +671,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Consulta_ConSearch_FiltraResultados()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta?search=GER");
@@ -681,7 +685,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Consulta_JsonResponseContieneUnidadPadreCodigoYNombre()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/consulta");
@@ -701,7 +705,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Consulta_ConTipoUnidadOrganizativaId_FiltraPorTipo()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -718,7 +722,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Consulta_ConStatusActivas_RetornaSoloActivas()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioConsulta>();
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
@@ -737,7 +741,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Consulta_ConStatusEliminadas_RetornaSoloEliminadas()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioConsulta>();
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
@@ -756,7 +760,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Consulta_SinStatus_PorDefectoActivas()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioConsulta>();
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(
@@ -777,7 +781,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetTree_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
@@ -788,7 +792,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetTree_ReturnsOkWithTreeNodeArray()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
@@ -802,7 +806,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task GetTree_JsonNodoIncluyeTipoUnidadOrganizativaId()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
@@ -828,7 +832,7 @@ public sealed class UnidadesOrganizativasControllerTests
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "UnidadConHijasActivas",
                         "No se puede eliminar una unidad organizativa que tiene hijas activas.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -848,7 +852,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Reactivate_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.PatchAsync(
@@ -860,7 +864,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.PatchAsync(
@@ -872,7 +876,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Reactivate_ExistentDeletedUnidad_Returns200OkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
@@ -893,7 +897,7 @@ public sealed class UnidadesOrganizativasControllerTests
                 UnidadOrganizativaCommandResult.Failure(
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -918,7 +922,7 @@ public sealed class UnidadesOrganizativasControllerTests
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
                         "Ya existe una unidad activa con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);
@@ -939,7 +943,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Delete_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
@@ -950,7 +954,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
@@ -961,7 +965,7 @@ public sealed class UnidadesOrganizativasControllerTests
     [Fact]
     public async Task Delete_ExistingId_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync($"/api/v1/unidades-organizativas/{UnidadId}");
@@ -978,7 +982,7 @@ public sealed class UnidadesOrganizativasControllerTests
                 UnidadOrganizativaCommandResult.Failure(
                     new UnidadOrganizativaError(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IUnidadOrganizativaServicioComandos>();
             services.AddSingleton<IUnidadOrganizativaServicioComandos>(fakeComandos);

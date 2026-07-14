@@ -9,17 +9,21 @@ using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class CargosControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public CargosControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     [Fact]
     public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/cargos");
@@ -30,7 +34,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
@@ -41,7 +45,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetAll_WithAuthenticatedNonAdmin_ReturnsOk()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.GetAsync("/api/v1/cargos");
@@ -55,7 +59,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetById_WithAuthenticatedNonAdmin_ReturnsOk()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.GetAsync($"/api/v1/cargos/{FakeCargoServicio.CargoId1}");
@@ -69,7 +73,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/cargos");
@@ -86,7 +90,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetAll_WhenNoData_ReturnsOkWithEmptyArray()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioConsulta>();
             services.AddSingleton<ICargoServicioConsulta>(
@@ -106,7 +110,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -123,7 +127,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/cargos/{Guid.NewGuid()}");
@@ -134,7 +138,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetById_ParentPayloadDoesNotIncludeSkillAssignmentFields()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -154,7 +158,7 @@ public sealed class CargosControllerTests
         // empezar a exponer los campos del subrecurso /skills por este
         // cambio contractual (cargo-skill-query-contract Req 3 escenario
         // "No contaminar el contrato padre de Cargo").
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -183,7 +187,7 @@ public sealed class CargosControllerTests
     {
         // PR2-T2.4 (endurecido): GET /api/v1/cargos (lista) tampoco debe
         // empezar a exponer los campos del subrecurso /skills.
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/cargos");
@@ -213,7 +217,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetAll_JsonResponseContieneNivelIdYNivelNombre()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/cargos");
@@ -269,7 +273,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task Post_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
         var body = ToJsonBody(new { codigo = "NVO", nombre = "Nuevo Cargo", nivelId = FakeCargoServicioComandos.DefaultNivelId });
@@ -282,7 +286,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task Put_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
         var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "Nuevo", nivelId = FakeCargoServicioComandos.DefaultNivelId });
@@ -295,7 +299,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
 
@@ -307,7 +311,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
 
@@ -324,7 +328,7 @@ public sealed class CargosControllerTests
     [InlineData("PATCH",  "/api/v1/cargos/00000000-0000-0000-0000-000000000001/reactivar")]
     public async Task Mutation_WithoutCredentials_ReturnsUnauthorized(string method, string path)
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         HttpResponseMessage response = method switch
@@ -342,7 +346,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task Post_ValidRequest_Returns201CreatedWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "NVO", nombre = "Nuevo Cargo", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
@@ -370,7 +374,7 @@ public sealed class CargosControllerTests
                     new CargoError(CargoErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -396,7 +400,7 @@ public sealed class CargosControllerTests
                 CargoCommandResult.Failure(
                     new CargoError(CargoErrorType.Conflict, "CodigoDuplicado", "Ya existe un cargo activo con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -416,7 +420,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task Put_ValidRequest_WithCodigo_Returns200OkWithUpdatedDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { codigo = "DIRECTOR", nombre = "Cargo Actualizado", nivelId = FakeCargoServicioComandos.DefaultNivelId });
 
@@ -437,7 +441,7 @@ public sealed class CargosControllerTests
                 CargoCommandResult.Failure(
                     new CargoError(CargoErrorType.NotFound, "CargoNoEncontrado", "El cargo no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -466,7 +470,7 @@ public sealed class CargosControllerTests
                     new CargoError(CargoErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -496,7 +500,7 @@ public sealed class CargosControllerTests
                     new CargoError(CargoErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -520,7 +524,7 @@ public sealed class CargosControllerTests
                     new CargoError(CargoErrorType.Conflict, "CodigoDuplicado",
                         "Ya existe un cargo activo con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -541,7 +545,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task Delete_ExistingId_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
@@ -559,7 +563,7 @@ public sealed class CargosControllerTests
                 CargoCommandResult.Failure(
                     new CargoError(CargoErrorType.NotFound, "CargoNoEncontrado", "El cargo no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -583,7 +587,7 @@ public sealed class CargosControllerTests
                     new CargoError(CargoErrorType.Conflict, "CargoConPuestosActivos",
                         "No se puede desactivar un cargo que tiene puestos activos asociados.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -604,7 +608,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
@@ -624,7 +628,7 @@ public sealed class CargosControllerTests
                 CargoCommandResult.Failure(
                     new CargoError(CargoErrorType.NotFound, "CargoNoEncontrado", "El cargo no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -649,7 +653,7 @@ public sealed class CargosControllerTests
                     new CargoError(CargoErrorType.Conflict, "CodigoDuplicado",
                         "Ya existe un cargo activo con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioComandos>();
             services.AddSingleton<ICargoServicioComandos>(fakeComandos);
@@ -669,7 +673,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetConsulta_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/cargos/consulta?status=eliminadas");
@@ -680,7 +684,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetConsulta_StatusEliminadas_RetornaSoloEliminadas()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioConsulta>();
             services.AddSingleton<ICargoServicioConsulta>(new FakeCargoServicio(withEliminadas: true));
@@ -700,7 +704,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetConsulta_StatusInvalido_CaeA_Activas()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioConsulta>();
             services.AddSingleton<ICargoServicioConsulta>(new FakeCargoServicio(withEliminadas: true));
@@ -719,7 +723,7 @@ public sealed class CargosControllerTests
     [Fact]
     public async Task GetConsulta_SinStatus_RetornaActivas()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/cargos/consulta");
@@ -739,7 +743,7 @@ public sealed class CargosControllerTests
         // paginar (REQ-CM-01). Si el `sort` no se propaga, el fake
         // capturaría null y este test fallaría.
         var capture = new SortCapturingFake();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioConsulta>();
             services.AddSingleton<ICargoServicioConsulta>(capture);
@@ -760,7 +764,7 @@ public sealed class CargosControllerTests
         // (incluso inválido) llega al servicio para que el repositorio
         // decida si lo aplica o cae al orden por defecto.
         var capture = new SortCapturingFake();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ICargoServicioConsulta>();
             services.AddSingleton<ICargoServicioConsulta>(capture);

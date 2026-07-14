@@ -10,11 +10,15 @@ using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class OcupacionesControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public OcupacionesControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private static CrearOcupacionRequest DefaultCreateRequest() => new(
@@ -36,7 +40,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/ocupaciones");
@@ -47,7 +51,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task GetAll_WithAuthenticatedNonAdmin_ReturnsOk()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.GetAsync("/api/v1/ocupaciones");
@@ -58,7 +62,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task GetAll_Default_ReturnsOkWithActiveOccupations()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/ocupaciones");
@@ -73,7 +77,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task GetAll_IncludeHistory_ReturnsAllIncludingFinalized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/ocupaciones?includeHistory=true");
@@ -87,7 +91,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}");
@@ -98,7 +102,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}");
@@ -112,7 +116,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task GetById_NonExistentId_Returns404()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/ocupaciones/{Guid.NewGuid()}");
@@ -138,7 +142,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Create_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var request = DefaultCreateRequest();
 
@@ -150,7 +154,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Create_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var request = DefaultCreateRequest();
 
@@ -162,7 +166,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Create_ValidRequest_Returns201Created()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var request = DefaultCreateRequest();
 
@@ -184,7 +188,7 @@ public sealed class OcupacionesControllerTests
                     new(OcupacionErrorType.Conflict, "PuestoOcupado",
                         "Ya existe una ocupación activa para el puesto especificado.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
@@ -205,7 +209,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Update_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var request = DefaultUpdateRequest();
 
@@ -218,7 +222,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Update_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var request = DefaultUpdateRequest();
 
@@ -231,7 +235,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Update_ValidRequest_Returns200Ok()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var request = DefaultUpdateRequest();
 
@@ -253,7 +257,7 @@ public sealed class OcupacionesControllerTests
                     new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
                         "La ocupación no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
@@ -277,7 +281,7 @@ public sealed class OcupacionesControllerTests
                     new(OcupacionErrorType.Conflict, "OcupacionNoEditable",
                         "La ocupación no está activa y no se puede modificar.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
@@ -296,7 +300,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Finalize_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var request = DefaultFinalizeRequest();
 
@@ -309,7 +313,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Finalize_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var request = DefaultFinalizeRequest();
 
@@ -322,7 +326,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Finalize_ValidRequest_Returns200Ok()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var request = DefaultFinalizeRequest();
 
@@ -345,7 +349,7 @@ public sealed class OcupacionesControllerTests
                     new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
                         "La ocupación no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
@@ -369,7 +373,7 @@ public sealed class OcupacionesControllerTests
                     new(OcupacionErrorType.Conflict, "OcupacionNoEditable",
                         "La ocupación no está activa y no se puede finalizar.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
@@ -388,7 +392,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Reactivate_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.PatchAsync(
@@ -401,7 +405,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.PatchAsync(
@@ -414,7 +418,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Reactivate_ValidRequest_Returns200Ok()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
@@ -437,7 +441,7 @@ public sealed class OcupacionesControllerTests
                     new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
                         "La ocupación no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
@@ -460,7 +464,7 @@ public sealed class OcupacionesControllerTests
                     new(OcupacionErrorType.Conflict, "PuestoOcupado",
                         "Ya existe una ocupación activa para el puesto especificado.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
@@ -478,7 +482,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Delete_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.DeleteAsync(
@@ -490,7 +494,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.DeleteAsync(
@@ -502,7 +506,7 @@ public sealed class OcupacionesControllerTests
     [Fact]
     public async Task Delete_ExistingId_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
@@ -521,7 +525,7 @@ public sealed class OcupacionesControllerTests
                     new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
                         "La ocupación no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IOcupacionServicioComandos>();
             services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);

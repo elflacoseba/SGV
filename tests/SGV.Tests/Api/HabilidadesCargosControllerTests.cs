@@ -5,6 +5,7 @@ using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
@@ -17,8 +18,11 @@ namespace SGV.Tests.Api;
 /// <see cref="IHabilidadServicioConsulta"/> por defecto de la factory ya
 /// devuelve la habilidad semilla o null según el id solicitado.
 /// </summary>
+[Collection("ApiIntegration")]
 public sealed class HabilidadesCargosControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public HabilidadesCargosControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private static async Task<T> ReadAsAsync<T>(HttpResponseMessage response)
@@ -133,7 +137,7 @@ public sealed class HabilidadesCargosControllerTests
         // con cargos asociados → 200 OK con Items, TotalCount, Page, PageSize
         // y cada item con el DTO dedicado.
         var fake = new FakeSkillCargoServicioConsulta();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);
@@ -171,7 +175,7 @@ public sealed class HabilidadesCargosControllerTests
         // escenario "Habilidad existente sin cargos": 200 OK con Items vacío,
         // NO 404. Una colección vacía es válida cuando la habilidad existe.
         var fake = new FakeSkillCargoServicioConsulta { Activas = [], Eliminadas = [] };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);
@@ -196,7 +200,7 @@ public sealed class HabilidadesCargosControllerTests
         // con _servicio.GetByIdAsync antes de delegar al servicio. Si el
         // skill no existe, devuelve 404 (distingue del 200 con lista vacía).
         var fake = new FakeSkillCargoServicioConsulta();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);
@@ -215,7 +219,7 @@ public sealed class HabilidadesCargosControllerTests
         // rechazado": el [Authorize] a nivel de controller exige bearer
         // token; sin Authorization header el endpoint responde 401.
         var fake = new FakeSkillCargoServicioConsulta();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);
@@ -235,7 +239,7 @@ public sealed class HabilidadesCargosControllerTests
         // activas": status=archivo NO devuelve 400, sino que resuelve a
         // activas y devuelve 200 con los cargos activos.
         var fake = new FakeSkillCargoServicioConsulta();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);
@@ -258,7 +262,7 @@ public sealed class HabilidadesCargosControllerTests
         // paginación: con 3 cargos y pageSize=2 page=2 se devuelven los
         // últimos items del segmento, TotalCount=3, Page=2, PageSize=2.
         var fake = new FakeSkillCargoServicioConsulta();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);
@@ -284,7 +288,7 @@ public sealed class HabilidadesCargosControllerTests
         // sort=codigo_desc se propaga al servicio y el primer item tiene
         // un código mayor que el segundo.
         var fake = new FakeSkillCargoServicioConsulta();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);
@@ -309,7 +313,7 @@ public sealed class HabilidadesCargosControllerTests
         // status=eliminadas se devuelven SOLO los cargos soft-deleted
         // asociados a la habilidad, no se mezclan con los activos.
         var fake = new FakeSkillCargoServicioConsulta();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);
@@ -351,7 +355,7 @@ public sealed class HabilidadesCargosControllerTests
         string queryString, int expectedPage, int expectedPageSize)
     {
         var fake = new FakeSkillCargoServicioConsulta();
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<ISkillCargoServicioConsulta>();
             services.AddSingleton<ISkillCargoServicioConsulta>(fake);

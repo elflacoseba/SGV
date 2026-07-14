@@ -31,6 +31,7 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
     };
 
     private readonly SgvWebApplicationFactory _root;
+    private int _disposed;
 
     public WebIntegrationFixture() => _root = new SgvWebApplicationFactory();
 
@@ -38,7 +39,22 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
     public SgvWebApplicationFactory RootFactory => _root;
 
     public Task InitializeAsync() => Task.CompletedTask;
-    public async Task DisposeAsync() => await _root.DisposeAsync();
+    
+    public async Task DisposeAsync()
+    {
+        // Idempotencia: una segunda llamada (p. ej. IAsyncLifetime que lo
+        // invoca más de una vez) NO debe volver a disponer la root factory.
+        // Sin esta guarda, la segunda llamada puede causar problemas.
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        // Disponer la root factory al cerrar la colección. No se usa el lock
+        // global porque el dispose del fixture solo se ejecuta cuando toda la
+        // colección termina (no hay tests concurrentes creando leases).
+        await _root.DisposeAsync();
+    }
 
     public Task<WebClientLease> CreateCargoLeaseAsync(
         FakeCargoApiClient cargo, FakeHabilidadApiClient? habilidad = null, bool adminRole = false)
@@ -198,25 +214,30 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
         Action<SgvWebApplicationFactory>? captureFactory,
         Action<HttpClient>? captureClient)
     {
-        var factory = configureFactory(_root);
-        HttpClient? client = null;
+        SgvWebApplicationFactory factory;
+        HttpClient client;
 
         try
         {
+            factory = configureFactory(_root);
             client = factory.CreateClient(ClientOptions);
             captureClient?.Invoke(client);
             captureFactory?.Invoke(factory);
+        }
+        catch
+        {
+            // If we never got to assign these, the catch below handles cleanup.
+            throw;
+        }
+
+        try
+        {
             await bootstrap(client);
         }
         catch
         {
-            if (client is not null)
-            {
-                TryDisposeClient(client);
-            }
-
+            TryDisposeClient(client);
             await TryDisposeFactoryAsync(factory);
-
             throw;
         }
 

@@ -25,7 +25,7 @@ namespace SGV.Tests.Web.Cargo;
 /// sólo cambia el envoltorio: aquí devolvemos <see cref="HttpClient"/> para
 /// no romper los call sites que aún no migraron a <see cref="WebClientLease"/>.
 /// </summary>
-public sealed class CargoWebTestFixture : IDisposable
+public sealed class CargoWebTestFixture : IAsyncDisposable
 {
     private readonly WebIntegrationFixture _root;
 
@@ -117,6 +117,4 @@ public sealed class CargoWebTestFixture : IDisposable
         _leases.Clear();
         await _root.DisposeAsync();
     }
-
-    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 }

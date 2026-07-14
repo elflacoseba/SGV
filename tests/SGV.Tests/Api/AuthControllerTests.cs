@@ -4,15 +4,19 @@ using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Contracts.Seguridad.Usuarios;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class AuthControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public AuthControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     [Fact]
     public async Task Login_WithValidCredentials_ReturnsAccessToken()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("admin", "Password1!"));
@@ -26,7 +30,7 @@ public sealed class AuthControllerTests
     [Fact]
     public async Task Login_WithInvalidCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IAuthServicio>();
             services.AddSingleton<IAuthServicio>(FakeAuthServicio.Unauthorized());
@@ -44,7 +48,7 @@ public sealed class AuthControllerTests
         // La fallback policy global de Program.cs exige autenticación por default,
         // pero [AllowAnonymous] en Login exime a este único endpoint del API.
         // Esta aserción demuestra que el cliente NO envía Authorization, y el endpoint responde 200.
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("admin", "Password1!"));

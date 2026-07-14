@@ -9,11 +9,15 @@ using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class PersonasControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public PersonasControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     // ---- Helpers ----
@@ -79,7 +83,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/personas");
@@ -90,7 +94,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task GetAll_WithAuthenticatedNonAdmin_ReturnsOk()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.GetAsync("/api/v1/personas");
@@ -101,7 +105,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/personas");
@@ -117,7 +121,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task GetAll_WhenNoData_ReturnsOkWithEmptyArray()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaServicioConsulta>();
             services.AddSingleton<IPersonaServicioConsulta>(
@@ -138,7 +142,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync(
@@ -150,7 +154,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -166,7 +170,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/personas/{Guid.NewGuid()}");
@@ -192,7 +196,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task GetAll_JsonResponse_MustNotContainExcludedRelationships()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/personas");
@@ -209,7 +213,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Post_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var body = ToJsonBody(DefaultCreateRequest());
 
@@ -221,7 +225,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Post_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var body = ToJsonBody(DefaultCreateRequest());
 
@@ -233,7 +237,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Post_ValidRequest_Returns201CreatedWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(DefaultCreateRequest());
 
@@ -261,7 +265,7 @@ public sealed class PersonasControllerTests
                     new PersonaError(PersonaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
@@ -296,7 +300,7 @@ public sealed class PersonasControllerTests
                 PersonaCommandResult.Failure(
                     new PersonaError(PersonaErrorType.Conflict, "LegajoDuplicado", "Ya existe una persona activa con el mismo legajo.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
@@ -316,7 +320,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Put_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var body = ToJsonBody(DefaultUpdateRequest("LEG-001"));
 
@@ -329,7 +333,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Put_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var body = ToJsonBody(DefaultUpdateRequest("LEG-001"));
 
@@ -342,7 +346,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(DefaultUpdateRequest("LEG-001"));
 
@@ -363,7 +367,7 @@ public sealed class PersonasControllerTests
                 PersonaCommandResult.Failure(
                     new PersonaError(PersonaErrorType.NotFound, "PersonaNoEncontrada", "La persona no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
@@ -392,7 +396,7 @@ public sealed class PersonasControllerTests
                     new PersonaError(PersonaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
@@ -413,7 +417,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Delete_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.DeleteAsync(
@@ -425,7 +429,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.DeleteAsync(
@@ -437,7 +441,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task Delete_ExistingId_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
@@ -455,7 +459,7 @@ public sealed class PersonasControllerTests
                 PersonaCommandResult.Failure(
                     new PersonaError(PersonaErrorType.NotFound, "PersonaNoEncontrada", "La persona no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
@@ -474,7 +478,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task PatchReactivar_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.PatchAsync(
@@ -486,7 +490,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task PatchReactivar_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.PatchAsync(
@@ -498,7 +502,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
@@ -518,7 +522,7 @@ public sealed class PersonasControllerTests
                 PersonaCommandResult.Failure(
                     new PersonaError(PersonaErrorType.NotFound, "PersonaNoEncontrada", "La persona no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
@@ -543,7 +547,7 @@ public sealed class PersonasControllerTests
                     new PersonaError(PersonaErrorType.Conflict, "LegajoDuplicado",
                         "Ya existe una persona activa con el mismo legajo.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaServicioComandos>();
             services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
@@ -563,7 +567,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task UpsertSkill_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         var body = ToJsonBody(DefaultSkillRequest());
 
@@ -576,7 +580,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task UpsertSkill_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
         var body = ToJsonBody(DefaultSkillRequest());
 
@@ -589,7 +593,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task UpsertSkill_WithAdmin_Returns200Ok()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, PersonaSkillTestsFake>();
@@ -608,7 +612,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task DeleteSkill_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.DeleteAsync(
@@ -620,7 +624,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task DeleteSkill_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateNonAdminClient();
 
         var response = await client.DeleteAsync(
@@ -632,7 +636,7 @@ public sealed class PersonasControllerTests
     [Fact]
     public async Task DeleteSkill_WithAdmin_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPersonaSkillServicio>();
             services.AddSingleton<IPersonaSkillServicio, PersonaSkillTestsFake>();

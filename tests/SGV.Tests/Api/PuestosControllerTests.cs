@@ -9,17 +9,21 @@ using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
+using SGV.Tests.Api.Collections;
 
 namespace SGV.Tests.Api;
 
+[Collection("ApiIntegration")]
 public sealed class PuestosControllerTests
 {
+    private readonly ApiIntegrationFixture _fixture;
+    public PuestosControllerTests(ApiIntegrationFixture fixture) => _fixture = fixture;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     [Fact]
     public async Task GetAll_ReturnsOkWithDtoArray()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/puestos");
@@ -38,7 +42,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task GetAll_WhenNoData_ReturnsOkWithEmptyArray()
     {
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPuestoServicioConsulta>();
             services.AddSingleton<IPuestoServicioConsulta>(
@@ -58,7 +62,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task GetById_ExistingId_ReturnsOkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync(
@@ -76,7 +80,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task GetById_NonExistentId_ReturnsNotFound()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/api/v1/puestos/{Guid.NewGuid()}");
@@ -100,7 +104,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task GetAll_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/puestos");
@@ -111,7 +115,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync(
@@ -125,7 +129,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task Create_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
         var body = ToJsonBody(new
@@ -144,7 +148,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task Update_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
         var body = ToJsonBody(new { nombre = "Sin Permiso" });
@@ -158,7 +162,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task Delete_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
 
@@ -171,7 +175,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = FakeAuthenticationDefaults.UserHeader;
 
@@ -190,7 +194,7 @@ public sealed class PuestosControllerTests
     [InlineData("PATCH",  "/api/v1/puestos/00000000-0000-0000-0000-000000000001/reactivar")]
     public async Task Mutation_WithoutCredentials_ReturnsUnauthorized(string method, string path)
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         HttpResponseMessage response = method switch
@@ -253,7 +257,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task Post_ValidRequest_Returns201CreatedWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new
         {
@@ -287,7 +291,7 @@ public sealed class PuestosControllerTests
                     new PuestoError(PuestoErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
@@ -313,7 +317,7 @@ public sealed class PuestosControllerTests
                 PuestoCommandResult.Failure(
                     new PuestoError(PuestoErrorType.Conflict, "CodigoDuplicado", "Ya existe un puesto activo con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
@@ -339,7 +343,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task Put_ValidRequest_Returns200OkWithUpdatedDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new { nombre = "Puesto Actualizado" });
 
@@ -360,7 +364,7 @@ public sealed class PuestosControllerTests
                 PuestoCommandResult.Failure(
                     new PuestoError(PuestoErrorType.NotFound, "PuestoNoEncontrado", "El puesto no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
@@ -389,7 +393,7 @@ public sealed class PuestosControllerTests
                     new PuestoError(PuestoErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                     fieldErrors))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
@@ -410,7 +414,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task Delete_ExistingId_Returns204NoContent()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.DeleteAsync(
@@ -428,7 +432,7 @@ public sealed class PuestosControllerTests
                 PuestoCommandResult.Failure(
                     new PuestoError(PuestoErrorType.NotFound, "PuestoNoEncontrado", "El puesto no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
@@ -447,7 +451,7 @@ public sealed class PuestosControllerTests
     [Fact]
     public async Task PatchReactivar_ValidRequest_Returns200OkWithDto()
     {
-        using var factory = new ApiWebApplicationFactory();
+        var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
 
         var response = await client.PatchAsync(
@@ -467,7 +471,7 @@ public sealed class PuestosControllerTests
                 PuestoCommandResult.Failure(
                     new PuestoError(PuestoErrorType.NotFound, "PuestoNoEncontrado", "El puesto no existe.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
@@ -492,7 +496,7 @@ public sealed class PuestosControllerTests
                     new PuestoError(PuestoErrorType.Conflict, "CodigoDuplicado",
                         "Ya existe un puesto activo con el mismo código.")))
         };
-        using var factory = new ApiWebApplicationFactory(services =>
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
             services.RemoveService<IPuestoServicioComandos>();
             services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
