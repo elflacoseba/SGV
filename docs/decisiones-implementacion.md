@@ -49,6 +49,59 @@ dotnet user-secrets set "ConnectionStrings:SgvDatabase" \
 ```
 CI exporta `ConnectionStrings__SgvDatabase` directamente en `.github/workflows/ci.yml`.
 
+## Contrato runtime MySQL — health, readiness y startup
+
+Esta subsección documenta el contrato operativo de `SGV.Api` y `SGV.Web` respecto del runtime MySQL introducido por el change `2026-07-14-fix-126-operational-tech-debt` (issue #126). Cubre los probes de liveness y readiness, el comportamiento de `ServerVersion.AutoDetect`, el `Connection Timeout` recomendado, la separación entre los factories design-time y el runtime, y la ubicación de los secretos por ambiente. El objetivo es que cualquier operador pueda decidir qué esperar del proceso sin tener que leer el código de los composition roots.
+
+### Liveness
+
+`GET /health/live` en `SGV.Api` y `SGV.Web` no requiere MySQL ni contacto con la API upstream. Responde `200 OK` únicamente si el proceso está vivo y el pipeline HTTP responde. Es útil como `livenessProbe` de Kubernetes o equivalente: si el binario está en un loop de crash, el orquestador lo detecta y reinicia. La ruta está mapeada con `Predicate = _ => false` para garantizar que ningún check con side effects (DB, red) se ejecute durante liveness.
+
+### Readiness
+
+`GET /health/ready` en `SGV.Api` requiere MySQL alcanzable. El check abre una conexión cruda con `MySqlConnector.MySqlConnection` (sin pasar por EF Core ni por `SgvDbContext`), respeta el `CancellationToken` del orquestador, y reporta `Healthy` si la conexión abre o `Unhealthy(message)` si falla. Por construcción **no dispara `ServerVersion.AutoDetect`** ni resuelve el contexto de EF, así que el probe no introduce latencia adicional por detección de versión.
+
+`GET /health/ready` en `SGV.Web` requiere que la API upstream responda `200` a su propio `/health/live` dentro de 3 segundos (`HttpClient.Timeout = TimeSpan.FromSeconds(3)` en el named client `SgvApiHealthProbe`, sin `ApiBearerTokenHandler` porque es un probe, no un request user-facing). Responde `503 Service Unavailable` con cuerpo JSON `status: "Unhealthy"` si algún componente está caído.
+
+### Anonimato de los probes
+
+Los dos probes son anónimos en API y Web. Cada `MapHealthChecks(...)` aplica `.AllowAnonymous()` explícito. La `FallbackPolicy = RequireAuthenticatedUser()` permanece intacta: solo `/health/live` y `/health/ready` son excepción. Esto preserva el default-deny vigente sobre el resto de la API y queda codificado por el delta `openspec/changes/2026-07-14-fix-126-operational-tech-debt/specs/sgv-readonly-api/spec.md`. Los orquestadores pueden pegar a los probes sin credenciales y sin recibir `401` ni redirects a `/auth/sign-in`.
+
+### Timeout de conexión recomendado
+
+La connection string productiva **DEBE** incluir `Connection Timeout=5` (cinco segundos) para acotar el `Open()` de `MySqlConnector` tanto en el readiness check como en el primer `ServerVersion.AutoDetect` de `SgvDbContext`. Sin esta configuración, `MySqlConnector` cae al default de plataforma (típicamente 15 segundos), y un MySQL inalcanzable puede colgar el primer request del proceso durante ese presupuesto.
+
+El chequeo del runtime no aborta al `Build()` si falta `Connection Timeout`: la advertencia queda cubierta por esta documentación operativa (`.NET 10` no expone `ValidateOptionsResult.Warn`, ver `design.md` §4.E). En cambio, una connection string ausente, whitespace o sin `Server=` y `Database=` sí aborta el host.
+
+### `ServerVersion.AutoDetect`
+
+`ServerVersion.AutoDetect(connectionString)` se ejecuta la primera vez que `SgvDbContext` se resuelve (es decir, en el primer request HTTP que use la DB). No se pre-calienta en el readiness check ni en el `Build()`. El costo de la detección queda diferido al primer uso real. Operadores pueden mitigar el riesgo con:
+
+- **Pre-warm externo** (`curl` desde el load balancer, un warm-up job o un `initContainer` que pegue a una ruta que resuelva el contexto antes de marcar el pod como `Ready`).
+- **Versión fija** en `SgvDbContextFactory` design-time (`MySqlServerVersion(8.0.36)`) ya está aplicada. Replicar esa decisión en runtime es una decisión separada que excede el alcance de este change.
+
+### Separación design-time vs runtime
+
+- `SgvDbContextFactory` (design-time, en `src/SGV.Infraestructura/`) usa `MySqlServerVersion(8.0.36)` fija y aplica el principio fail-loud. Sirve únicamente para `dotnet ef` (migraciones, scripting). El host de la API **no** lo invoca.
+- `Program.cs` (runtime, en `src/SGV.Api`) usa `ServerVersion.AutoDetect(connectionString)` en el registro de `SgvDbContext`. La lambda se evalúa al resolver el contexto, no necesariamente durante `builder.Build()`.
+- Esta coexistencia no rompe el contrato de migraciones: `dotnet ef migrations` lee `SgvDbContextFactory`; la API runtime usa la registrada en DI. Los tests usan `TestSgvDbContextFactory`, completamente independiente.
+
+### Ubicación de los secretos por ambiente
+
+- **CI** (`mysql:8.0` service en `.github/workflows/ci.yml`): exporta `ConnectionStrings__SgvDatabase` como variable de entorno del job. ASP.NET Core convierte `__` en `:` para `IConfiguration`.
+- **Local dev**: cada developer debe generar su propia connection string con `dotnet user-secrets set "ConnectionStrings:SgvDatabase" "<su conexión>" --project src/SGV.Api`. El factory de tests cae a un default seguro (`localhost:3306;Database=sgv_test;User=root;Password=`) para que la suite corra sin setup cuando MySQL está disponible; si MySQL no responde, los `[MySqlFact]` se omiten limpio.
+- **Producción / staging**: secret manager del orquestador (AWS Secrets Manager, GCP Secret Manager, Azure Key Vault) inyectado como env var al arranque del pod. **Nunca commitear** la connection string productiva a git. Los archivos `appsettings*.json` versionados no contienen connection strings reales; solo config no sensible (logging, Swagger, origins, placeholder JWT dev).
+
+> El placeholder JWT dev (`DEV-PLACEHOLDER-DO-NOT-USE-IN-PROD-0000000000000000`) presente en `src/SGV.Api/appsettings.Development.json` y `src/SGV.Web/appsettings.Development.json` es **solo** para development local. **NO DEBE** aparecer como valor productivo en ningún ambiente. Detectarlo en una review es trivial con `grep "DEV-PLACEHOLDER" config.json` o equivalente en el repositorio de configuración del orquestador.
+
+### Migraciones
+
+Las migraciones EF Core **no se ejecutan al startup** de `SGV.Api`. Corren fuera de banda, operadas por pipeline CI o por `dotnet ef database update` manual contra el ambiente destino. El único `Database.Migrate()` productivo vive en el bootstrap de tests (`tests/SGV.Tests/Persistencia/MySqlTestDatabaseBootstrap.cs:92-108`).
+
+### Validación al startup
+
+Si `ConnectionStrings:SgvDatabase` falta, está whitespace, o no incluye `Server=` y `Database=`, `SGV.Api` aborta el `Build()` con `Microsoft.Extensions.Options.OptionsValidationException` citando la clave `ConnectionStrings:SgvDatabase` y la causa específica. El host **no** continúa con `ServerVersion.AutoDetect` ni con el registro del contexto. Esto coincide con el patrón fail-loud vigente para JWT (`Program.cs` de ambos proyectos) y para `SgvApi:BaseUrl` en `SGV.Web`. La validación es diferida (`IValidateOptions<DbContextOptions<SgvDbContext>>`) y se ejecuta en el primer resolve del contexto vía `ValidateOnStart`; además hay un throw temprano inline en `Program.cs` para cortar antes de cualquier override de `WebApplicationFactory.ConfigureAppConfiguration`.
+
 ## Gestión de secretos JWT
 
 `JwtOptions.SigningKey` cumple el mismo principio fail-loud que `SgvDbContextFactory`: no hay default embebido. Si la sección `Jwt:SigningKey` falta, está vacía, contiene solo whitespace o mide menos de 32 bytes UTF-8, el host **no arranca** y `Program.cs` propaga un `Microsoft.Extensions.Options.OptionsValidationException` con el mensaje `Jwt:SigningKey must be configured and ≥32 UTF-8 bytes`. Este contrato se valida en `WebApplicationFactory<TEntryPoint>.CreateClient()` vía `ValidateOnStart`, así que cualquier arranque — development, CI o producción — cae en el mismo fail-loud. Aplica tanto a `SGV.Api` como a `SGV.Web`: la API firma/valida bearer tokens y la Web valida firma, issuer, audience y lifetime antes de convertir el JWT en principal de cookie.
