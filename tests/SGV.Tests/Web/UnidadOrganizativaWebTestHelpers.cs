@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Common;
@@ -62,7 +63,28 @@ public sealed partial class UnidadOrganizativaWebTests
 
         return _fixture.CreateLeaseWithBootstrapAsync(
             f => f.WithOverrides(
-                configureServices: services => services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test"),
+                configureServices: services =>
+                {
+                    services.Configure<SgvApiOptions>(options => options.BaseUrl = "https://api.test");
+                    // Alineado con WebIntegrationFixture.ConfigureBaseUrl (commit 11ff7bb5):
+                    // AuthSessionFactory valida el JWT firmado por el auth handler con
+                    // la signing key de IOptions<JwtOptions>; si el host de test no la
+                    // sobreescribe, queda la del appsettings.Development.json — que
+                    // coincide con AdminJwtTestHelper.SigningKey pero no con el resto
+                    // del pipeline (Issuer/Audience) cuando se ejecuta fuera de
+                    // Development. Forzar las tres opciones garantiza que el POST
+                    // /auth/sign-in emita 302 Found y setee la cookie, en lugar de
+                    // caer en la rama de "token inválido" del SignIn page model y
+                    // retornar 200 OK — que es la causa de los 48 fallos UO
+                    // observados (assertions downstream contra 302 Found y contra
+                    // antiforgery token ausente en la redirect response).
+                    services.Configure<JwtOptions>(o =>
+                    {
+                        o.SigningKey = AdminJwtTestHelper.SigningKey;
+                        o.Issuer = AdminJwtTestHelper.Issuer;
+                        o.Audience = AdminJwtTestHelper.Audience;
+                    });
+                },
                 authApiHandler: authHandler,
                 unidadOrganizativaApiClient: apiClient),
             WebIntegrationFixture.AuthenticateClientAsync);

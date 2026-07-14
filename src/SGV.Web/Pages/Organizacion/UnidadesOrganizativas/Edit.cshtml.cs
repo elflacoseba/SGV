@@ -224,6 +224,17 @@ public sealed class EditModel(
                 ErrorMessage = ErrorCategoryMapper.Map(result.Error.Categoria,
                     notFoundMessage: "La unidad organizativa solicitada no está disponible.",
                     conflictMessage: "Conflicto al persistir la unidad organizativa.");
+                // Issue #125 / Slice 3: en Conflict, propaga el mensaje específico
+                // del backend cuando existe. Paridad con Index.OnPostDeleteAsync (línea
+                // 117) y Details/Edit.OnPostReactivateAsync (líneas 125, 265), que ya
+                // incluyen `result.Error.Message` en su mensaje mapeado. Sin esta
+                // propagación, el usuario ve "Conflicto al persistir la unidad
+                // organizativa." en vez de la causa real (e.g. "La unidad tiene
+                // dependencias activas.").
+                if (result.Error.Categoria == ErrorCategoria.Conflict && !string.IsNullOrWhiteSpace(result.Error.Message))
+                {
+                    ErrorMessage = $"{ErrorMessage} {result.Error.Message}".Trim();
+                }
                 ModelState.AddModelError(string.Empty, ErrorMessage);
             }
         }

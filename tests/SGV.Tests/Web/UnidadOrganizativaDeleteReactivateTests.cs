@@ -1,5 +1,6 @@
 using System.Net;
 using System.Web;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
@@ -76,7 +77,7 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(1, 10, 1, item),
             CreatePage(1, 10, 1, item));
-        apiClient.DeleteResult = new UnidadOrganizativaDeleteResult(false, HttpStatusCode.Conflict, "unidad-organizativa-en-uso", "La unidad organizativa tiene dependencias activas.");
+        apiClient.DeleteResult = new UnidadOrganizativaDeleteResult(false, HttpStatusCode.Conflict, "unidad-organizativa-en-uso", "La unidad organizativa tiene dependencias activas.", ErrorCategoria.Conflict);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;

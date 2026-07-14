@@ -1,5 +1,6 @@
 using System.Net;
 using System.Web;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using Xunit;
@@ -261,7 +262,7 @@ public sealed partial class UnidadOrganizativaWebTests
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
         apiClient.ReactivateResult = UnidadOrganizativaCommandResult.Failure(
             new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
-                "Ya existe una unidad activa con el mismo código."));
+                "Ya existe una unidad activa con el mismo código.", Categoria: ErrorCategoria.Conflict));
         apiClient.GetByIdResult = null;
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
