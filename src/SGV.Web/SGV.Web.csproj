@@ -15,4 +15,9 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.14.0" />
   </ItemGroup>
 
+  <!-- Shared HealthCheckResponseWriter from SGV.Api — linked, not duplicated -->
+  <ItemGroup>
+    <Compile Include="..\SGV.Api\Infrastructure\Health\HealthCheckResponseWriter.cs" Link="Infrastructure\Health\HealthCheckResponseWriter.cs" />
+  </ItemGroup>
+
 </Project>

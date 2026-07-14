@@ -1,7 +1,9 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using SGV.Aplicacion;
@@ -10,6 +12,7 @@ using SGV.Contracts.Seguridad;
 using SGV.Infraestructura;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Seguridad;
+using SGV.Api.Infrastructure.Health;
 using SGV.Api.Seguridad;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -62,13 +65,48 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // MySQL DbContext with audit interceptor
-builder.Services.AddScoped<AuditoriaSaveChangesInterceptor>();
 var connectionString = builder.Configuration.GetConnectionString("SgvDatabase");
+
+// Validate connection string at startup — fail-loud before AutoDetect or first request.
+// This must run before AddDbContextFactory so the validator is registered first,
+// allowing ValidateOnStart to trigger on Build() for the tests.
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new OptionsValidationException(
+        nameof(DbContextOptions<SgvDbContext>),
+        typeof(DbContextOptions<SgvDbContext>),
+        ["Debe configurar ConnectionStrings:SgvDatabase antes de iniciar la API."]);
+if (!connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase)
+    || !connectionString.Contains("Database=", StringComparison.OrdinalIgnoreCase))
+    throw new OptionsValidationException(
+        nameof(DbContextOptions<SgvDbContext>),
+        typeof(DbContextOptions<SgvDbContext>),
+        ["ConnectionStrings:SgvDatabase inválida: debe incluir Server= y Database=."]);
+
+// DbContext factory for health checks and background work — no interceptor needed.
+// Registered BEFORE AddDbContext so DbContextOptions<SgvDbContext> becomes singleton,
+// allowing the singleton factory to consume it without scope conflicts.
+builder.Services.AddDbContextFactory<SgvDbContext>((sp, options) =>
+{
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+});
+
+// Request-scoped DbContext for HTTP requests — includes the audit interceptor.
+// AddDbContext will reuse the existing singleton DbContextOptions<SgvDbContext>
+// registration from the factory above (uses TryAdd internally).
+builder.Services.AddScoped<AuditoriaSaveChangesInterceptor>();
 builder.Services.AddDbContext<SgvDbContext>((sp, options) =>
 {
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
            .AddInterceptors(sp.GetRequiredService<AuditoriaSaveChangesInterceptor>());
 });
+
+// Connection string — register the IValidateOptions for the warn-on-missing-timeout case.
+// Hard failures (null, whitespace, missing Server= or Database=) are thrown inline above.
+builder.Services.AddSingleton<IValidateOptions<DbContextOptions<SgvDbContext>>,
+    SgvDbContextOptionsValidator>();
+builder.Services.AddOptions<DbContextOptions<SgvDbContext>>()
+    .Validate(_ => true, "noop")
+    .ValidateOnStart();
 
 builder.Services
     .AddOptions<JwtOptions>()
@@ -98,6 +136,10 @@ builder.Services.AddAuthorization(opts =>
     opts.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build());
+
+// Health checks — liveness and readiness probes
+builder.Services.AddHealthChecks()
+    .AddCheck<SgvDbContextReadinessHealthCheck>("mysql", tags: new[] { "ready" });
 
 // Anonymous / system user for audit trail
 builder.Services.AddScoped<IUsuarioActual, UsuarioActualAnonimo>();
@@ -161,6 +203,21 @@ app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Health check endpoints — anonymous and tag-based.
+// /health/live responds 200 unconditionally (process is alive).
+// /health/ready probes MySQL via SgvDbContextReadinessHealthCheck.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResponseWriter = HealthCheckResponseWriter.WriteJson
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckResponseWriter.WriteJson
+}).AllowAnonymous();
 
 app.MapControllers();
 
