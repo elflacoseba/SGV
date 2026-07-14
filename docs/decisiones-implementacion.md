@@ -18,7 +18,7 @@ Se mantiene `IdentityUser` con clave string, por lo que las columnas de auditor�
 
 ## Ocupaciones Activas
 
-La versión inicial aplica una única ocupación vigente por puesto y una única ocupación vigente por persona mediante columnas generadas con índices únicos. Si el negocio requiere cargos concurrentes, se deberá agregar tipo de ocupación o porcentaje de dedicación.
+La versión inicial aplica una única ocupación vigente por Puesto (`ActivePuestoIdUnique`) y una única ocupación vigente por la combinación Persona + Puesto (`ActivePersonaPuestoUnique`), mediante columnas generadas con índices únicos. Una Persona puede mantener varias ocupaciones activas simultáneas siempre que correspondan a Puestos distintos. La regla vigente de unicidad por persona simple no se aplica; una futura restricción de ese tipo requeriría reintroducir la columna `ActivePersonaIdUnique` con su índice único y la verificación correspondiente en la capa de aplicación.
 
 ## Postulantes Externos
 
