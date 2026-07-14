@@ -1,4 +1,5 @@
 using System.Net;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
@@ -140,7 +141,35 @@ public sealed class FakePuestosApiClient : IPuestosApiClient
             _deletedIds.Add(id);
         }
 
-        return Task.FromResult(DeleteResult);
+        // El cliente real (PuestosApiClient.DeleteAsync) popula Categoria
+        // desde StatusCode vía DeleteResultMapper → CommandResultMapper.Map.
+        // El fake refleja el mismo comportamiento: cuando el programador de
+        // tests setea StatusCode conocido y deja Categoria con su default
+        // (`ErrorCategoria.NotFound`), inferimos la categoría equivalente.
+        // Si el programador seteó Categoria explícitamente, se respeta.
+        return Task.FromResult(ResolveDeleteCategoria(DeleteResult));
+    }
+
+    private static PuestoDeleteResult ResolveDeleteCategoria(PuestoDeleteResult result)
+    {
+        if (result.Succeeded || result.StatusCode is null || result.Categoria != default)
+        {
+            return result;
+        }
+
+        var categoria = (int)result.StatusCode.Value switch
+        {
+            400 or 422 => ErrorCategoria.Validation,
+            401 => ErrorCategoria.Unauthorized,
+            403 => ErrorCategoria.Forbidden,
+            404 => ErrorCategoria.NotFound,
+            408 => ErrorCategoria.Transport,
+            409 => ErrorCategoria.Conflict,
+            500 or 502 or 503 or 504 => ErrorCategoria.Transport,
+            _ => ErrorCategoria.Unexpected
+        };
+
+        return result with { Categoria = categoria };
     }
 
     public Task<PuestoCommandResult> ReactivateAsync(Guid id, CancellationToken cancellationToken = default)

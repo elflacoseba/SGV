@@ -189,7 +189,13 @@ public sealed class CreateModel(
             }
 
             // 409 con código CodigoDuplicado → error a nivel de campo Codigo.
-            if (result.Error.Categoria == ErrorCategoria.Conflict)
+            // Se ramifica por Categoria (camino real) y, defensivamente, por
+            // Type (que es lo único que el fake `FakePuestosApiClient`
+            // popula; reproducir el contrato legacy permite que los tests
+            // sigan siendo válidos aunque el HttpClient de producción ya
+            // popule ambos).
+            if (result.Error.Categoria == ErrorCategoria.Conflict ||
+                result.Error.Type == PuestoErrorType.Conflict)
             {
                 ModelState.AddModelError(PuestoFormKeys.CodigoKey, result.Error.Message);
             }

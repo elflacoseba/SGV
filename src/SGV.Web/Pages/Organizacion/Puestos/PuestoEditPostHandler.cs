@@ -79,7 +79,10 @@ internal static class PuestoEditPostHandler
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             page.Logger.LogError(ex, "Puesto update transport failure.");
-            page.ErrorMessage = PageFeedback.TransportMessage;
+            // Copy contextual al módulo de Puestos (espejo del patrón de
+            // CargoHabilidadesPostHandlers). El genérico
+            // `PageFeedback.TransportMessage` no nombra el servicio caído.
+            page.ErrorMessage = "No se pudo contactar al servicio de puestos. Intentá nuevamente.";
             page.ModelState.AddModelError(string.Empty, page.ErrorMessage);
             await page.LoadCatalogsAsync(ct);
             return page.Page();
