@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Cargo;
 using SGV.Tests.Web.Common;
@@ -99,7 +100,15 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             cargoApiHandler: cargoApiHandler));
 
     private static void ConfigureBaseUrl(IServiceCollection services)
-        => services.Configure<SgvApiOptions>(o => o.BaseUrl = "https://api.test");
+    {
+        services.Configure<SgvApiOptions>(o => o.BaseUrl = "https://api.test");
+        services.Configure<JwtOptions>(o =>
+        {
+            o.SigningKey = AdminJwtTestHelper.SigningKey;
+            o.Issuer = AdminJwtTestHelper.Issuer;
+            o.Audience = AdminJwtTestHelper.Audience;
+        });
+    }
 
     private static WebTestBuilders.RecordingHttpMessageHandler BuildAuthHandler(bool adminRole)
     {

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Web;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
@@ -160,7 +161,7 @@ public sealed class HabilidadIndexPageTests
     public async Task Post_Delete_WhenConflict_RedirectsWithErrorMessage()
     {
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
-        apiClient.DeleteResult = new HabilidadDeleteResult(false, HttpStatusCode.Conflict, "CodigoDuplicado", "Conflicto");
+        apiClient.DeleteResult = new HabilidadDeleteResult(false, HttpStatusCode.Conflict, "CodigoDuplicado", "Conflicto", ErrorCategoria.Conflict);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
         var client = lease.Client;
@@ -203,7 +204,8 @@ public sealed class HabilidadIndexPageTests
             new SGV.Contracts.Habilidades.Comandos.HabilidadError(
                 SGV.Contracts.Habilidades.Comandos.HabilidadErrorType.Conflict,
                 "CodigoDuplicado",
-                "Ya existe una habilidad activa con el mismo código."));
+                "Ya existe una habilidad activa con el mismo código.",
+                Categoria: ErrorCategoria.Conflict));
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
         var client = lease.Client;
