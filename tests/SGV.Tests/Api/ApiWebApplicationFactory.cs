@@ -4,6 +4,7 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
@@ -821,10 +822,14 @@ internal sealed class FakeAuthenticationHandler(
 public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
 {
     private readonly Action<IServiceCollection>? _configureServices;
+    private readonly Action<IConfigurationBuilder>? _configureConfig;
 
-    public ApiWebApplicationFactory(Action<IServiceCollection>? configureServices = null)
+    public ApiWebApplicationFactory(
+        Action<IServiceCollection>? configureServices = null,
+        Action<IConfigurationBuilder>? configureConfig = null)
     {
         _configureServices = configureServices;
+        _configureConfig = configureConfig;
     }
 
     /// <summary>
@@ -850,6 +855,20 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Allow tests to override configuration (e.g. for connection string validation tests).
+        // The default connection string is added first; override runs after so tests can replace it.
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            // Ensure a valid default for tests that don't override connection strings,
+            // but allow _configureConfig to replace it for validation tests.
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:SgvDatabase"] = "Server=localhost;Database=sgv_test;Uid=root;Connection Timeout=5;"
+            });
+
+            _configureConfig?.Invoke(config);
+        });
+
         builder.ConfigureServices(services =>
         {
             // Remove real service registrations to replace with fakes
