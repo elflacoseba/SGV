@@ -31,7 +31,26 @@ public sealed class SignInModel(
         }
 
         var request = new LoginRequest(Input.UserNameOrEmail, Input.Password);
-        var response = await authApiClient.LoginAsync(request, cancellationToken);
+
+        LoginResponse? response;
+        try
+        {
+            response = await authApiClient.LoginAsync(request, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Fallo de transporte al autenticar contra la API");
+            ModelState.AddModelError(string.Empty,
+                "No pudimos contactar al servicio de autenticación. Intentá nuevamente en unos minutos.");
+            return Page();
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Timeout al autenticar contra la API");
+            ModelState.AddModelError(string.Empty,
+                "La autenticación tardó demasiado. Intentá nuevamente.");
+            return Page();
+        }
 
         if (response is null)
         {

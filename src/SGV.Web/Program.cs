@@ -85,6 +85,11 @@ builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>((serviceProvider, 
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // 10s budget for a login request. The HttpClient default (100s) is too long:
+    // the user is staring at a sign-in form and a hung page is indistinguishable
+    // from a server-side crash. A bounded budget converts transport stalls into
+    // TaskCanceledException, which SignInModel.OnPostAsync handles as recoverable.
+    client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
@@ -92,6 +97,10 @@ builder.Services.AddHttpClient<IUnidadOrganizativaApiClient, UnidadOrganizativaA
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // 10s budget paralelo a AuthApiClient: las consultas de unidades organizativas
+    // (listado, árbol, dropdowns) deben acotarse a un tiempo predecible para que
+    // los fallos de transporte se traduzcan en errores recuperables en la UI.
+    client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
