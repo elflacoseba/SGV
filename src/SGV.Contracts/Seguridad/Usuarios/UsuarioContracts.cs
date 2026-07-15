@@ -1,4 +1,5 @@
 using SGV.Contracts.Comun;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 
 namespace SGV.Contracts.Seguridad.Usuarios;
 
@@ -16,6 +17,38 @@ public sealed record CrearUsuarioRequest(
 /// Request to replace the role set of an existing SGV user.
 /// </summary>
 public sealed record AsignarRolesRequest(IReadOnlyCollection<string> Roles);
+
+/// <summary>
+/// Request to atomically update the editable identity fields and role set.
+/// </summary>
+public sealed record ActualizarUsuarioRequest(
+    string UserName,
+    string Email,
+    IReadOnlyCollection<string> Roles);
+
+/// <summary>
+/// Selects active or soft-deleted users for paginated queries.
+/// </summary>
+public enum UsuarioSegmentoListado
+{
+    Activas = 0,
+    Eliminadas = 1
+}
+
+/// <summary>
+/// Parameters for server-side user filtering, sorting, and pagination.
+/// </summary>
+public sealed record UsuarioListQuery(
+    int Page,
+    int PageSize,
+    string? Search,
+    string? Sort,
+    UsuarioSegmentoListado Segmento = UsuarioSegmentoListado.Activas);
+
+/// <summary>
+/// Compatibility wrapper around the generic paginated user result.
+/// </summary>
+public sealed record UsuarioListadoDto(PagedResult<UsuarioDto> Result);
 
 /// <summary>
 /// Credentials payload for the login endpoint. Accepts either a username
@@ -38,7 +71,9 @@ public sealed record UsuarioDto(
     Guid PersonaId,
     string UserName,
     string Email,
-    IReadOnlyCollection<string> Roles);
+    IReadOnlyCollection<string> Roles,
+    string? Nombres = null,
+    string? Apellidos = null);
 
 /// <summary>
 /// Categorizes failures produced by user-management write operations.

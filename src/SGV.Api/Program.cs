@@ -131,8 +131,9 @@ builder.Services.AddAuthorization(opts =>
 builder.Services.AddHealthChecks()
     .AddCheck<SgvDbContextReadinessHealthCheck>("mysql", tags: new[] { "ready" });
 
-// Anonymous / system user for audit trail
-builder.Services.AddScoped<IUsuarioActual, UsuarioActualAnonimo>();
+// Current authenticated user for audit trails and self-mutation guards.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IUsuarioActual, UsuarioActualHttpContext>();
 
 // Application services (validators, command/query services)
 builder.Services.AddAplicacionServicios();

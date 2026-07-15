@@ -4,10 +4,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
+using MySqlConnector;
 using SGV.Contracts.Seguridad;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Seguridad;
+using SGV.Tests.Persistencia;
 using Xunit;
 
 namespace SGV.Tests.Seguridad;
@@ -27,12 +30,22 @@ namespace SGV.Tests.Seguridad;
 internal sealed class JwtRealWebApplicationFactory(string signingKey)
     : WebApplicationFactory<SGV.Api.Program>
 {
-    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
         builder.ConfigureAppConfiguration((_, configuration) =>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Jwt:SigningKey"] = signingKey,
+                ["ConnectionStrings:SgvDatabase"] = TestSgvDbContextFactory.LocalDevConnectionString,
             }));
+
+        builder.ConfigureServices(services =>
+        {
+            services.AddDbContext<SgvDbContext>(options => options.UseMySql(
+                TestSgvDbContextFactory.LocalDevConnectionString,
+                new MySqlServerVersion(new Version(8, 0, 36))));
+        });
+    }
 
     /// <summary>
     /// Forces host build (so <c>ValidateOnStart</c> runs) and seeds the
@@ -51,6 +64,9 @@ internal sealed class JwtRealWebApplicationFactory(string signingKey)
             .GetRequiredService<UserManager<SgvIdentityUser>>();
         var roleManager = scope.ServiceProvider
             .GetRequiredService<RoleManager<IdentityRole>>();
+
+        var databaseName = new MySqlConnectionStringBuilder(db.Database.GetConnectionString()!).Database;
+        Assert.Equal("sgv_test", databaseName);
 
         // 1) Rol (idempotente). DatosSemilla siembra via HasData, pero el check
         //    local evita depender del orden de migracion.

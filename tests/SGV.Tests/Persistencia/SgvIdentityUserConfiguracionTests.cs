@@ -1,6 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using System.Reflection;
 using SGV.Infraestructura.Persistencia;
+using SGV.Infraestructura.Persistencia.Migraciones;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Seguridad;
 using Xunit;
@@ -39,6 +43,81 @@ public sealed class SgvIdentityUserConfiguracionTests
 
         var index = entity!.GetIndexes().Single(i => i.Properties.Select(p => p.Name).SequenceEqual([nameof(SgvIdentityUser.PersonaId)]));
         Assert.True(index.IsUnique);
+    }
+
+    [Fact]
+    public void SgvIdentityUser_ConfiguresIsDeletedWithFalseDefault()
+    {
+        var entity = _context.Model.FindEntityType(typeof(SgvIdentityUser));
+
+        var isDeleted = entity!.FindProperty(nameof(SgvIdentityUser.IsDeleted));
+
+        Assert.NotNull(isDeleted);
+        Assert.False(isDeleted!.IsNullable);
+        Assert.Equal(false, isDeleted.GetDefaultValue());
+    }
+
+    [Fact]
+    public void SgvIdentityUser_ConfiguresStoredActiveUserNameGeneratedColumnWithUniqueIndex()
+    {
+        var entity = _context.Model.FindEntityType(typeof(SgvIdentityUser));
+
+        var activeUserName = entity!.FindProperty("ActiveUserNameUnique");
+        Assert.NotNull(activeUserName);
+        Assert.Equal("varchar(256)", activeUserName!.GetColumnType());
+        Assert.True(activeUserName.GetIsStored());
+        Assert.Contains("LOWER(`UserName`)", activeUserName.GetComputedColumnSql(), StringComparison.Ordinal);
+        Assert.Contains("`IsDeleted` = 0", activeUserName.GetComputedColumnSql(), StringComparison.Ordinal);
+
+        var index = entity.GetIndexes().Single(i => i.GetDatabaseName() == "IX_AspNetUsers_ActiveUserNameUnique");
+        Assert.True(index.IsUnique);
+        Assert.Equal(["ActiveUserNameUnique"], index.Properties.Select(property => property.Name).ToArray());
+    }
+
+    [Fact]
+    public void AddSoftDeleteMigration_UsesOnlineDdlWhereSupportedAndExplicitCopyForStoredColumn()
+    {
+        var migration = new AddSoftDeleteToAspNetUsers();
+        var builder = new MigrationBuilder("Pomelo.EntityFrameworkCore.MySql");
+        InvokeMigrationMethod(migration, "Up", builder);
+
+        var operations = builder.Operations.OfType<SqlOperation>().ToArray();
+        Assert.Equal(3, operations.Length);
+        Assert.Contains("`IsDeleted` TINYINT(1) NOT NULL DEFAULT 0", operations[0].Sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ALGORITHM=INPLACE", operations[0].Sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LOCK=NONE", operations[0].Sql, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Contains("LOWER(`UserName`)", operations[1].Sql, StringComparison.Ordinal);
+        Assert.Contains("STORED", operations[1].Sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ALGORITHM=COPY", operations[1].Sql, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Contains("IX_AspNetUsers_ActiveUserNameUnique", operations[2].Sql, StringComparison.Ordinal);
+        Assert.Contains("ALGORITHM=INPLACE", operations[2].Sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("LOCK=NONE", operations[2].Sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AddSoftDeleteMigration_DownIsForwardOnly()
+    {
+        var migration = new AddSoftDeleteToAspNetUsers();
+        var builder = new MigrationBuilder("Pomelo.EntityFrameworkCore.MySql");
+
+        var exception = Assert.Throws<TargetInvocationException>(
+            () => InvokeMigrationMethod(migration, "Down", builder));
+
+        Assert.IsType<NotSupportedException>(exception.InnerException);
+    }
+
+    private static void InvokeMigrationMethod(
+        Migration migration,
+        string methodName,
+        MigrationBuilder builder)
+    {
+        var method = migration.GetType().GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        method!.Invoke(migration, [builder]);
     }
 }
 

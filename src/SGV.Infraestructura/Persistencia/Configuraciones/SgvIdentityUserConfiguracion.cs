@@ -12,6 +12,22 @@ public sealed class SgvIdentityUserConfiguracion : IEntityTypeConfiguration<SgvI
         builder.Property(user => user.PersonaId)
             .IsRequired();
 
+        builder.Property(user => user.IsDeleted)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property<string>("ActiveUserNameUnique")
+            .HasMaxLength(256)
+            .HasColumnType("varchar(256)")
+            .UseCollation("utf8mb4_0900_ai_ci")
+            .HasComputedColumnSql(
+                "CASE WHEN `IsDeleted` = 0 THEN LOWER(`UserName`) ELSE NULL END",
+                stored: true);
+
+        builder.HasIndex("ActiveUserNameUnique")
+            .IsUnique()
+            .HasDatabaseName("IX_AspNetUsers_ActiveUserNameUnique");
+
         builder.HasIndex(user => user.PersonaId)
             .IsUnique()
             .HasDatabaseName("IX_AspNetUsers_PersonaId");
