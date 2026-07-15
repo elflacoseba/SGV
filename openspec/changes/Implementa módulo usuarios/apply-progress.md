@@ -276,3 +276,93 @@ develop
 ```
 
 PR1 comienza en el tracker sin código del módulo y termina con el backend completo, migración ejecutable, contratos, auditoría, endpoints y verificación. No incluye clientes Web ni Razor Pages.
+
+## PR3 — Pages Index + Details + Delete + Reactivate
+
+### Estado del lote PR3
+
+- **PR actual**: PR3 — Pages Index + Details + Delete + Reactivate.
+- **Rama base integrada**: `feat/2026-07-15-implementa-modulo-usuarios-tracker` en `0de5bd6e` (PR1 + PR2 + mini-fix HALL-1 squash-mergeados).
+- **Rama de trabajo**: `feat/2026-07-15-implementa-modulo-usuarios-pr3-paginas-listado`.
+- **Estrategia**: `feature-branch-chain`; este slice parte del tracker integrado y no toca backend, contratos ni `Integration/Usuarios/` de producción.
+- **Modo de implementación**: Strict TDD.
+- **Tareas PR3**: 6/6 completadas (3.1–3.6).
+- **Tareas del change**: 28/34 completadas; PR4 (Create/Edit/`_Form`) permanece fuera de alcance.
+
+### Resumen de implementación PR3
+
+- `Pages/Seguridad/Usuarios/Index.cshtml(.cs)` agrega el listado server-side paginado y segmentado `activas|eliminadas`, búsqueda, orden, estado vacío contextual y navegación a Create/Edit/Details.
+- La grilla proyecta `UserName`, `Email`, `Nombres`, `Apellidos` y roles desde `UsuarioListadoDto.Result`, preservando el wrapper wire cerrado en PR1/PR2.
+- Las acciones administrativas quedan gateadas con `EsAdministrador`: los no-admin conservan el detalle readonly; Create/Edit/Delete/Reactivate no se renderizan y los POST directos retornan `Forbid()` (cookie auth redirige a `/error/403`).
+- `OnPostDeleteAsync` y `OnPostReactivateAsync` implementan PRG preservando `status/search/sort/p`, usan `PageFeedback`, mantienen `LastDeletedId`, traducen `AutoBaja`/`PersonaInactiva` a feedback accionable y redirigen a `activas` tras éxito.
+- `Pages/Seguridad/Usuarios/Details.cshtml(.cs)` muestra identidad, Persona vinculada y roles en modo readonly; ofrece estado recuperable cuando el id no es consultable, retorno seguro al listado y acciones admin contextuales.
+- El fake de Usuarios fue corregido para no retirar un id del segmento eliminado cuando `ReactivarAsync` devuelve fallo; esto permite probar que `PersonaInactiva` conserva el usuario en `eliminadas`.
+
+### Tareas completadas PR3
+
+- [x] **3.1** Index segmentado con búsqueda, sort, paginación, toggle y gating admin.
+- [x] **3.2** Details readonly con Persona/roles, 404 recuperable y retorno con contexto.
+- [x] **3.3** Handlers Delete/Reactivate con PRG, `PageFeedback`, `AutoBaja`, `PersonaInactiva`, transporte y `Forbid()`.
+- [x] **3.4** 16 casos web de Index (15 métodos; Theory admin gate cubre Delete + Reactivate).
+- [x] **3.5** 5 casos web de Details.
+- [x] **3.6** Build, tests focalizados y bundle frontend validados.
+
+### Evidencia de ciclos TDD — PR3
+
+| Task | Archivo(s) de test | Capa | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| 3.1 | `Web/Usuario/IndexPageTests.cs` | Web integración | N/A (Pages nuevas) | 15/15 fallaron contra `/seguridad/usuarios` inexistente (404/sin antiforgery) | 15/15 verdes tras Index mínimo | Activas/eliminadas; con/sin resultados; admin/no-admin/anónimo; p=0/status inválido | Helpers de normalización, sort y URLs con contexto; 15/15 siguen verdes |
+| 3.2 | `Web/Usuario/DetailsPageTests.cs` | Web integración | N/A (Pages nuevas) | 4/4 fallaron contra detalle inexistente (404) | 4/4 verdes con PageModel + view readonly | Existente/no consultable; admin/regular/anónimo; activas/eliminadas; retorno filtrado | Context builder único; cancelación cooperativa separada de fallo recuperable |
+| 3.3 | `IndexPageTests.cs`, `FakeUsuarioApiClientTests.cs` | Web integración + fake | Fake previo: 6/6 verdes | RED inicial cubrió handlers inexistentes; RED de `PersonaInactiva` expuso que el fake quitaba el id aun en fallo (`IsDeleted=false`) | Delete/Reactivate + fake: 21/21 verdes | Éxito, Conflict, Forbidden/AutoBaja, PersonaInactiva, transporte y POST directo no-admin ×2 | Mutación `_deletedIds.Remove` movida dentro de la rama success; helpers de feedback/redirect |
+| 3.4 | `Web/Usuario/IndexPageTests.cs` | Web integración | N/A (archivo nuevo) | Suite de Index escrita antes de las Pages: 15/15 roja | 16 casos verdes (Theory cuenta dos handlers) | Segmentos ×2, roles ×2, PRG × éxito/fallo, navegación, paginación, búsqueda y auth | Assertions observables; sin tests markup-only ni CSS |
+| 3.5 | `Web/Usuario/DetailsPageTests.cs` | Web integración | N/A (archivo nuevo) | 4/4 roja por ruta inexistente | 5/5 verdes | DTO completo, 404, contexto, acciones admin y auth anónima | Assertions readonly por contenido/acciones; sin acoplarse a clases CSS |
+| 3.6 | Gates de solución | Build/runtime | 148/148 Usuarios antes de PR3 | N/A — tarea de validación, no introduce código | Build 0 errores; Usuarios 169/169; Pages 21/21; Bun verde | Triangulación estructural omitida: comando de validación con un único resultado esperado | Rebuild limpio confirmó cero warnings nuevos atribuibles a PR3 |
+
+### Resumen de pruebas PR3
+
+- **Tests web nuevos**: 21 casos ejecutados — 16 de Index (incluye Theory Delete/Reactivate no-admin) + 5 de Details.
+- **Tests Usuario totales**: `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Usuario"` → **169/169 verdes**, 0 fallidos, 0 omitidos, 5–8 s.
+- **Runtime harness PageModel/Razor**: `IndexPageTests|DetailsPageTests` → **21/21 verdes** a través de `WebApplicationFactory`, cookie auth, antiforgery, routing y fake tipado.
+- **Build**: `dotnet build SGV.slnx` → 0 errores; clean build muestra 18 warnings ya documentados/preexistentes (`CS8524`, `CS8602`, `CS8625`, `CS1717`, `xUnit1026`). PR3 no agrega warnings propios.
+- **Bundle frontend**: `bun run build` en `src/SGV.Web` → verde; sólo avisos de datos Browserslist/Baseline desactualizados y deprecación `fs.Stats` preexistentes.
+- **Suite estable sin las dos clases flaky conocidas**: `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~UnidadOrganizativaWebTests&FullyQualifiedName!~PuestoCreatePageTests"` → **2236/2236 verdes**, 0 fallidos, 0 omitidos, 1m06s.
+- **Suite completa**: se intentó dos veces. Ambas corridas reprodujeron los fallos preexistentes de `UnidadOrganizativaWebTests`/`PuestoCreatePageTests` y luego agotaron el timeout del host en `CargoIndexPageTests`; no llegaron a emitir resumen final (8m y 15m). `CargoIndexPageTests` sí pasa dentro del gate estable 2236/2236, por lo que el timeout aparece después de la contaminación/saturación del fixture flaky ya registrada como PR2-HALL-2 y no como regresión de PR3.
+
+### Evidencia de work unit PR3
+
+| Evidencia | Resultado |
+|---|---|
+| Comando focalizado | `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Usuario"` → **169/169 verdes** |
+| Runtime harness | `dotnet test ... --filter "...IndexPageTests|...DetailsPageTests"` → **21/21 verdes**; recorre host Razor real, cookie auth, antiforgery, routing, PRG y override de `IUsuarioApiClient` |
+| Gate estable ampliado | Exclusión únicamente de `UnidadOrganizativaWebTests` + `PuestoCreatePageTests` (flaky preexistentes) → **2236/2236 verdes** |
+| Bundle web | `bun run build` → exit 0 |
+| Rollback boundary | Revertir `861123f0` + `7548695d` elimina `Pages/Seguridad/Usuarios/{Index,Details}.cshtml*`, sus 21 casos web y el ajuste del fake; no toca PR1, PR2, contratos, API, persistencia ni PR4 |
+
+### Commits de implementación PR3
+
+1. `861123f0` — `feat(web): add segmented Usuarios index lifecycle`
+2. `7548695d` — `feat(web): add readonly Usuarios details`
+
+### Desviaciones y hallazgos PR3
+
+1. **Budget real mayor al forecast**: el código + tests de PR3 suma 1381 adiciones / 2 eliminaciones antes de artefactos SDD, superando el forecast ~700 y el review budget 800. La estrategia `feature-branch-chain` ya fue aceptada; el slice sigue siendo autónomo y su rollback son dos commits de comportamiento.
+2. **Identity user id es string**: `PageFeedback.SetLastDeletedId/GetLastDeletedId` sólo tiene helpers para `Guid`. PR3 reutiliza la clave canónica `PageFeedback.LastDeletedIdKey` y persiste el id string directamente en TempData, sin alterar el helper compartido ni forzar parseos inválidos.
+3. **Fake de reactivación corregido**: `FakeUsuarioApiClient.ReactivarAsync` removía el id de `_deletedIds` antes de saber si el resultado era éxito. El RED `PersonaInactiva` detectó la divergencia; ahora sólo muta el segmento en la rama success.
+4. **Suite completa no determinista**: las dos corridas full reproducen PR2-HALL-2 y pueden saturar el arranque de hosts posteriores. El gate estable excluyendo exclusivamente las clases conocidas prueba 2236/2236, incluidos todos los tests de Usuarios y Cargo.
+
+### Riesgos PR3
+
+- **Review size**: 1383 líneas autorales de código/tests exceden 800; no se subdivide porque Index + handlers + feedback forman un work unit y Details depende de la misma navegación. Los dos commits permiten revisión incremental dentro del slice.
+- **Full-suite gate**: no existe una corrida completa cerrada para este HEAD por la inestabilidad preexistente del fixture UO/Puesto; queda evidencia estable 2236/2236 y focalizada 169/169.
+- **PR4 aún pendiente**: los links Create/Edit ya navegan a rutas reservadas, pero esas Pages se materializan recién en PR4; hasta entonces devuelven 404 si se acceden directamente.
+
+### Límite de PR actualizado
+
+```text
+develop
+  └── feat/2026-07-15-implementa-modulo-usuarios-tracker (PR1 + PR2 squash)
+       └── 📍 feat/2026-07-15-implementa-modulo-usuarios-pr3-paginas-listado
+            └── PR4 Create + Edit + _Form (pendiente)
+```
+
+PR3 comienza en el tracker integrado post-PR2 y termina con Index/Details/Delete/Reactivate funcionales y verificados. No modifica `Integration/Usuarios/` de producción ni backend/contratos; PR4 queda como siguiente slice autónomo.

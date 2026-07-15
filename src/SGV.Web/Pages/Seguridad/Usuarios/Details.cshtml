@@ -1,0 +1,119 @@
+@page "/seguridad/usuarios/detalle/{id}"
+@model SGV.Web.Pages.Seguridad.Usuarios.DetailsModel
+
+@{
+    ViewBag.title = "Detalle de usuario";
+    ViewBag.subtitle = "Seguridad";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
+@if (Model.IsNotFound)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">El usuario solicitado no está disponible.</h5>
+                    <p class="text-muted mb-0">Es posible que la cuenta haya sido eliminada o que haya ocurrido un error al consultarla.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-1">@Model.Usuario!.UserName</h4>
+                    <p class="text-muted mb-0">@Model.Usuario.Email</p>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3 text-muted">Usuario</dt>
+                        <dd class="col-sm-9">@Model.Usuario.UserName</dd>
+
+                        <dt class="col-sm-3 text-muted">Email</dt>
+                        <dd class="col-sm-9">@Model.Usuario.Email</dd>
+
+                        <dt class="col-sm-3 text-muted">Nombres</dt>
+                        <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.Usuario.Nombres) ? "—" : Model.Usuario.Nombres)</dd>
+
+                        <dt class="col-sm-3 text-muted">Apellidos</dt>
+                        <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.Usuario.Apellidos) ? "—" : Model.Usuario.Apellidos)</dd>
+
+                        <dt class="col-sm-3 text-muted">Persona vinculada</dt>
+                        <dd class="col-sm-9">
+                            <a href="/personas/detalle/@Model.Usuario.PersonaId">@Model.Usuario.PersonaId</a>
+                        </dd>
+
+                        <dt class="col-sm-3 text-muted">Roles</dt>
+                        <dd class="col-sm-9">
+                            @if (Model.Usuario.Roles.Count == 0)
+                            {
+                                <span>—</span>
+                            }
+                            else
+                            {
+                                foreach (var role in Model.Usuario.Roles)
+                                {
+                                    <span class="badge badge-soft-secondary me-1">@role</span>
+                                }
+                            }
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row mt-3">
+    <div class="col-12 d-flex flex-wrap gap-2">
+        @if (!Model.IsNotFound && Model.EsAdministrador)
+        {
+            @if (!Model.IsDeletedView)
+            {
+                <a class="btn btn-warning" href="@Model.BuildEditUrl(Model.Usuario!.Id)">
+                    <i class="ti ti-pencil me-1"></i>Editar
+                </a>
+                <form data-usuario-delete-form method="post" action="/seguridad/usuarios?handler=Delete">
+                    @Html.AntiForgeryToken()
+                    <input name="id" type="hidden" value="@Model.Usuario!.Id" />
+                    <input name="page" type="hidden" value="@Model.CurrentPage" />
+                    <input name="search" type="hidden" value="@Model.Search" />
+                    <input name="sort" type="hidden" value="@Model.Sort" />
+                    <input name="status" type="hidden" value="@Model.Segmento" />
+                    <button class="btn btn-danger" type="submit">
+                        <i class="ti ti-trash me-1"></i>Eliminar
+                    </button>
+                </form>
+            }
+            else
+            {
+                <form data-usuario-reactivate-form method="post" action="/seguridad/usuarios?handler=Reactivate">
+                    @Html.AntiForgeryToken()
+                    <input name="id" type="hidden" value="@Model.Usuario!.Id" />
+                    <input name="page" type="hidden" value="@Model.CurrentPage" />
+                    <input name="search" type="hidden" value="@Model.Search" />
+                    <input name="sort" type="hidden" value="@Model.Sort" />
+                    <input name="status" type="hidden" value="@Model.Segmento" />
+                    <button class="btn btn-success" type="submit">
+                        <i class="ti ti-refresh me-1"></i>Reactivar
+                    </button>
+                </form>
+            }
+        }
+        <a class="btn btn-outline-secondary" href="@Model.BuildIndexUrl()">
+            <i class="ti ti-arrow-left me-1"></i>Volver al listado
+        </a>
+    </div>
+</div>

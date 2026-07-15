@@ -67,8 +67,8 @@ Objetivo: base de datos con soft-delete, gateway sin N+1, handlers de aplicació
 
 Objetivo: conectar `SGV.Web` con `SGV.Api` a través de `IUsuarioApiClient`/`UsuarioApiClient` y registro DI.
 
-- [ ] **2.1** [RED] Contract tests interface `IUsuarioApiClient` en `tests/SGV.Tests/Web/Usuario/` (análogo a `IPersonaApiClientContractTests`)
-- [ ] **2.2** Crear `Integration/Usuarios/` completo:
+- [x] **2.1** [RED] Contract tests interface `IUsuarioApiClient` en `tests/SGV.Tests/Web/Usuario/` (análogo a `IPersonaApiClientContractTests`)
+- [x] **2.2** Crear `Integration/Usuarios/` completo:
   - `IUsuarioApiClient.cs` — GetAllActivasAsync, QueryAsync, GetByIdAsync, CreateAsync, UpdateAsync, DesactivarAsync, ReactivarAsync
   - `UsuarioApiClient.cs` — timeout 10s, bearer forwarding, retry en fallos de transporte
   - `UsuarioInputModel.cs` — modelo bindeable para Create/Edit
@@ -76,40 +76,40 @@ Objetivo: conectar `SGV.Web` con `SGV.Api` a través de `IUsuarioApiClient`/`Usu
   - `UsuarioPostResultMapper.cs` — mapea `UsuarioCommandResult` → `PostResult`
   - `UsuarioFormHelpers.cs` — helper de field errors
   - **Dependency**: PR1 (contratos backend)
-- [ ] **2.3** [RED] Tests del cliente tipado ~8 tests — casos felices + 1 fallo recuperable + contrato
+- [x] **2.3** [RED] Tests del cliente tipado ~8 tests — casos felices + 1 fallo recuperable + contrato
   - **Dependency**: 2.2
-- [ ] **2.4** [RED] Tests de integración con fake ~6 tests — `FakeUsuarioApiClient` verifica cada operación
+- [x] **2.4** [RED] Tests de integración con fake ~6 tests — `FakeUsuarioApiClient` verifica cada operación
   - **Dependency**: 2.2
-- [ ] **2.5** Registrar `AddHttpClient<IUsuarioApiClient, UsuarioApiClient>` con `ApiBearerTokenHandler` en `src/SGV.Web/Program.cs`
+- [x] **2.5** Registrar `AddHttpClient<IUsuarioApiClient, UsuarioApiClient>` con `ApiBearerTokenHandler` en `src/SGV.Web/Program.cs`
   - **Dependency**: 2.2
-- [ ] **2.6** Agregar ítem "Seguridad" → "Usuarios" en `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` (icono `ti ti-shield-lock`, grupo colapsable)
-- [ ] **2.7** Validar PR2: `dotnet build SGV.slnx` + `dotnet test --filter "Web.Usuario.*(ApiClient|Contract)"`
+- [x] **2.6** Agregar ítem "Seguridad" → "Usuarios" en `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` (icono `ti ti-shield-lock`, grupo colapsable)
+- [x] **2.7** Validar PR2: `dotnet build SGV.slnx` + `dotnet test --filter "Web.Usuario.*(ApiClient|Contract)"`
 
 ## PR3 — Pages Index + Details + Delete + Reactivate
 
 Objetivo: listado segmentado `activas|eliminadas`, detalle readonly, baja lógica y reactivación con PRG + `PageFeedback`.
 
-- [ ] **3.1** Crear `Pages/Seguridad/Usuarios/Index.cshtml` + `Index.cshtml.cs`:
+- [x] **3.1** Crear `Pages/Seguridad/Usuarios/Index.cshtml` + `Index.cshtml.cs`:
   - Toggle `activas|eliminadas` preservando `search`/`sort`/`p`
   - Tabla: UserName, Email, Nombres, Apellidos, roles
   - `EsAdministrador` gating: ocultar Editar/Eliminar si no admin
   - PRG en Delete/Reactivate con `TempData` + `PageFeedback`
   - **Dependency**: PR2 (cliente tipado)
-- [ ] **3.2** Crear `Pages/Seguridad/Usuarios/Details.cshtml` + `Details.cshtml.cs`:
+- [x] **3.2** Crear `Pages/Seguridad/Usuarios/Details.cshtml` + `Details.cshtml.cs`:
   - Readonly con retorno al listado preservando `p/search/sort/status`
   - `404` → estado recuperable
   - **Dependency**: PR2
-- [ ] **3.3** Implementar handlers POST Delete (`?handler=Delete`) y Reactivate (`?handler=Reactivate`) en `Index.cshtml.cs`:
+- [x] **3.3** Implementar handlers POST Delete (`?handler=Delete`) y Reactivate (`?handler=Reactivate`) en `Index.cshtml.cs`:
   - Delete → `DELELE /api/v1/usuarios/{id}` + `PageFeedback.SetLastDeletedId`
   - Reactivate → `PATCH /api/v1/usuarios/{id}/reactivar` + validar `PersonaInactiva` → `ErrorCategoria.Conflict`
   - `403 AutoBaja` → feedback accionable
   - `Forbid()` si no admin
   - **Dependency**: 3.1
-- [ ] **3.4** [RED] Tests web Index ~14 tests — PRG Delete/Reactivate, toggle segmentos, auto-baja, PersonaInactiva, role gating, paginación, búsqueda
+- [x] **3.4** [RED] Tests web Index ~14 tests — PRG Delete/Reactivate, toggle segmentos, auto-baja, PersonaInactiva, role gating, paginación, búsqueda
   - **Dependency**: 3.1, 3.3
-- [ ] **3.5** [RED] Tests web Details ~4 tests — carga readonly, 404 recuperable, retorno con filtros
+- [x] **3.5** [RED] Tests web Details ~4 tests — carga readonly, 404 recuperable, retorno con filtros
   - **Dependency**: 3.2
-- [ ] **3.6** Validar PR3: `dotnet build SGV.slnx` + `dotnet test --filter "Web.Usuario.*(Index|Details)"` + `bun run build` en `src/SGV.Web`
+- [x] **3.6** Validar PR3: `dotnet build SGV.slnx` + `dotnet test --filter "Web.Usuario.*(Index|Details)"` + `bun run build` en `src/SGV.Web`
 
 ## PR4 — Pages Create + Edit + _Form
 

@@ -265,10 +265,10 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
             throw ReactivarException;
         }
 
-        _deletedIds.Remove(id);
-
         if (ReactivarResult.IsSuccess)
         {
+            _deletedIds.Remove(id);
+
             var dto = ReactivarResult.Value;
             if (dto is not null)
             {
