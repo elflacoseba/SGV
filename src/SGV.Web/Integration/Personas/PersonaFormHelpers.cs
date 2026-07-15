@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
 namespace SGV.Web.Integration.Personas;
 
 /// <summary>
@@ -68,5 +71,35 @@ public static class PersonaFormHelpers
                 modelState.AddModelError(PersonaFormKeys.InputPrefix + key, message);
             }
         }
+    }
+
+    /// <summary>
+    /// Construye la URL de retorno al listado de personas preservando los
+    /// filtros de la página anterior (p, search, sort). Espejo del
+    /// <c>CargoFormHelpers.BuildReturnToListUrl</c>.
+    /// </summary>
+    public static string BuildReturnToListUrl(IUrlHelper url, string? page, string? search, string? sort)
+    {
+        var baseUrl = url.Page("/Personas/Index") ?? "/personas";
+        var query = new List<KeyValuePair<string, string?>>();
+
+        if (!string.IsNullOrWhiteSpace(page))
+        {
+            query.Add(new KeyValuePair<string, string?>("p", page));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query.Add(new KeyValuePair<string, string?>("search", search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort))
+        {
+            query.Add(new KeyValuePair<string, string?>("sort", sort));
+        }
+
+        return query.Count == 0
+            ? baseUrl
+            : $"{baseUrl}{QueryString.Create(query)}";
     }
 }
