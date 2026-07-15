@@ -1,0 +1,61 @@
+@* Reusable personas typeahead partial. *@
+@* Renders a search input + hidden field; client-side filter >=MinChars with debounce. *@
+@* Emits "change" on the hidden field whenever a row is picked. *@
+@model SGV.Web.Integration.Personas.PersonaTypeaheadViewModel
+
+@{
+    var personasJson = System.Text.Json.JsonSerializer.Serialize(
+        Model.AllPersonas.Select(p => new
+        {
+            id = p.Id,
+            legajo = p.Legajo ?? string.Empty,
+            apellidos = p.Apellidos,
+            nombres = p.Nombres,
+            email = p.Email ?? string.Empty,
+            documento = string.IsNullOrWhiteSpace(p.NumeroDocumento)
+                ? string.Empty
+                : (string.IsNullOrWhiteSpace(p.TipoDocumento) ? p.NumeroDocumento : $"{p.TipoDocumento}: {p.NumeroDocumento}")
+        }),
+        new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+        });
+
+    var selectedPersona = Model.SelectedId.HasValue
+        ? Model.AllPersonas.FirstOrDefault(p => p.Id == Model.SelectedId.Value)
+        : null;
+
+    var selectedDisplay = selectedPersona is null
+        ? string.Empty
+        : $"{selectedPersona.Apellidos}, {selectedPersona.Nombres}" +
+          (string.IsNullOrWhiteSpace(selectedPersona.Legajo) ? string.Empty : $" (Legajo {selectedPersona.Legajo})");
+}
+
+<div class="persona-typeahead"
+     data-persona-typeahead
+     data-min-chars="@Model.MinChars"
+     data-input-name="@Model.InputName"
+     data-persona-typeahead-selected-id="@(Model.SelectedId?.ToString() ?? string.Empty)">
+    <label class="form-label">@Model.Label</label>
+    <input type="text"
+           class="form-control persona-typeahead-input"
+           data-persona-typeahead-input
+           placeholder="@Model.Placeholder"
+           value="@selectedDisplay"
+           autocomplete="off" />
+    <input type="hidden"
+           name="@Model.InputName"
+           value="@(Model.SelectedId?.ToString() ?? string.Empty)"
+           data-persona-typeahead-hidden />
+    <ul class="list-group mt-2 persona-typeahead-results d-none"
+        data-persona-typeahead-results></ul>
+    <small class="form-text text-muted d-none"
+           data-persona-typeahead-empty>
+        No se encontraron coincidencias.
+    </small>
+    <small class="form-text text-muted"
+           data-persona-typeahead-hint>
+        Escribí al menos @Model.MinChars caracteres para buscar.
+    </small>
+    <script type="application/json" data-persona-typeahead-data>@personasJson</script>
+</div>
