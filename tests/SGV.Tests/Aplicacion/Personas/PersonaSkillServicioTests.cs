@@ -4,6 +4,7 @@ using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Habilidades;
 using SGV.Dominio.Personas;
 using SGV.Tests.Aplicacion.Comun;
@@ -255,6 +256,12 @@ internal sealed class FakePersonaReadRepository : IPersonaRepository
         => Task.FromResult(false);
     public Task<bool> ExistsActiveDocumentoAsync(string tipo, string num, Guid? id = null, CancellationToken ct = default)
         => Task.FromResult(false);
+
+    public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(
+        string? search, int page, int pageSize, string? sort = null,
+        PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        CancellationToken ct = default)
+        => Task.FromResult<(IReadOnlyList<Persona>, int)>(([], 0));
 }
 
 

@@ -25,7 +25,8 @@ using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
-using SGV.Aplicacion.Personas.Consultas.Dtos;
+using SGV.Contracts.Personas.Comandos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia.Catalogos;
 
 namespace SGV.Tests.Api;
@@ -594,6 +595,28 @@ internal sealed class FakePersonaServicioConsulta : IPersonaServicioConsulta
 
     public Task<PersonaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+
+    public Task<PersonaListadoDto> ListarAsync(
+        PersonaListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var lowered = query.Search?.ToLowerInvariant();
+        var filtered = _data.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(lowered))
+        {
+            filtered = filtered.Where(d =>
+                (d.Legajo?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || d.Nombres.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || d.Apellidos.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || (d.Email?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (d.NumeroDocumento?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        var list = filtered.ToList();
+        var total = list.Count;
+        var items = list.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToList();
+        return Task.FromResult(new PersonaListadoDto(items, total, query.Page, query.PageSize));
+    }
 }
 
 internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
@@ -148,5 +149,64 @@ public sealed class PersonaRepository(SgvDbContext context)
                 p.Id != excludingId,
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    public async Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<PersonaEntity> query = Context
+            .Set<PersonaEntity>()
+            .AsNoTracking()
+            .Where(p => segmento == PersonaSegmentoListado.Activas
+                ? (p.IsActive && !p.IsDeleted)
+                : (!p.IsActive && p.IsDeleted));
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(p =>
+                (p.Legajo != null && p.Legajo.Contains(search)) ||
+                p.Nombres.Contains(search) ||
+                p.Apellidos.Contains(search) ||
+                (p.Email != null && p.Email.Contains(search)) ||
+                (p.NumeroDocumento != null && p.NumeroDocumento.Contains(search)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // El sort se aplica ANTES del Skip/Take para que la paginación respete
+        // el orden visible (REQ-CM-01). Valores soportados (8): legajo_asc/desc,
+        // apellidos_asc/desc, nombres_asc/desc, email_asc/desc. Cualquier otro
+        // valor cae al orden por defecto (apellidos_asc) para preservar
+        // contratos existentes y mantener consistencia con Cargos.
+        var ordered = ApplySort(query, sort);
+
+        var entities = await ordered
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
+    private static IOrderedQueryable<PersonaEntity> ApplySort(IQueryable<PersonaEntity> query, string? sort)
+    {
+        return sort?.ToLowerInvariant() switch
+        {
+            "legajo_asc" => query.OrderBy(p => p.Legajo),
+            "legajo_desc" => query.OrderByDescending(p => p.Legajo),
+            "apellidos_asc" => query.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres),
+            "apellidos_desc" => query.OrderByDescending(p => p.Apellidos).ThenByDescending(p => p.Nombres),
+            "nombres_asc" => query.OrderBy(p => p.Nombres),
+            "nombres_desc" => query.OrderByDescending(p => p.Nombres),
+            "email_asc" => query.OrderBy(p => p.Email),
+            "email_desc" => query.OrderByDescending(p => p.Email),
+            _ => query.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres)
+        };
     }
 }

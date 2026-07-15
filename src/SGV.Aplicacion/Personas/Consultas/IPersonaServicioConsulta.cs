@@ -1,4 +1,4 @@
-using SGV.Aplicacion.Personas.Consultas.Dtos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 
 namespace SGV.Aplicacion.Personas.Consultas;
 
@@ -16,4 +16,12 @@ public interface IPersonaServicioConsulta
     /// Returns a single persona by its identifier, or null if not found or inactive.
     /// </summary>
     Task<PersonaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a paginated, segmented set of personas (active or deleted) using
+    /// the application-layer <see cref="PersonaListQuery"/>. <c>TotalCount</c>
+    /// and pagination metadata come from the repository, not from a
+    /// <c>ListAllAsync</c> in-memory snapshot.
+    /// </summary>
+    Task<PersonaListadoDto> ListarAsync(PersonaListQuery query, CancellationToken cancellationToken = default);
 }

@@ -1,5 +1,6 @@
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Dominio.Personas;
@@ -115,6 +116,12 @@ public sealed class UsuarioServicioComandosTests
         public Task<bool> ExistsActiveLegajoAsync(string legajo, Guid? excludingId = null, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task<bool> ExistsActiveEmailAsync(string email, Guid? excludingId = null, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task<bool> ExistsActiveDocumentoAsync(string tipoDocumento, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default) => Task.FromResult(false);
+
+        public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(
+            string? search, int page, int pageSize, string? sort = null,
+            PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<(IReadOnlyList<Persona>, int)>(([], 0));
     }
 
     private sealed class FakeUsuarioIdentityGateway : IUsuarioIdentityGateway
