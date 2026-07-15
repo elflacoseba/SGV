@@ -402,3 +402,84 @@ Una sola taxonomía `ErrorCategoria` definida como `enum` append-only en `src/SG
 - `PersonaCommandResult`, `PersonaSkillCommandResult`, `OcupacionCommandResult` (viven en `SGV.Aplicacion`): no se migran en este change. Sólo exponen `NotFound`/`Conflict`/`Validation` hoy; no impactan flujos administrativos y la superficie a migrar sumaría otro bloque sin valor inmediato. Issue de follow-up sugerido tras archive del #125.
 - Los `ApiResults.Map*Status` de `SGV.Api/Infrastructure/Results/ApiResults.cs` se centralizan en un `MapCategoria(ErrorCategoria)` exhaustivo en el Slice 4 (issue #125, PR #4).
 
+## Frontend CRUD de Personas
+
+> Change: `2026-07-14-frontend-crud-personas`. Artefactos SDD completos en `openspec/changes/2026-07-14-frontend-crud-personas/`. Chain strategy: `feature-branch-chain` con 4 PRs encadenados contra la tracker `feat/2026-07-14-frontend-crud-personas-tracker`.
+
+### Decisiones de diseño
+
+#### Ruta `/personas` (sibling de `/organizacion/cargos`)
+
+El módulo Personas NO cuelga de `/organizacion/`. La spec original proponía `/organizacion/personas`; en sesión interactiva se confirmó `/personas` como ruta directa. Razones:
+
+1. **Personas no es un subdominio de Organización** — Cargo, Puesto y UnidadOrganizativa modelan la estructura organizacional. Persona es una entidad de dominio independiente (con sus propios skills, datos de contacto, documento) que cualquier capacidad organizacional referencia (e.g. una UnidadOrganizativa tiene responsable → Persona). Anidarla bajo `/organizacion/` confundiría el modelo mental.
+2. **Coherencia con la API** — el backend expone `PersonasController` en `/api/v1/personas` (sibling de `/api/v1/cargos`, no anidado). El espejo Web debe respetar el mismo árbol.
+3. **URLs estables para integraciones externas futuras** — `GET /personas/{id}` será consumido por terceros sin necesidad de conocer el detalle organizativo.
+
+Consecuencia práctica: el directorio `Pages/Personas/` (no `Pages/Organizacion/Personas/`); la nav apunta a `/personas` con icono `ti ti-user`.
+
+#### Wire-types movidos de `Aplicacion.Personas` a `Contracts.Personas`
+
+Los records `PersonaDto`, `PersonaCommandResult`, `PersonaError`, `PersonaErrorType`, `CrearPersonaRequest` y `ActualizarPersonaRequest` vivían en `SGV.Aplicacion.Personas.*`. Migrar a `SGV.Contracts.Personas.*` siguiendo el precedente de Cargos (archive `2026-07-09-frontend-crud-cargos-pages`):
+
+- **`SGV.Contracts` sigue siendo leaf** — el grafo de proyectos no cambia. `SGV.Web` ya no depende de `SGV.Aplicacion.Personas` (verificado por el grep `grep -r "SGV.Aplicacion.Personas" src/SGV.Web/` que retorna cero hits).
+- **JSON shape idéntico** — los DTOs son `sealed record` con los mismos nombres y orden de propiedades; el wire format no cambia. Los tests existentes de `PersonasController` siguen pasando sin tocar.
+- **Movimiento, no duplicación** — los archivos originales en `Aplicacion` se borran (no quedan copias huérfanas). Los call sites internos (`PersonaServicioComandos`, `PersonaServicioConsulta`, `PersonasController`, `PersonaSkill*`) actualizan `using SGV.Contracts.Personas.*` (revisión: 4 archivos tocados, ~12 líneas de `using` modificadas, 0 cambios de lógica).
+- **`PersonaSkill*` queda en Aplicacion** — los records `PersonaSkillDto`, `PersonaSkillCommandResult`, etc. viven en `SGV.Aplicacion.Personas.Habilidades` y NO se migran en este change. Se mueven en el frontend de habilidades de persona (cambio futuro, fuera de alcance).
+
+#### Asunción del typeahead: dataset activo <500 personas
+
+`Pages/Personas/Shared/_PersonaTypeahead.cshtml` consume `GET /api/v1/personas` completo y filtra client-side ≥2 chars con debounce de 250 ms. La asunción operativa es que **el dataset activo típico no supera 500 personas**. Por debajo de ese umbral:
+
+- Payload de ~100 KB para un GET sin paginación, aceptable para una carga única en `OnGetAsync` del host page.
+- Filtro client-side evita round-trips HTTP por keystroke.
+- Debounce evita render-cost con cada pulsación.
+
+**Si el dataset supera las ~500 personas activas**, el primer GET pesa >100 KB y deforma la experiencia (latencia de carga, memoria retenida en el navegador). Follow-up documentado: agregar `GET /api/v1/personas/buscar?q={term}` que devuelve las N mejores coincidencias server-side, manteniendo el contrato del partial sin cambios (el JS ya espera un array de `PersonaDto`). Issue de seguimiento sugerido para cuando el `COUNT(*)` de `Personas` activas supere el umbral.
+
+#### `MapCategoriaToLegacyType` endémico en 5 clientes (warning CS8524)
+
+Cada `*ApiClient` de Web (`CargoApiClient`, `PuestoApiClient`, `UnidadOrganizativaApiClient`, `PersonaApiClient` y `HabilidadApiClient`) tiene un método privado `MapCategoriaToLegacyType(ErrorCategoria)` que colapsa la taxonomía común al enum histórico `*ErrorType` para preservar source-compat con call sites vigentes. **El warning CS8524 aparece en los 5 archivos** porque `ErrorCategoria` es append-only (regla del change #125): cuando se agrega una variante nueva, los 5 switches deben actualizarse simultáneamente o el compilador avisa.
+
+El warning **es endémico y aceptado** mientras los enums `[Obsolete]` no se eliminen (archivado del change #125). Endurecerlo exigiría:
+
+1. Invertir el flujo: que el enum `[Obsolete]` se elimine primero, y luego eliminar `MapCategoriaToLegacyType` de cada cliente.
+2. O bien introducir un shared slice en `SGV.Web.Integration.Common` que centralice la conversión, eliminando la duplicación pero NO el problema del exhaustivo (la advertencia seguiría apareciendo en el lugar centralizado).
+
+Por ahora, el equipo acepta el warning y lo trata como checklist en code review para cuando se sume una nueva variante de `ErrorCategoria`. Será resuelto naturalmente al archivar el change #125 (cuando los enums legacy se borren).
+
+### Compatibilidad y rollback
+
+- **Source-breaking**: NO. `SGV.Aplicacion.Personas.PersonaDto` etc. ya no existen; cualquier consumer interno que los importaba actualiza el `using`. No quedan referencias externas al repositorio SGV.
+- **Wire-breaking**: NO. El JSON shape del API no cambia (mismo nombre de propiedades, mismo orden).
+- **DB-breaking**: NO. Cero migraciones.
+- **Rollback**: borrar `Pages/Personas/`, `Integration/Personas/`, revertir `Program.cs`, `_Sidenav.cshtml` y `using SGV.Contracts.Personas`. Cero impacto en API runtime, BD o datos.
+
+### Archivos clave
+
+- `src/SGV.Contracts/Personas/Consultas/Dtos/{PersonaDto,PersonaListQuery,PersonaListadoDto,PersonaSegmentoListado}.cs` — wire-types de consulta (4 archivos).
+- `src/SGV.Contracts/Personas/Comandos/{CrearPersonaRequest,ActualizarPersonaRequest,PersonaErrorType,PersonaCommandResult,PersonaDeleteResult,PersonaError}.cs` — wire-types de comandos (6 archivos).
+- `src/SGV.Web/Integration/Personas/{IPersonaApiClient,PersonaApiClient,PersonaInputModel,PersonaListItemViewModel,PersonaListQueryViewModel,PersonaFormHelpers,PersonaPostResultMapper,IPersonaForm,PersonaTypeaheadViewModel}.cs` — cliente HTTP + helpers (9 archivos).
+- `src/SGV.Web/Pages/Personas/{Index,Create,Edit,Details}.{cshtml,cshtml.cs}` + `_Form.cshtml` + `Shared/_PersonaTypeahead.cshtml` — Razor Pages (9 archivos).
+- `src/SGV.Web/Program.cs` — `AddHttpClient<IPersonaApiClient, PersonaApiClient>` con `ApiBearerTokenHandler` (10s timeout, paralelo a Cargo/Habilidad/Puesto).
+- `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` — ítem colapsable "Personas" con icono `ti ti-user`.
+- `tests/SGV.Tests/Web/Persona/{FakePersonaApiClient,PersonaWebTestFixture,FakePersonaApiClientTests,IPersonaApiClientContractTests,PersonaApiClientBasicTests,IndexPageTests,CreatePageTests,EditPageTests,DetailsPageTests,TypeaheadTests,PersonaWebSeamTests}.cs` — 11 archivos, ~80 tests web.
+
+### PR encadenados (feature-branch-chain)
+
+| PR | Squash | Scope | Tests netos |
+|----|--------|-------|-------------|
+| 1 | `5158cec6` (#143) | Backend paginado `/consulta` + wire-types | ~200 backend |
+| 2 | `180b8701` (#144) | Integration client + DI + nav | 0 |
+| 3 | `82a5455` (#145) | Razor Pages + typeahead | 0 |
+| 4 | (este PR) | Tests web + docs | ~80 web |
+
+Tracker PR (no-merge) mantiene el squash de los 4 PRs encadenados hasta que se decida el merge final. La cadena vive bajo `feat/2026-07-14-frontend-crud-personas-tracker` con 4 work-branches hijos. Cada PR child mantiene su diff enfocado en su work-unit y nunca apunta directo a `main` (regla del chained-pr skill).
+
+### Follow-up documentado (fuera de este change)
+
+- **Frontend de habilidades de persona** (`PersonaSkill*` actualmente vive en `SGV.Aplicacion.Personas.Habilidades`): cuando se sume al scope de Personas, los records deben moverse a `SGV.Contracts.Personas.Habilidades` siguiendo el mismo precedente.
+- **`GET /api/v1/personas/buscar?q=`** — endpoint server-side de búsqueda rápida para el typeahead, requerido cuando el dataset activo supere las ~500 personas.
+- **Gate de Edit en Details**: el page model actual muestra el botón Editar a cualquier autenticado y delega el gate al handler GET de Edit. Considerar gating visual en Details para UX consistente con Index.
+
+
