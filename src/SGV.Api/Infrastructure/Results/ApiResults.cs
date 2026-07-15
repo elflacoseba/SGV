@@ -9,6 +9,7 @@ using SGV.Aplicacion.Personas.Comandos;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Api.Infrastructure.Results;

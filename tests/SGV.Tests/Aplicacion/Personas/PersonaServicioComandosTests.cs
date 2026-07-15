@@ -1,6 +1,7 @@
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Contracts.Personas.Comandos;
 using SGV.Dominio.Personas;
 using Xunit;
 

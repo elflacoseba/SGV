@@ -1,6 +1,7 @@
 using FluentValidation.TestHelper;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Comandos.Validaciones;
+using SGV.Contracts.Personas.Comandos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Personas;
