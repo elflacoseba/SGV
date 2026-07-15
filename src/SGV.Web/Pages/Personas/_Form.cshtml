@@ -1,0 +1,58 @@
+@* This is a field partial, not a complete form. The consumer must provide: <form>, antiforgery token, hidden return, submit/cancel actions. *@
+@* Shared form partial for create/edit of Personas. *@
+@* Expects a model that implements IPersonaForm. *@
+@model SGV.Web.Integration.Personas.IPersonaForm
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Legajo" class="form-control" placeholder="Legajo" />
+            <label asp-for="Input.Legajo">Legajo</label>
+            <span asp-validation-for="Input.Legajo" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Nombres" class="form-control" placeholder="Nombres" />
+            <label asp-for="Input.Nombres">Nombres</label>
+            <span asp-validation-for="Input.Nombres" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Apellidos" class="form-control" placeholder="Apellidos" />
+            <label asp-for="Input.Apellidos">Apellidos</label>
+            <span asp-validation-for="Input.Apellidos" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Email" class="form-control" placeholder="Email" type="email" />
+            <label asp-for="Input.Email">Email</label>
+            <span asp-validation-for="Input.Email" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.TipoDocumento" class="form-control" placeholder="Tipo de documento" />
+            <label asp-for="Input.TipoDocumento">Tipo de documento</label>
+            <span asp-validation-for="Input.TipoDocumento" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.NumeroDocumento" class="form-control" placeholder="Número de documento" />
+            <label asp-for="Input.NumeroDocumento">Número de documento</label>
+            <span asp-validation-for="Input.NumeroDocumento" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Telefono" class="form-control" placeholder="Teléfono" />
+            <label asp-for="Input.Telefono">Teléfono</label>
+            <span asp-validation-for="Input.Telefono" class="text-danger"></span>
+        </div>
+    </div>
+</div>
