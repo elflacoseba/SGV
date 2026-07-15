@@ -1,0 +1,54 @@
+@page "/seguridad/usuarios/crear"
+@model SGV.Web.Pages.Seguridad.Usuarios.CreateModel
+
+@{
+    ViewBag.title = "Crear usuario";
+    ViewBag.subtitle = "Seguridad";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (Model.PersonaOptions.Count == 0)
+{
+    <div class="alert alert-warning" role="alert">
+        <strong>No hay personas activas para asociar.</strong>
+        Para crear un usuario primero debés dar de alta una persona activa.
+        <a class="alert-link ms-2" href="/personas/crear">
+            <i class="ti ti-plus me-1"></i>Crear persona
+        </a>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-12 col-lg-10">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Nuevo usuario</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="ReturnPage" />
+                    <input type="hidden" asp-for="ReturnSearch" />
+                    <input type="hidden" asp-for="ReturnSort" />
+                    <input type="hidden" asp-for="ReturnStatus" />
+
+                    @await Html.PartialAsync("_Form", Model)
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary"
+                                disabled="@(Model.PersonaOptions.Count == 0 ? "disabled" : null)">
+                            Guardar
+                        </button>
+                        <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -115,29 +115,29 @@ Objetivo: listado segmentado `activas|eliminadas`, detalle readonly, baja lógic
 
 Objetivo: alta de usuario con dropdown de Personas activas + edición de UserName/Email/roles + formulario compartido.
 
-- [ ] **4.1** Crear `_Form.cshtml` partial compartido con:
+- [x] **4.1** Crear `_Form.cshtml` partial compartido con:
   - Dropdown Personas activas (solo en Create, readonly en Edit)
   - UserName, Email, Password (solo Create)
   - Roles checkboxes (catálogo fijo `Administrador`, `GestorVacantes`, `Consultor`)
   - **Dependency**: PR2
-- [ ] **4.2** Crear `Create.cshtml` + `Create.cshtml.cs`:
+- [x] **4.2** Crear `Create.cshtml` + `Create.cshtml.cs`:
   - `OnGetAsync`: cargar catálogo Personas activas (`GET /api/v1/personas`)
   - `OnPostAsync`: validar + `POST /api/v1/usuarios` → PRG a Details con feedback success
   - `400`/`409` → mapear a field errors
   - `[Authorize(Roles=Administrador)]` gating + `Forbid()` si no admin
   - Dropdown vacío → mensaje guía con link a `/personas/crear`
   - **Dependency**: 4.1
-- [ ] **4.3** Crear `Edit.cshtml` + `Edit.cshtml.cs`:
+- [x] **4.3** Crear `Edit.cshtml` + `Edit.cshtml.cs`:
   - `OnGetAsync`: cargar `UsuarioDto` por id + prellenar campos (Persona readonly)
   - `OnPostAsync`: `PUT /api/v1/usuarios/{id}` atómico → PRG al propio editor con feedback success
   - `400`/`409` → field errors preservando resto del form
   - `404` → estado recuperable
   - **Dependency**: 4.1
-- [ ] **4.4** [RED] Tests web Create ~8 tests — dropdown poblado/vacío, validación, 201→PRG Details, 409→field error, Forbid sin admin
+- [x] **4.4** [RED] Tests web Create ~8 tests — dropdown poblado/vacío, validación, 201→PRG Details, 409→field error, Forbid sin admin
   - **Dependency**: 4.2
-- [ ] **4.5** [RED] Tests web Edit ~8 tests — prellenado, PUT exitoso→PRG, duplicado UserName→field error, 404 recuperable
+- [x] **4.5** [RED] Tests web Edit ~8 tests — prellenado, PUT exitoso→PRG, duplicado UserName→field error, 404 recuperable
   - **Dependency**: 4.3
-- [ ] **4.6** Validar PR4: `dotnet build SGV.slnx` + `dotnet test --filter "Web.Usuario.*(Create|Edit)"` + `bun run build`
+- [x] **4.6** Validar PR4: `dotnet build SGV.slnx` + `dotnet test --filter "Web.Usuario.*(Create|Edit)"` + `bun run build`
 
 ## Riesgos operativos de la división
 

@@ -64,11 +64,17 @@ public sealed class UsuarioInputModel
     /// <summary>
     /// Lista bindeable de roles. El PageModel sanitiza contra
     /// <see cref="RolesSgv.Todos"/> antes de enviar al cliente.
+    /// <para>
+    /// Se expone como <see cref="string"/> array (no
+    /// <see cref="IReadOnlyList{T}"/>) para que el binder de
+    /// <c>application/x-www-form-urlencoded</c> materialice múltiples
+    /// valores <c>Input.Roles</c> desde los checkboxes del partial.
+    /// </para>
     /// </summary>
     [Required(ErrorMessage = "Debe asignar al menos un rol.")]
     [MinLength(1, ErrorMessage = "Debe asignar al menos un rol.")]
     [Display(Name = "Roles")]
-    public IReadOnlyList<string> Roles { get; set; } = Array.Empty<string>();
+    public string[] Roles { get; set; } = Array.Empty<string>();
 
     /// <summary>
     /// Catálogo auxiliar visible para la grilla de checkboxes (no se
@@ -89,7 +95,7 @@ public sealed class UsuarioInputModel
     /// del POST para evitar enviar roles no vigentes (e.g. defaults de
     /// Identity como <c>"User"</c>).
     /// </summary>
-    public static IReadOnlyList<string> FilterByCatalog(IEnumerable<string> roles)
+    public static string[] FilterByCatalog(IEnumerable<string> roles)
         => roles.Where(RolesSgv.EsValido).ToArray();
 
     /// <summary>

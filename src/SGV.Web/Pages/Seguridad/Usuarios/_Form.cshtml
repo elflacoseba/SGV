@@ -1,0 +1,97 @@
+@* This is a field partial, not a complete form. The consumer must provide: <form>, antiforgery token, hidden return, submit/cancel actions. *@
+@* Shared form partial for create/edit of Usuarios. *@
+@* Expects a model that implements IUsuarioForm. *@
+@model SGV.Web.Integration.Usuarios.IUsuarioForm
+
+<div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<div class="row g-3">
+    @* Persona dropdown ONLY en Create (inmutable en Edit — el cambio de
+       Persona está fuera del scope del change). *@
+    @if (!Model.IsEdit)
+    {
+        <div class="col-md-6">
+            <div class="form-floating">
+                <select asp-for="Input.PersonaId" class="form-select"
+                        asp-items="@(new SelectList(
+                            Model.PersonaOptions.Select(p => new
+                            {
+                                p.Id,
+                                DisplayName = string.IsNullOrWhiteSpace(p.Apellidos) ? p.Nombres : (p.Apellidos + ", " + p.Nombres)
+                            }),
+                            "Id", "DisplayName"))">
+                    <option value="">Seleccionar persona activa...</option>
+                </select>
+                <label asp-for="Input.PersonaId">Persona vinculada</label>
+                <span asp-validation-for="Input.PersonaId" class="text-danger"></span>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* En Edit mostramos la Persona como read-only (campo no editable).
+           Se preserva el id en un hidden para que el binding no falle si
+           el input PersonaId se mantiene obligatorio en el modelo. *@
+        var readonlyPersona = Model.PersonaOptions.FirstOrDefault(p => p.Id == Model.Input.PersonaId);
+        var readonlyDisplay = readonlyPersona is null
+            ? "—"
+            : (string.IsNullOrWhiteSpace(readonlyPersona.Apellidos) ? readonlyPersona.Nombres : (readonlyPersona.Apellidos + ", " + readonlyPersona.Nombres));
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input class="form-control" value="@readonlyDisplay" readonly disabled />
+                <label>Persona vinculada</label>
+                <input type="hidden" asp-for="Input.PersonaId" />
+                <small class="text-muted">La persona vinculada no puede modificarse desde aquí.</small>
+            </div>
+        </div>
+    }
+
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.UserName" class="form-control" placeholder="Nombre de usuario" autocomplete="off" />
+            <label asp-for="Input.UserName">Nombre de usuario</label>
+            <span asp-validation-for="Input.UserName" class="text-danger"></span>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="form-floating">
+            <input asp-for="Input.Email" class="form-control" placeholder="Email" type="email" autocomplete="off" />
+            <label asp-for="Input.Email">Email</label>
+            <span asp-validation-for="Input.Email" class="text-danger"></span>
+        </div>
+    </div>
+
+    @* Password input ONLY en Create. El cambio de password queda fuera
+       del scope del change (ver spec/usuario-web-crear-editar §Out of
+       scope). *@
+    @if (!Model.IsEdit)
+    {
+        <div class="col-md-6">
+            <div class="form-floating">
+                <input asp-for="Input.Password" class="form-control" placeholder="Contraseña inicial"
+                       type="password" autocomplete="new-password" />
+                <label asp-for="Input.Password">Contraseña inicial</label>
+                <span asp-validation-for="Input.Password" class="text-danger"></span>
+            </div>
+        </div>
+    }
+
+    <div class="col-12">
+        <label class="form-label">Roles</label>
+        <div class="d-flex flex-wrap gap-3">
+            @foreach (var rol in Model.Input.RolesCatalogo)
+            {
+                var isChecked = Model.Input.Roles is not null
+                    && Model.Input.Roles.Any(r => string.Equals(r, rol, StringComparison.Ordinal));
+                <div class="form-check">
+                    <input type="checkbox" name="Input.Roles" value="@rol"
+                           class="form-check-input" id="Input_Roles_@rol"
+                           checked="@isChecked" />
+                    <label class="form-check-label" for="Input_Roles_@rol">@rol</label>
+                </div>
+            }
+        </div>
+        <span asp-validation-for="Input.Roles" class="text-danger"></span>
+    </div>
+</div>

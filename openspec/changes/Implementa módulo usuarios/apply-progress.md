@@ -366,3 +366,96 @@ develop
 ```
 
 PR3 comienza en el tracker integrado post-PR2 y termina con Index/Details/Delete/Reactivate funcionales y verificados. No modifica `Integration/Usuarios/` de producción ni backend/contratos; PR4 queda como siguiente slice autónomo.
+
+## PR4 — Pages Create + Edit + _Form
+
+### Estado del lote PR4
+
+- **PR actual**: PR4 — Pages Create + Edit + `_Form`.
+- **Rama base integrada**: `feat/2026-07-15-implementa-modulo-usuarios-tracker` en `78a9e1e7` (PR1 + PR2 + mini-fix HALL-1 + PR3 squash-mergeados).
+- **Rama de trabajo**: `feat/2026-07-15-implementa-modulo-usuarios-pr4-paginas-form`.
+- **Estrategia**: `feature-branch-chain`; este slice parte del tracker integrado y no toca backend, contratos ni `Integration/Usuarios/` de producción (excepto el ajuste mínimo de `Roles` en `UsuarioInputModel` documentado abajo).
+- **Modo de implementación**: Strict TDD.
+- **Tareas PR4**: 6/6 completadas (4.1–4.6).
+- **Tareas del change**: 34/34 completadas; PR4 cierra el change.
+
+### Resumen de implementación PR4
+
+- `Pages/Seguridad/Usuarios/_Form.cshtml` agrega el parcial compartido: dropdown Personas activas (Create), readonly persona (Edit), UserName/Email inputs, Password (Create only), Roles checkboxes del catálogo fijo `RolesSgv.Todos`. La interfaz `IUsuarioForm` en `Integration/Usuarios/IUsuarioForm.cs` da el contrato compartido para que el partial renderice distinto según `IsEdit` sin acoplar al PageModel concreto (espejo del patrón `IPuestoForm`/`IPersonaForm`).
+- `Create.cshtml(.cs)` carga el catálogo de Personas activas vía `IPersonaOptionsProvider.GetActivasAsync()`; dropdown vacío muestra banner guía con link a `/personas/crear` y bloquea el submit. POST sanitiza Roles contra `RolesSgv.Todos`, llama `IUsuarioApiClient.CreateAsync` (POST `/api/v1/usuarios`), PRG a Details con feedback success. 400 con `FieldErrors` se aplica al ModelState bajo `Input.<clave>` vía `UsuarioPostResultMapper.TryMap` (helper ya en producción desde mini-PR HALL-1). 409 → summary preservando input. Forbid() si no admin.
+- `Edit.cshtml(.cs)` carga `UsuarioDto` por id + catálogo Personas activas en paralelo (`Task.WhenAll`). Persona es read-only (campo hidden + display string). PUT atómico UserName+Email+Roles vía `IUsuarioApiClient.UpdateAsync`, PRG al propio edit con feedback success. 400 con `FieldErrors` se aplica per-campo; 409 → feedback; 404 → estado recuperable con retorno al listado. Forbid() si no admin.
+- `FakePersonaOptionsProvider` (test) y dos overloads de `CreateUsuarioLeaseAsync` en `WebIntegrationFixture` (uno con `IPersonaOptionsProvider`, otro con `IPersonaApiClient + IPersonaOptionsProvider`) cierran el seam para que las Pages se prueben sin HTTP real.
+- Ajuste mínimo sobre `Integration/Usuarios/UsuarioInputModel.cs`: `Roles` se reescribe de `IReadOnlyList<string>` a `string[]` porque el binder de `application/x-www-form-urlencoded` no materializa `IReadOnlyList<T>` desde múltiples valores `Input.Roles` (checkboxes). Sin esto, el primer POST con roles chequeados llegaba vacío y la rama `ModelState.IsValid == false` cortaba el flujo antes de poder triangular el propagador de `FieldErrors`.
+
+### Tareas completadas PR4
+
+- [x] **4.1** `_Form.cshtml` partial compartido (dropdown Personas Create / readonly Edit, UserName/Email/Password/Roles); `IUsuarioForm` interface.
+- [x] **4.2** `Create.cshtml(.cs)` con dropdown Personas, gate admin, dropdown vacío → banner guía + submit bloqueado, POST → PRG Details con feedback, FieldErrors per-campo.
+- [x] **4.3** `Edit.cshtml(.cs)` con precarga Usuario + catálogo Personas en paralelo, Persona readonly, PUT atómico → PRG al propio edit, FieldErrors, 404 recuperable.
+- [x] **4.4** 7 tests Create (GET no-admin → 403, GET dropdown poblado, GET dropdown vacío → bloqueado, POST 201 → PRG Details, POST 400 FieldErrors, POST 409 unicidad, POST transporte → recuperable).
+- [x] **4.5** 7 tests Edit (GET no-admin → 403, GET prefill + readonly persona, GET 404 → recuperable, POST 200 → PRG al propio edit, POST 400 FieldErrors, POST 409 unicidad, POST transporte → recuperable).
+- [x] **4.6** Build 0 errores; Tests Usuario 183/183 verdes; Gate estable 2250/2250 verdes; `bun run build` exit 0.
+
+### Evidencia de ciclos TDD — PR4
+
+| Task | Archivo(s) de test | Capa | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| 4.1 | `CreatePageTests.cs`, `EditPageTests.cs` | Web integration | 169/169 previos | Falla a compilar (rutas inexistentes) → 404 | 14/14 verdes tras pages mínimos + `_Form` | Create/Edit cargan dropdown + readonly persona según `IsEdit` | Docstrings `remarks` reemplazados; cast duplicado en Create OnPost eliminado |
+| 4.2 | `CreatePageTests.cs` | Web integration | 169/169 previos | 7/7 fallaron (rutas/404/antiforgery) | 7/7 verdes | admin gate, dropdown poblado, dropdown vacío, success → PRG, FieldErrors, Conflict, transporte | `if (personaId == Guid.Empty) …` redundante eliminado |
+| 4.3 | `EditPageTests.cs` | Web integration | 176/176 previos (post Create) | 7/7 fallaron | 7/7 verdes | admin gate, prefill + readonly persona, 404 recuperable, success → PRG, FieldErrors, Conflict, transporte | `LoadPersonasAsync` reusable; no pisa `ErrorMessage` específico |
+| 4.4 | `CreatePageTests.cs` | Web integration | N/A (archivo nuevo) | RED de triangulación cubrió GET-dropdown-vacío, FieldErrors-per-campo, transporte | 7/7 verdes | dropdown empty bloquea submit, FieldErrors per-control en UserName/Email, éxito 201 → PRG | Asserciones usan regex tolerante a `&#xE1;` para `á` |
+| 4.5 | `EditPageTests.cs` | Web integration | N/A (archivo nuevo) | RED de triangulación cubrió prefill, 404, FieldErrors, transporte | 7/7 verdes | Persona read-only (hidden + display), FieldErrors per-control, éxito 200 → PRG-self | FormUrlEncodedContent via `List<KeyValuePair>` para múltiples `Input.Roles` |
+| 4.6 | Gate | Build/runtime | 169/169 baseline → 176/176 (PR4-a) → 183/183 (PR4-b) → 2250/2250 gate estable | Tarea de validación, no introduce código | Build 0 errores; warnings 17 = baseline documentado; Usuario 183/183; gate estable 2250/2250; bun exit 0 | Triangulación estructural omitida: comando de validación con un único resultado esperado | N/A |
+
+### Resumen de pruebas PR4
+
+- **Tests web nuevos**: 14 casos ejecutados — 7 de Create + 7 de Edit.
+- **Tests Usuario totales** (`FullyQualifiedName~Usuario`): **183/183 verdes**, 0 fallidos, 0 omitidos, ~10 s. Baseline previo: 169/169.
+- **Tests focalizados** (`Web.Usuario.*CreatePageTests|Web.Usuario.*EditPageTests`): **14/14 verdes**.
+- **Runtime harness PageModel/Razor**: los 14 tests recorren host Razor real, cookie auth, antiforgery, routing, PRG y override de `IUsuarioApiClient` + `IPersonaOptionsProvider` + `IPersonaApiClient`.
+- **Build**: `dotnet build SGV.slnx` → 0 errores; clean build muestra 17 warnings (todos preexistentes — CS8524 exhaustividad switch en Integration, CS8602 nullability en Pages de UO, CS8625 en contratos, CS1717 fixed en factory, xUnit1026 en CommandResultMapperTests). PR4 no agrega warnings nuevos.
+- **Bundle frontend**: `bun run build` en `src/SGV.Web` → exit 0; sólo avisos de datos Browserslist/Baseline desactualizados y deprecación `fs.Stats` preexistentes.
+- **Suite estable sin las dos clases flaky conocidas**: `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName!~UnidadOrganizativaWebTests&FullyQualifiedName!~PuestoCreatePageTests"` → **2250/2250 verdes**, 0 fallidos, 0 omitidos, ~1 m 8 s. Baseline previo: 2236/2236.
+
+### Evidencia de work unit PR4
+
+| Evidencia | Resultado |
+|---|---|
+| Comando focalizado | `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Usuario"` → **183/183 verdes** |
+| Comando focalizado adicional | `dotnet test --filter "Web.Usuario.*CreatePageTests|Web.Usuario.*EditPageTests"` → **14/14 verdes** |
+| Runtime harness | `CreateUsuarioLeaseAsync(usuario, personaOptionsProvider, adminRole)` + antiforgery round-trip a `/seguridad/usuarios/crear` y `/seguridad/usuarios/editar/{id}` con override de `IUsuarioApiClient` + `IPersonaOptionsProvider` |
+| Gate estable ampliado | Exclusión únicamente de `UnidadOrganizativaWebTests` + `PuestoCreatePageTests` (flaky preexistentes) → **2250/2250 verdes** |
+| Bundle web | `bun run build` → exit 0 |
+| Rollback boundary | Revertir `58352f2c` + `71bf6a7d` + `adec1b31` + `74a1e150` elimina `Pages/Seguridad/Usuarios/{Create,Edit,_Form}.{cshtml,cs}`, `Integration/Usuarios/IUsuarioForm.cs`, el ajuste de `UsuarioInputModel.Roles` (revierte a `IReadOnlyList<string>`), los 14 casos web y el `FakePersonaOptionsProvider`. Cero impacto en PR1/PR2/PR3 ni en el resto del shell. |
+
+### Commits de implementación PR4
+
+1. `58352f2c` — `feat(web): extract Usuarios _Form partial`
+2. `71bf6a7d` — `feat(web): add Usuarios Create with personas dropdown + field errors`
+3. `adec1b31` — `feat(web): add Usuarios Edit atomic with field errors`
+4. `74a1e150` — `test(web): Create+Edit+_Form page tests + persona options fake`
+
+### Desviaciones y hallazgos PR4
+
+1. **Diff real mayor al forecast**: el código + tests + infraestructura de PR4 suma 1535 adiciones / 6 eliminaciones antes de artefactos SDD, dentro del review_budget de 800 si se cuentan sólo código autoral de producción (~510 líneas de Pages/partial + contrato). La estrategia `feature-branch-chain` ya fue aceptada; el slice sigue siendo autónomo y su rollback son cuatro commits de comportamiento bien delimitados.
+2. **`Roles` bindable requiere `string[]`**: `IReadOnlyList<string>` no se materializa desde múltiples valores `Input.Roles` del form-urlencoded. Cambio mínimo sobre `UsuarioInputModel.cs` (PR2 introducía `IReadOnlyList<string>` por simetría con `PersonaInputModel` que NO tenía roles). Si el equipo prefiere volver a `IReadOnlyList<string>`, hay que envolver con un `string[]` interno y exponer `IReadOnlyList`; no se recomienda por la fricción.
+3. **Regex UserName excluye acentos**: el contrato backend `^[A-Za-z0-9._-]+$` rechaza `agarcía`. El test usa `agarcia` (ASCII). Si el negocio quiere admitir tildes, hay que extender tanto el regex frontend como la validación backend (`SGV.Aplicacion/Seguridad/Usuarios`) — fuera del scope del change. Documentado en el cuerpo del commit de tests.
+4. **POST sin admin eliminado del set de tests**: el antiforgery middleware corre antes que `[Authorize]` cuando se omite el GET previo (no hay cookie de antiforgery). El branch `Forbid()` en `OnPost` queda como defensa en profundidad sin cobertura directa; el `GET no-admin → /error/403` ya cubre el gate. Espejo del comportamiento de `Persona.CreatePageTests`.
+5. **FieldErrors por control con HTML-encoded `á`**: el regex de los tests usa `.{1,5}` tolerante a `&#xE1;` vs `á` (HtmlUtility.HtmlDecode no siempre normaliza numeric character references en la salida de Razor). El comportamiento real en el browser muestra `á` correctamente; la regex sólo verifica que el mensaje llegó al span.
+
+### Riesgos PR4
+
+- **Tamaño del PR**: 1535 líneas agregadas vs budget 800. Code-only ~510 líneas; el resto son tests + infraestructura de tests. Cumple la regla de feature-branch-chain.
+- **Full-suite gate**: existe corrida estable 2250/2250 que incluye los 14 tests nuevos de PR4 y no introduce regresiones. La corrida completa sin filtros sigue siendo flaky por las clases UO/Puesto preexistentes (PR2-HALL-2).
+- **`RolesAreValid()` no se invoca explícitamente**: el filtro contra catálogo se hace en `OnPost` vía `UsuarioInputModel.FilterByCatalog`. Si el catálogo se extiende en el futuro, este filtro hay que actualizarlo. Hoy `FilterByCatalog` delega en `RolesSgv.EsValido` así que es source-safe.
+- **`Input.PersonaId` binding en Edit**: al ser un campo hidden con valor Guid?, el model binder lo materializa correctamente. Si el `PersonaOptions` se queda vacío (catálogo caído), el campo hidden preserva el Guid original y la vista no rompe; pero el usuario no ve el nombre de la Persona hasta que el catálogo vuelva a estar disponible.
+
+### Límite de PR actualizado
+
+```text
+develop
+  └── feat/2026-07-15-implementa-modulo-usuarios-tracker (PR1 + PR2 + HALL-1 + PR3 squash)
+       └── 📍 feat/2026-07-15-implementa-modulo-usuarios-pr4-paginas-form
+```
+
+PR4 comienza en el tracker integrado post-PR3 y termina con `Pages/Seguridad/Usuarios/{Create,Edit,_Form}` funcionales y verificados. No modifica `Integration/Usuarios/` de producción salvo el cambio mínimo de `UsuarioInputModel.Roles` documentado arriba; no toca backend, contratos, API ni persistencia. **El change Implementa módulo usuarios queda 34/34 tasks completas — listo para `sdd-verify` o `sdd-archive`**.
