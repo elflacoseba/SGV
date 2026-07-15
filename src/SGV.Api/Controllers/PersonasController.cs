@@ -4,6 +4,8 @@ using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
+using SGV.Contracts.Personas.Comandos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 
 namespace SGV.Api.Controllers;
@@ -43,6 +45,57 @@ public class PersonasController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _servicio.ListAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Consulta paginada y filtrada de personas activas o eliminadas. El parámetro
+    /// <c>status</c> acepta <c>activas</c> (por defecto, también usado cuando el
+    /// valor es desconocido o se omite) o <c>eliminadas</c>. No mezcla ambos
+    /// conjuntos en una misma respuesta. Cualquier usuario autenticado puede
+    /// invocar este endpoint; las mutaciones siguen requiriendo
+    /// <c>Administrador</c> (ver <see cref="Create"/>, <see cref="Update"/>,
+    /// <see cref="Delete"/>, <see cref="Reactivate"/>).
+    /// </summary>
+    /// <param name="page">Número de página (default: 1).</param>
+    /// <param name="pageSize">Tamaño de página (default: 20, máximo 100).</param>
+    /// <param name="search">Búsqueda substring case-insensitive sobre <c>Legajo|Nombres|Apellidos|Email|NumeroDocumento</c>.</param>
+    /// <param name="sort">Expresión de orden server-side (e.g. <c>apellidos_desc</c>). Valores soportados: <c>legajo_asc/desc</c>, <c>apellidos_asc/desc</c>, <c>nombres_asc/desc</c>, <c>email_asc/desc</c>. Cualquier otro valor cae a <c>apellidos_asc</c>.</param>
+    /// <param name="status">Filtro de estado: <c>activas</c> (por defecto) o <c>eliminadas</c>.</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Resultado paginado de personas usando el contrato <c>PersonaListadoDto</c>.</returns>
+    /// <response code="200">Resultado paginado devuelto correctamente con el mismo contrato <c>PersonaDto</c> para vistas activas o eliminadas; no mezcla ambos conjuntos en una misma respuesta.</response>
+    /// <response code="400">Tamaño de página fuera de rango (1..100).</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    [HttpGet("consulta")]
+    [ProducesResponseType(typeof(PersonaListadoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<PersonaListadoDto>> GetConsulta(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1 || pageSize < 1 || pageSize > 100)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "ParametrosInvalidos",
+                Detail = "page debe ser >= 1 y pageSize debe estar entre 1 y 100.",
+                Type = "https://httpstatuses.com/400"
+            });
+        }
+
+        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? PersonaSegmentoListado.Eliminadas
+            : PersonaSegmentoListado.Activas;
+
+        var query = new PersonaListQuery(page, pageSize, search, sort, segmento);
+        var result = await _servicio.ListarAsync(query, cancellationToken);
         return Ok(result);
     }
 

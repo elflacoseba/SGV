@@ -6,11 +6,11 @@ using SGV.Api.Infrastructure.Results;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
-using SGV.Aplicacion.Personas.Comandos;
 using Xunit;
 
 namespace SGV.Tests.Api.Infrastructure.Results;

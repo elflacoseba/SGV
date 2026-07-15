@@ -1,4 +1,4 @@
-namespace SGV.Aplicacion.Personas.Comandos;
+namespace SGV.Contracts.Personas.Comandos;
 
 /// <summary>
 /// Request to create a new Persona.
@@ -10,8 +10,7 @@ public sealed record CrearPersonaRequest(
     string? Email = null,
     string? TipoDocumento = null,
     string? NumeroDocumento = null,
-    string? Telefono = null
-);
+    string? Telefono = null);
 
 /// <summary>
 /// Request to update editable fields of an existing Persona.
@@ -23,5 +22,4 @@ public sealed record ActualizarPersonaRequest(
     string? Email = null,
     string? TipoDocumento = null,
     string? NumeroDocumento = null,
-    string? Telefono = null
-);
+    string? Telefono = null);

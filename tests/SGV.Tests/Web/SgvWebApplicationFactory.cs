@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Integration.Personas;
 
 namespace SGV.Tests.Web;
 
@@ -25,6 +26,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly ICargoApiClient? _cargoApiClient;
     private readonly IHabilidadApiClient? _habilidadApiClient;
     private readonly IPuestosApiClient? _puestosApiClient;
+    private readonly IPersonaApiClient? _personaApiClient;
 
     public SgvWebApplicationFactory()
     {
@@ -37,7 +39,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient,
         ICargoApiClient? cargoApiClient,
         IHabilidadApiClient? habilidadApiClient,
-        IPuestosApiClient? puestosApiClient)
+        IPuestosApiClient? puestosApiClient,
+        IPersonaApiClient? personaApiClient)
     {
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
@@ -46,6 +49,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         _cargoApiClient = cargoApiClient;
         _habilidadApiClient = habilidadApiClient;
         _puestosApiClient = puestosApiClient;
+        _personaApiClient = personaApiClient;
     }
 
     public SgvWebApplicationFactory WithOverrides(
@@ -55,7 +59,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient = null,
         ICargoApiClient? cargoApiClient = null,
         IHabilidadApiClient? habilidadApiClient = null,
-        IPuestosApiClient? puestosApiClient = null)
+        IPuestosApiClient? puestosApiClient = null,
+        IPersonaApiClient? personaApiClient = null)
     {
         return new SgvWebApplicationFactory(
             configureServices,
@@ -64,8 +69,19 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             unidadOrganizativaApiClient,
             cargoApiClient,
             habilidadApiClient,
-            puestosApiClient);
+            puestosApiClient,
+            personaApiClient);
     }
+
+    /// <summary>
+    /// Convenience helper to swap <see cref="IPersonaApiClient"/> for a fake
+    /// without touching the rest of the configuration surface. Mirror de
+    /// <see cref="WithHabilidadApiClient"/> y <see cref="WithPuestosApiClient"/>;
+    /// agregado en PR 4/4 del change Personas para que la suite web del módulo
+    /// no requiera un backend real.
+    /// </summary>
+    public SgvWebApplicationFactory WithPersonaApiClient(IPersonaApiClient fake)
+        => WithOverrides(personaApiClient: fake);
 
     /// <summary>
     /// Convenience helper to swap <see cref="IHabilidadApiClient"/> for a fake
@@ -142,6 +158,12 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<IPuestosApiClient>();
                 services.AddSingleton(_puestosApiClient);
+            }
+
+            if (_personaApiClient is not null)
+            {
+                services.RemoveAll<IPersonaApiClient>();
+                services.AddSingleton(_personaApiClient);
             }
         });
     }
