@@ -10,6 +10,7 @@ using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Health;
+using SGV.Web.Integration.Personas;
 
 [assembly: InternalsVisibleTo("SGV.Tests")]
 
@@ -135,6 +136,20 @@ builder.Services.AddHttpClient<IHabilidadApiClient, HabilidadApiClient>((service
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
     // Mismo budget que CargoApiClient: 10s para que la espera del usuario sea
     // acotada y los fallos de transporte se traduzcan en errores recuperables.
+    client.Timeout = TimeSpan.FromSeconds(10);
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+builder.Services.AddHttpClient<IPersonaApiClient, PersonaApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // 10s paralelo a Cargo/Habilidad/Puesto: el listado paginado de
+    // personas y los formularios de Create/Edit no pueden esperar el
+    // HttpClient default (100s); un timeout largo se confunde con un
+    // crash de servidor y TaskCanceledException debe traducirse a un
+    // error recuperable en la Razor Page (PR #3 lo rendereará con el
+    // banner estándar de Transporte).
     client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
