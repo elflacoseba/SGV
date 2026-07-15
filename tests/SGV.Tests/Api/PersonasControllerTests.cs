@@ -651,6 +651,152 @@ public sealed class PersonasControllerTests
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
+    // ---- GET /api/v1/personas/consulta ----
+
+    [Fact]
+    public async Task GetConsulta_WithoutCredentials_ReturnsUnauthorized()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/personas/consulta?status=eliminadas");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetConsulta_WithAuthenticatedNonAdmin_ReturnsOk()
+    {
+        // El endpoint debe permitir acceso a cualquier autenticado (sin
+        // requerir rol Administrador), igual que GET /api/v1/personas plano.
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/consulta?page=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PersonaListadoDto>(response);
+        Assert.NotNull(page);
+        Assert.NotEmpty(page!.Items);
+    }
+
+    [Fact]
+    public async Task GetConsulta_StatusInvalido_CaeA_Activas()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/consulta?status=archivo");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PersonaListadoDto>(response);
+        Assert.NotNull(page);
+        Assert.Single(page!.Items);
+        Assert.Equal(FakePersonaServicioConsulta.PersonaId1, page.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetConsulta_SinStatus_RetornaActivas()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/consulta");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PersonaListadoDto>(response);
+        Assert.NotNull(page);
+        Assert.Single(page!.Items);
+        Assert.Equal(FakePersonaServicioConsulta.PersonaId1, page.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetConsulta_PropagaSortYPageAlServicio()
+    {
+        // El controller DEBE pasar el `sort`, `page`, `pageSize` y `status`
+        // al servicio. Si los filtra o descarta, el fake los capturaría como
+        // null/default y este test fallaría.
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync(
+            "/api/v1/personas/consulta?sort=apellidos_desc&page=2&pageSize=5&status=activas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedQueries);
+        Assert.Equal("apellidos_desc", observed.Sort);
+        Assert.Equal(2, observed.Page);
+        Assert.Equal(5, observed.PageSize);
+        Assert.Equal(PersonaSegmentoListado.Activas, observed.Segmento);
+    }
+
+    [Fact]
+    public async Task GetConsulta_StatusEliminadas_NoRetornaActivas()
+    {
+        // Cuando el caller pide status=eliminadas, la respuesta debe usar el
+        // fake con sólo personas eliminadas. Si el controller filtrara por
+        // defecto o mezclara segmentos, este test detectaría la regresión.
+        var capture = new SortCapturingFakePersonaServicio();
+        var eliminadaId = Guid.NewGuid();
+        capture.Eliminadas =
+        [
+            new PersonaDto(eliminadaId, "LEG-DEL", "Ana", "García",
+                "ana@test.com", "DNI", "123", "555", true)
+        ];
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/consulta?status=eliminadas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PersonaListadoDto>(response);
+        Assert.NotNull(page);
+        var item = Assert.Single(page!.Items);
+        Assert.Equal(eliminadaId, item.Id);
+        Assert.NotEqual(FakePersonaServicioConsulta.PersonaId1, item.Id);
+    }
+
+    /// <summary>
+    /// Fake en memoria de <see cref="IPersonaServicioConsulta"/> que captura la
+    /// última query recibida y devuelve datos controlados por segmento. Usado
+    /// para verificar que el controller propaga search/sort/page/status sin
+    /// filtrar ni reordenar.
+    /// </summary>
+    private sealed class SortCapturingFakePersonaServicio : IPersonaServicioConsulta
+    {
+        public List<PersonaListQuery> CapturedQueries { get; } = new();
+        public IReadOnlyList<PersonaDto> Eliminadas { get; set; } = [];
+
+        public Task<IReadOnlyList<PersonaDto>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PersonaDto>>([]);
+
+        public Task<PersonaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<PersonaDto?>(null);
+
+        public Task<PersonaListadoDto> ListarAsync(
+            PersonaListQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            CapturedQueries.Add(query);
+            var source = query.Segmento == PersonaSegmentoListado.Eliminadas
+                ? Eliminadas
+                : new[] { new PersonaDto(FakePersonaServicioConsulta.PersonaId1,
+                        "LEG-001", "Juan", "Perez", "juan@test.com", "DNI", "12345678",
+                        "555-0001", true) };
+            return Task.FromResult(new PersonaListadoDto(
+                source.ToList(), source.Count, query.Page, query.PageSize));
+        }
+    }
+
     /// <summary>
     /// Fake en memoria de <see cref="IPersonaSkillServicio"/> que devuelve éxito
     /// para todo Upsert/Delete de skill. Reusado aquí y en
