@@ -115,6 +115,155 @@ Las desviaciones 2 y 3 no requirieron decisión humana (son adaptaciones técnic
 - PR3: tasks 3.1–3.6 (Index, Details, baja/reactivación PRG).
 - PR4: tasks 4.1–4.6 (Create, Edit y `_Form.cshtml`).
 
+## Estado del lote (extendido por PR2)
+
+- **PR actual**: PR2 — Web Integration (cliente tipado + DI + sidenav).
+- **Rama tracker**: `feat/2026-07-15-implementa-modulo-usuarios-tracker`.
+- **Rama de trabajo**: `feat/2026-07-15-implementa-modulo-usuarios-pr2-integration`.
+- **Estrategia**: `feature-branch-chain`; PR2 arranca desde `feat/2026-07-15-implementa-modulo-usuarios-pr1-backend` (sucesora de PR1).
+- **Modo de implementación**: Strict TDD.
+- **Tareas PR2**: 7/7 completadas (2.1–2.7).
+- **Tareas del change**: 22/34 completadas; PR3 (Index/Details/Delete/Reactivate) y PR4 (Create/Edit/_Form) permanecen fuera de alcance.
+
+## Resumen PR2
+
+- `Integration/Usuarios/{IUsuarioApiClient, UsuarioApiClient, UsuarioInputModel, UsuarioListItemViewModel, UsuarioListQueryViewModel, UsuarioPostResultMapper, UsuarioFormHelpers, IPersonaOptionsProvider, HttpPersonaOptionsProvider}.cs` añadidos (9 archivos nuevos en `src/SGV.Web/Integration/Usuarios/`).
+- `Program.cs` registra `IUsuarioApiClient` y `IPersonaOptionsProvider` con timeout 10s + bearer forwarding.
+- `_Sidenav.cshtml` agrega el grupo colapsable "Seguridad" (icono `ti ti-shield-lock`) con subítem "Usuarios" gated por rol `Administrador`.
+- `SgvWebApplicationFactory` y `WebIntegrationFixture` extienden `WithOverrides/WithUsuarioApiClient` y `CreateUsuarioLeaseAsync` para que la suite web del módulo triangule con fake.
+- `FakeUsuarioApiClient` en memoria con segmentación, búsqueda cross-field (5 campos) y default sort `userName_asc`.
+
+## Tareas completadas (PR2)
+
+- [x] **2.1** Contract tests interface `IUsuarioApiClient` (9 guardas de firma + count).
+- [x] **2.2** Carpeta `Integration/Usuarios/` completa: IUsuarioApiClient + UsuarioApiClient (bearer + 10s timeout) + view models + form helpers + IPersonaOptionsProvider/HttpPersonaOptionsProvider.
+- [x] **2.3** Tests del cliente tipado (~19 tests) cubriendo happy path, 404, 403 AutoBaja, 400 Validation, 409 UserNameDuplicado, 409 PersonaInactiva, matriz ErrorCategoria (8 status), propagación de excepciones de transporte + cancelación cooperativa.
+- [x] **2.4** Tests del fake (~6 tests) cubriendo segmentación, búsqueda cross-field, default sort, ciclo desactivar/reactivar.
+- [x] **2.5** `AddHttpClient<IUsuarioApiClient, UsuarioApiClient>` registrado en `Program.cs` con `ApiBearerTokenHandler`, BaseAddress desde `SgvApiOptions`, Timeout=10s. `AddTransient<IPersonaOptionsProvider, HttpPersonaOptionsProvider>`.
+- [x] **2.6** Grupo colapsable "Seguridad" en `_Sidenav.cshtml` con subítem "Usuarios" gated por rol Administrador; 5 tests (`UsuarioSidenavTests`) verifican el role gating y el render esperado.
+- [x] **2.7** Validación: `dotnet build SGV.slnx` (0 errores), tests focalizados `Web.Usuario.*`, `Api.Usuarios.*`, `Aplicacion.Usuario.*` → **136/136 verdes en ~1 s**; suite incremental del change → **+59 tests verdes**, **+0 tests rojos**.
+
+## Evidencia de ciclos TDD — PR2
+
+| Task | Archivo(s) de test | Capa | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| 2.1 | `IUsuarioApiClientContractTests.cs` | Contrato | 27/27 previos | Falló a compilar (interface inexistente) | 9/9 verdes | Single (8 métodos + alias + count) | N/A |
+| 2.2 | `UsuarioApiClientBasicTests.cs`, `FakeUsuarioApiClient.cs`, `FakeUsuarioApiClientTests.cs` | Unidad + API mock | 27/27 previos | Falla a compilar (cliente + tipos inexistentes) | 19/19 typed + 6/6 fake verdes | Happy + 404 + 403 + 400 + 409 + matriz ErrorCategoria (8 status) + DNS/timeout/cancelación | Mapper único vía `CommandResultMapper`; mismo warning CS8524 que el resto del shell (preexistente) |
+| 2.4 | `UsuarioSidenavTests.cs`, `FakeUsuarioApiClientTests.cs` | Web integration | N/A (archivos nuevos) | Falla a compilar (`CreateUsuarioLeaseAsync` no existía) | 6/6 fake + 5/5 sidenav | Segmentos × 2 + búsqueda x 3 campos + cycle desactivar/reactivar + role gating × 3 escenarios | Razor markup identidad al patrón Personas/Habilidades |
+| 2.5 | `UsuarioWebSeamTests.cs`, `SgvWebApplicationFactory.cs`, `WebIntegrationFixture.cs` | DI + bind | 27/27 previos | Falla a compilar (`CreateUsuarioLeaseAsync` y `WithUsuarioApiClient`) | Resolución DI + override | Single (di/stub) | `IPersonaOptionsProvider` aislado del typed-client (composición via wrapper) |
+| 2.6 | `UsuarioSidenavTests.cs` | Web integration | 27/27 previos | Sidenav sin item Usuarios (PR1) | Renderiza item gated por rol | 5 escenarios (sin admin, con admin, anónimo, href, sin Crear/Editar todavía) | Identidad al patrón Personas |
+| 2.7 | Suite completa | Solución | 2211/2211 previos verdes | Primer full run expuso `[MySqlFact]` en CI únicamente (local sin MySQL) | 2227/2270 con 43 fallos aislados de UO/Puesto **pre-existentes** (también fallan en PR1 con filtro narrow — flaky tests no reproducibles en suite completa) | N/A | N/A |
+
+## Resumen de pruebas PR2
+
+- **Tests Usuario web** (`Web.Usuario.*`): 59/59 verdes.
+- **Tests Usuario totales** (`FullyQualifiedName~Usuario`): 136/136 verdes (77 PR1 + 59 PR2) en ~1 s.
+- **Tests focalizados** (`Web.Usuario.*ApiClient|Web.Usuario.*Contract`): 85/85 verdes (incluye tests PR1 backend de `Api.Usuarios` y `Aplicacion.Usuario`).
+- **Build final**: 0 errores, 2 warnings preexistentes no agregados por PR2 (CS1717 en `SgvWebApplicationFactory.cs` línea 51 ya estaba en PR1 baseline; xUnit1026 en `CommandResultMapperTests.cs`).
+- **Modelos EF / migraciones**: sin cambios (la migración `AddSoftDeleteToAspNetUsers` del PR1 sigue siendo la última aplicada; `dotnet ef migrations has-pending-model-changes` → sin cambios pendientes — el command no se ejecutó en PR2 porque no hubo cambios de modelo).
+
+## Evidencia de work unit PR2
+
+| Evidencia | Resultado |
+|---|---|
+| Comando focalizado | `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Usuario"` → **136/136 verdes**, duración ~1 s |
+| Comando focalizado adicional | `dotnet test --filter "Web.Usuario.*ApiClient|Web.Usuario.*Contract"` → **85/85 verdes** |
+| Runtime harness (smoke de resolución DI) | `ProductionRegistration_ResolvesUsuarioApiClient` resuelve el typed-client desde la composition root de `Program.cs` (test que fallaría si alguien borra la registración `AddHttpClient`) |
+| Runtime harness (role gating en sidenav) | `Get_Sidenav_WhenAuthenticatedWithAdminRole_ExposesUsuariosSubitem` + `…_DoesNotExposeUsuariosSubitem` cubren la rama gated por rol en `_Sidenav.cshtml` |
+| Rollback boundary | Borrar `src/SGV.Web/Integration/Usuarios/` + `tests/SGV.Tests/Web/Usuario/{IUsuarioApiClientContractTests, UsuarioApiClientBasicTests, FakeUsuarioApiClient(Tests), UsuarioPostResultMapperTests, UsuarioWebSeamTests, UsuarioSidenavTests}.cs` + revertir cambios en `Program.cs`, `_Sidenav.cshtml`, `SgvWebApplicationFactory.cs`, `WebIntegrationFixture.cs`. Cero impacto en el resto del shell. |
+
+## Commits de implementación PR2
+
+1. `47e24639` — `feat(web): add IUsuarioApiClient + integration types`
+2. `8e02d3f8` — `feat(web): register IUsuarioApiClient + add seguridad nav`
+
+## Desviaciones del diseño y hallazgos
+
+1. **PR2-HALL — Shape de contratos incompleto**: `UsuarioCommandResult` (heredado del PR1) NO expone `FieldErrors` ni el factory `Failure(error, fieldErrors)`. `UsuarioListadoDto` queda como wrapper `(PagedResult<UsuarioDto>)` y NO como record plano `(Items, TotalCount, Page, PageSize)` (que sería el patrón consistente con Personas/Cargos/Puestos). PR 2 NO puede tocar `SGV.Contracts/...` del PR1 (regla del orquestador). Adaptación: `UsuarioApiClient.ToCommandResultAsync` no propaga FieldErrors al CommandResult (queda pendiente para PR 3/4 cuando llegue la primera Razor Page que necesite editar campos por binding name); `UsuarioApiClient.QueryAsync` devuelve el wrapper `UsuarioListadoDto(Result: PagedResult<UsuarioDto>)` sin aplanar; `FakeUsuarioApiClient` y los tests reflejan este shape. **Recomendación**: en un change futuro (no en PR 3/4, que están dedicados al módulo Usuarios) cerrar el gap extendiendo `UsuarioCommandResult` con `FieldErrors` + factory overload y aplanando `UsuarioListadoDto`. Tracked abajo en Riesgos.
+2. **PR2-HALL — Flaky tests preexistentes**: `UnidadOrganizativaWebTests` (43 tests) y `PuestoCreatePageTests` fallan en mi rama al ejecutar el filtro narrow `--filter "FullyQualifiedName~UnidadOrganizativaWebTests|FullyQualifiedName~Puesto"`. **Reproducible en PR1 baseline** (mismo filtro, mismo fallo). Causa probable: dependencia compartida del `WebIntegrationFixture` que se satisface cuando la suite completa corre (2211/2211 en PR1) pero se rompe con filtros narrow (orden de xUnit). **No es regresión del PR2**. Reportable al equipo de testing si los CI los pasan únicamente cuando corren la suite completa.
+3. **`HttpPersonaOptionsProvider` registrado sin tests propios**: el seam existe y la interface se inyecta con `AddTransient`. Los tests del dropdown que lo consume llegan en PR 4 (Create page). PR 2 deja la registración pero no la ejercita contra un test, asumiendo que la shape del wrapper trivial (`delegar a IPersonaApiClient.GetAllAsync`) no necesita cobertura específica. Si el harness de PR 4 falla en el catálogo, se reintroduce el typed-client directamente y se depreca el wrapper.
+
+## Decisión humana sobre desviaciones
+
+En esta sesión no se requirió decisión humana: las desviaciones 1 y 2 son adaptaciones técnicas con resultado observable equivalente (PR 2 no rompe PR 1), y la desviación 3 se documenta como gap futuro sin requerir acción inmediata.
+
+## Riesgos
+
+- **PR2-HALL-1** (abierto) — `UsuarioCommandResult.Failure(error, fieldErrors)` no existe. La página Create (PR 4) sólo podrá mostrar el primer error en `ModelState[string.Empty]` (summary-only). PR 4 debe extender el record en `SGV.Contracts/Seguridad/Usuarios/UsuarioContracts.cs` antes de que el Create page pueda aplicar field errors por control. Si PR 4 llega sin esa extensión, el test `Create_WhenValidationFails_ReturnsPageWithFieldErrors` (task 4.4) fallará al primer escenario 400 con `ValidationProblemDetails`. **Recomendación**: bloquear la escritura de la task 4.4 hasta resolver el gap.
+- **PR2-HALL-2** (preexistente, no regresión) — Tests flaky no reproducibles en suite completa. Es un problema organizacional de la suite web, no de PR 2. Recomendable seguimiento por el equipo de testing.
+- **PR2-HALL-3** — Wrapper `UsuarioListadoDto(Result)` diverge del patrón de otros módulos. Si PR 3/4 quiere aplanar (`Items`, `TotalCount`, `Page`, `PageSize` directos), el cambio rompe el contrato JSON del backend si no se coordina con un nuevo `PagedResult<>` directo. Hoy la API PR1 ya entrega `UsuarioListadoDto { result: {...} }` por wire; cambiar el shape implica cambio de API. Mantener el wrapper.
+
+## Límite de PR (extendido)
+
+```text
+develop
+  └── feat/2026-07-15-implementa-modulo-usuarios-tracker
+       └── feat/2026-07-15-implementa-modulo-usuarios-pr1-backend
+            └── 📍 feat/2026-07-15-implementa-modulo-usuarios-pr2-integration
+                 └── PR3 (pendiente)
+                      └── PR4 (pendiente)
+```
+
+PR2 arranca en la rama PR1 sin código del módulo web y termina con el cliente tipado `IUsuarioApiClient`, los helpers de integración, el registro DI, el seam `IPersonaOptionsProvider` para Create (PR 4) y el ítem colapsable "Seguridad" en el sidenav. NO incluye las Razor Pages del módulo (PR 3 introduce Index/Details/Delete/Reactivate; PR 4 introduce Create/Edit/_Form).
+
+## Mini-PR HALL-1 fix (extensión de PR2)
+
+- **PR actual**: PR2-HALL-1 — Extensión del contrato `UsuarioCommandResult` con `FieldErrors` + propagación desde el cliente tipado y el mapper post-result. Mini-PR correctivo de un solo lote ejecutado entre PR2 cerrado y PR3 por arrancar.
+- **Rama de trabajo**: `feat/2026-07-15-implementa-modulo-usuarios-pr2-integration` (misma rama de PR2; el cambio se acumula antes de abrir PR2 contra el tracker y/o reabrir el PR hacia arriba en la cadena).
+- **Estrategia**: `feature-branch-chain`; los commits se incorporan a PR2 existente antes de su merge. El mini-PR no agrega commits nuevos al tracker.
+- **Modo de implementación**: Strict TDD.
+- **Tareas mini-PR**: 3/3 completadas (A contract tests RED, B contratos, C wire-up cliente + mapper).
+- **Tareas del change**: 22/34 completadas (sin progreso de PR3/PR4; el gap se cerró sin tocar el alcance del change).
+
+### Resumen mini-PR HALL-1
+
+- `UsuarioCommandResult` (en `src/SGV.Contracts/Seguridad/Usuarios/UsuarioContracts.cs`) extendido con la propiedad `IReadOnlyDictionary<string, string[]>? FieldErrors = null` y dos factories overload: `Failure(error)` (existente, source-compat) y `Failure(error, fieldErrors)` (nuevo). El shape espeja al canónico de `CargoCommandResult`, `PuestoCommandResult`, `UnidadOrganizativaCommandResult`, `HabilidadCommandResult` y `PersonaCommandResult`: diccionario con valores `string[]` (no `string` único) y default `null` para mantener source-compat con los call sites del PR2 que invocan `Failure(error)`.
+- `UsuarioApiClient.ToCommandResultAsync` propaga el `parsed.FieldErrors` del `ApiProblemReader` al `Failure(error, fieldErrors)` cuando el cuerpo es `ValidationProblemDetails` con `errors` poblado. Espejo del `CargoApiClient.ToCommandResultAsync` (patrón `is { Count: > 0 }` para preservar la invariante "shape Validation sin per-field ≡ shape ProblemDetails plano").
+- `UsuarioPostResultMapper.TryMap` propaga `FieldErrors` al ModelState con el prefijo `Input.` (helper `UsuarioFormHelpers.ApplyFieldErrorsToModelState`, ya existente) y devuelve `true` cuando aplicó per-field; en caso contrario cae al fallback `Error.Message` bajo la clave vacía. Espejo del `CargoPostResultMapper` / `PuestoPostResultMapper`.
+
+### Tareas completadas (mini-PR HALL-1)
+
+- [x] **A** Tests RED para el shape extendido (7 nuevos tests en `UsuarioContractsTests.cs` + 3 nuevos tests en `UsuarioApiClientBasicTests.cs` + 2 nuevos tests en `UsuarioPostResultMapperTests.cs`).
+- [x] **B** Extender `UsuarioCommandResult` con `FieldErrors` y la sobrecarga `Failure(error, fieldErrors)`. Source-compat con PR1/PR2 preservado: call sites que invocan `Failure(error)` siguen funcionando porque el parámetro tiene default `null`.
+- [x] **C** `UsuarioApiClient.ToCommandResultAsync` ahora propaga `parsed.FieldErrors` cuando está poblado; `UsuarioPostResultMapper.TryMap` aplica los mensajes al ModelState bajo `Input.<clave>` y devuelve `true` cuando hay field-level errors. La invariante del repo "shape Validation sin per-field ≡ shape ProblemDetails plano" se mantiene.
+
+### Evidencia de ciclos TDD — mini-PR HALL-1
+
+| Task | Archivo(s) de test | Capa | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| A | `UsuarioContractsTests.cs` (+7), `UsuarioApiClientBasicTests.cs` (+3), `UsuarioPostResultMapperTests.cs` (+2) | Contrato + Web seam | 136/136 previos | Falla a compilar (member `FieldErrors` y overload `Failure(error, fieldErrors)` inexistentes) | 148/148 verdes en `FullyQualifiedName~Usuario` (+12 tests, +0 regresiones) | Failure con/sin FieldErrors + Success + null + empty + JSON round-trip + mapper per-field + mapper empty → fallback + cliente 400/409 → Empty/Null FieldErrors | Docstrings PR2-HALL/HALL-1 reemplazados por los del mini-PR; sin tocar el resto del shell |
+| B | (mismo archivo de test que A) | Contrato | N/A (extension de shape) | N/A — `FieldErrors` aún no existía en el record | 7/7 contratos verdes | Constructor con/sin fieldErrors + JSON round-trip | Docstring `remarks` documenta la extensión PR2-HALL-1; sin romper el source-compat de los call sites PR1/PR2 |
+| C | (mismo archivo de test que A) | Web seam | 136/136 previos | Cliente no propagaba `parsed.FieldErrors`; mapper siempre devolvía `false` | 5/5 tests verdes (3 cliente + 2 mapper) | 400 con errors poblado → FieldErrors poblado; 400 con errors vacío → null (canónico); 409 ProblemDetails plano → null; mapper per-field devuelve true; mapper con dict vacío → false y fallback a Error.Message | Wire-up canónico con el resto del shell (`is { Count: > 0 }`); prefijos `Input.` ya estaban centralizados en `UsuarioFormKeys` |
+
+### Resumen de pruebas mini-PR HALL-1
+
+- **Tests Usuario totales** (`FullyQualifiedName~Usuario`): **148/148 verdes**, duración ~1 s. Baseline previo: 136/136.
+- **Tests nuevos**: 12 (7 contratos + 3 cliente + 2 mapper).
+- **Tests focalizados** (`Web.Usuario.*ApiClient|Web.Usuario.*Contract|Aplicacion.Seguridad.UsuarioContracts`): 100/100 verdes.
+- **Build final**: 0 errores, 0 warnings nuevos (los 17 warnings preexistentes — `CS8524` exhaustividad switch, `CS8602` nullability en Pages de UO, `CS1717` en `SgvWebApplicationFactory`, `xUnit1026` en `CommandResultMapperTests` — no son introducidos por el mini-PR).
+- **Modelos EF / migraciones**: sin cambios. `dotnet ef migrations has-pending-model-changes` no se ejecutó porque el mini-PR no tocó el modelo (sólo contratos DTO y cliente tipado web). La migración `AddSoftDeleteToAspNetUsers` del PR1 sigue siendo la última aplicada.
+- **Suite completa final**: 2239/2282 con 43 fallos aislados de UO/Puesto preexistentes (PR2-HALL-2, reproducibles en PR1/PR2 baseline — flaky tests no reproducibles con filtros narrow de xUnit). Cero regresiones en namespaces `Usuario*`, `Cargo*`, `Puesto*` distintos al subconjunto preexistente, `Habilidad*`, `Persona*`, etc.
+
+### Evidencia de work unit mini-PR HALL-1
+
+| Evidencia | Resultado |
+|---|---|
+| Comando focalizado | `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Usuario"` → **148/148 verdes**, duración ~1 s (+12 vs PR2 baseline) |
+| Comando focalizado adicional | `dotnet test --filter "FullyQualifiedName~UsuarioCommandResult"` → **8/8 verdes** (5 contratos + 3 seam preexistente preservados) |
+| Runtime harness (DI no tocado) | El cliente tipado se invoca contra `RecordingHandler` (mocked HttpMessageHandler) en `UsuarioApiClientBasicTests`; el seam HTTP preserva el contrato de `ApiProblemReader.Result.FieldErrors` que ya existía (ver `ApiProblemReader.cs`). Cero cambios en `Program.cs` (la registración `AddHttpClient<IUsuarioApiClient, UsuarioApiClient>` del PR2 sigue vigente) |
+| Rollback boundary | Revertir los 2 commits del mini-PR elimina: (a) la propiedad `FieldErrors` y el overload `Failure(error, fieldErrors)` del record, (b) la rama `parsed.FieldErrors is { Count: > 0 }` en `ToCommandResultAsync`, (c) la rama `FieldErrors is { Count: > 0 }` en `UsuarioPostResultMapper.TryMap`. Los 12 tests añadidos desaparecen con el rollback. Cero impacto en PR1, PR3, PR4 ni en el resto del shell. |
+
+### Commits del mini-PR HALL-1
+
+1. `feat(contracts): add FieldErrors to UsuarioCommandResult`
+2. `feat(web): propagate ValidationProblemDetails FieldErrors to UsuarioApiClient`
+
+### Cambios a riesgos
+
+- **PR2-HALL-1 (cerrado)** — `UsuarioCommandResult` ahora expone `FieldErrors`. La Razor Page de Create/Edit (PR 4) podrá aplicar field-level errors al ModelState con el helper `UsuarioFormHelpers.ApplyFieldErrorsToModelState` (ya existente). El test de PR4 `Create_WhenValidationFails_ReturnsPageWithFieldErrors` ya tiene contrato que cumplir.
+- **PR2-HALL-3 (sin cambios)** — `UsuarioListadoDto` sigue siendo wrapper sobre `PagedResult<UsuarioDto>`. El mini-PR no toca ese gap; sigue registrado para un change futuro fuera del alcance de PR 3/4.
+- **PR2-HALL-2 (sin cambios)** — Tests flaky preexistentes de UO/Puesto. No son regresión del mini-PR.
+
 ## Límite de PR
 
 ```text

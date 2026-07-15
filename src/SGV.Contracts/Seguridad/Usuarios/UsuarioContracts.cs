@@ -101,11 +101,36 @@ public sealed record UsuarioError(
 /// <summary>
 /// Discriminated result of a user-management write operation. Carries
 /// either the persisted <see cref="UsuarioDto"/> on success or a typed
-/// <see cref="UsuarioError"/> on failure.
+/// <see cref="UsuarioError"/> on failure. <see cref="FieldErrors"/>
+/// carries per-field validation errors when the backend returned a
+/// <c>ValidationProblemDetails</c> with a non-null <c>errors</c>
+/// payload; otherwise it is <c>null</c>.
 /// </summary>
-public sealed record UsuarioCommandResult(bool IsSuccess, UsuarioDto? Value, UsuarioError? Error)
+/// <remarks>
+/// PR2-HALL-1 (mini-PR correctivo): se extendió el record del PR1 con
+/// la propiedad <see cref="FieldErrors"/> y la sobrecarga
+/// <see cref="Failure(UsuarioError, IReadOnlyDictionary{string, string[]})"/>
+/// para cerrar el gap que impedía propagar errores de validación por
+/// campo a la Razor Page de Create/Edit (PR 4). El shape espeja al
+/// canónico de <c>CargoCommandResult</c>, <c>PuestoCommandResult</c>,
+/// <c>UnidadOrganizativaCommandResult</c>, <c>HabilidadCommandResult</c>
+/// y <c>PersonaCommandResult</c>: diccionario con valores
+/// <c>string[]</c> (no <c>string</c> único) y default <c>null</c>
+/// para mantener source-compat con los call sites del PR2 que
+/// invocan <see cref="Failure(UsuarioError)"/>.
+/// </remarks>
+public sealed record UsuarioCommandResult(
+    bool IsSuccess,
+    UsuarioDto? Value,
+    UsuarioError? Error,
+    IReadOnlyDictionary<string, string[]>? FieldErrors = null)
 {
     public static UsuarioCommandResult Success(UsuarioDto value) => new(true, value, null);
 
     public static UsuarioCommandResult Failure(UsuarioError error) => new(false, null, error);
+
+    public static UsuarioCommandResult Failure(
+        UsuarioError error,
+        IReadOnlyDictionary<string, string[]> fieldErrors)
+        => new(false, null, error, fieldErrors);
 }

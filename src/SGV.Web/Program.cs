@@ -11,6 +11,7 @@ using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Health;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Integration.Usuarios;
 
 [assembly: InternalsVisibleTo("SGV.Tests")]
 
@@ -153,6 +154,27 @@ builder.Services.AddHttpClient<IPersonaApiClient, PersonaApiClient>((serviceProv
     client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+builder.Services.AddHttpClient<IUsuarioApiClient, UsuarioApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // 10s paralelo al resto del shell web: el listado paginado de
+    // usuarios y los formularios de Create/Edit/Details (PR 3/4) no
+    // pueden esperar el HttpClient default (100s). El timeout acotado
+    // convierte TaskCanceledException en feedback recuperable vía
+    // TransportFailureClassifier, análogo a Persona/Cargo/Habilidad.
+    client.Timeout = TimeSpan.FromSeconds(10);
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+// Catálogo de Personas activas para el dropdown de Create de Usuarios
+// (PR 4/4 introduce la Razor Page que lo consume; PR 2 sólo expone el
+// seam para que las Pages y los tests puedan triangular la selección
+// contra una implementación fake). Sin el HttpClient tipado porque el
+// catálogo lo provee IPersonaApiClient.GetAllActivasAsync (sólo lectura,
+// sin auth adicional a la del cookie).
+builder.Services.AddTransient<IPersonaOptionsProvider, HttpPersonaOptionsProvider>();
 
 // Health checks — upstream probe and response writer
 builder.Services.AddHealthChecks()

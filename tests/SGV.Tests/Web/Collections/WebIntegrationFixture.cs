@@ -8,10 +8,12 @@ using SGV.Tests.Web.Cargo;
 using SGV.Tests.Web.Common;
 using SGV.Tests.Web.Habilidad;
 using SGV.Tests.Web.Puesto;
+using SGV.Tests.Web.Usuario;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Integration.Usuarios;
 using Xunit;
 
 namespace SGV.Tests.Web.Collections;
@@ -95,6 +97,21 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             personaApiClient: persona));
+
+    /// <summary>
+    /// Lease autenticado contra el módulo Usuarios. Toma un
+    /// <see cref="FakeUsuarioApiClient"/> y la inyecta en el contenedor
+    /// del host vía
+    /// <see cref="SgvWebApplicationFactory.WithUsuarioApiClient"/>.
+    /// Agregado en PR 2/4 del change <c>Implementa módulo usuarios</c>;
+    /// sigue la firma estándar de los otros módulos
+    /// (<see cref="CreateCargoLeaseAsync"/>, etc.).
+    /// </summary>
+    public Task<WebClientLease> CreateUsuarioLeaseAsync(
+        IUsuarioApiClient usuario, bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            usuarioApiClient: usuario));
 
     public Task<WebClientLease> CreateUnidadOrganizativaLeaseAsync(
         FakeUnidadOrganizativaApiClient unidad, bool adminRole = false)
