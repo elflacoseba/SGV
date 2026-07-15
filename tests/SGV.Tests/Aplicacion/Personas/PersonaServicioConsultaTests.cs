@@ -1,5 +1,5 @@
 using SGV.Aplicacion.Personas.Consultas;
-using SGV.Aplicacion.Personas.Consultas.Dtos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
 using Xunit;
 
@@ -144,4 +144,13 @@ internal sealed class FakePersonaRepository : IPersonaRepository
 
     public Task<bool> ExistsActiveDocumentoAsync(string tipoDocumento, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake does not support write operations.");
+
+    public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support QueryAsync.");
 }

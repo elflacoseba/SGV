@@ -1,4 +1,5 @@
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
 
 namespace SGV.Aplicacion.Personas.Consultas;
@@ -52,4 +53,25 @@ public interface IPersonaRepository : IReadOnlyRepository<Persona>
     /// Checks whether an active persona already uses the given document.
     /// </summary>
     Task<bool> ExistsActiveDocumentoAsync(string tipoDocumento, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a filtered, paginated set of personas for the requested segment
+    /// (active or soft-deleted) and the total count matching the filters.
+    /// Search applies to <c>Legajo|Nombres|Apellidos|Email|NumeroDocumento</c>
+    /// case-insensitively. <paramref name="sort"/> is applied server-side
+    /// BEFORE pagination so page boundaries are consistent with the visible
+    /// ordering (e.g. <c>apellidos_desc</c> returns Z→A on every page).
+    /// </summary>
+    /// <remarks>
+    /// Sort values supported: <c>legajo_asc/desc</c>, <c>apellidos_asc/desc</c>,
+    /// <c>nombres_asc/desc</c>, <c>email_asc/desc</c>. Any other value falls
+    /// back to the default ordering (<c>apellidos_asc</c>).
+    /// </remarks>
+    Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        CancellationToken cancellationToken = default);
 }

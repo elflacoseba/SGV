@@ -2,6 +2,7 @@ using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Contracts.Personas.Comandos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
 using Xunit;
 
@@ -439,4 +440,13 @@ internal sealed class FakePersonaWriteRepository : IPersonaRepository
         }
         return Task.CompletedTask;
     }
+
+    public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Write-only fake does not support QueryAsync.");
 }
