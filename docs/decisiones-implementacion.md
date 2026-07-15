@@ -342,6 +342,12 @@ Cada test usa `WebIntegrationFixture` como `ICollectionFixture`. El fixture admi
 
 La clave de la determinismo está en que `WebIntegrationFixture` **no usa estado estático**: cada host `SgvWebApplicationFactory` arranca con su propia clave JWT, su propio `AuthSessionFactory` Singleton (via DI), y su propia cookie de autenticación. No hay caché cross-test que se contamine.
 
+### Watchers de archivos en hosts de test
+
+El assembly de tests fija `DOTNET_USE_POLLING_FILE_WATCHER=1` mediante un module initializer antes de construir cualquier `WebApplicationFactory`. En macOS, la acumulación de hosts de la suite completa saturaba `FSEventStream`: los primeros síntomas eran 43 fallos intermitentes en UO/Puesto, seguidos por timeouts de cinco minutos al construir hosts Cargo y, finalmente, `Stack overflow` dentro de `FileSystemWatcher`. Usar polling elimina esa dependencia del watcher nativo y mantiene intacta la política de cuatro colecciones paralelas.
+
+El tradeoff es un consumo de CPU levemente mayor mientras corre el proceso de tests y una detección de cambios de archivos menos inmediata. Es aceptable porque los hosts de integración no dependen de hot reload, el ajuste queda confinado a `SGV.Tests` y no modifica el comportamiento de API/Web en desarrollo o producción.
+
 ### Limitante de paralelismo
 
 El límite `maxParallelThreads: 4` protege dos cosas:

@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Seguridad;
@@ -27,6 +28,10 @@ namespace SGV.Tests.Web.Collections;
 /// </summary>
 public sealed class WebIntegrationFixture : IAsyncLifetime
 {
+    [ModuleInitializer]
+    internal static void ConfigureTestFileWatcher()
+        => Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "1");
+
     private static readonly WebApplicationFactoryClientOptions ClientOptions = new()
     {
         AllowAutoRedirect = false,

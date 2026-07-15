@@ -13,6 +13,12 @@ namespace SGV.Tests.Web.Collections;
 public sealed class WebIntegrationFixtureTests
 {
     [Fact]
+    public void TestHosts_UsePollingFileWatcher()
+    {
+        Assert.Equal("1", Environment.GetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER"));
+    }
+
+    [Fact]
     public async Task Fixture_ExposesRootFactoryOfExpectedType()
     {
         await using var fixture = new WebIntegrationFixture();
