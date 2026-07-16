@@ -121,9 +121,24 @@ public class IUsuarioApiClientContractTests
     }
 
     [Fact]
-    public void Interface_ExposesDesactivarAsyncWithExpectedSignature()
+    public void Interface_DoesNotExposeDesactivarAsync()
     {
-        var method = typeof(IUsuarioApiClient).GetMethod(nameof(IUsuarioApiClient.DesactivarAsync));
+        // Phase 3 / change 2026-07-15-quita-soft-delete-usuario: la baja
+        // lógica (Desactivar) se reemplazó por hard-delete (Eliminar).
+        // El cliente Web debe reflejar esa baja y dejar de exponer el
+        // método. Este guard evita un refactor silencioso que lo
+        // restaure.
+        var method = typeof(IUsuarioApiClient).GetMethod("DesactivarAsync");
+
+        Assert.Null(method);
+    }
+
+    [Fact]
+    public void Interface_ExposesBloquearAsyncWithExpectedSignature()
+    {
+        // Phase 3 / change 2026-07-15-quita-soft-delete-usuario:
+        // BloquearAsync reemplaza la baja lógica; mapea a POST /{id}/bloquear.
+        var method = typeof(IUsuarioApiClient).GetMethod(nameof(IUsuarioApiClient.BloquearAsync));
 
         Assert.NotNull(method);
         Assert.Equal(typeof(Task<UsuarioCommandResult>), method!.ReturnType);
@@ -138,9 +153,11 @@ public class IUsuarioApiClientContractTests
     }
 
     [Fact]
-    public void Interface_ExposesReactivarAsyncWithExpectedSignature()
+    public void Interface_ExposesDesbloquearAsyncWithExpectedSignature()
     {
-        var method = typeof(IUsuarioApiClient).GetMethod(nameof(IUsuarioApiClient.ReactivarAsync));
+        // Phase 3 / change 2026-07-15-quita-soft-delete-usuario:
+        // DesbloquearAsync mapea a POST /{id}/desbloquear.
+        var method = typeof(IUsuarioApiClient).GetMethod(nameof(IUsuarioApiClient.DesbloquearAsync));
 
         Assert.NotNull(method);
         Assert.Equal(typeof(Task<UsuarioCommandResult>), method!.ReturnType);
@@ -152,6 +169,39 @@ public class IUsuarioApiClientContractTests
         Assert.Equal("cancellationToken", parameters[1].Name);
         Assert.Equal(typeof(CancellationToken), parameters[1].ParameterType);
         Assert.True(parameters[1].HasDefaultValue);
+    }
+
+    [Fact]
+    public void Interface_ExposesEliminarAsyncWithExpectedSignature()
+    {
+        // Phase 3 / change 2026-07-15-quita-soft-delete-usuario:
+        // EliminarAsync reemplaza a DeleteAsync (que era alias de
+        // DesactivarAsync). Mapea a DELETE /{id} (204 No Content).
+        var method = typeof(IUsuarioApiClient).GetMethod(nameof(IUsuarioApiClient.EliminarAsync));
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(Task<UsuarioCommandResult>), method!.ReturnType);
+
+        var parameters = method.GetParameters();
+        Assert.Equal(2, parameters.Length);
+        Assert.Equal("id", parameters[0].Name);
+        Assert.Equal(typeof(string), parameters[0].ParameterType);
+        Assert.Equal("cancellationToken", parameters[1].Name);
+        Assert.Equal(typeof(CancellationToken), parameters[1].ParameterType);
+        Assert.True(parameters[1].HasDefaultValue);
+    }
+
+    [Fact]
+    public void Interface_DoesNotExposeReactivarAsync()
+    {
+        // Phase 2 del change 2026-07-15-quita-soft-delete-usuario
+        // retiró PATCH /api/v1/usuarios/{id}/reactivar del backend.
+        // El cliente Web debe reflejar esa baja y dejar de exponer el
+        // método. Este guard evita un refactor silencioso que lo
+        // restaure.
+        var method = typeof(IUsuarioApiClient).GetMethod("ReactivarAsync");
+
+        Assert.Null(method);
     }
 
     [Fact]
@@ -169,15 +219,20 @@ public class IUsuarioApiClientContractTests
     }
 
     [Fact]
-    public void Interface_ExposesExactlyEightPublicAsyncMethods()
+    public void Interface_ExposesExactlyTenPublicAsyncMethods()
     {
         // Defensa contra refactors "creativos" que sumen un nuevo método
         // (e.g. <c>BulkCreateAsync</c>) sin actualizar la suite de
-        // contract tests. Tras la baja de GetRolesAsync (PR #148 review)
-        // quedan 7 métodos "primary" (GetAllActivasAsync, QueryAsync,
-        // GetByIdAsync, CreateAsync, UpdateAsync, DesactivarAsync,
-        // ReactivarAsync) más el alias <c>DeleteAsync</c> default-
-        // implemented, total 8.
+        // contract tests. Tras la baja de ReactivarAsync y la baja del
+        // alias DeleteAsync (Phase 3 del change
+        // 2026-07-15-quita-soft-delete-usuario) quedan 9 métodos
+        // "primary" (GetAllActivasAsync, QueryAsync, GetByIdAsync,
+        // CreateAsync, UpdateAsync, EliminarAsync, BloquearAsync,
+        // DesbloquearAsync, AssignRolesAsync) más el alias
+        // <c>DeleteAsync</c> default-implemented, total 10. En realidad
+        // AssignRolesAsync no está en IUsuarioApiClient (lo cubre
+        // PersonaApiClient), así que quedan exactamente los 9 primarios
+        // de Web + DeleteAsync = 10.
         var publicMethods = typeof(IUsuarioApiClient)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => !m.IsSpecialName) // excluye accessors
@@ -188,13 +243,14 @@ public class IUsuarioApiClientContractTests
         Assert.Equal(
             new[]
             {
+                "BloquearAsync",
                 "CreateAsync",
                 "DeleteAsync",
-                "DesactivarAsync",
+                "DesbloquearAsync",
+                "EliminarAsync",
                 "GetAllActivasAsync",
                 "GetByIdAsync",
                 "QueryAsync",
-                "ReactivarAsync",
                 "UpdateAsync"
             },
             publicMethods);
