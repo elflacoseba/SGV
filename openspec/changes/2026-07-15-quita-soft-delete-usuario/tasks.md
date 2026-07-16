@@ -53,11 +53,11 @@ Chain strategy: pending
 
 ## Phase 3: Web Layer
 
-- [ ] 3.1 `IUsuarioApiClient.cs` + `UsuarioApiClient.cs` — `Eliminar/Bloquear/DesbloquearAsync`, `status=bloqueadas`, quitar `Reactivar`
-- [ ] 3.2 `Index.cshtml.cs` — handlers `Bloquear/Desbloquear`, modal irreversible, ocultar auto-acciones, sin `LastDeletedId`/`OnPostReactivateAsync`
-- [ ] 3.3 `Index.cshtml` — labels `bloqueadas`, modal sin `UserName`
-- [ ] 3.4 `Details.cshtml.cs` — consulta DTO real, `returnStatus` solo decide vista, 404 recuperable
-- [ ] 3.5 `Details.cshtml` — estado bloqueado/inexistente
+- [x] 3.1 `IUsuarioApiClient.cs` + `UsuarioApiClient.cs` — `Eliminar/Bloquear/DesbloquearAsync`, `status=bloqueadas`, quitar `Reactivar`
+- [x] 3.2 `Index.cshtml.cs` — handlers `Bloquear/Desbloquear`, modal irreversible, ocultar auto-acciones, sin `LastDeletedId`/`OnPostReactivateAsync`
+- [x] 3.3 `Index.cshtml` — labels `bloqueadas`, modal sin `UserName`
+- [x] 3.4 `Details.cshtml.cs` — consulta DTO real, `returnStatus` solo decide vista, 404 recuperable
+- [x] 3.5 `Details.cshtml` — estado bloqueado/inexistente
 
 ## Phase 4: Tests
 
