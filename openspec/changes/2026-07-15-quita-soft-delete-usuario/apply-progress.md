@@ -73,11 +73,68 @@ La implementación de Phase 1 ya estaba presente en la base de este worktree:
 - Tests de redireccionamiento de wrappers `[Obsolete]` (los wrappers de comandos fueron retirados).
 - MySqlFact end-to-end de corte inmediato JWT/cookie (Phase 4.6/4.7).
 - Cache Q2 por `sub`.
-- Retiro de `UsuarioSegmentoListado.Eliminadas` y actualización de Web client/Pages (Phase 3).
+- Retiro de `UsuarioSegmentoListado.Eliminadas` (queda para Phase 5/cleanup).
+
+## Phase 3: Web Layer — COMPLETED
+
+- [x] 3.1 `IUsuarioApiClient` + `UsuarioApiClient` migrados: `EliminarAsync` (DELETE 204 con `Value:null`), `BloquearAsync` (POST `/{id}/bloquear`), `DesbloquearAsync` (POST `/{id}/desbloquear`). `DesactivarAsync` y `ReactivarAsync` retirados del interface; `DeleteAsync` queda como alias default-implemented de `EliminarAsync` para no romper call sites legacy.
+- [x] 3.2 `Index.cshtml.cs` reescrito: handlers `OnPostBloquearAsync`, `OnPostDesbloquearAsync`, `OnPostDeleteAsync` (hard-delete). `OnPostReactivateAsync` retirado. `LastDeletedId` eliminado. `EsAutoAccion(id)` server-side fence contra AutoBloqueo/AutoEliminacion (devuelve feedback inline y redirige sin llamar a la API). El segmento exitoso `Bloquear` redirige a `bloqueadas`; `Desbloquear` y `Eliminar` a `activas`.
+- [x] 3.3 `Index.cshtml` actualizado: labels `Bloqueados` (segmento toggle), botones `Bloquear`/`Desbloquear` con auto-fence, modal irreversible sin `UserName` (sólo "este usuario"). Sin banner de Reactivar tras Delete. El segmento `bloqueadas` no muestra Delete ni Bloquear (sólo Desbloquear).
+- [x] 3.4 `Details.cshtml.cs` extendido: `Bloqueado` y `CurrentUserId`/`EsAutoAccion` ahora son parte del estado de la página; `returnStatus` queda como hint de view para el link "Volver al listado" pero NO es fuente de verdad — el render del banner "Cuenta bloqueada" y de los botones se decide desde el DTO. 404 recuperable con link "Volver al listado" (también cubre errores de transporte que caen al catch-all).
+- [x] 3.5 `Details.cshtml` actualizado: banner amarillo "Cuenta bloqueada" visible cuando `Bloqueado=true`; acciones según estado: Bloqueado ⇒ sólo Desbloquear; Activo+self ⇒ sólo Edit; Activo+otro ⇒ Edit + Bloquear + Eliminar; NotFound ⇒ mensaje + Volver al listado.
+
+## Evidencia TDD
+
+| Tarea | Archivo(s) de prueba | Safety net | RED | GREEN | Triangulación | Refactor |
+|------|-----------------------|------------|-----|-------|---------------|----------|
+| 3.1 | `UsuarioApiClientBloquearDesbloquearEliminarTests.cs`, `IUsuarioApiClientContractTests.cs`, `UsuarioApiClientBasicTests.cs` (Removed Reactivar tests) | 19/19 cliente antes; suite cayó a errores de compilación cuando se retiró `DesactivarAsync`/`ReactivarAsync` | Compile failure + nuevos RED tests | 6/6 nuevos + 9/9 contrato + 8/8 cliente refactorizado | 204 vs 200 con body, 403 AutoBloqueo/AutoEliminacion, 404 doble delete | Interfaz actualizada con alias DeleteAsync→EliminarAsync |
+| 3.2 | `IndexPageTests.cs` (reescrito), `FakeUsuarioApiClientTests.cs` | 24/24 Index antes | Compile failure al retirar `Desactivar`/`Reactivar` | 18/18 IndexPageTests + 8/8 Fake | Bloquear/Desbloquear/Eliminar, auto-fence UI, AutoBloqueo/AutoEliminacion feedback, transport recuperable | Helper `EsAutoAccion` en PageModel + helper análogo en Index.cshtml |
+| 3.3 | n/a (view, sin PageModel test dedicado) | n/a | Banner eliminado, modal reactivate removido, etiquetas actualizadas | Render verificado vía `Post_Delete_WhenSuccessful_RedirectsToActiveSegmentWithFeedback`, `Get_Index_WhenSegmentIsBloqueadas_ExposesOnlyDesbloquearAction`, `Get_Index_WhenCurrentUserListed_HidesBloquearAndDeleteActions` | n/a | Refactor mínimo — sólo labels + modal |
+| 3.4 | `DetailsPageTests.cs` (extendido) | 7/7 Details antes; tests viejos siguen pasando con la nueva semántica DTO-source-of-truth | 4 nuevos RED | 11/11 Details | 404 recuperable, transport degradado, Bloqueado-banner-overridea-returnStatus, Bloqueado+admin ve Desbloquear | Helper `EsAutoAccion` y propiedad `Bloqueado` (DTO-truth) |
+| 3.5 | n/a (view) | n/a | Banner nuevo + acciones reordenadas + Volver al listado en 404 | Render verificado vía tests 3.4 (banner string, form data-attributes) | n/a | n/a |
+
+## Archivos modificados (Phase 3)
+
+**Producción**
+- `src/SGV.Web/Integration/Usuarios/IUsuarioApiClient.cs` — interface migrado
+- `src/SGV.Web/Integration/Usuarios/UsuarioApiClient.cs` — implementar `EliminarAsync` (con soporte 204), `BloquearAsync`, `DesbloquearAsync`; quitar `DesactivarAsync`, `ReactivarAsync`
+- `src/SGV.Web/Pages/Seguridad/Usuarios/Index.cshtml.cs` — handlers `Bloquear`/`Desbloquear`/`Delete` (hard-delete); helper `EsAutoAccion`; eliminado `LastDeletedId`/`Reactivar`
+- `src/SGV.Web/Pages/Seguridad/Usuarios/Index.cshtml` — labels `Bloqueados`, modal irreversible, auto-fence UI
+- `src/SGV.Web/Pages/Seguridad/Usuarios/Details.cshtml.cs` — `Bloqueado`/`CurrentUserId`/`EsAutoAccion`; `returnStatus` es hint
+- `src/SGV.Web/Pages/Seguridad/Usuarios/Details.cshtml` — banner bloqueada, acciones según estado, link "Volver al listado" en 404
+
+**Tests**
+- `tests/SGV.Tests/Web/Usuario/IUsuarioApiClientContractTests.cs` — tests `BloquearAsync`/`DesbloquearAsync`/`EliminarAsync` firma; assert NOT-exists `DesactivarAsync`/`ReactivarAsync`; recuenta total
+- `tests/SGV.Tests/Web/Usuario/UsuarioApiClientBloquearDesbloquearEliminarTests.cs` — NUEVO (6 tests)
+- `tests/SGV.Tests/Web/Usuario/UsuarioApiClientBasicTests.cs` — reemplazados tests de `DesactivarAsync` por `EliminarAsync`; quitados tests de `ReactivarAsync`
+- `tests/SGV.Tests/Web/Usuario/UsuarioWebSeamTests.cs` — tests de seam migrados a `EliminarAsync`/`AutoEliminacion`
+- `tests/SGV.Tests/Web/Usuario/FakeUsuarioApiClient.cs` — reescrito: modela `Eliminar` + `Bloquear`/`Desbloquear` con `SeedBlocked`; `ApplyStatusFilter` proyecta `Bloqueado` sobre el DTO
+- `tests/SGV.Tests/Web/Usuario/FakeUsuarioApiClientTests.cs` — actualizado a segmentos `Activas|Bloqueadas` y a `Bloquear`/`Desbloquear`/`Eliminar`
+- `tests/SGV.Tests/Web/Usuario/IndexPageTests.cs` — reescrito: 18 tests cubriendo Bloquear/Desbloquear/Eliminar + auto-fence UI + AutoBloqueo/AutoEliminacion feedback + transport recuperable
+- `tests/SGV.Tests/Web/Usuario/DetailsPageTests.cs` — extendido: 11 tests cubriendo banner Bloqueado + 404 recuperable + transport degradado + returnStatus hint
+
+## Desviaciones y decisiones (Phase 3)
+
+1. **`Index.cshtml` redirige Bloquear→`bloqueadas`, no→`activas`.** Decisión UX: tras un bloqueo el admin quiere ver la cuenta recién bloqueada, no seguir revisando activas. La redirect preserva `search`/`sort`/`p` para mantener el contexto de filtrado.
+2. **`Details.cshtml` considera `Bloqueado` del DTO, no `returnStatus`.** El query string `returnStatus` se mantiene sólo como hint para el link "Volver al listado" (preserva `status=` en el back-link); el render del banner y de los botones sale del DTO. Esto previene una inconsistencia visible donde el caller pasa `activas` pero la cuenta está bloqueada.
+3. **Helper `EsAutoAccion(id)` server-side + render-side.** Doble guard: el PageModel compara `CurrentUserId` con el id del form y devuelve feedback inline si hay match; el view además oculta los botones Bloquear/Eliminar sobre la fila del admin actual. Defensa en profundidad por si un form se construye fuera del flujo normal.
+4. **`DeleteAsync` queda como default interface method** que delega en `EliminarAsync`. Mantiene source-compat con cualquier call site histórico que aún use `DeleteAsync` en el shell.
+5. **`UsuarioSegmentoListado.Eliminadas` [Obsolete] sigue intacto.** Fuera de scope de Phase 3; Phase 5 (cleanup) lo retira junto con la rotación de tests legacy.
+6. **No se regeneró `docs/migracion-inicial-sgv.sql`** porque Phase 3 no introduce migraciones (es Web-only).
+7. **No se tocó `bun run build`** porque Phase 3 no modifica `wwwroot/**` ni `package.json`. Las nuevas clases Tabler (`ti ti-lock`, `ti ti-lock-open`) ya están presentes en el bundle del template Inspinia.
+
+## Validación final (Phase 3)
+
+- Focused test (Web.Usuario): 114/114 PASS.
+- Full suite: 2382/2382 PASS, 0 skipped.
+- Delta contra baseline 2366: **+16 net tests** (11 Details + 6 cliente nuevos + 18 IndexPageTests - tests viejos de Reactivar/Desactivar = ~+16).
+- Build: 0 errors.
+- Pre-existing tests revisitados: 0 regresiones.
 
 ## Estado de tareas
 
 - Phase 1: 11/11.
 - Phase 2: 7/7.
-- Change completo: 18/34 tareas; Phase 3–5 permanecen pendientes.
-- Próximo paso para este slice: `sdd-verify` después de que el orchestrator revise la desviación de arquitectura Web y el tratamiento fail-open de errores de transporte.
+- Phase 3: 5/5.
+- Change completo: 23/34 tareas; Phase 4 (tests) y Phase 5 (cleanup) permanecen pendientes.
+- Próximo paso recomendado: `sdd-verify` para validar el slice Web contra las specs del delta.

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -12,9 +13,38 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 
 /// <summary>
 /// Paginated and segmented Usuarios listing. Reads are available to every
-/// authenticated shell user; lifecycle writes require Administrador.
+/// authenticated shell user; lifecycle writes (Bloquear / Desbloquear /
+/// Eliminar) require Administrador.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Phase 3 del change <c>2026-07-15-quita-soft-delete-usuario</c>: el
+/// ciclo de baja lógica (Desactivar/Reactivar) se reemplazó por el ciclo
+/// de lockout nativo de Identity. La Razor Page expone
+/// <c>?handler=Bloquear</c>, <c>?handler=Desbloquear</c> y
+/// <c>?handler=Delete</c>; este último invoca hard-delete físico.
+/// </para>
+/// <para>
+/// El segmento <c>activas</c> muestra acciones Bloquear + Eliminar; el
+/// segmento <c>bloqueadas</c> muestra sólo Desbloquear. El PageModel
+/// aplica auto-fence contra auto-bloqueo / auto-eliminación comparando
+/// el <c>id</c> del form contra el <see cref="ClaimTypes.NameIdentifier"/>
+/// del usuario autenticado (claim sembrado por
+/// <c>AuthSessionFactory</c> en el login). El render de la vista repite
+/// el guard para mantener UX coherente con el server-side.
+/// </para>
+/// <para>
+/// <see cref="AutoValidateAntiforgeryTokenAttribute"/> se aplica a nivel
+/// de PageModel porque <c>Program.cs</c> está fuera del scope de Phase 3
+/// (RIS-001): la vista emite <c>@Html.AntiForgeryToken()</c> y la
+/// ausencia de <c>app.UseAntiforgery()</c> deja la puerta abierta a
+/// CSRF contra <c>OnPostDeleteAsync</c>, <c>OnPostBloquearAsync</c> y
+/// <c>OnPostDesbloquearAsync</c>. El atributo cierra esa brecha sin
+/// tocar la composition root.
+/// </para>
+/// </remarks>
 [Authorize]
+[AutoValidateAntiforgeryToken]
 public sealed class IndexModel(
     IUsuarioApiClient usuarioApiClient,
     IAuthSessionRedirector authRedirector,
@@ -22,7 +52,7 @@ public sealed class IndexModel(
 {
     private const int DefaultPageSize = 10;
     private const string ActiveView = "activas";
-    private const string DeletedView = "eliminadas";
+    private const string BlockedView = "bloqueadas";
 
     public IReadOnlyList<UsuarioListItemViewModel> Items { get; private set; } = [];
 
@@ -38,10 +68,19 @@ public sealed class IndexModel(
 
     public string Segmento { get; private set; } = ActiveView;
 
-    public bool IsDeletedView =>
-        string.Equals(Segmento, DeletedView, StringComparison.OrdinalIgnoreCase);
+    public bool IsBlockedView =>
+        string.Equals(Segmento, BlockedView, StringComparison.OrdinalIgnoreCase);
 
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
+    /// <summary>
+    /// Identificador del admin actualmente autenticado (claim
+    /// <see cref="ClaimTypes.NameIdentifier"/>). <c>null</c> si la
+    /// request no está autenticada (la Page requiere
+    /// <see cref="AuthorizeAttribute"/> así que este caso no debería
+    /// ocurrir en producción).
+    /// </summary>
+    public string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     public string? LoadErrorMessage { get; private set; }
 
@@ -49,27 +88,29 @@ public sealed class IndexModel(
 
     public string StatusKind => PageFeedback.GetStatusKind(TempData);
 
-    public string? LastDeletedId { get; private set; }
-
-    public bool HasLastDeleted => !string.IsNullOrWhiteSpace(LastDeletedId);
+    /// <summary>
+    /// Helper que la vista usa para decidir si debe renderizar el form
+    /// de Bloquear / Eliminar / Desbloquear sobre la fila del usuario
+    /// con identificador <paramref name="targetUserId"/>. Devuelve
+    /// <see langword="true"/> cuando el target es el admin actual; las
+    /// acciones de Bloquear y Eliminar deben ocultarse para impedir el
+    /// clic que terminaría en un 403 AutoBloqueo / AutoEliminacion.
+    /// </summary>
+    public bool EsAutoAccion(string targetUserId) =>
+        !string.IsNullOrEmpty(CurrentUserId)
+        && string.Equals(CurrentUserId, targetUserId, StringComparison.Ordinal);
 
     public async Task OnGetAsync(
         [FromQuery(Name = "p")] int currentPage = 1,
         string? search = null,
         string? sort = null,
         string? status = null,
-        string? deletedId = null,
         CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
         Search = Normalize(search);
         Sort = Normalize(sort);
         Segmento = NormalizeSegmento(status);
-
-        if (!string.IsNullOrWhiteSpace(deletedId))
-        {
-            StoreLastDeletedId(deletedId);
-        }
 
         await LoadAsync(cancellationToken);
     }
@@ -87,41 +128,34 @@ public sealed class IndexModel(
             return Forbid();
         }
 
+        if (EsAutoAccion(id))
+        {
+            // Auto-fence: el server repite el guard aunque la vista
+            // oculte los botones; defensa en profundidad por si el form
+            // se construye fuera del flujo de render normal.
+            SetFailureFeedback("No puede eliminar su propio usuario.", "AutoEliminacion");
+            return RedirectToIndex(currentPage, search, sort, status);
+        }
+
         var context = NormalizeContext(currentPage, search, sort, status);
         UsuarioCommandResult result;
 
         try
         {
-            result = await usuarioApiClient.DesactivarAsync(id, cancellationToken);
+            result = await usuarioApiClient.EliminarAsync(id, cancellationToken);
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             // CodeQL [SM02379]: structured logging placeholder, not interpolated.
-            logger.LogWarning(ex, "Failed to deactivate usuario with Id {UsuarioId}.", id);
+            logger.LogWarning(ex, "Failed to delete usuario with Id {UsuarioId}.", id);
             PageFeedback.SetDanger(TempData, "No se pudo eliminar el usuario. Intentá nuevamente.");
             return RedirectToIndex(context.Page, context.Search, context.Sort, context.Status);
         }
 
         if (result.IsSuccess)
         {
-            var redirectPage = await ResolveRedirectPageAsync(
-                context.Page,
-                context.Search,
-                context.Sort,
-                ActiveView,
-                cancellationToken);
-
             PageFeedback.SetSuccess(TempData, "El usuario se eliminó correctamente.");
-            StoreLastDeletedId(id);
-
-            return RedirectToPage("/Seguridad/Usuarios/Index", new
-            {
-                p = redirectPage,
-                search = context.Search,
-                sort = context.Sort,
-                status = ActiveView,
-                deletedId = id
-            });
+            return RedirectToIndex(context.Page, context.Search, context.Sort, ActiveView);
         }
 
         if (result.Error?.Categoria == ErrorCategoria.Unauthorized)
@@ -137,8 +171,8 @@ public sealed class IndexModel(
         var categoria = error?.Categoria ?? ErrorCategoria.Unexpected;
         var message = categoria switch
         {
-            ErrorCategoria.Forbidden when string.Equals(error?.Code, "AutoBaja", StringComparison.Ordinal) =>
-                error?.Message ?? "No se puede dar de baja el usuario actual.",
+            ErrorCategoria.Forbidden when string.Equals(error?.Code, "AutoEliminacion", StringComparison.Ordinal) =>
+                error?.Message ?? "No puede eliminar su propio usuario.",
             ErrorCategoria.Conflict => $"No se pudo eliminar el usuario. {error?.Message}".Trim(),
             ErrorCategoria.NotFound => "El usuario ya no está disponible.",
             ErrorCategoria.Transport => "No se pudo eliminar el usuario. Intentá nuevamente.",
@@ -150,7 +184,74 @@ public sealed class IndexModel(
         return RedirectToIndex(context.Page, context.Search, context.Sort, context.Status);
     }
 
-    public async Task<IActionResult> OnPostReactivateAsync(
+    public async Task<IActionResult> OnPostBloquearAsync(
+        string id,
+        [FromForm(Name = "page")] int currentPage = 1,
+        string? search = null,
+        string? sort = null,
+        string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
+        if (EsAutoAccion(id))
+        {
+            SetFailureFeedback("No puede bloquear su propio usuario.", "AutoBloqueo");
+            return RedirectToIndex(currentPage, search, sort, status);
+        }
+
+        var context = NormalizeContext(currentPage, search, sort, status);
+        UsuarioCommandResult result;
+
+        try
+        {
+            result = await usuarioApiClient.BloquearAsync(id, cancellationToken);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            // CodeQL [SM02379]: structured logging placeholder, not interpolated.
+            logger.LogWarning(ex, "Failed to block usuario with Id {UsuarioId}.", id);
+            PageFeedback.SetDanger(TempData, "No se pudo bloquear el usuario. Intentá nuevamente.");
+            return RedirectToIndex(context.Page, context.Search, context.Sort, context.Status);
+        }
+
+        if (result.IsSuccess)
+        {
+            PageFeedback.SetSuccess(TempData, "El usuario se bloqueó correctamente.");
+            // Redirigimos al segmento bloqueadas para que el admin vea
+            // inmediatamente el cambio (UX feedback loop).
+            return RedirectToIndex(context.Page, context.Search, context.Sort, BlockedView);
+        }
+
+        if (result.Error?.Categoria == ErrorCategoria.Unauthorized)
+        {
+            var redirect = authRedirector.TryRedirectToLogin(Request.Path);
+            if (redirect is not null)
+            {
+                return redirect;
+            }
+        }
+
+        var error = result.Error;
+        var categoria = error?.Categoria ?? ErrorCategoria.Unexpected;
+        var message = categoria switch
+        {
+            ErrorCategoria.Forbidden when string.Equals(error?.Code, "AutoBloqueo", StringComparison.Ordinal) =>
+                error?.Message ?? "No puede bloquear su propio usuario.",
+            ErrorCategoria.NotFound => "El usuario ya no está disponible.",
+            ErrorCategoria.Transport => "No se pudo bloquear el usuario. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo bloquear el usuario. Intentá nuevamente.",
+            _ => ErrorCategoryMapper.Map(categoria)
+        };
+
+        SetFailureFeedback(message, error?.Code);
+        return RedirectToIndex(context.Page, context.Search, context.Sort, context.Status);
+    }
+
+    public async Task<IActionResult> OnPostDesbloquearAsync(
         string id,
         [FromForm(Name = "page")] int currentPage = 1,
         string? search = null,
@@ -168,21 +269,19 @@ public sealed class IndexModel(
 
         try
         {
-            result = await usuarioApiClient.ReactivarAsync(id, cancellationToken);
+            result = await usuarioApiClient.DesbloquearAsync(id, cancellationToken);
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             // CodeQL [SM02379]: structured logging placeholder, not interpolated.
-            logger.LogWarning(ex, "Failed to reactivate usuario with Id {UsuarioId}.", id);
-            PageFeedback.SetDanger(TempData, "No se pudo reactivar el usuario. Intentá nuevamente.");
+            logger.LogWarning(ex, "Failed to unblock usuario with Id {UsuarioId}.", id);
+            PageFeedback.SetDanger(TempData, "No se pudo desbloquear el usuario. Intentá nuevamente.");
             return RedirectToIndex(context.Page, context.Search, context.Sort, context.Status);
         }
 
         if (result.IsSuccess)
         {
-            PageFeedback.SetSuccess(TempData, "El usuario se reactivó correctamente.");
-            PageFeedback.ClearLastDeletedId(TempData);
-
+            PageFeedback.SetSuccess(TempData, "El usuario se desbloqueó correctamente.");
             return RedirectToIndex(context.Page, context.Search, context.Sort, ActiveView);
         }
 
@@ -199,12 +298,9 @@ public sealed class IndexModel(
         var categoria = error?.Categoria ?? ErrorCategoria.Unexpected;
         var message = categoria switch
         {
-            ErrorCategoria.Conflict when string.Equals(error?.Code, "PersonaInactiva", StringComparison.Ordinal) =>
-                $"No se pudo reactivar el usuario. {error?.Message ?? "La persona vinculada está inactiva."}",
-            ErrorCategoria.Conflict => $"No se pudo reactivar el usuario. {error?.Message}".Trim(),
-            ErrorCategoria.NotFound => "El usuario ya no está disponible para reactivar.",
-            ErrorCategoria.Transport => "No se pudo reactivar el usuario. Intentá nuevamente.",
-            ErrorCategoria.Unexpected => "No se pudo reactivar el usuario. Intentá nuevamente.",
+            ErrorCategoria.NotFound => "El usuario ya no está disponible.",
+            ErrorCategoria.Transport => "No se pudo desbloquear el usuario. Intentá nuevamente.",
+            ErrorCategoria.Unexpected => "No se pudo desbloquear el usuario. Intentá nuevamente.",
             _ => ErrorCategoryMapper.Map(categoria)
         };
 
@@ -251,11 +347,10 @@ public sealed class IndexModel(
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         LoadErrorMessage = null;
-        LastDeletedId = TempData[PageFeedback.LastDeletedIdKey] as string;
 
         try
         {
-            var segmento = IsDeletedView
+            var segmento = IsBlockedView
                 ? UsuarioSegmentoListado.Bloqueadas
                 : UsuarioSegmentoListado.Activas;
             var response = await usuarioApiClient.QueryAsync(
@@ -284,36 +379,6 @@ public sealed class IndexModel(
         }
     }
 
-    private async Task<int> ResolveRedirectPageAsync(
-        int currentPage,
-        string? search,
-        string? sort,
-        string status,
-        CancellationToken cancellationToken)
-    {
-        if (currentPage <= 1)
-        {
-            return 1;
-        }
-
-        try
-        {
-            var segmento = string.Equals(status, DeletedView, StringComparison.OrdinalIgnoreCase)
-                ? UsuarioSegmentoListado.Bloqueadas
-                : UsuarioSegmentoListado.Activas;
-            var refreshed = await usuarioApiClient.QueryAsync(
-                new UsuarioListQuery(currentPage, DefaultPageSize, search, sort, segmento),
-                cancellationToken);
-
-            return refreshed.Result.Items.Count == 0 ? currentPage - 1 : currentPage;
-        }
-        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
-        {
-            logger.LogWarning(ex, "Failed to recalculate redirect page after deleting usuario.");
-            return currentPage;
-        }
-    }
-
     private IActionResult RedirectToIndex(int page, string? search, string? sort, string status) =>
         RedirectToPage("/Seguridad/Usuarios/Index", new { p = page, search, sort, status });
 
@@ -325,9 +390,6 @@ public sealed class IndexModel(
             TempData["ErrorCode"] = errorCode;
         }
     }
-
-    private void StoreLastDeletedId(string id) =>
-        TempData[PageFeedback.LastDeletedIdKey] = id;
 
     private string BuildContextUrl(string basePath, string statusKey)
     {
@@ -360,8 +422,8 @@ public sealed class IndexModel(
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string NormalizeSegmento(string? status) =>
-        string.Equals(status, DeletedView, StringComparison.OrdinalIgnoreCase)
-            ? DeletedView
+        string.Equals(status, BlockedView, StringComparison.OrdinalIgnoreCase)
+            ? BlockedView
             : ActiveView;
 
     private static UsuarioListItemViewModel MapToViewModel(UsuarioDto item) => new(

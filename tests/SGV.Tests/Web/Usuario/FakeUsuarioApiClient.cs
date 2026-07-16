@@ -5,19 +5,21 @@ namespace SGV.Tests.Web.Usuario;
 
 /// <summary>
 /// Fake en memoria de <see cref="SGV.Web.Integration.Usuarios.IUsuarioApiClient"/>
-/// usado por la suite web del módulo Usuarios (PR 2 introduce la
-/// forma del fake; las Pages que lo consumen llegan en PR 3/4).
-/// Espejo del <c>FakePersonaApiClient</c>: modela el segmento
-/// (<c>activas|eliminadas</c>) y la paginación server-side para que los
+/// usado por la suite web del módulo Usuarios. Espejo del
+/// <c>FakePersonaApiClient</c>: modela el segmento
+/// (<c>activas|bloqueadas</c>) y la paginación server-side para que los
 /// tests puedan triangular el contrato HTTP sin requerir un backend.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A diferencia del <c>FakePersonaApiClient</c>, este fake devuelve
-/// siempre <see cref="UsuarioCommandResult"/> (no existe un
-/// <c>UsuarioDeleteResult</c> dedicado — el shape Delete del backend
-/// emite 200 con DTO activo para soportar la rama AutoBaja, así que
-/// el <c>CommandResult</c> común cubre éxito y fallo con field errors).
+/// Phase 3 del change <c>2026-07-15-quita-soft-delete-usuario</c>: el
+/// ciclo de baja lógica (Desactivar/Reactivar) se reemplazó por el
+/// ciclo de lockout nativo de Identity (Bloquear/Desbloquear/Eliminar).
+/// El fake modela <c>_deletedIds</c> como el conjunto de cuentas
+/// borradas físicamente (fueron invocadas a <see cref="EliminarAsync"/>);
+/// el segmento <see cref="UsuarioSegmentoListado.Bloqueadas"/> lo modela
+/// <c>_lockedIds</c>. El <see cref="QueryAsync"/> filtra por
+/// lockout state siguiendo el contrato backend D5.
 /// </para>
 /// </remarks>
 public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuarioApiClient
@@ -25,6 +27,7 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
     private readonly IReadOnlyList<UsuarioDto>? _allResult;
     private readonly Exception? _allException;
     private readonly HashSet<string> _deletedIds = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _lockedIds = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Construye un fake vacío. Útil para tests del seam (e.g.
@@ -42,11 +45,14 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
         _allException = allException;
     }
 
-    /// <summary>Identificadores enviados a <see cref="DesactivarAsync"/>.</summary>
-    public List<string> DeleteCalls { get; } = new();
+    /// <summary>Identificadores enviados a <see cref="EliminarAsync"/>.</summary>
+    public List<string> EliminarCalls { get; } = new();
 
-    /// <summary>Identificadores enviados a <see cref="ReactivarAsync"/>.</summary>
-    public List<string> ReactivarCalls { get; } = new();
+    /// <summary>Identificadores enviados a <see cref="BloquearAsync"/>.</summary>
+    public List<string> BloquearCalls { get; } = new();
+
+    /// <summary>Identificadores enviados a <see cref="DesbloquearAsync"/>.</summary>
+    public List<string> DesbloquearCalls { get; } = new();
 
     /// <summary>
     /// Resultado fijo que devuelve <see cref="CreateAsync"/>. Por defecto,
@@ -85,41 +91,54 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
     public Exception? UpdateException { get; set; }
 
     /// <summary>
-    /// Resultado fijo que devuelve <see cref="DesactivarAsync"/>. Por
-    /// defecto, éxito con un DTO activo (Id se sobrescribe con el
-    /// solicitado al momento de responder).
+    /// Resultado fijo que devuelve <see cref="EliminarAsync"/>. Por
+    /// defecto, éxito con <c>Value</c> nulo (alineado con el 204
+    /// del backend). Tras éxito se quita el id del universo en memoria
+    /// para que <see cref="GetByIdAsync"/> y <see cref="QueryAsync"/>
+    /// reflejen el hard-delete.
     /// </summary>
-    public UsuarioCommandResult DesactivarResult { get; set; } = UsuarioCommandResult.Success(
+    public UsuarioCommandResult EliminarResult { get; set; } = UsuarioCommandResult.Success(null!);
+
+    /// <summary>Excepción opcional que <see cref="EliminarAsync"/> lanza.</summary>
+    public Exception? EliminarException { get; set; }
+
+    /// <summary>
+    /// Resultado fijo que devuelve <see cref="BloquearAsync"/>. Por
+    /// defecto, éxito con un DTO marcado <c>Bloqueado=true</c>.
+    /// </summary>
+    public UsuarioCommandResult BloquearResult { get; set; } = UsuarioCommandResult.Success(
         new UsuarioDto(
             Id: "u-default",
             PersonaId: Guid.NewGuid(),
             UserName: "default",
             Email: "default@example.com",
-            Roles: new[] { "Consultor" }));
+            Roles: new[] { "Consultor" },
+            Bloqueado: true));
 
-    /// <summary>Excepción opcional que <see cref="DesactivarAsync"/> lanza.</summary>
-    public Exception? DesactivarException { get; set; }
+    /// <summary>Excepción opcional que <see cref="BloquearAsync"/> lanza.</summary>
+    public Exception? BloquearException { get; set; }
 
     /// <summary>
-    /// Resultado fijo que devuelve <see cref="ReactivarAsync"/>. Por
-    /// defecto, éxito con un DTO activo.
+    /// Resultado fijo que devuelve <see cref="DesbloquearAsync"/>. Por
+    /// defecto, éxito con un DTO marcado <c>Bloqueado=false</c>.
     /// </summary>
-    public UsuarioCommandResult ReactivarResult { get; set; } = UsuarioCommandResult.Success(
+    public UsuarioCommandResult DesbloquearResult { get; set; } = UsuarioCommandResult.Success(
         new UsuarioDto(
             Id: "u-default",
             PersonaId: Guid.NewGuid(),
-            UserName: "default-reactivated",
+            UserName: "default",
             Email: "default@example.com",
-            Roles: new[] { "Consultor" }));
+            Roles: new[] { "Consultor" },
+            Bloqueado: false));
 
-    /// <summary>Excepción opcional que <see cref="ReactivarAsync"/> lanza.</summary>
-    public Exception? ReactivarException { get; set; }
+    /// <summary>Excepción opcional que <see cref="DesbloquearAsync"/> lanza.</summary>
+    public Exception? DesbloquearException { get; set; }
 
     /// <summary>
     /// Resultado paginado que devuelve <see cref="QueryAsync"/>. Por
     /// defecto se calcula sobre <c>_allResult</c> aplicando el
-    /// segmento (<c>activas</c> por defecto, <c>eliminadas</c> cuando
-    /// <c>query.Segmento == UsuarioSegmentoListado.Eliminadas</c>) y
+    /// segmento (<c>activas</c> por defecto, <c>bloqueadas</c> cuando
+    /// <c>query.Segmento == UsuarioSegmentoListado.Bloqueadas</c>) y
     /// la paginación.
     /// </summary>
     /// <remarks>
@@ -151,12 +170,26 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
         => new(null, exception);
 
     /// <summary>
-    /// Indica si el identificador fue marcado como eliminado en este
-    /// fake (vía <see cref="DesactivarAsync"/>). Útil para tests que
-    /// necesitan sembrar bajas lógicas sin tener que invocar el
+    /// Indica si el identificador fue marcado como borrado físicamente
+    /// en este fake (vía <see cref="EliminarAsync"/>). Útil para tests
+    /// que necesitan sembrar bajas físicas sin tener que invocar el
     /// handler HTTP.
     /// </summary>
     public bool IsDeleted(string id) => _deletedIds.Contains(id);
+
+    /// <summary>
+    /// Indica si el identificador fue marcado como bloqueado en este
+    /// fake (vía <see cref="BloquearAsync"/>). Útil para tests que
+    /// necesitan sembrar lockouts sin tener que invocar el handler.
+    /// </summary>
+    public bool IsBlocked(string id) => _lockedIds.Contains(id);
+
+    /// <summary>
+    /// Sembrador: marca el id como bloqueado para que las Pages lo
+    /// vean en el segmento <see cref="UsuarioSegmentoListado.Bloqueadas"/>
+    /// sin pasar por el handler. Útil en tests de auto-fence.
+    /// </summary>
+    public void SeedBlocked(string id) => _lockedIds.Add(id);
 
     public Task<IReadOnlyList<UsuarioDto>> GetAllActivasAsync(CancellationToken cancellationToken = default)
     {
@@ -166,9 +199,11 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
         }
 
         IReadOnlyList<UsuarioDto> snapshot = _allResult ?? Array.Empty<UsuarioDto>();
-        if (_deletedIds.Count > 0)
+        if (_deletedIds.Count > 0 || _lockedIds.Count > 0)
         {
-            snapshot = snapshot.Where(u => !_deletedIds.Contains(u.Id)).ToArray();
+            snapshot = snapshot
+                .Where(u => !_deletedIds.Contains(u.Id) && !_lockedIds.Contains(u.Id))
+                .ToArray();
         }
 
         return Task.FromResult(snapshot);
@@ -187,7 +222,21 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
         }
 
         var usuario = _allResult.FirstOrDefault(u => u.Id == id);
-        return Task.FromResult(usuario);
+        if (usuario is null)
+        {
+            return Task.FromResult<UsuarioDto?>(null);
+        }
+
+        // Phase 3: reflejar el lockout state sobre el DTO que sale del
+        // fake para que las Pages observen Bloqueado=true sin necesidad
+        // de inyectar DTOs diferentes.
+        var bloqueado = _lockedIds.Contains(id);
+        if (bloqueado && !usuario.Bloqueado)
+        {
+            return Task.FromResult<UsuarioDto?>(usuario with { Bloqueado = true });
+        }
+
+        return Task.FromResult<UsuarioDto?>(usuario);
     }
 
     public Task<UsuarioCommandResult> CreateAsync(CrearUsuarioRequest request, CancellationToken cancellationToken = default)
@@ -199,8 +248,6 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
             throw CreateException;
         }
 
-        // Sobrescribir el Id del resultado con un guid para que el
-        // test no asuma Id="u-default" si no lo configura.
         var dto = CreateResult.Value;
         if (dto is not null && CreateResult.IsSuccess)
         {
@@ -230,53 +277,70 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
         return Task.FromResult(UpdateResult);
     }
 
-    public Task<UsuarioCommandResult> DesactivarAsync(string id, CancellationToken cancellationToken = default)
+    public Task<UsuarioCommandResult> EliminarAsync(string id, CancellationToken cancellationToken = default)
     {
-        DeleteCalls.Add(id);
+        EliminarCalls.Add(id);
 
-        if (DesactivarException is not null)
+        if (EliminarException is not null)
         {
-            throw DesactivarException;
+            throw EliminarException;
         }
 
-        if (DesactivarResult.IsSuccess)
+        if (EliminarResult.IsSuccess)
         {
             _deletedIds.Add(id);
-            var dto = DesactivarResult.Value;
-            if (dto is not null)
-            {
-                return Task.FromResult(UsuarioCommandResult.Success(dto with { Id = id }));
-            }
+            _lockedIds.Remove(id);
         }
 
-        return Task.FromResult(DesactivarResult);
+        return Task.FromResult(EliminarResult);
     }
 
     Task<UsuarioCommandResult> SGV.Web.Integration.Usuarios.IUsuarioApiClient.DeleteAsync(
         string id, CancellationToken cancellationToken)
-        => DesactivarAsync(id, cancellationToken);
+        => EliminarAsync(id, cancellationToken);
 
-    public Task<UsuarioCommandResult> ReactivarAsync(string id, CancellationToken cancellationToken = default)
+    public Task<UsuarioCommandResult> BloquearAsync(string id, CancellationToken cancellationToken = default)
     {
-        ReactivarCalls.Add(id);
+        BloquearCalls.Add(id);
 
-        if (ReactivarException is not null)
+        if (BloquearException is not null)
         {
-            throw ReactivarException;
+            throw BloquearException;
         }
 
-        if (ReactivarResult.IsSuccess)
+        if (BloquearResult.IsSuccess && !_deletedIds.Contains(id))
         {
-            _deletedIds.Remove(id);
-
-            var dto = ReactivarResult.Value;
+            _lockedIds.Add(id);
+            var dto = BloquearResult.Value;
             if (dto is not null)
             {
-                return Task.FromResult(UsuarioCommandResult.Success(dto with { Id = id }));
+                return Task.FromResult(UsuarioCommandResult.Success(dto with { Id = id, Bloqueado = true }));
             }
         }
 
-        return Task.FromResult(ReactivarResult);
+        return Task.FromResult(BloquearResult);
+    }
+
+    public Task<UsuarioCommandResult> DesbloquearAsync(string id, CancellationToken cancellationToken = default)
+    {
+        DesbloquearCalls.Add(id);
+
+        if (DesbloquearException is not null)
+        {
+            throw DesbloquearException;
+        }
+
+        if (DesbloquearResult.IsSuccess && !_deletedIds.Contains(id))
+        {
+            _lockedIds.Remove(id);
+            var dto = DesbloquearResult.Value;
+            if (dto is not null)
+            {
+                return Task.FromResult(UsuarioCommandResult.Success(dto with { Id = id, Bloqueado = false }));
+            }
+        }
+
+        return Task.FromResult(DesbloquearResult);
     }
 
     public Task<UsuarioListadoDto> QueryAsync(UsuarioListQuery query, CancellationToken cancellationToken = default)
@@ -315,10 +379,6 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
             .Take(query.PageSize)
             .ToList();
 
-        // PR2-HALL: el shape wire del PR1 usa wrapper
-        // `UsuarioListadoDto(PagedResult<UsuarioDto>)`. Mantener este
-        // wrapper al construirlo a mano es trivial; lo hacemos
-        // explícito para que el gap quede visible.
         return Task.FromResult(new UsuarioListadoDto(
             new PagedResult<UsuarioDto>(
                 Items: pageItems,
@@ -329,9 +389,15 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
 
     private List<UsuarioDto> ApplyStatusFilter(List<UsuarioDto> source, UsuarioSegmentoListado segmento)
     {
-        return segmento == UsuarioSegmentoListado.Eliminadas
-            ? source.Where(u => _deletedIds.Contains(u.Id)).ToList()
-            : source.Where(u => !_deletedIds.Contains(u.Id)).ToList();
+        return segmento == UsuarioSegmentoListado.Bloqueadas
+            ? source
+                .Where(u => _lockedIds.Contains(u.Id) && !_deletedIds.Contains(u.Id))
+                .Select(u => u with { Bloqueado = true })
+                .ToList()
+            : source
+                .Where(u => !_lockedIds.Contains(u.Id) && !_deletedIds.Contains(u.Id))
+                .Select(u => u with { Bloqueado = false })
+                .ToList();
     }
 
     private static List<UsuarioDto> ApplySort(List<UsuarioDto> source, string? sort) =>
