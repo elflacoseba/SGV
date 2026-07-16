@@ -10,6 +10,7 @@ using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Integration.Usuarios;
 
 namespace SGV.Tests.Web;
 
@@ -27,6 +28,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly IHabilidadApiClient? _habilidadApiClient;
     private readonly IPuestosApiClient? _puestosApiClient;
     private readonly IPersonaApiClient? _personaApiClient;
+    private readonly IUsuarioApiClient? _usuarioApiClient;
+    private readonly IPersonaOptionsProvider? _personaOptionsProvider;
 
     public SgvWebApplicationFactory()
     {
@@ -40,7 +43,9 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         ICargoApiClient? cargoApiClient,
         IHabilidadApiClient? habilidadApiClient,
         IPuestosApiClient? puestosApiClient,
-        IPersonaApiClient? personaApiClient)
+        IPersonaApiClient? personaApiClient,
+        IUsuarioApiClient? usuarioApiClient,
+        IPersonaOptionsProvider? personaOptionsProvider)
     {
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
@@ -50,6 +55,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         _habilidadApiClient = habilidadApiClient;
         _puestosApiClient = puestosApiClient;
         _personaApiClient = personaApiClient;
+        _usuarioApiClient = usuarioApiClient;
+        _personaOptionsProvider = personaOptionsProvider;
     }
 
     public SgvWebApplicationFactory WithOverrides(
@@ -60,7 +67,9 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         ICargoApiClient? cargoApiClient = null,
         IHabilidadApiClient? habilidadApiClient = null,
         IPuestosApiClient? puestosApiClient = null,
-        IPersonaApiClient? personaApiClient = null)
+        IPersonaApiClient? personaApiClient = null,
+        IUsuarioApiClient? usuarioApiClient = null,
+        IPersonaOptionsProvider? personaOptionsProvider = null)
     {
         return new SgvWebApplicationFactory(
             configureServices,
@@ -70,7 +79,9 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             cargoApiClient,
             habilidadApiClient,
             puestosApiClient,
-            personaApiClient);
+            personaApiClient,
+            usuarioApiClient,
+            personaOptionsProvider);
     }
 
     /// <summary>
@@ -82,6 +93,27 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     /// </summary>
     public SgvWebApplicationFactory WithPersonaApiClient(IPersonaApiClient fake)
         => WithOverrides(personaApiClient: fake);
+
+    /// <summary>
+    /// Convenience helper to swap <see cref="IUsuarioApiClient"/> for a fake
+    /// without touching the rest of the configuration surface. Mirror de
+    /// <see cref="WithPersonaApiClient"/>; agregado en PR 2/4 del change
+    /// <c>Implementa módulo usuarios</c> para que la suite web del módulo
+    /// no requiera un backend real.
+    /// </summary>
+    public SgvWebApplicationFactory WithUsuarioApiClient(IUsuarioApiClient fake)
+        => WithOverrides(usuarioApiClient: fake);
+
+    /// <summary>
+    /// Convenience helper to swap <see cref="IPersonaOptionsProvider"/> for a
+    /// fake without touching the rest of the configuration surface.
+    /// Agregado en PR 4/4 del change <c>Implementa módulo usuarios</c> para
+    /// que el dropdown de Personas activas en
+    /// <c>Pages/Seguridad/Usuarios/Create.cshtml</c> pueda triangular el
+    /// catálogo sin requerir un backend real.
+    /// </summary>
+    public SgvWebApplicationFactory WithPersonaOptionsProvider(IPersonaOptionsProvider fake)
+        => WithOverrides(personaOptionsProvider: fake);
 
     /// <summary>
     /// Convenience helper to swap <see cref="IHabilidadApiClient"/> for a fake
@@ -164,6 +196,18 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<IPersonaApiClient>();
                 services.AddSingleton(_personaApiClient);
+            }
+
+            if (_usuarioApiClient is not null)
+            {
+                services.RemoveAll<IUsuarioApiClient>();
+                services.AddSingleton(_usuarioApiClient);
+            }
+
+            if (_personaOptionsProvider is not null)
+            {
+                services.RemoveAll<IPersonaOptionsProvider>();
+                services.AddSingleton(_personaOptionsProvider);
             }
         });
     }

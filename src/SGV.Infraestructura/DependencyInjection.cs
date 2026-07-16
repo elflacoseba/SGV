@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
@@ -29,8 +30,9 @@ public static class DependencyInjection
         // Constraint violation detector
         services.AddSingleton<IConstraintViolationDetector, MySqlConstraintViolationDetector>();
 
-        // Unit of Work
+        // Unit of Work and explicit audit service for non-auditable Identity rows
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IAuditoriaServicio, AuditoriaServicio>();
 
         // Repositories
         services.AddScoped<IUnidadOrganizativaRepository, UnidadOrganizativaRepository>();

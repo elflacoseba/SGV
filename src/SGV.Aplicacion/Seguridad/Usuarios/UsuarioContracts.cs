@@ -1,3 +1,4 @@
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Aplicacion.Seguridad.Usuarios;
@@ -12,6 +13,14 @@ public interface IUsuarioIdentityGateway
     Task<UsuarioCommandResult> CrearAsync(CrearUsuarioRequest request, CancellationToken cancellationToken = default);
 
     Task<UsuarioCommandResult> AsignarRolesAsync(string userId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default);
+
+    Task<UsuarioDto?> ObtenerAsync(string userId, CancellationToken cancellationToken = default);
+
+    Task<UsuarioCommandResult> ActualizarAsync(string userId, ActualizarUsuarioRequest request, CancellationToken cancellationToken = default);
+
+    Task<UsuarioCommandResult> DesactivarAsync(string userId, CancellationToken cancellationToken = default);
+
+    Task<UsuarioCommandResult> ReactivarAsync(string userId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -24,6 +33,12 @@ public interface IUsuarioServicioComandos
     Task<UsuarioCommandResult> CrearAsync(CrearUsuarioRequest request, CancellationToken cancellationToken = default);
 
     Task<UsuarioCommandResult> AsignarRolesAsync(string userId, AsignarRolesRequest request, CancellationToken cancellationToken = default);
+
+    Task<UsuarioCommandResult> ActualizarAsync(string userId, ActualizarUsuarioRequest request, CancellationToken cancellationToken = default);
+
+    Task<UsuarioCommandResult> DesactivarAsync(string userId, CancellationToken cancellationToken = default);
+
+    Task<UsuarioCommandResult> ReactivarAsync(string userId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -32,6 +47,10 @@ public interface IUsuarioServicioComandos
 public interface IUsuarioServicioConsulta
 {
     Task<IReadOnlyList<UsuarioDto>> ListAsync(CancellationToken cancellationToken = default);
+
+    Task<UsuarioDto?> GetByIdAsync(string userId, CancellationToken cancellationToken = default);
+
+    Task<PagedResult<UsuarioDto>> QueryAsync(UsuarioListQuery query, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

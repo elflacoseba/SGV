@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Seguridad;
@@ -8,10 +9,12 @@ using SGV.Tests.Web.Cargo;
 using SGV.Tests.Web.Common;
 using SGV.Tests.Web.Habilidad;
 using SGV.Tests.Web.Puesto;
+using SGV.Tests.Web.Usuario;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Integration.Usuarios;
 using Xunit;
 
 namespace SGV.Tests.Web.Collections;
@@ -25,6 +28,10 @@ namespace SGV.Tests.Web.Collections;
 /// </summary>
 public sealed class WebIntegrationFixture : IAsyncLifetime
 {
+    [ModuleInitializer]
+    internal static void ConfigureTestFileWatcher()
+        => Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "1");
+
     private static readonly WebApplicationFactoryClientOptions ClientOptions = new()
     {
         AllowAutoRedirect = false,
@@ -95,6 +102,55 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             personaApiClient: persona));
+
+    /// <summary>
+    /// Lease autenticado contra el módulo Usuarios. Toma un
+    /// <see cref="FakeUsuarioApiClient"/> y la inyecta en el contenedor
+    /// del host vía
+    /// <see cref="SgvWebApplicationFactory.WithUsuarioApiClient"/>.
+    /// Agregado en PR 2/4 del change <c>Implementa módulo usuarios</c>;
+    /// sigue la firma estándar de los otros módulos
+    /// (<see cref="CreateCargoLeaseAsync"/>, etc.).
+    /// </summary>
+    public Task<WebClientLease> CreateUsuarioLeaseAsync(
+        IUsuarioApiClient usuario, bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            usuarioApiClient: usuario));
+
+    /// <summary>
+    /// Lease autenticado contra el módulo Usuarios con un
+    /// <see cref="IPersonaOptionsProvider"/> fake inyectado. Necesario
+    /// para triangular el dropdown de Personas activas que consume
+    /// <c>Pages/Seguridad/Usuarios/Create.cshtml</c> (PR 4/4 del change
+    /// <c>Implementa módulo usuarios</c>).
+    /// </summary>
+    public Task<WebClientLease> CreateUsuarioLeaseAsync(
+        IUsuarioApiClient usuario,
+        IPersonaOptionsProvider personaOptionsProvider,
+        bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            usuarioApiClient: usuario,
+            personaOptionsProvider: personaOptionsProvider));
+
+    /// <summary>
+    /// Lease autenticado contra el módulo Usuarios con un
+    /// <see cref="IPersonaApiClient"/> y un <see cref="IPersonaOptionsProvider"/>
+    /// fake inyectados. Útil cuando Create debe triangular el dropdown de
+    /// Personas activas mientras otros tests del módulo (Index/Details)
+    /// no lo ejercitan.
+    /// </summary>
+    public Task<WebClientLease> CreateUsuarioLeaseAsync(
+        IUsuarioApiClient usuario,
+        IPersonaApiClient personaApiClient,
+        IPersonaOptionsProvider personaOptionsProvider,
+        bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            personaApiClient: personaApiClient,
+            usuarioApiClient: usuario,
+            personaOptionsProvider: personaOptionsProvider));
 
     public Task<WebClientLease> CreateUnidadOrganizativaLeaseAsync(
         FakeUnidadOrganizativaApiClient unidad, bool adminRole = false)

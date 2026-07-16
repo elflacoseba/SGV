@@ -342,6 +342,12 @@ Cada test usa `WebIntegrationFixture` como `ICollectionFixture`. El fixture admi
 
 La clave de la determinismo está en que `WebIntegrationFixture` **no usa estado estático**: cada host `SgvWebApplicationFactory` arranca con su propia clave JWT, su propio `AuthSessionFactory` Singleton (via DI), y su propia cookie de autenticación. No hay caché cross-test que se contamine.
 
+### Watchers de archivos en hosts de test
+
+El assembly de tests fija `DOTNET_USE_POLLING_FILE_WATCHER=1` mediante un module initializer antes de construir cualquier `WebApplicationFactory`. En macOS, la acumulación de hosts de la suite completa saturaba `FSEventStream`: los primeros síntomas eran 43 fallos intermitentes en UO/Puesto, seguidos por timeouts de cinco minutos al construir hosts Cargo y, finalmente, `Stack overflow` dentro de `FileSystemWatcher`. Usar polling elimina esa dependencia del watcher nativo y mantiene intacta la política de cuatro colecciones paralelas.
+
+El tradeoff es un consumo de CPU levemente mayor mientras corre el proceso de tests y una detección de cambios de archivos menos inmediata. Es aceptable porque los hosts de integración no dependen de hot reload, el ajuste queda confinado a `SGV.Tests` y no modifica el comportamiento de API/Web en desarrollo o producción.
+
 ### Limitante de paralelismo
 
 El límite `maxParallelThreads: 4` protege dos cosas:
@@ -481,5 +487,77 @@ Tracker PR (no-merge) mantiene el squash de los 4 PRs encadenados hasta que se d
 - **Frontend de habilidades de persona** (`PersonaSkill*` actualmente vive en `SGV.Aplicacion.Personas.Habilidades`): cuando se sume al scope de Personas, los records deben moverse a `SGV.Contracts.Personas.Habilidades` siguiendo el mismo precedente.
 - **`GET /api/v1/personas/buscar?q=`** — endpoint server-side de búsqueda rápida para el typeahead, requerido cuando el dataset activo supere las ~500 personas.
 - **Gate de Edit en Details**: el page model actual muestra el botón Editar a cualquier autenticado y delega el gate al handler GET de Edit. Considerar gating visual en Details para UX consistente con Index.
+
+## Módulo Usuarios — soft-delete de Identity con columna generada STORED
+
+> Change: `Implementa módulo usuarios` (PR1 backend cerrado; PR2/3/4 pendientes). Artefactos SDD en `openspec/changes/Implementa módulo usuarios/`. Chain strategy: `feature-branch-chain` con 4 PRs encadenados contra tracker `feat/2026-07-15-implementa-modulo-usuarios-tracker`.
+
+### Contexto
+
+El módulo Usuarios extiende el comportamiento de `AspNetUsers` con baja lógica (`IsDeleted`), replicando el patrón de `Personas` / `UnidadesOrganizativas` / `Habilidades` / `Cargos`: columna `IsDeleted TINYINT(1) NOT NULL DEFAULT 0` + columna generada STORED con índice único para convivencia con soft delete (precedente archivado: `2026-07-11-fix-active-puesto-id-unique-type`).
+
+### Restricción MySQL 8 sobre columnas generadas STORED
+
+MySQL 8 declara `ALGORITHM=INPLACE` incompatible con la creación de una columna generada STORED durante una operación `ALTER TABLE`. El RED inicial sobre base limpia devolvió:
+
+```
+ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+```
+
+La columna STORED exige `ALGORITHM=COPY`, que bloquea lecturas y escrituras sobre `AspNetUsers` durante toda la copia — proporcional al tamaño de la tabla al momento del deploy.
+
+### Decisión adoptada
+
+El maintainer aceptó la **opción A — Aceptar `ALGORITHM=COPY`** en sesión interactiva tras el `sdd-apply` del PR1. La migración `AddSoftDeleteToAspNetUsers` se divide en dos operaciones para minimizar la ventana de bloqueo:
+
+1. **Paso 1 (`INPLACE, LOCK=NONE`)** — `ALTER TABLE AspNetUsers ADD COLUMN IsDeleted TINYINT(1) NOT NULL DEFAULT 0`. Online, sin bloqueo.
+2. **Paso 2 (`COPY`)** — `ALTER TABLE AspNetUsers ADD COLUMN ActiveUserNameUnique VARCHAR(256) GENERATED ALWAYS AS (CASE WHEN IsDeleted=0 THEN LOWER(UserName) ELSE NULL END) STORED COLLATE utf8mb4_0900_ai_ci, ADD UNIQUE INDEX IX_AspNetUsers_ActiveUserNameUnique`. Ventana de mantenimiento; tamaño proporcional al `COUNT(*)` de `AspNetUsers` al momento del deploy.
+
+Las alternativas evaluadas y descartadas quedan registradas en `openspec/changes/Implementa módulo usuarios/apply-progress.md`:
+
+- **B — Cambiar a `VIRTUAL`**: viable (`ALGORITHM=INPLACE` lo soporta), pero cambia el shape del DDL aprobado y exige revisión del design.
+- **C — Rediseñar el patrón** (trigger, índice condicional): fuera del alcance del change.
+
+### Plan operativo para producción
+
+Antes de aplicar la migración a un ambiente productivo:
+
+1. **Medir la ventana esperada**: `SELECT COUNT(*) FROM AspNetUsers` para estimar el tiempo de copia (regla práctica: ~10 s por cada 100 K filas en hardware medio).
+2. **Programar ventana de mantenimiento** con aviso a usuarios (la app puede seguir sirviendo lecturas, pero Login/SignUp/Create quedan bloqueados durante la copia).
+3. **Ejecutar la migración en dos pasos** (no atómicos): primero la columna `IsDeleted` (INPLACE), luego la columna STORED y el índice (COPY).
+4. **Validar post-deploy**: `SELECT COUNT(*) FROM AspNetUsers WHERE IsDeleted = 1` (debe ser 0 al inicio), `SHOW INDEX FROM AspNetUsers WHERE Key_name = 'IX_AspNetUsers_ActiveUserNameUnique'` (debe existir).
+
+### Limitaciones conocidas
+
+- **Índice único de Identity**: `AspNetUsers` mantiene su índice único estándar sobre `NormalizedUserName`. Si bien la columna nueva `ActiveUserNameUnique` protege la regla pedida (un mismo `UserName` no puede existir dos veces entre usuarios activos), reasignar el mismo `UserName` a un usuario reactivado mientras otro eliminado conserva `NormalizedUserName` puede seguir chocando con Identity. No se alteró ese índice porque no figura en el DDL aprobado; queda como follow-up si la regla se endurece en un change futuro.
+- **Auditoría explícita**: `SgvIdentityUser` no extiende `AuditableEntityBase`, por lo que `AuditoriaSaveChangesInterceptor` no captura mutaciones sobre `AspNetUsers`. La auditoría se hace manualmente vía `IAuditoriaServicio.RegistrarAsync` desde cada handler de mutación (`CrearUsuarioHandler`, `EditarUsuarioHandler`, `DesactivarUsuarioHandler`, `ReactivarUsuarioHandler`), incluyendo diffs de `UserName`, `Email` y roles.
+
+### Archivos clave del PR1
+
+- Migración: `src/SGV.Infraestructura/Persistencia/Migraciones/20260715145121_AddSoftDeleteToAspNetUsers.cs`.
+- Script SQL idempotente: `docs/migracion-add-softdelete-usuarios.sql`.
+- Modelo Identity: `src/SGV.Infraestructura/Seguridad/SgvIdentityUser.cs` + `SgvIdentityUserConfiguracion.cs`.
+- Gateway: `src/SGV.Infraestructura/Seguridad/UsuarioIdentityGateway.cs` (consulta paginada/segmentada sin N+1, actualización atómica, baja, reactivación).
+- Aplicación: `src/SGV.Aplicacion/Seguridad/Usuarios/UsuarioServicioComandos.cs` (D-01..D-04), `IAuditoriaServicio.cs`.
+- API: `src/SGV.Api/Controllers/UsuariosController.cs`, `src/SGV.Api/Seguridad/UsuarioActualHttpContext.cs`.
+- Contratos: `src/SGV.Contracts/Seguridad/Usuarios/UsuarioContracts.cs` (`UsuarioDto` con `Nombres`/`Apellidos` agregados al final; nuevos `ActualizarUsuarioRequest`, `UsuarioListQuery`, `UsuarioListadoDto`, `UsuarioSegmentoListado`).
+- Tests: 77 focalizados usuarios + 26 API + 10 MySQL gateway/migración + 2211 totales.
+
+### PR encadenados (feature-branch-chain)
+
+| PR | Rama | Scope | Tests netos |
+|----|------|-------|-------------|
+| 1 | `feat/2026-07-15-implementa-modulo-usuarios-pr1-backend` | Backend: migración + `/consulta` paginado + endpoints + auditoría | ~38 backend |
+| 2 | `feat/2026-07-15-implementa-modulo-usuarios-pr2-integration` (pendiente) | Integration client + DI + sidenav | ~14 |
+| 3 | `feat/2026-07-15-implementa-modulo-usuarios-pr3-paginas-listado` (pendiente) | Razor Pages Index/Details/Delete/Reactivar | ~18 |
+| 4 | `feat/2026-07-15-implementa-modulo-usuarios-pr4-paginas-form` (pendiente) | Razor Pages Create/Edit + `_Form.cshtml` | ~16 |
+
+Tracker PR (no-merge) mantiene la integración final en `feat/2026-07-15-implementa-modulo-usuarios-tracker` hasta que se decida el merge. La cadena vive bajo ese branch con 4 work-branches hijos. Cada PR child mantiene su diff enfocado en su work-unit y nunca apunta directo a `main` (regla del chained-pr skill).
+
+### Follow-up documentado (fuera del change)
+
+- PR2: cliente tipado `SGV.Web/Integration/Usuarios/{IUsuarioApiClient, UsuarioApiClient}` + DI.
+- PR3: Razor Pages Index segmentado + Details readonly + Delete (PRG) + Reactivar (PRG).
+- PR4: Razor Pages Create con dropdown Personas + Edit atómico + `_Form.cshtml` compartido + ítem colapsable "Seguridad" en `_Sidenav.cshtml` (gateado `EsAdministrador`).
 
 

@@ -3,6 +3,18 @@
     var homeActive = currentPath == "/" ? "active" : string.Empty;
     var unidadesOrganizativasActive = currentPath.StartsWithSegments("/organizacion/unidades-organizativas") ? "active" : string.Empty;
     var cargosActive = currentPath.StartsWithSegments("/organizacion/cargos") ? "active" : string.Empty;
+    // Usuarios: PR #2 expone el subítem debajo de un grupo colapsable
+    // "Seguridad" pero las Razor Pages del listado/Create/Edit/Details
+    // llegan en PR #3 y PR #4. El subítem se gated por rol
+    // Administrador (sólo lo ven usuarios con el claim de rol); los
+    // demás autenticados ven el grupo colapsable pero sin el link.
+    // La autorización por acción (POST requiere Administrador) se
+    // evalúa en cada Razor Page con [Authorize(Roles=Administrador)].
+    var seguridadGroupActive = currentPath.StartsWithSegments("/seguridad") ? "active" : string.Empty;
+    var usuariosActive = string.Equals(currentPath, "/seguridad/usuarios", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
+    var esAdministrador = User.IsInRole(SGV.Contracts.Seguridad.RolesSgv.Administrador);
     // Personas: PR #2 expone el ítem pero la Razor Page llega en PR #3.
     // El groupActive aplica a /personas(/...); "Listado" se marca activo
     // sólo en la ruta exacta y "Nueva" sólo en /personas/crear (mismo
@@ -174,6 +186,33 @@
 <span class="menu-text">Nueva</span>
 </a>
 </li>
+</ul>
+</div>
+</li>
+@* PR #2 del change "Implementa módulo usuarios": el grupo Seguridad
+   agrupa los subítems administrativos de Identity. El subítem
+   "Usuarios" se gated por el rol Administrador y se asocia a la
+   sección /seguridad/usuarios(/...). El grupo existe en el sidenav
+   para cualquier autenticado (preparado para futuros subítems
+   administrativos), pero el link "Usuarios" sólo se renderiza para
+   administradores; los demás ven el grupo vacío por ahora (los
+   subítems privados los cubre el spec de cada módulo). *@
+<li class="side-nav-item">
+<a aria-controls="seguridad" aria-expanded="false" class="side-nav-link side-nav-link-toggle @seguridadGroupActive" data-bs-toggle="collapse" href="#seguridad">
+<span class="menu-icon"><i class="ti ti-shield-lock"></i></span>
+<span class="menu-text">Seguridad</span>
+<span class="menu-arrow"></span>
+</a>
+<div class="collapse" id="seguridad">
+<ul class="sub-menu">
+@if (esAdministrador)
+{
+    <li class="side-nav-item">
+        <a class="side-nav-link @usuariosActive" href="/seguridad/usuarios">
+            <span class="menu-text">Usuarios</span>
+        </a>
+    </li>
+}
 </ul>
 </div>
 </li>

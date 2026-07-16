@@ -762,22 +762,87 @@ internal sealed class FakeOcupacionServicioComandos : IOcupacionServicioComandos
 
 internal sealed class FakeUsuarioServicioConsulta : IUsuarioServicioConsulta
 {
-    private static readonly IReadOnlyList<UsuarioDto> Users =
-    [
-        new("user-1", FakePersonaServicioConsulta.PersonaId1, "admin", "admin@test.com", [RolesSgv.Administrador])
-    ];
+    public static readonly UsuarioDto DefaultUser = new(
+        "user-1",
+        FakePersonaServicioConsulta.PersonaId1,
+        "admin",
+        "admin@test.com",
+        [RolesSgv.Administrador],
+        "Juan",
+        "Perez");
+
+    private readonly IReadOnlyList<UsuarioDto> _users;
+
+    public FakeUsuarioServicioConsulta(bool isEmpty = false)
+    {
+        _users = isEmpty ? [] : [DefaultUser];
+    }
+
+    public UsuarioListQuery? LastQuery { get; private set; }
 
     public Task<IReadOnlyList<UsuarioDto>> ListAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult(Users);
+        => Task.FromResult(_users);
+
+    public Task<UsuarioDto?> GetByIdAsync(string userId, CancellationToken cancellationToken = default)
+        => Task.FromResult(_users.FirstOrDefault(user => user.Id == userId));
+
+    public Task<PagedResult<UsuarioDto>> QueryAsync(
+        UsuarioListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        LastQuery = query;
+        return Task.FromResult(new PagedResult<UsuarioDto>(
+            _users,
+            _users.Count,
+            query.Page,
+            query.PageSize));
+    }
 }
 
 internal sealed class FakeUsuarioServicioComandos : IUsuarioServicioComandos
 {
-    public Task<UsuarioCommandResult> CrearAsync(CrearUsuarioRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(UsuarioCommandResult.Success(new UsuarioDto("user-1", request.PersonaId, request.UserName, request.Email, request.Roles)));
+    public Func<CrearUsuarioRequest, CancellationToken, Task<UsuarioCommandResult>>? CrearHandler { get; set; }
+    public Func<string, AsignarRolesRequest, CancellationToken, Task<UsuarioCommandResult>>? AsignarRolesHandler { get; set; }
+    public Func<string, ActualizarUsuarioRequest, CancellationToken, Task<UsuarioCommandResult>>? ActualizarHandler { get; set; }
+    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? DesactivarHandler { get; set; }
+    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? ReactivarHandler { get; set; }
 
-    public Task<UsuarioCommandResult> AsignarRolesAsync(string userId, AsignarRolesRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(UsuarioCommandResult.Success(new UsuarioDto(userId, FakePersonaServicioConsulta.PersonaId1, "admin", "admin@test.com", request.Roles)));
+    public Task<UsuarioCommandResult> CrearAsync(CrearUsuarioRequest request, CancellationToken cancellationToken = default)
+        => CrearHandler?.Invoke(request, cancellationToken)
+            ?? Task.FromResult(UsuarioCommandResult.Success(new UsuarioDto(
+                "user-1", request.PersonaId, request.UserName, request.Email, request.Roles, "Juan", "Perez")));
+
+    public Task<UsuarioCommandResult> AsignarRolesAsync(
+        string userId,
+        AsignarRolesRequest request,
+        CancellationToken cancellationToken = default)
+        => AsignarRolesHandler?.Invoke(userId, request, cancellationToken)
+            ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Roles = request.Roles }));
+
+    public Task<UsuarioCommandResult> ActualizarAsync(
+        string userId,
+        ActualizarUsuarioRequest request,
+        CancellationToken cancellationToken = default)
+        => ActualizarHandler?.Invoke(userId, request, cancellationToken)
+            ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with
+            {
+                Id = userId,
+                UserName = request.UserName,
+                Email = request.Email,
+                Roles = request.Roles
+            }));
+
+    public Task<UsuarioCommandResult> DesactivarAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+        => DesactivarHandler?.Invoke(userId, cancellationToken)
+            ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Id = userId }));
+
+    public Task<UsuarioCommandResult> ReactivarAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+        => ReactivarHandler?.Invoke(userId, cancellationToken)
+            ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Id = userId }));
 }
 
 internal sealed class FakeRolServicioConsulta : IRolServicioConsulta
