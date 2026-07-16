@@ -49,14 +49,19 @@ public sealed class RevalidatorCredenciales(
 
         if (user is null)
         {
-            logger.LogDebug("Credential rejected because user {UserId} no longer exists.", userId);
+            // RES-003 / REA-007: surface these — a token surviving a deleted account is a security event.
+            logger.LogInformation(
+                "Credential rejected because user {UserId} no longer exists.",
+                userId);
             return false;
         }
 
         var isLockedOut = await userManager.IsLockedOutAsync(user).ConfigureAwait(false);
         if (isLockedOut)
         {
-            logger.LogDebug("Credential rejected because user {UserId} is locked out.", userId);
+            logger.LogInformation(
+                "Credential rejected because user {UserId} is locked out.",
+                userId);
         }
 
         return !isLockedOut;

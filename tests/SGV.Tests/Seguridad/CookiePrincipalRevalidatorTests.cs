@@ -1,9 +1,14 @@
 using System.Net;
 using System.Net.Http;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using SGV.Web.Auth;
+using SGV.Web.Integration.Auth;
 using Xunit;
 
 namespace SGV.Tests.Seguridad;
@@ -13,31 +18,65 @@ public sealed class CookiePrincipalRevalidatorTests
     [Fact]
     public async Task SigueVigenteAsync_WhenApiAcceptsTheBearer_ReturnsTrue()
     {
-        var httpClientFactory = new StubHttpClientFactory(HttpStatusCode.OK);
-        var revalidator = new CookiePrincipalRevalidator(
-            httpClientFactory,
-            NullLogger<CookiePrincipalRevalidator>.Instance);
+        var script = ScriptedHandler.Returning(HttpStatusCode.OK);
+        var revalidator = Build(script);
 
         var result = await revalidator.SigueVigenteAsync("user-1", "jwt-token");
 
         Assert.True(result);
-        Assert.Equal("/api/v1/usuarios/user-1", httpClientFactory.LastRequest!.RequestUri!.PathAndQuery);
-        Assert.Equal("Bearer jwt-token", httpClientFactory.LastRequest.Headers.Authorization!.ToString());
+        Assert.Equal("/api/v1/usuarios/user-1", script.LastRequest!.RequestUri!.PathAndQuery);
+        Assert.Equal("Bearer jwt-token", script.LastRequest.Headers.Authorization!.ToString());
     }
 
     [Fact]
     public async Task SigueVigenteAsync_WhenApiReturnsNotFound_ReturnsFalse()
     {
-        var httpClientFactory = new StubHttpClientFactory(HttpStatusCode.NotFound);
-        var revalidator = new CookiePrincipalRevalidator(
-            httpClientFactory,
-            NullLogger<CookiePrincipalRevalidator>.Instance);
+        var script = ScriptedHandler.Returning(HttpStatusCode.NotFound);
+        var revalidator = Build(script);
 
         var result = await revalidator.SigueVigenteAsync("deleted-user", "jwt-token");
 
         Assert.False(result);
-        Assert.Equal("/api/v1/usuarios/deleted-user", httpClientFactory.LastRequest!.RequestUri!.PathAndQuery);
+        Assert.Equal("/api/v1/usuarios/deleted-user", script.LastRequest!.RequestUri!.PathAndQuery);
     }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized, false)]
+    [InlineData(HttpStatusCode.Forbidden, false)]
+    [InlineData(HttpStatusCode.InternalServerError, true)]
+    public async Task SigueVigenteAsync_ApiResponse_PreservesOrRejects(HttpStatusCode status, bool expected)
+    {
+        // REL-002: 401/403 must hard-reject the cookie (token revoked or
+        // account no longer authorized). 5xx is fail-open by design so an
+        // upstream outage does not cascade into a forced sign-out storm.
+        var script = ScriptedHandler.Returning(status);
+        var revalidator = Build(script);
+
+        var result = await revalidator.SigueVigenteAsync("user-1", "jwt-token");
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(TransportFailures))]
+    public async Task SigueVigenteAsync_TransportFailure_ReturnsTrue_FailOpen(Exception exception)
+    {
+        // REL-002: transport-level failures (DNS, connect refused, TLS) and
+        // call-token-cancellation timeouts must fail-open so the session is
+        // preserved while the API is unreachable.
+        var script = ScriptedHandler.Throwing(exception);
+        var revalidator = Build(script);
+
+        var result = await revalidator.SigueVigenteAsync("user-1", "jwt-token");
+
+        Assert.True(result);
+    }
+
+    public static IEnumerable<object[]> TransportFailures =>
+    [
+        [new HttpRequestException("connection refused")],
+        [new TaskCanceledException("timeout")]
+    ];
 
     [Fact]
     public void ValidateAsync_ExposesCookieValidationContextHandler()
@@ -51,30 +90,82 @@ public sealed class CookiePrincipalRevalidatorTests
         Assert.Equal(typeof(CookieValidatePrincipalContext), parameters[0].ParameterType);
     }
 
-    private sealed class StubHttpClientFactory(HttpStatusCode statusCode) : IHttpClientFactory
+    [Fact]
+    public async Task ValidateAsync_PicksLastNameIdentifierWhenMultipleClaims()
     {
-        public HttpRequestMessage? LastRequest { get; private set; }
-
-        public HttpClient CreateClient(string name)
-        {
-            var handler = new StubHttpMessageHandler(statusCode, request => LastRequest = request);
-            return new HttpClient(handler)
+        // RIS-002 / RES-002: AuthSessionFactory seeds NameIdentifier with
+        // UserNameOrEmail first, then appends the JWT-derived user ID last.
+        // The revalidator must use the JWT-derived ID (the only one the API
+        // accepts) or every sign-in would 404 on the next authenticated
+        // request and the cookie would be rejected.
+        var script = ScriptedHandler.Returning(HttpStatusCode.OK);
+        var revalidator = Build(script);
+        var jwtDerivedId = Guid.NewGuid().ToString("N");
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            new[]
             {
-                BaseAddress = new Uri("https://api.test")
-            };
-        }
+                new Claim(ClaimTypes.NameIdentifier, "alice@example.test"),
+                new Claim(ClaimTypes.NameIdentifier, jwtDerivedId)
+            },
+            CookieAuthenticationDefaults.AuthenticationScheme));
+        var properties = new AuthenticationProperties();
+        properties.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = AuthTokenNames.AccessToken, Value = "jwt-token" }
+        });
+        var scheme = new AuthenticationScheme(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            typeof(CookieAuthenticationHandler));
+        var context = new CookieValidatePrincipalContext(
+            new DefaultHttpContext(),
+            scheme,
+            new CookieAuthenticationOptions(),
+            new AuthenticationTicket(principal, properties, scheme.Name));
+
+        await revalidator.ValidateAsync(context);
+
+        Assert.False(context.ShouldRenew);
+        var escaped = Uri.EscapeDataString(jwtDerivedId);
+        Assert.Equal($"/api/v1/usuarios/{escaped}",
+            script.LastRequest!.RequestUri!.PathAndQuery);
     }
 
-    private sealed class StubHttpMessageHandler(
-        HttpStatusCode statusCode,
-        Action<HttpRequestMessage> capture) : HttpMessageHandler
+    private static CookiePrincipalRevalidator Build(ScriptedHandler script)
+        => new(new ScriptedHttpClientFactory(script), NullLogger<CookiePrincipalRevalidator>.Instance);
+
+    private sealed class ScriptedHttpClientFactory(ScriptedHandler script) : IHttpClientFactory
     {
+        public HttpClient CreateClient(string name) => new(script) { BaseAddress = new Uri("https://api.test") };
+    }
+
+    /// <summary>
+    /// Captures the outbound request and produces a deterministic outcome:
+    /// either a pre-baked <see cref="HttpResponseMessage"/> or a thrown
+    /// exception. Replaces the previous single-status stub so the 5xx and
+    /// transport-failure branches of <see cref="CookiePrincipalRevalidator"/>
+    /// can be exercised in unit tests.
+    /// </summary>
+    private sealed class ScriptedHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _outcome;
+
+        private ScriptedHandler(Func<HttpRequestMessage, HttpResponseMessage> outcome) => _outcome = outcome;
+
+        public HttpRequestMessage? LastRequest { get; private set; }
+
+        public static ScriptedHandler Returning(HttpStatusCode statusCode)
+            => new(_ => new HttpResponseMessage(statusCode));
+
+        public static ScriptedHandler Throwing(Exception exception)
+            => new(_ => throw exception);
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
-            capture(request);
-            return Task.FromResult(new HttpResponseMessage(statusCode));
+            LastRequest = request;
+            return Task.FromResult(_outcome(request));
         }
     }
 }

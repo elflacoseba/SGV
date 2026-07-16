@@ -29,7 +29,7 @@ Request protegida API ─► JWT bearer
 
 Request protegida Web ─► cookie auth
                      └► CookiePrincipalRevalidator
-                          └► HttpClient (bearer) ─► GET /api/v1/auth/vigente ─► RevalidatorCredenciales (en API)
+                          └► HttpClient (bearer) ─► GET /api/v1/usuarios/{userId} ─► UsuariosController (en API)
                   if !SigueVigente || 401/403/404 ─► RejectPrincipal + SignOut cookie
                   if 5xx ─► fail-open (preserva cookie, log warning)
                             Request sigue

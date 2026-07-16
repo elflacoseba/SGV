@@ -136,17 +136,18 @@ builder.Services.AddOptions<JwtBearerOptions>()
                 await existingHandler(context);
             }
 
-            context.HttpContext.Items[RevalidatorCredenciales.ValidationMarker] = true;
             var subject = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
             if (string.IsNullOrWhiteSpace(subject))
             {
+                context.Fail("subject claim required");
                 return;
             }
 
             var isValid = await revalidator.SigueVigenteAsync(
                 subject,
                 context.HttpContext.RequestAborted);
+            context.HttpContext.Items[RevalidatorCredenciales.ValidationMarker] = true;
             if (!isValid)
             {
                 context.Fail("Credencial revocada o cuenta bloqueada.");
@@ -228,28 +229,37 @@ app.UseAuthentication();
 app.Use(async (context, next) =>
 {
     if (context.User.Identity?.IsAuthenticated == true
-        && context.User.Identities.Any(identity =>
-            string.Equals(
-                identity.AuthenticationType,
-                JwtBearerDefaults.AuthenticationScheme,
-                StringComparison.Ordinal))
         && !context.Items.ContainsKey(RevalidatorCredenciales.ValidationMarker))
     {
+        // Real bearer principals carry `iss` (issuer) once MapInboundClaims
+        // has run; the Test auth scheme and similar stubs do not. This lets
+        // the revalidator run on production JWT without affecting test or
+        // non-bearer pipelines.
+        var hasIssuer = context.User.HasClaim(c => c.Type == JwtRegisteredClaimNames.Iss);
+        if (!hasIssuer)
+        {
+            await next();
+            return;
+        }
+
         var subject = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? context.User.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        if (!string.IsNullOrWhiteSpace(subject))
+        if (string.IsNullOrWhiteSpace(subject))
         {
-            var revalidator = context.RequestServices
-                .GetRequiredService<IRevalidatorCredenciales>();
-            var isValid = await revalidator.SigueVigenteAsync(
-                subject,
-                context.RequestAborted);
-            context.Items[RevalidatorCredenciales.ValidationMarker] = true;
-            if (!isValid)
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                return;
-            }
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
+        var revalidator = context.RequestServices
+            .GetRequiredService<IRevalidatorCredenciales>();
+        var isValid = await revalidator.SigueVigenteAsync(
+            subject,
+            context.RequestAborted);
+        context.Items[RevalidatorCredenciales.ValidationMarker] = true;
+        if (!isValid)
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
         }
     }
 

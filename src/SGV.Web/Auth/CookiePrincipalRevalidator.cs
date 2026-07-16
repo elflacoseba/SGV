@@ -102,7 +102,13 @@ public sealed class CookiePrincipalRevalidator(
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var userId = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+        // RIS-002: AuthSessionFactory seeds NameIdentifier with
+        // UserNameOrEmail first, then appends the JWT-derived user ID last.
+        // ClaimsPrincipal has no FindLast, so pick the last claim of that
+        // type — that is the only value the API accepts.
+        var userId = context.Principal?
+            .Claims.LastOrDefault(c => c.Type == ClaimTypes.NameIdentifier)
+            ?.Value;
         if (string.IsNullOrWhiteSpace(userId))
         {
             return;
