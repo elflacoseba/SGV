@@ -44,7 +44,7 @@ else
                     <h4 class="card-title mb-1">@Model.Usuario!.UserName</h4>
                     <p class="text-muted mb-0">@Model.Usuario.Email</p>
                 </div>
-                @if (Model.Bloqueado)
+                @if (Model.IsCuentaBloqueada)
                 {
                     @* Phase 3: banner visible cuando Bloqueado=true. La
                        fuente de verdad es el DTO; el returnStatus es sólo
@@ -101,7 +101,7 @@ else
             @if (Model.EsAdministrador)
             {
                 var esAuto = Model.EsAutoAccion(Model.Usuario!.Id);
-                @if (Model.Bloqueado)
+                @if (Model.IsCuentaBloqueada)
                 {
                     @* Estado bloqueado: sólo Desbloquear (no Edit, no Eliminar). *@
                     <form data-usuario-desbloquear-form method="post" action="/seguridad/usuarios?handler=Desbloquear">

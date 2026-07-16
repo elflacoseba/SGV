@@ -419,6 +419,57 @@ public sealed class IndexPageTests
     }
 
     [Fact]
+    public async Task Post_Bloquear_WhenApiReturnsTransportFailure_ShowsRecoverableFeedback()
+    {
+        // REL-002: cubrimos la rama transport de Bloquear análoga a la
+        // ya cubierta de Desbloquear. El admin debe permanecer en el
+        // mismo segmento (activas) con un banner de error recuperable.
+        var usuario = BuildUsuario("u-bloq-transport", "bloqt", "Bloc", "Trans", "bt@example.com", "Consultor");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        apiClient.BloquearException = new HttpRequestException("upstream down");
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+        var getResponse = await lease.Client.GetAsync("/seguridad/usuarios?status=activas&p=2");
+        var token = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await PostHandlerAsync(lease, token, "Bloquear", usuario.Id, status: "activas");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("status=activas", response.Headers.Location?.OriginalString ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
+        var content = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+        Assert.Contains("No se pudo bloquear", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Delete_WhenApiReturnsTransportFailure_ShowsRecoverableFeedback()
+    {
+        // REL-002: cubrimos la rama transport de Delete análoga a la ya
+        // cubierta de Desbloquear. El admin debe permanecer en el
+        // segmento donde estaba (activas) con un banner de error
+        // recuperable — el usuario NO se eliminó, así que el listado
+        // debe seguir mostrándolo.
+        var usuario = BuildUsuario("u-del-transport", "delt", "Del", "Trans", "dt@example.com", "Consultor");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        apiClient.EliminarException = new HttpRequestException("upstream down");
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+        var getResponse = await lease.Client.GetAsync("/seguridad/usuarios?status=activas");
+        var token = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await PostHandlerAsync(lease, token, "Delete", usuario.Id, status: "activas");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("status=activas", response.Headers.Location?.OriginalString ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
+        var content = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+        Assert.Contains("No se pudo eliminar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(usuario.UserName, content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Get_Index_WhenPageAndStatusAreInvalid_NormalizesToActivePageOne()
     {
         var apiClient = FakeUsuarioApiClient.WithUsuarioList();
@@ -457,6 +508,65 @@ public sealed class IndexPageTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/auth/sign-in", response.Headers.Location?.OriginalString ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Delete_WhenCommandReturnsNotFound_ShowsNotAvailableMessage()
+    {
+        // REL-003: doble eliminación o carrera con otro admin produce
+        // 404. El PageModel traduce la categoría NotFound al mensaje
+        // "ya no está disponible" y vuelve al segmento donde estaba el
+        // admin (no fuerza a `activas`) para preservar el contexto.
+        var usuario = BuildUsuario("u-ghost", "ghost", "Gh", "Ost", "g@example.com", "Consultor");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        apiClient.EliminarResult = UsuarioCommandResult.Failure(new UsuarioError(
+            UsuarioErrorType.NotFound,
+            "UsuarioNoEncontrado",
+            "El usuario no existe.",
+            404,
+            ErrorCategoria.NotFound));
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+        var getResponse = await lease.Client.GetAsync("/seguridad/usuarios?status=bloqueadas&p=2");
+        var token = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await PostHandlerAsync(lease, token, "Delete", usuario.Id, status: "bloqueadas");
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("status=bloqueadas", response.Headers.Location?.OriginalString ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        var refreshed = await lease.Client.GetAsync(response.Headers.Location);
+        var content = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+        Assert.Contains("ya no está disponible", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("Delete")]
+    [InlineData("Bloquear")]
+    [InlineData("Desbloquear")]
+    public async Task Post_LifecycleHandler_WithoutAntiforgeryToken_ReturnsBadRequestAndDoesNotCallApi(string handler)
+    {
+        // RIS-001 (CRITICAL): el atributo [AutoValidateAntiforgeryToken]
+        // del PageModel debe rechazar cualquier POST sin token. La vista
+        // emite @Html.AntiForgeryToken() pero un atacante CSRF no puede
+        // falsificarlo; este guard verifica que la ausencia del token
+        // cierra la brecha antes de tocar el cliente API.
+        var usuario = BuildUsuario("u-csrf", "csrf", "Crsf", "User", "csrf@example.com", "Consultor");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.PostAsync(
+            $"/seguridad/usuarios?handler={handler}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["id"] = usuario.Id,
+                ["page"] = "1"
+            }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(apiClient.EliminarCalls);
+        Assert.Empty(apiClient.BloquearCalls);
+        Assert.Empty(apiClient.DesbloquearCalls);
     }
 
     private static async Task<HttpResponseMessage> PostHandlerAsync(

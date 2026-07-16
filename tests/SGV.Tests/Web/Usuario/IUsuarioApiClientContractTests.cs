@@ -10,27 +10,29 @@ namespace SGV.Tests.Web.Usuario;
 /// Aprobación de contrato de <see cref="IUsuarioApiClient"/>.
 ///
 /// <para>
-/// La interface define siete métodos introducidos en el change
-/// <c>Implementa módulo usuarios</c>: <c>GetAllActivasAsync</c>,
+/// La interface define nueve métodos públicos introducidos en los
+/// cambios del módulo usuarios: <c>GetAllActivasAsync</c>,
 /// <c>QueryAsync</c>, <c>GetByIdAsync</c>, <c>CreateAsync</c>,
-/// <c>UpdateAsync</c>, <c>DesactivarAsync</c> (+ alias
-/// <c>DeleteAsync</c> default-implemented) y <c>ReactivarAsync</c>.
-/// El atajo <c>GetRolesAsync</c> fue retirado por el review de PR #148
-/// porque apuntaba a <c>GET /api/v1/usuarios/{userId}/roles</c>, ruta
-/// que nunca existió en el backend. Estos tests son guards de contrato:
-/// si alguien borra un método, le cambia el nombre, devuelve un tipo
+/// <c>UpdateAsync</c>, <c>BloquearAsync</c>, <c>DesbloquearAsync</c>,
+/// <c>EliminarAsync</c> y el alias default-implemented
+/// <c>DeleteAsync</c>. Phase 3 del change
+/// <c>2026-07-15-quita-soft-delete-usuario</c> retiró los métodos de
+/// baja lógica (<c>DesactivarAsync</c>, <c>ReactivarAsync</c>) y el
+/// atajo <c>GetRolesAsync</c> (PR #148) porque apuntaban a rutas que
+/// no existen en el backend. Estos tests son guards de contrato: si
+/// alguien borra un método, le cambia el nombre, devuelve un tipo
 /// distinto o le renombra un parámetro (e.g. <c>id</c> → <c>userId</c>),
 /// el test falla ANTES de que el cambio silencioso impacte las Razor
-/// Pages de PR 3/4.
+/// Pages de Phase 3.
 /// </para>
 ///
 /// <para>
-/// La forma <c>UsuarioDeleteResult</c> NO existe en PR 2 (se reutiliza
-/// <see cref="UsuarioCommandResult"/> + un par de propiedades de éxito/fallo
-/// para mantener el seam HTTP alineado con el shape de backend y evitar un
-/// quinto record casi idéntico a PersonaDeleteResult). El guardrail vive
-/// entonces en la firma de <c>DesactivarAsync</c> y su mapping al contrato
-/// <c>CommandResult</c> común.
+/// El guardrail de superficie completa (un test que verifica el set
+/// exacto de métodos públicos async) está al final del archivo
+/// (<c>Interface_ExposesExactlyExpectedPublicAsyncMethods</c>); el
+/// conteo se mantiene como set ordenado de strings en lugar de un
+/// número mágico para que el mensaje de falla enumere qué método
+/// sobró o faltó.
 /// </para>
 /// </summary>
 public class IUsuarioApiClientContractTests
@@ -219,20 +221,18 @@ public class IUsuarioApiClientContractTests
     }
 
     [Fact]
-    public void Interface_ExposesExactlyTenPublicAsyncMethods()
+    public void Interface_ExposesExactlyExpectedPublicAsyncMethods()
     {
-        // Defensa contra refactors "creativos" que sumen un nuevo método
-        // (e.g. <c>BulkCreateAsync</c>) sin actualizar la suite de
-        // contract tests. Tras la baja de ReactivarAsync y la baja del
-        // alias DeleteAsync (Phase 3 del change
-        // 2026-07-15-quita-soft-delete-usuario) quedan 9 métodos
-        // "primary" (GetAllActivasAsync, QueryAsync, GetByIdAsync,
-        // CreateAsync, UpdateAsync, EliminarAsync, BloquearAsync,
-        // DesbloquearAsync, AssignRolesAsync) más el alias
-        // <c>DeleteAsync</c> default-implemented, total 10. En realidad
-        // AssignRolesAsync no está en IUsuarioApiClient (lo cubre
-        // PersonaApiClient), así que quedan exactamente los 9 primarios
-        // de Web + DeleteAsync = 10.
+        // Defensa contra refactors "creativos" que sumen o quiten un
+        // método (e.g. <c>BulkCreateAsync</c>, restauración de
+        // <c>DesactivarAsync</c>) sin actualizar la suite de contract
+        // tests. Phase 3 del change
+        // 2026-07-15-quita-soft-delete-usuario retiró
+        // <c>DesactivarAsync</c>/<c>ReactivarAsync</c> y consolidó el
+        // ciclo de baja en <c>EliminarAsync</c> + lockout admin
+        // (<c>BloquearAsync</c>/<c>DesbloquearAsync</c>). El set
+        // esperado se mantiene como lista ordenada para que el mensaje
+        // de falla identifique exactamente qué método sobra o falta.
         var publicMethods = typeof(IUsuarioApiClient)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => !m.IsSpecialName) // excluye accessors

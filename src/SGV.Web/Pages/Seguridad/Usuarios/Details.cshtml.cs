@@ -24,8 +24,18 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 /// cuenta bloqueada se renderiza aunque <c>returnStatus</c> diga
 /// <c>activas</c>.
 /// </para>
+/// <para>
+/// <see cref="AutoValidateAntiforgeryTokenAttribute"/> se aplica a nivel
+/// de PageModel como defensa en profundidad (RIS-001): los forms de
+/// Bloquear / Desbloquear / Eliminar en la vista postean contra
+/// <c>/seguridad/usuarios?handler=…</c> (IndexModel), pero si en el
+/// futuro DetailsModel suma POST handlers propios, el atributo ya
+/// estará en su lugar. La vista sigue emitiendo
+/// <c>@Html.AntiForgeryToken()</c> en cada form.
+/// </para>
 /// </remarks>
 [Authorize]
+[AutoValidateAntiforgeryToken]
 public sealed class DetailsModel(
     IUsuarioApiClient usuarioApiClient,
     ILogger<DetailsModel> logger) : PageModel
@@ -60,7 +70,14 @@ public sealed class DetailsModel(
     /// muestra el banner de "Cuenta bloqueada" y las acciones de
     /// Desbloquear. Tiene precedencia sobre <see cref="IsBlockedView"/>.
     /// </summary>
-    public bool Bloqueado => Usuario?.Bloqueado == true;
+    /// <remarks>
+    /// REA-014: el nombre anterior <c>Bloqueado</c> sombreaba el
+    /// homónimo del DTO (<see cref="UsuarioDto.Bloqueado"/>) y hacía
+    /// trivial confundir el "flag de lockout del usuario X" con "este
+    /// PageModel cree que X está bloqueado". Se renombra a
+    /// <c>IsCuentaBloqueada</c> para hacer explícita la proyección.
+    /// </remarks>
+    public bool IsCuentaBloqueada => Usuario?.Bloqueado == true;
 
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
 

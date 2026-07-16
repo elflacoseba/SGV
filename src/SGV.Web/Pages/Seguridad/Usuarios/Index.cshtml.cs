@@ -33,8 +33,18 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 /// <c>AuthSessionFactory</c> en el login). El render de la vista repite
 /// el guard para mantener UX coherente con el server-side.
 /// </para>
+/// <para>
+/// <see cref="AutoValidateAntiforgeryTokenAttribute"/> se aplica a nivel
+/// de PageModel porque <c>Program.cs</c> está fuera del scope de Phase 3
+/// (RIS-001): la vista emite <c>@Html.AntiForgeryToken()</c> y la
+/// ausencia de <c>app.UseAntiforgery()</c> deja la puerta abierta a
+/// CSRF contra <c>OnPostDeleteAsync</c>, <c>OnPostBloquearAsync</c> y
+/// <c>OnPostDesbloquearAsync</c>. El atributo cierra esa brecha sin
+/// tocar la composition root.
+/// </para>
 /// </remarks>
 [Authorize]
+[AutoValidateAntiforgeryToken]
 public sealed class IndexModel(
     IUsuarioApiClient usuarioApiClient,
     IAuthSessionRedirector authRedirector,
