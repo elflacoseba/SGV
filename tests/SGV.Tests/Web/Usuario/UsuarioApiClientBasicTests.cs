@@ -78,11 +78,14 @@ public class UsuarioApiClientBasicTests
     }
 
     [Fact]
-    public async Task DesactivarAsync_Http200_ReturnsSuccessAndHitsDeleteRoute()
+    public async Task EliminarAsync_Http200WithDto_ReturnsSuccessAndHitsDeleteRoute()
     {
-        // Backend PR1 expone 200 con DTO en DELETE (no 204) para
-        // soportar la rama AutoBaja/Permissions en code que pueda
-        // inspeccionar el body. El cliente tipado lo trata como éxito.
+        // AC: el backend emite 204 No Content en éxito (hard-delete
+        // físico). Si el cliente tipado recibe un 200 con DTO (e.g.
+        // para una build legacy del backend), el comportamiento es el
+        // mismo: Success con el DTO refrescado. La cobertura detallada
+        // del 204 vive en
+        // `UsuarioApiClientBloquearDesbloquearEliminarTests`.
         var personaId = Guid.NewGuid();
         var payload = new UsuarioDto(
             "u-3", personaId, "ladmin", "ladmin@example.com",
@@ -90,36 +93,12 @@ public class UsuarioApiClientBasicTests
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new UsuarioApiClient(NewHttpClient(handler));
 
-        var result = await client.DesactivarAsync("u-3");
+        var result = await client.EliminarAsync("u-3");
 
         Assert.True(result.IsSuccess);
         Assert.Equal("u-3", result.Value!.Id);
         Assert.Equal(HttpMethod.Delete, handler.LastRequest?.Method);
         Assert.Equal($"/api/v1/usuarios/u-3", handler.LastRequest?.RequestUri?.AbsolutePath);
-    }
-
-    [Fact]
-    public async Task DesactivarAsync_Http403AutoBaja_ReturnsFailureWithForbiddenCategoriaAndAutoBajaCode()
-    {
-        // AC: AutoBaja se traduce a Forbidden en el mapper común
-        // (regla D-01). Si el mapper común NO lo cubre, el backend ya
-        // emite 403 con ProblemDetails.Title="AutoBaja" igual.
-        var problem = new ProblemDetails
-        {
-            Status = 403,
-            Title = "AutoBaja",
-            Detail = "No podés darte de baja a vos mismo."
-        };
-        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Forbidden, problem));
-        var client = new UsuarioApiClient(NewHttpClient(handler));
-
-        var result = await client.DesactivarAsync("u-self");
-
-        Assert.False(result.IsSuccess);
-        Assert.NotNull(result.Error);
-        Assert.Equal(ErrorCategoria.Forbidden, result.Error!.Categoria);
-        Assert.Equal(UsuarioErrorType.Validation, result.Error.Type);
-        Assert.Equal("AutoBaja", result.Error.Code);
     }
 
     [Fact]
@@ -326,21 +305,22 @@ public class UsuarioApiClientBasicTests
     }
 
     [Fact]
-    public async Task QueryAsync_WithStatusEliminadas_SerializesStatusInUri()
+    public async Task QueryAsync_WithStatusBloqueadas_SerializesStatusInUri()
     {
-        // AC: el segmento Eliminadas se serializa como `status=eliminadas`
+        // AC: el segmento Bloqueadas se serializa como `status=bloqueadas`
         // en el query string; cualquier otro valor (incluido Activas y
         // default) omite el parámetro para que la API caiga a activas.
         //
-        // PR2-HALL: el shape wire del PR1 entrega `UsuarioListadoDto`
-        // como wrapper sobre `PagedResult<UsuarioDto>`. El test
-        // materializa el wrapper explícito.
+        // Cambio 2026-07-15-quita-soft-delete-usuario: el segmento
+        // `Eliminadas` (basado en IsDeleted) se renombra a `Bloqueadas`
+        // (basado en LockoutEnd). El alias `Eliminadas` se conserva
+        // temporalmente en Phase 1 y se retira en Phase 3.
         var payload = new UsuarioListadoDto(
             new PagedResult<UsuarioDto>(
                 Items: new[]
                 {
-                    new UsuarioDto("u-eli", Guid.NewGuid(), "eliminado", "e@example.com",
-                        new[] { "Consultor" }, Nombres: "E", Apellidos: "Eliminado")
+                    new UsuarioDto("u-bloq", Guid.NewGuid(), "bloqueado", "b@example.com",
+                        new[] { "Consultor" }, Nombres: "B", Apellidos: "Bloqueado")
                 },
                 TotalCount: 1,
                 Page: 1,
@@ -348,13 +328,13 @@ public class UsuarioApiClientBasicTests
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new UsuarioApiClient(NewHttpClient(handler));
 
-        var result = await client.QueryAsync(new UsuarioListQuery(1, 20, null, null, UsuarioSegmentoListado.Eliminadas));
+        var result = await client.QueryAsync(new UsuarioListQuery(1, 20, null, null, UsuarioSegmentoListado.Bloqueadas));
 
         Assert.Single(result.Result.Items);
         Assert.Equal(1, result.Result.TotalCount);
         Assert.Equal(HttpMethod.Get, handler.LastRequest?.Method);
         Assert.Equal("/api/v1/usuarios/consulta", handler.LastRequest?.RequestUri?.AbsolutePath);
-        Assert.Contains("status=eliminadas", handler.LastRequest?.RequestUri?.Query, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("status=bloqueadas", handler.LastRequest?.RequestUri?.Query, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -393,48 +373,7 @@ public class UsuarioApiClientBasicTests
         Assert.Contains("sort=userName_asc", query, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public async Task ReactivarAsync_Http200_ReturnsDtoAndHitsReactivarRoute()
-    {
-        var personaId = Guid.NewGuid();
-        var dto = new UsuarioDto(
-            "u-reac", personaId, "reactivado", "r@example.com",
-            new[] { "Administrador" }, Nombres: "Reac", Apellidos: "Tivado");
-        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
-        var client = new UsuarioApiClient(NewHttpClient(handler));
 
-        var result = await client.ReactivarAsync("u-reac");
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal("u-reac", result.Value!.Id);
-        Assert.Equal(HttpMethod.Patch, handler.LastRequest?.Method);
-        Assert.Equal($"/api/v1/usuarios/u-reac/reactivar", handler.LastRequest?.RequestUri?.AbsolutePath);
-    }
-
-    [Fact]
-    public async Task ReactivarAsync_Http409PersonaInactiva_ReturnsFailureWithConflictCategoria()
-    {
-        // AC: D-02 (regla de reactivación). Si la Persona vinculada está
-        // IsDeleted=1, el backend responde 409 con
-        // Title="PersonaInactiva". El mapper lo lleva a Conflict
-        // categoria con code "PersonaInactiva" para que el banner de
-        // feedback sea accionable.
-        var problem = new ProblemDetails
-        {
-            Status = 409,
-            Title = "PersonaInactiva",
-            Detail = "La persona asociada está dada de baja; reactivala antes."
-        };
-        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Conflict, problem));
-        var client = new UsuarioApiClient(NewHttpClient(handler));
-
-        var result = await client.ReactivarAsync("u-eli-inactive");
-
-        Assert.False(result.IsSuccess);
-        Assert.NotNull(result.Error);
-        Assert.Equal(ErrorCategoria.Conflict, result.Error!.Categoria);
-        Assert.Equal("PersonaInactiva", result.Error.Code);
-    }
 
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, ErrorCategoria.Unauthorized)]
@@ -498,19 +437,16 @@ public class UsuarioApiClientBasicTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WhenInvokedThroughInterface_DelegatesToDesactivarAsync()
+    public async Task DeleteAsync_WhenInvokedThroughInterface_DelegatesToEliminarAsync()
     {
         // AC: el alias `DeleteAsync` se define como default interface
         // method sobre IUsuarioApiClient; el typed-client tipado
         // (concreto `UsuarioApiClient`) NO lo expone como método público,
         // sólo lo cumple vía la interface. Para preservar el guard de
         // contrato, ejercitamos la interface explícitamente en vez de
-        // la clase concreta.
-        var personaId = Guid.NewGuid();
-        var dto = new UsuarioDto(
-            "u-aliased", personaId, "al", "al@example.com",
-            new[] { "Administrador" });
-        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
+        // la clase concreta. Phase 3: DeleteAsync delega en
+        // `EliminarAsync` (hard-delete), no en `DesactivarAsync`.
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         IUsuarioApiClient client = new UsuarioApiClient(NewHttpClient(handler));
 
         var result = await client.DeleteAsync("u-aliased");

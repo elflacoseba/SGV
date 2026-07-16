@@ -27,12 +27,25 @@ public sealed record ActualizarUsuarioRequest(
     IReadOnlyCollection<string> Roles);
 
 /// <summary>
-/// Selects active or soft-deleted users for paginated queries.
+/// Selects users by lockout state for paginated queries. Replaces the
+/// previous <c>Eliminadas</c> segment that mapped to the now-removed
+/// <c>IsDeleted</c> column; <c>Bloqueadas</c> covers both
+/// administrative lockouts and Identity's <c>MaxFailedAccessAttempts</c>
+/// temporary lockouts — see design decision D5.
 /// </summary>
 public enum UsuarioSegmentoListado
 {
     Activas = 0,
-    Eliminadas = 1
+    Bloqueadas = 1,
+
+    /// <summary>
+    /// DEPRECATED alias for <see cref="Bloqueadas"/>. Mantenido
+    /// temporalmente en Phase 1 para que el código Web (Pages Razor,
+    /// tests de FakeUsuarioApiClient) siga compilando; el rediseño de
+    /// la UI (Pages) ocurre en Phase 3 y retira este alias.
+    /// </summary>
+    [Obsolete("Use Bloqueadas. Phase 3 retira este alias.")]
+    Eliminadas = Bloqueadas
 }
 
 /// <summary>
@@ -64,7 +77,14 @@ public sealed record LoginResponse(string AccessToken, DateTimeOffset ExpiresAt)
 
 /// <summary>
 /// Projection of a SGV user exposed by the API. Carries the linked
-/// persona id, the identity username/email and the assigned role names.
+/// persona id, the identity username/email, the assigned role names
+/// and the lockout flag (<c>Bloqueado</c>) derived from
+/// <c>LockoutEnd &gt; UtcNow</c>. Migration
+/// <c>2026-07-15-quita-soft-delete-usuario</c> (REA-009 / RIS-006 /
+/// REL-001): el flag se rellena tanto en
+/// <c>UsuarioIdentityGateway.MapAsync</c> como en la proyección de
+/// <c>QueryAsync</c>; el default <c>false</c> mantiene source-compat
+/// con los 23 <c>new UsuarioDto(...)</c> posicionales vigentes.
 /// </summary>
 public sealed record UsuarioDto(
     string Id,
@@ -73,7 +93,8 @@ public sealed record UsuarioDto(
     string Email,
     IReadOnlyCollection<string> Roles,
     string? Nombres = null,
-    string? Apellidos = null);
+    string? Apellidos = null,
+    bool Bloqueado = false);
 
 /// <summary>
 /// Categorizes failures produced by user-management write operations.

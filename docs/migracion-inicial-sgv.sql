@@ -530,7 +530,7 @@ BEGIN
         `TipoAsignacion` varchar(50) CHARACTER SET utf8mb4 NOT NULL,
         `Observaciones` varchar(1000) CHARACTER SET utf8mb4 NULL,
         `ActivePersonaIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) NULL,
-        `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL,
+        `ActivePuestoIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL,
         `CreatedAt` datetime(6) NOT NULL,
         `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
         `UpdatedAt` datetime(6) NULL,
@@ -2051,6 +2051,621 @@ DROP PROCEDURE IF EXISTS MigrationsScript;
 DELIMITER //
 CREATE PROCEDURE MigrationsScript()
 BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+
+                    CREATE TEMPORARY TABLE IF NOT EXISTS _DirtyNivelesCargo AS
+                    SELECT DISTINCT Nivel
+                    FROM Cargos
+                    WHERE Nivel IS NOT NULL
+                      AND Nivel NOT IN ('Directivo', 'Conducción media', 'Operativo', 'Académico');
+
+                    SET @dirtyCount = (SELECT COUNT(*) FROM _DirtyNivelesCargo);
+                    SET @dirtyExamples = (
+                        SELECT COALESCE(GROUP_CONCAT(Nivel SEPARATOR ', '), 'ninguno')
+                        FROM (SELECT Nivel FROM _DirtyNivelesCargo LIMIT 5) AS d
+                    );
+
+                    SET @msg = CONCAT(
+                        'Backfill fail-loud: ', @dirtyCount,
+                        ' valores de Nivel sin catalogar. Ejemplos: ', @dirtyExamples
+                    );
+
+                    SET @sql = IF(@dirtyCount > 0,
+                        CONCAT('SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = ''', @msg, ''''),
+                        'SELECT 1');
+                    PREPARE stmt FROM @sql;
+                    EXECUTE stmt;
+                    DEALLOCATE PREPARE stmt;
+
+                    DROP TEMPORARY TABLE IF EXISTS _DirtyNivelesCargo;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    CREATE TABLE `NivelesCargo` (
+        `Id` char(36) COLLATE ascii_general_ci NOT NULL,
+        `Codigo` varchar(50) COLLATE ascii_general_ci NOT NULL,
+        `Nombre` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+        `ValorNumerico` tinyint unsigned NOT NULL,
+        `Orden` int NOT NULL,
+        CONSTRAINT `PK_NivelesCargo` PRIMARY KEY (`Id`),
+        CONSTRAINT `CK_NivelesCargo_ValorNumerico` CHECK (`ValorNumerico` >= 0 AND `ValorNumerico` <= 255)
+    ) CHARACTER SET=utf8mb4;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    INSERT INTO `NivelesCargo` (`Id`, `Codigo`, `Nombre`, `Orden`, `ValorNumerico`)
+    VALUES ('70000000-0000-0000-0000-000000000001', 'Directivo', 'Directivo', 1, 1),
+    ('70000000-0000-0000-0000-000000000002', 'ConduccionMedia', 'Conducción Media', 2, 2),
+    ('70000000-0000-0000-0000-000000000003', 'Operativo', 'Operativo', 3, 3),
+    ('70000000-0000-0000-0000-000000000004', 'Academico', 'Académico', 4, 4);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    ALTER TABLE `Cargos` ADD `NivelId` char(36) COLLATE ascii_general_ci NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+
+                    UPDATE Cargos c
+                    INNER JOIN NivelesCargo nc ON
+                        (c.Nivel = 'Directivo'        AND nc.Codigo = 'Directivo')
+                        OR (c.Nivel = 'Conducción media' AND nc.Codigo = 'ConduccionMedia')
+                        OR (c.Nivel = 'Operativo'        AND nc.Codigo = 'Operativo')
+                        OR (c.Nivel = 'Académico'        AND nc.Codigo = 'Academico')
+                    SET c.NivelId = nc.Id
+                    WHERE c.Nivel IS NOT NULL;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    UPDATE `Cargos` SET `NivelId` = '70000000-0000-0000-0000-000000000001'
+    WHERE `Id` = '40000000-0000-0000-0000-000000000001';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    UPDATE `Cargos` SET `NivelId` = '70000000-0000-0000-0000-000000000001'
+    WHERE `Id` = '40000000-0000-0000-0000-000000000002';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    UPDATE `Cargos` SET `NivelId` = '70000000-0000-0000-0000-000000000002'
+    WHERE `Id` = '40000000-0000-0000-0000-000000000003';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    UPDATE `Cargos` SET `NivelId` = '70000000-0000-0000-0000-000000000002'
+    WHERE `Id` = '40000000-0000-0000-0000-000000000004';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    UPDATE `Cargos` SET `NivelId` = '70000000-0000-0000-0000-000000000003'
+    WHERE `Id` = '40000000-0000-0000-0000-000000000005';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    UPDATE `Cargos` SET `NivelId` = '70000000-0000-0000-0000-000000000004'
+    WHERE `Id` = '40000000-0000-0000-0000-000000000006';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    ALTER TABLE `Cargos` MODIFY COLUMN `NivelId` char(36) COLLATE ascii_general_ci NOT NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    CREATE INDEX `IX_Cargos_NivelId` ON `Cargos` (`NivelId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    CREATE UNIQUE INDEX `IX_NivelesCargo_Codigo` ON `NivelesCargo` (`Codigo`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    ALTER TABLE `Cargos` ADD CONSTRAINT `FK_Cargos_NivelesCargo_NivelId` FOREIGN KEY (`NivelId`) REFERENCES `NivelesCargo` (`Id`) ON DELETE RESTRICT;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    ALTER TABLE `Cargos` DROP COLUMN `Nivel`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260618180508_CambiarNivelStringANivelId') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260618180508_CambiarNivelStringANivelId', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+
+                    SET @existingUsers = (SELECT COUNT(*) FROM AspNetUsers);
+                    SET @userMsg = CONCAT(
+                        'Backfill fail-loud: AspNetUsers contains ', @existingUsers,
+                        ' existing users. Populate PersonaId explicitly before applying this migration.'
+                    );
+                    SET @userSql = IF(@existingUsers > 0,
+                        CONCAT('SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = ''', @userMsg, ''''),
+                        'SELECT 1');
+                    PREPARE stmt FROM @userSql;
+                    EXECUTE stmt;
+                    DEALLOCATE PREPARE stmt;
+
+                    SET @legacyAssignments = (
+                        SELECT COUNT(*)
+                        FROM AspNetUserRoles ur
+                        INNER JOIN AspNetRoles r ON r.Id = ur.RoleId
+                        WHERE r.Id IN ('RecursosHumanos', 'GestorOrganizacional', 'EvaluadorSeleccion', 'Lector')
+                    );
+                    SET @roleMsg = CONCAT(
+                        'Backfill fail-loud: ', @legacyAssignments,
+                        ' assignments use legacy roles. Reassign users to Administrador, GestorVacantes, or Consultor before applying this migration.'
+                    );
+                    SET @roleSql = IF(@legacyAssignments > 0,
+                        CONCAT('SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = ''', @roleMsg, ''''),
+                        'SELECT 1');
+                    PREPARE stmt FROM @roleSql;
+                    EXECUTE stmt;
+                    DEALLOCATE PREPARE stmt;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    DELETE FROM `AspNetRoles`
+    WHERE `Id` = 'EvaluadorSeleccion';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    DELETE FROM `AspNetRoles`
+    WHERE `Id` = 'GestorOrganizacional';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    DELETE FROM `AspNetRoles`
+    WHERE `Id` = 'Lector';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    DELETE FROM `AspNetRoles`
+    WHERE `Id` = 'RecursosHumanos';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    ALTER TABLE `AspNetUsers` ADD `PersonaId` char(36) COLLATE ascii_general_ci NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    INSERT INTO `AspNetRoles` (`Id`, `ConcurrencyStamp`, `Name`, `NormalizedName`)
+    VALUES ('Consultor', 'rol-Consultor', 'Consultor', 'CONSULTOR'),
+    ('GestorVacantes', 'rol-GestorVacantes', 'GestorVacantes', 'GESTORVACANTES');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    CREATE UNIQUE INDEX `IX_AspNetUsers_PersonaId` ON `AspNetUsers` (`PersonaId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    ALTER TABLE `AspNetUsers` ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId` FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`) ON DELETE RESTRICT;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260621202540_VincularIdentityUsuariosAPersonas') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260621202540_VincularIdentityUsuariosAPersonas', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePersonaIdUnique`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    ALTER TABLE `Ocupaciones` DROP COLUMN `ActivePersonaIdUnique`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente'
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina'
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Temporal'
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    ALTER TABLE `Ocupaciones` MODIFY COLUMN `TipoAsignacion` int NOT NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    ALTER TABLE `Ocupaciones` ADD `ActivePersonaPuestoUnique` varchar(100) CHARACTER SET utf8mb4 AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(`PersonaId`, ':', `PuestoId`) ELSE NULL END) NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePersonaPuestoUnique` ON `Ocupaciones` (`ActivePersonaPuestoUnique`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260711181615_FixActivePuestoIdUniqueType') THEN
 
     ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePuestoIdUnique`;
@@ -2097,6 +2712,363 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260711181615_FixActivePuestoIdUniqueType', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD COLUMN `IsDeleted` TINYINT(1) NOT NULL DEFAULT 0,
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD COLUMN `ActiveUserNameUnique` VARCHAR(256)
+        COLLATE `utf8mb4_0900_ai_ci`
+        GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN LOWER(`UserName`) ELSE NULL END) STORED,
+      ALGORITHM=COPY;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD UNIQUE INDEX `IX_AspNetUsers_ActiveUserNameUnique` (`ActiveUserNameUnique`),
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      DROP INDEX `IX_AspNetUsers_PersonaId`,
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
+      FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
+      ON DELETE RESTRICT,
+      ALGORITHM=COPY;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD COLUMN `ActivePersonaIdUnique` CHAR(36)
+        COLLATE `ascii_general_ci`
+        GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED,
+      ALGORITHM=COPY;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD UNIQUE INDEX `IX_AspNetUsers_ActivePersonaIdUnique` (`ActivePersonaIdUnique`),
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260715145121_AddSoftDeleteToAspNetUsers') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260715145121_AddSoftDeleteToAspNetUsers', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    SET @duplicatePersonas = (
+        SELECT COUNT(*) FROM (
+            SELECT `PersonaId`
+            FROM `AspNetUsers`
+            GROUP BY `PersonaId`
+            HAVING COUNT(*) > 1
+        ) AS dupes
+    );
+    SET @preflightMsg = CONCAT(
+        'Backfill fail-loud: ', @duplicatePersonas,
+        ' PersonaId duplicados entre AspNetUsers activas. ',
+        'Resolver duplicados manualmente antes de aplicar esta migración.'
+    );
+    SET @preflightSql = IF(@duplicatePersonas > 0,
+        CONCAT('SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'', @preflightMsg, '\''),
+        'SELECT 1');
+    PREPARE stmt FROM @preflightSql;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    UPDATE `AspNetUsers`
+    SET `LockoutEnabled` = 1,
+        `LockoutEnd` = '9999-12-31 23:59:59.999999'
+    WHERE `IsDeleted` = 1;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      DROP INDEX `IX_AspNetUsers_ActiveUserNameUnique`,
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      DROP INDEX `IX_AspNetUsers_ActivePersonaIdUnique`,
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      DROP COLUMN `ActiveUserNameUnique`,
+      DROP COLUMN `ActivePersonaIdUnique`,
+      DROP COLUMN `IsDeleted`,
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      DROP INDEX `IX_AspNetUsers_PersonaId`,
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
+      ALGORITHM=INPLACE,
+      LOCK=NONE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    ALTER TABLE `AspNetUsers`
+      ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
+      FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
+      ON DELETE RESTRICT,
+      ALGORITHM=COPY;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260716120000_DropSoftDeleteFromAspNetUsers', '9.0.0');
 
     END IF;
 END //

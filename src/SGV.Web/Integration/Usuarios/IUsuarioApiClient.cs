@@ -5,23 +5,28 @@ namespace SGV.Web.Integration.Usuarios;
 /// <summary>
 /// Cliente HTTP tipado del módulo web de Usuarios.
 /// Permite listar cuentas activas (catálogo), consultar paginado y
-/// segmentado, obtener por id, ejecutar baja lógica, crear cuentas nuevas,
-/// actualizar credenciales y roles de cuentas existentes, reactivarlas y
-/// consultar el catálogo de roles asignado a un usuario.
+/// segmentado, obtener por id, ejecutar el ciclo de lockout admin
+/// (bloquear / desbloquear / eliminar físico), crear cuentas nuevas,
+/// actualizar credenciales y roles de cuentas existentes y consultar el
+/// catálogo de roles asignado a un usuario.
 /// </summary>
 /// <remarks>
 /// <para>
-/// PR 2 del change <c>Implementa módulo usuarios</c>. La rama no exitosa
-/// delega en los mappers comunes del shell web
-/// (<c>ApiProblemReader</c>, <c>CommandResultMapper</c>) para preservar la
-/// matriz <see cref="SGV.Contracts.Comun.ErrorCategoria"/>. Los enums
-/// legacy <see cref="UsuarioErrorType"/> se siguen alimentando desde el
-/// helper de mapeo interno (<c>MapCategoriaToLegacyType</c>) para
-/// preservar source-compat con cualquier call site vigente.
+/// PR 2 del change <c>Implementa módulo usuarios</c>. PR 3 del change
+/// <c>2026-07-15-quita-soft-delete-usuario</c> reemplaza las operaciones
+/// de baja lógica (<c>Desactivar</c>, <c>Reactivar</c>) por el ciclo de
+/// lockout nativo de Identity (<c>Bloquear</c>, <c>Desbloquear</c>) y el
+/// borrado físico (<c>Eliminar</c>); la rama no exitosa delega en los
+/// mappers comunes del shell web (<c>ApiProblemReader</c>,
+/// <c>CommandResultMapper</c>) para preservar la matriz
+/// <see cref="SGV.Contracts.Comun.ErrorCategoria"/>. Los enums legacy
+/// <see cref="UsuarioErrorType"/> se siguen alimentando desde el helper
+/// de mapeo interno (<c>MapCategoriaToLegacyType</c>) para preservar
+/// source-compat con cualquier call site vigente.
 /// </para>
 /// <para>
 /// El shape wire cumple el contrato <c>SGV.Contracts.Seguridad.Usuarios</c>
-/// y los códigos de dominio <c>AutoBaja</c>, <c>PersonaInactiva</c>,
+/// y los códigos de dominio <c>AutoBloqueo</c>, <c>AutoEliminacion</c>,
 /// <c>UserNameDuplicado</c>, <c>EmailDuplicado</c>, <c>PersonaRequerida</c>
 /// y <c>RolNoSoportado</c> llegan del backend en <c>ProblemDetails.Title</c>
 /// y se exponen vía <see cref="UsuarioError.Code"/>.
@@ -40,7 +45,7 @@ public interface IUsuarioApiClient
     /// <summary>
     /// Ejecuta la consulta paginada y segmentada vía
     /// <c>GET /api/v1/usuarios/consulta</c>. <c>query.Segmento</c> se
-    /// serializa como query string <c>status=eliminadas</c> cuando
+    /// serializa como query string <c>status=bloqueadas</c> cuando
     /// corresponde; cualquier otro valor (incluyendo
     /// <see cref="UsuarioSegmentoListado.Activas"/>) omite el parámetro
     /// y deja que la API caiga a <c>activas</c> por defecto.
@@ -83,33 +88,44 @@ public interface IUsuarioApiClient
     Task<UsuarioCommandResult> UpdateAsync(string id, ActualizarUsuarioRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Ejecuta la baja lógica de un usuario vía
+    /// Ejecuta el borrado físico de un usuario vía
     /// <c>DELETE /api/v1/usuarios/{id}</c> y traduce la respuesta a un
-    /// <see cref="UsuarioCommandResult"/>. <c>AutoBaja</c> se traduce a
-    /// <see cref="SGV.Contracts.Comun.ErrorCategoria.Forbidden"/> con
-    /// código <c>AutoBaja</c>; cualquier otra respuesta fallida se
-    /// traduce por el mapper común.
+    /// <see cref="UsuarioCommandResult"/>. <c>AutoEliminacion</c> se
+    /// traduce a <see cref="SGV.Contracts.Comun.ErrorCategoria.Forbidden"/>
+    /// con código <c>AutoEliminacion</c>; cualquier otra respuesta
+    /// fallida se traduce por el mapper común. El backend responde
+    /// <c>204 No Content</c> en éxito; el cliente tipado trata el
+    /// <c>204</c> como <see cref="UsuarioCommandResult.Success"/> con
+    /// <c>Value</c> nulo (no se necesita el DTO post-borrado).
     /// </summary>
-    Task<UsuarioCommandResult> DesactivarAsync(string id, CancellationToken cancellationToken = default);
+    Task<UsuarioCommandResult> EliminarAsync(string id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Alias semánticamente equivalente a <see cref="DesactivarAsync"/>.
-    /// Se conserva para alinear la nomenclatura del helper con el resto
-    /// de los módulos web que exponen <c>DeleteAsync</c>; lo
-    /// renombramos en este módulo a <c>Desactivar</c> porque el backend
-    /// implementa soft-delete. Reservamos <c>Delete*</c> para el futuro
-    /// borrado físico si llegara a existir.
+    /// Alias semánticamente equivalente a <see cref="EliminarAsync"/>.
+    /// Se conserva como default interface method para no romper
+    /// call sites históricos del shell (<c>cargo</c>,
+    /// <c>habilidad</c>); el contrato Web canónico es
+    /// <see cref="EliminarAsync"/>.
     /// </summary>
     Task<UsuarioCommandResult> DeleteAsync(string id, CancellationToken cancellationToken = default)
-        => DesactivarAsync(id, cancellationToken);
+        => EliminarAsync(id, cancellationToken);
 
     /// <summary>
-    /// Reactiva un usuario eliminado lógicamente vía
-    /// <c>PATCH /api/v1/usuarios/{id}/reactivar</c> y traduce la
-    /// respuesta a un <see cref="UsuarioCommandResult"/>. La regla D-02
-    /// del design (Persona inactiva → Conflict) se traduce a
-    /// <see cref="SGV.Contracts.Comun.ErrorCategoria.Conflict"/> con
-    /// código <c>PersonaInactiva</c>.
+    /// Aplica el lockout administrativo de una cuenta vía
+    /// <c>POST /api/v1/usuarios/{id}/bloquear</c>. El backend devuelve
+    /// <c>200 OK</c> con el <see cref="UsuarioDto"/> actualizado
+    /// (incluye <c>Bloqueado = true</c>) para que la Razor Page pueda
+    /// confirmar el nuevo estado. <c>AutoBloqueo</c> se traduce a
+    /// <see cref="SGV.Contracts.Comun.ErrorCategoria.Forbidden"/> con
+    /// código <c>AutoBloqueo</c>.
     /// </summary>
-    Task<UsuarioCommandResult> ReactivarAsync(string id, CancellationToken cancellationToken = default);
+    Task<UsuarioCommandResult> BloquearAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Quita el lockout administrativo de una cuenta vía
+    /// <c>POST /api/v1/usuarios/{id}/desbloquear</c>. El backend devuelve
+    /// <c>200 OK</c> con el <see cref="UsuarioDto"/> actualizado
+    /// (incluye <c>Bloqueado = false</c>).
+    /// </summary>
+    Task<UsuarioCommandResult> DesbloquearAsync(string id, CancellationToken cancellationToken = default);
 }

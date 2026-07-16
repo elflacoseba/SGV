@@ -804,8 +804,9 @@ internal sealed class FakeUsuarioServicioComandos : IUsuarioServicioComandos
     public Func<CrearUsuarioRequest, CancellationToken, Task<UsuarioCommandResult>>? CrearHandler { get; set; }
     public Func<string, AsignarRolesRequest, CancellationToken, Task<UsuarioCommandResult>>? AsignarRolesHandler { get; set; }
     public Func<string, ActualizarUsuarioRequest, CancellationToken, Task<UsuarioCommandResult>>? ActualizarHandler { get; set; }
-    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? DesactivarHandler { get; set; }
-    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? ReactivarHandler { get; set; }
+    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? BloquearHandler { get; set; }
+    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? DesbloquearHandler { get; set; }
+    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? EliminarHandler { get; set; }
 
     public Task<UsuarioCommandResult> CrearAsync(CrearUsuarioRequest request, CancellationToken cancellationToken = default)
         => CrearHandler?.Invoke(request, cancellationToken)
@@ -832,16 +833,22 @@ internal sealed class FakeUsuarioServicioComandos : IUsuarioServicioComandos
                 Roles = request.Roles
             }));
 
-    public Task<UsuarioCommandResult> DesactivarAsync(
+    public Task<UsuarioCommandResult> BloquearAsync(
         string userId,
         CancellationToken cancellationToken = default)
-        => DesactivarHandler?.Invoke(userId, cancellationToken)
+        => BloquearHandler?.Invoke(userId, cancellationToken)
             ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Id = userId }));
 
-    public Task<UsuarioCommandResult> ReactivarAsync(
+    public Task<UsuarioCommandResult> DesbloquearAsync(
         string userId,
         CancellationToken cancellationToken = default)
-        => ReactivarHandler?.Invoke(userId, cancellationToken)
+        => DesbloquearHandler?.Invoke(userId, cancellationToken)
+            ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Id = userId }));
+
+    public Task<UsuarioCommandResult> EliminarAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+        => EliminarHandler?.Invoke(userId, cancellationToken)
             ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Id = userId }));
 }
 

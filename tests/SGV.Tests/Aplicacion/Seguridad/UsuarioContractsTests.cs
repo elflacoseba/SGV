@@ -10,18 +10,20 @@ namespace SGV.Tests.Aplicacion.Seguridad;
 public sealed class UsuarioContractsTests
 {
     [Fact]
-    public void UsuarioDto_AppendsNullablePersonaNamesAfterExistingProperties()
+    public void UsuarioDto_AppendsNullablePersonaNamesAndLockoutFlagAfterExistingProperties()
     {
         var constructor = Assert.Single(typeof(UsuarioDto).GetConstructors());
         var parameters = constructor.GetParameters();
 
         Assert.Equal(
-            ["Id", "PersonaId", "UserName", "Email", "Roles", "Nombres", "Apellidos"],
+            ["Id", "PersonaId", "UserName", "Email", "Roles", "Nombres", "Apellidos", "Bloqueado"],
             parameters.Select(parameter => parameter.Name!).ToArray());
-        Assert.Equal(typeof(string), parameters[^2].ParameterType);
-        Assert.Equal(typeof(string), parameters[^1].ParameterType);
-        Assert.True(new NullabilityInfoContext().Create(parameters[^2]).ReadState is NullabilityState.Nullable);
-        Assert.True(new NullabilityInfoContext().Create(parameters[^1]).ReadState is NullabilityState.Nullable);
+        Assert.Equal(typeof(string), parameters[5].ParameterType);
+        Assert.Equal(typeof(string), parameters[6].ParameterType);
+        Assert.True(new NullabilityInfoContext().Create(parameters[5]).ReadState is NullabilityState.Nullable);
+        Assert.True(new NullabilityInfoContext().Create(parameters[6]).ReadState is NullabilityState.Nullable);
+        Assert.Equal(typeof(bool), parameters[7].ParameterType);
+        Assert.True(parameters[7].HasDefaultValue);
     }
 
     [Fact]

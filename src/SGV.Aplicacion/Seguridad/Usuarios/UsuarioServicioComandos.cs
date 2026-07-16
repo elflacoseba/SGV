@@ -32,10 +32,6 @@ public sealed class UsuarioServicioComandos(
             return Validation("DatosInvalidos", "Usuario, email y contraseña son obligatorios.");
         }
 
-        // PR #148 review: ActualizarAsync ya validaba el formato del
-        // email con MailAddress.TryCreate. Replicamos el helper
-        // compartido aquí para no aceptar emails que el backend de
-        // Identity rechazaría downstream con un error menos explícito.
         if (!IsValidEmail(request.Email))
         {
             return Validation("EmailInvalido", "El email no tiene un formato válido.");
@@ -125,9 +121,6 @@ public sealed class UsuarioServicioComandos(
             return Validation("DatosInvalidos", "Usuario y email son obligatorios.");
         }
 
-        // PR #148 review: la validación de email ahora vive en el
-        // helper compartido IsValidEmail. El comportamiento observable
-        // (código EmailInvalido + categoria Validation) se mantiene.
         if (!IsValidEmail(request.Email))
         {
             return Validation("EmailInvalido", "El email no tiene un formato válido.");
@@ -160,7 +153,7 @@ public sealed class UsuarioServicioComandos(
         return result;
     }
 
-    public async Task<UsuarioCommandResult> DesactivarAsync(
+    public async Task<UsuarioCommandResult> BloquearAsync(
         string userId,
         CancellationToken cancellationToken = default)
     {
@@ -169,12 +162,13 @@ public sealed class UsuarioServicioComandos(
             return Validation("UsuarioRequerido", "El usuario es obligatorio.");
         }
 
+        // Auto-bloqueo prohibido: no podés bloquearte a vos mismo.
         if (string.Equals(usuarioActual.UserId, userId, StringComparison.Ordinal))
         {
             return Failure(
                 UsuarioErrorType.Unauthorized,
-                "AutoBaja",
-                "No puede desactivar su propio usuario.",
+                "AutoBloqueo",
+                "No puede bloquear su propio usuario.",
                 ErrorCategoria.Forbidden);
         }
 
@@ -184,23 +178,30 @@ public sealed class UsuarioServicioComandos(
             return UserNotFound();
         }
 
-        var result = await identityGateway.DesactivarAsync(userId, cancellationToken).ConfigureAwait(false);
+        var result = await identityGateway.BloquearAsync(userId, cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return result;
         }
 
-        await RegistrarAuditoriaAsync(
-            previous,
-            "BajaLogica",
-            CriticalValues(previous),
-            EmptyValues,
-            cancellationToken).ConfigureAwait(false);
+        // RIS-004 (4R review): capturar estado de seguridad previo en la
+        // auditoría; antes era EmptyValues, lo que perdía la transición
+        // `Bloqueado=false → Bloqueado=true`. previous.Bloqueado ya viene
+        // poblado por Corr 4 (UsuarioIdentityGateway.MapAsync).
+        if (!previous.Bloqueado)
+        {
+            await RegistrarAuditoriaAsync(
+                result.Value!,
+                "BloqueoUsuario",
+                CriticalValues(previous),
+                CriticalValues(result.Value!),
+                cancellationToken).ConfigureAwait(false);
+        }
 
         return result;
     }
 
-    public async Task<UsuarioCommandResult> ReactivarAsync(
+    public async Task<UsuarioCommandResult> DesbloquearAsync(
         string userId,
         CancellationToken cancellationToken = default)
     {
@@ -215,32 +216,63 @@ public sealed class UsuarioServicioComandos(
             return UserNotFound();
         }
 
-        var persona = await personaRepository
-            .GetByIdIncludingDeletedAsync(previous.PersonaId, cancellationToken)
-            .ConfigureAwait(false);
-        if (persona is null || !persona.IsActive)
-        {
-            return Failure(
-                UsuarioErrorType.Conflict,
-                "PersonaInactiva",
-                "La persona asociada debe reactivarse antes que el usuario.",
-                ErrorCategoria.Conflict);
-        }
-
-        var result = await identityGateway.ReactivarAsync(userId, cancellationToken).ConfigureAwait(false);
+        var result = await identityGateway.DesbloquearAsync(userId, cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return result;
         }
 
-        await RegistrarAuditoriaAsync(
-            result.Value!,
-            "Reactivacion",
-            EmptyValues,
-            CriticalValues(result.Value!),
-            cancellationToken).ConfigureAwait(false);
+        // RIS-004: análogo a BloquearAsync.
+        if (previous.Bloqueado)
+        {
+            await RegistrarAuditoriaAsync(
+                result.Value!,
+                "DesbloqueoUsuario",
+                CriticalValues(previous),
+                CriticalValues(result.Value!),
+                cancellationToken).ConfigureAwait(false);
+        }
 
         return result;
+    }
+
+    public async Task<UsuarioCommandResult> EliminarAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Validation("UsuarioRequerido", "El usuario es obligatorio.");
+        }
+
+        // Auto-eliminación prohibida: no podés borrarte a vos mismo.
+        if (string.Equals(usuarioActual.UserId, userId, StringComparison.Ordinal))
+        {
+            return Failure(
+                UsuarioErrorType.Unauthorized,
+                "AutoEliminacion",
+                "No puede eliminar su propio usuario.",
+                ErrorCategoria.Forbidden);
+        }
+
+        var previous = await identityGateway.ObtenerAsync(userId, cancellationToken).ConfigureAwait(false);
+        if (previous is null)
+        {
+            return UserNotFound();
+        }
+
+        // RES-002 (4R review): auditar ANTES del delete físico. El auditor
+        // ya persiste via SaveChangesAsync(); si DeleteAsync falla
+        // downstream la fila de Auditoria queda registrada, satisfaciendo
+        // el requisito de trazabilidad del intento de eliminación.
+        await RegistrarAuditoriaAsync(
+            previous,
+            "EliminacionFisica",
+            CriticalValues(previous),
+            EmptyValues,
+            cancellationToken).ConfigureAwait(false);
+
+        return await identityGateway.EliminarAsync(userId, cancellationToken).ConfigureAwait(false);
     }
 
     private static readonly IReadOnlyDictionary<string, object?> EmptyValues =
@@ -249,13 +281,6 @@ public sealed class UsuarioServicioComandos(
     private static bool IsValidRoleSet(IReadOnlyCollection<string> roles)
         => roles.Count > 0 && RolesSgv.TodosValidos(roles);
 
-    /// <summary>
-    /// PR #148 review: helper compartido entre <see cref="CrearAsync"/>
-    /// y <see cref="ActualizarAsync"/> para validar el formato del
-    /// email antes de invocar al gateway. <see cref="MailAddress.TryCreate(string, out _)"/>
-    /// es la primitiva oficial de .NET para esto y es consistente con
-    /// la validación interna de ASP.NET Core Identity.
-    /// </summary>
     private static bool IsValidEmail(string? email)
         => !string.IsNullOrWhiteSpace(email)
             && MailAddress.TryCreate(email, out _);
@@ -265,7 +290,13 @@ public sealed class UsuarioServicioComandos(
         {
             ["UserName"] = user.UserName,
             ["Email"] = user.Email,
-            ["Roles"] = string.Join(',', user.Roles.OrderBy(role => role, StringComparer.Ordinal))
+            ["Roles"] = string.Join(',', user.Roles.OrderBy(role => role, StringComparer.Ordinal)),
+            // RIS-004 (4R review): capturar Bloqueado en la auditoría para
+            // distinguir transiciones lockout ⇒ unlock en el log de cambios.
+            // LockoutEnd / LockoutEnabled / AccessFailedCount (más profundos)
+            // requieren un nuevo gateway method y se difieren a Phase 2
+            // para no inflar el budget del bounded correction transaction.
+            ["Bloqueado"] = user.Bloqueado
         };
 
     private Task RegistrarAuditoriaAsync(

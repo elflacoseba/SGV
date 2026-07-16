@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using SGV.Api.Infrastructure.Health;
 using SGV.Contracts.Seguridad;
+using SGV.Web.Auth;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
@@ -44,10 +45,17 @@ builder.Services
         options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
             ? CookieSecurePolicy.SameAsRequest
             : CookieSecurePolicy.Always;
-        options.LoginPath = "/auth/sign-in";
-        options.LogoutPath = "/auth/logout";
-        options.AccessDeniedPath = "/error/403";
-    });
+         options.LoginPath = "/auth/sign-in";
+         options.LogoutPath = "/auth/logout";
+         options.AccessDeniedPath = "/error/403";
+         options.Events.OnValidatePrincipal = async context =>
+         {
+             var revalidator = context.HttpContext.RequestServices
+                 .GetRequiredService<CookiePrincipalRevalidator>();
+             await revalidator.ValidateAsync(context);
+         };
+     });
+
 
 builder.Services.AddAuthorization();
 
@@ -58,6 +66,7 @@ builder.Services.AddAuthorization();
 // forwarding every typed client request would land as anonymous and the API's
 // [Authorize] guard would reject it.
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<CookiePrincipalRevalidator>();
 builder.Services.AddTransient<ApiBearerTokenHandler>();
 
 // Issue #125 (Slice 3): helper que traduce ErrorCategoria.Unauthorized en
@@ -81,6 +90,15 @@ builder.Services.AddHttpClient(SgvApiHealthProbeHttpClient.Name, (sp, client) =>
     var opts = sp.GetRequiredService<IOptions<SgvApiOptions>>().Value;
     client.BaseAddress = new Uri(opts.BaseUrl, UriKind.Absolute);
     client.Timeout = TimeSpan.FromSeconds(3);
+});
+
+builder.Services.AddHttpClient(CookiePrincipalRevalidator.HttpClientName, (serviceProvider, client) =>
+{
+    var options = serviceProvider
+        .GetRequiredService<IOptions<SgvApiOptions>>()
+        .Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(10);
 });
 
 builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>((serviceProvider, client) =>

@@ -12,18 +12,6 @@
 {
     <div class="alert alert-@Model.StatusKind d-flex justify-content-between align-items-center" role="alert">
         <span>@Model.StatusMessage</span>
-        @if (Model.EsAdministrador && Model.HasLastDeleted && !Model.IsDeletedView)
-        {
-            <form method="post" class="d-inline">
-                @Html.AntiForgeryToken()
-                <input name="id" type="hidden" value="@Model.LastDeletedId" />
-                <input name="page" type="hidden" value="@Model.CurrentPage" />
-                <input name="search" type="hidden" value="@Model.Search" />
-                <input name="sort" type="hidden" value="@Model.Sort" />
-                <input name="status" type="hidden" value="@Model.Segmento" />
-                <button type="submit" class="btn btn-sm btn-outline-primary ms-2" formaction="?handler=Reactivate">Reactivar</button>
-            </form>
-        }
         @if (TempData["ErrorCode"] is string errorCode && !string.IsNullOrWhiteSpace(errorCode))
         {
             <span class="badge bg-secondary ms-2">@errorCode</span>
@@ -42,23 +30,23 @@
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
                     <h4 class="card-title mb-1">
-                        @(Model.IsDeletedView ? "Listado de usuarios eliminados" : "Listado de usuarios activos")
+                        @(Model.IsBlockedView ? "Listado de usuarios bloqueados" : "Listado de usuarios activos")
                     </h4>
                     <p class="text-muted mb-0">
-                        @(Model.IsDeletedView
-                            ? "Visualiza y reactiva cuentas dadas de baja lógica."
+                        @(Model.IsBlockedView
+                            ? "Visualiza y desbloquea cuentas con lockout administrativo."
                             : "Consulta y administra las cuentas vinculadas a Personas.")
                     </p>
                 </div>
                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
                     <div class="btn-group" role="group" aria-label="Filtrar por estado">
-                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")"
+                        <a class="btn btn-sm @(Model.IsBlockedView ? "btn-light" : "btn-primary")"
                            href="@Url.Page("/Seguridad/Usuarios/Index", Model.BuildToggleSegmentoRouteValues("activas"))">Activos</a>
-                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")"
-                           href="@Url.Page("/Seguridad/Usuarios/Index", Model.BuildToggleSegmentoRouteValues("eliminadas"))">Eliminados</a>
+                        <a class="btn btn-sm @(Model.IsBlockedView ? "btn-primary" : "btn-light")"
+                           href="@Url.Page("/Seguridad/Usuarios/Index", Model.BuildToggleSegmentoRouteValues("bloqueadas"))">Bloqueados</a>
                     </div>
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
-                    @if (!Model.IsDeletedView && Model.EsAdministrador)
+                    @if (!Model.IsBlockedView && Model.EsAdministrador)
                     {
                         <a class="btn btn-primary btn-sm" href="/seguridad/usuarios/crear">
                             <i class="ti ti-plus me-1"></i>Crear usuario
@@ -140,8 +128,8 @@
                         {
                             <tr>
                                 <td class="text-center text-muted py-4" colspan="6">
-                                    @(Model.IsDeletedView
-                                        ? "No se encontraron usuarios eliminados."
+                                    @(Model.IsBlockedView
+                                        ? "No se encontraron usuarios bloqueados."
                                         : "No se encontraron usuarios activos.")
                                 </td>
                             </tr>
@@ -150,7 +138,7 @@
                         {
                             foreach (var item in Model.Items)
                             {
-                                var displayName = string.Join(" ", new[] { item.Nombres, item.Apellidos }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                                var esAuto = Model.EsAutoAccion(item.Id);
                                 <tr>
                                     <td class="fw-semibold">@item.UserName</td>
                                     <td>@item.Email</td>
@@ -171,7 +159,7 @@
                                     </td>
                                     <td>
                                         <div class="d-flex justify-content-center gap-1">
-                                            @if (!Model.IsDeletedView)
+                                            @if (!Model.IsBlockedView)
                                             {
                                                 <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Model.BuildDetailsUrl(item.Id)"
                                                    data-bs-toggle="tooltip" data-bs-title="Ver detalle" aria-label="Detalle de @item.UserName">
@@ -183,34 +171,51 @@
                                                        data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.UserName">
                                                         <i class="ti ti-edit fs-lg"></i>
                                                     </a>
-                                                    <form data-usuario-delete-form method="post">
-                                                        @Html.AntiForgeryToken()
-                                                        <input name="id" type="hidden" value="@item.Id" />
-                                                        <input name="page" type="hidden" value="@Model.CurrentPage" />
-                                                        <input name="search" type="hidden" value="@Model.Search" />
-                                                        <input name="sort" type="hidden" value="@Model.Sort" />
-                                                        <input name="status" type="hidden" value="@Model.Segmento" />
-                                                        <button aria-label="Eliminar @item.UserName" class="btn btn-danger btn-icon btn-sm rounded-circle"
-                                                                data-usuario-delete-button data-usuario-item-name="@displayName" data-usuario-item-username="@item.UserName"
-                                                                data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
-                                                            <i class="ti ti-trash fs-lg"></i>
-                                                        </button>
-                                                    </form>
+                                                    if (!esAuto)
+                                                    {
+                                                        <form data-usuario-bloquear-form method="post">
+                                                            @Html.AntiForgeryToken()
+                                                            <input name="id" type="hidden" value="@item.Id" />
+                                                            <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                            <input name="search" type="hidden" value="@Model.Search" />
+                                                            <input name="sort" type="hidden" value="@Model.Sort" />
+                                                            <input name="status" type="hidden" value="@Model.Segmento" />
+                                                            <button aria-label="Bloquear a @item.UserName" class="btn btn-secondary btn-icon btn-sm rounded-circle"
+                                                                    data-usuario-bloquear-button
+                                                                    data-bs-toggle="tooltip" data-bs-title="Bloquear" formaction="?handler=Bloquear" type="submit">
+                                                                <i class="ti ti-lock fs-lg"></i>
+                                                            </button>
+                                                        </form>
+                                                        <form data-usuario-delete-form method="post">
+                                                            @Html.AntiForgeryToken()
+                                                            <input name="id" type="hidden" value="@item.Id" />
+                                                            <input name="page" type="hidden" value="@Model.CurrentPage" />
+                                                            <input name="search" type="hidden" value="@Model.Search" />
+                                                            <input name="sort" type="hidden" value="@Model.Sort" />
+                                                            <input name="status" type="hidden" value="@Model.Segmento" />
+                                                            <button aria-label="Eliminar a @item.UserName" class="btn btn-danger btn-icon btn-sm rounded-circle"
+                                                                    data-usuario-delete-button
+                                                                    data-bs-toggle="modal" data-bs-target="#confirm-delete-modal"
+                                                                    formaction="?handler=Delete" type="submit">
+                                                                <i class="ti ti-trash fs-lg"></i>
+                                                            </button>
+                                                        </form>
+                                                    }
                                                 }
                                             }
                                             else if (Model.EsAdministrador)
                                             {
-                                                <form data-usuario-reactivate-form method="post">
+                                                <form data-usuario-desbloquear-form method="post">
                                                     @Html.AntiForgeryToken()
                                                     <input name="id" type="hidden" value="@item.Id" />
                                                     <input name="page" type="hidden" value="@Model.CurrentPage" />
                                                     <input name="search" type="hidden" value="@Model.Search" />
                                                     <input name="sort" type="hidden" value="@Model.Sort" />
                                                     <input name="status" type="hidden" value="@Model.Segmento" />
-                                                    <button aria-label="Reactivar @item.UserName" class="btn btn-success btn-icon btn-sm rounded-circle"
-                                                            data-usuario-reactivate-button data-usuario-item-name="@displayName" data-usuario-item-username="@item.UserName"
-                                                            data-bs-toggle="tooltip" data-bs-title="Reactivar" formaction="?handler=Reactivate" type="submit">
-                                                        <i class="ti ti-refresh fs-lg"></i>
+                                                    <button aria-label="Desbloquear a @item.UserName" class="btn btn-success btn-icon btn-sm rounded-circle"
+                                                            data-usuario-desbloquear-button
+                                                            data-bs-toggle="tooltip" data-bs-title="Desbloquear" formaction="?handler=Desbloquear" type="submit">
+                                                        <i class="ti ti-lock-open fs-lg"></i>
                                                     </button>
                                                 </form>
                                             }
@@ -245,3 +250,52 @@
         </div>
     </div>
 </div>
+
+@* Modal irreversible de confirmación de eliminación. Phase 3: NO muestra
+   el nombre de usuario (ni UserName ni nombres/apellidos) para no
+   exponer PII al usuario que está a punto de confirmar un borrado
+   físico. La decisión se reduce a "este usuario" — el admin confirma
+   que conoce el impacto y avanza. *@
+<div class="modal fade" id="confirm-delete-modal" tabindex="-1" aria-labelledby="confirm-delete-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirm-delete-modal-title">Eliminar usuario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    Esta acción eliminará <strong>este usuario</strong> de forma permanente. No se puede deshacer.
+                </p>
+                <p class="text-muted small mb-0">
+                    La persona vinculada y las auditorías previas se conservan.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" data-usuario-delete-confirm>Eliminar definitivamente</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    (function () {
+        var confirmButton = document.querySelector('[data-usuario-delete-confirm]');
+        if (!confirmButton) return;
+        confirmButton.addEventListener('click', function () {
+            var trigger = window.__pendingDeleteTrigger;
+            if (!trigger) return;
+            trigger.submit();
+            window.__pendingDeleteTrigger = null;
+        });
+        document.querySelectorAll('[data-usuario-delete-button]').forEach(function (btn) {
+            btn.addEventListener('click', function (event) {
+                event.preventDefault();
+                window.__pendingDeleteTrigger = btn.closest('form');
+            });
+        });
+    })();
+</script>
+}

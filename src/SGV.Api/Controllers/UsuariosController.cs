@@ -40,8 +40,8 @@ public sealed class UsuariosController(
     {
         var normalizedPage = Math.Max(1, page);
         var normalizedPageSize = Math.Clamp(size ?? pageSize, 1, 100);
-        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? UsuarioSegmentoListado.Eliminadas
+        var segmento = string.Equals(status, "bloqueadas", StringComparison.OrdinalIgnoreCase)
+            ? UsuarioSegmentoListado.Bloqueadas
             : UsuarioSegmentoListado.Activas;
         var query = new UsuarioListQuery(
             normalizedPage,
@@ -124,24 +124,41 @@ public sealed class UsuariosController(
         string id,
         CancellationToken cancellationToken)
     {
-        var result = await comandos.DesactivarAsync(id, cancellationToken);
+        var result = await comandos.EliminarAsync(id, cancellationToken);
         return result.IsSuccess
             ? NoContent()
             : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
-    [HttpPatch("{id}/reactivar")]
+    [HttpPost("{id}/bloquear")]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<UsuarioDto>> Reactivate(
+    public async Task<ActionResult<UsuarioDto>> Bloquear(
         string id,
         CancellationToken cancellationToken)
     {
-        var result = await comandos.ReactivarAsync(id, cancellationToken);
+        var result = await comandos.BloquearAsync(id, cancellationToken);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
+    }
+
+    [HttpPost("{id}/desbloquear")]
+    [Authorize(Roles = RolesSgv.Administrador)]
+    [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<UsuarioDto>> Desbloquear(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var result = await comandos.DesbloquearAsync(id, cancellationToken);
         return result.IsSuccess
             ? Ok(result.Value)
             : ApiResults.ToProblemResult(result.Error!, HttpContext);

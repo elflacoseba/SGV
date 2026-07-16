@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -12,13 +13,35 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 /// Readonly Usuarios detail page with recoverable not-found behavior and
 /// navigation context preserved back to the segmented index.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Phase 3 del change <c>2026-07-15-quita-soft-delete-usuario</c>: la
+/// página consulta el DTO real vía API y delega en el flag
+/// <see cref="UsuarioDto.Bloqueado"/> la decisión visual del estado.
+/// El query string <c>returnStatus</c> queda como hint de view (e.g.
+/// para deep-links desde el listado bloqueadas) pero NO es fuente de
+/// verdad: si la API devuelve <c>Bloqueado=true</c>, el banner de
+/// cuenta bloqueada se renderiza aunque <c>returnStatus</c> diga
+/// <c>activas</c>.
+/// </para>
+/// <para>
+/// <see cref="AutoValidateAntiforgeryTokenAttribute"/> se aplica a nivel
+/// de PageModel como defensa en profundidad (RIS-001): los forms de
+/// Bloquear / Desbloquear / Eliminar en la vista postean contra
+/// <c>/seguridad/usuarios?handler=…</c> (IndexModel), pero si en el
+/// futuro DetailsModel suma POST handlers propios, el atributo ya
+/// estará en su lugar. La vista sigue emitiendo
+/// <c>@Html.AntiForgeryToken()</c> en cada form.
+/// </para>
+/// </remarks>
 [Authorize]
+[AutoValidateAntiforgeryToken]
 public sealed class DetailsModel(
     IUsuarioApiClient usuarioApiClient,
     ILogger<DetailsModel> logger) : PageModel
 {
     private const string ActiveView = "activas";
-    private const string DeletedView = "eliminadas";
+    private const string BlockedView = "bloqueadas";
 
     public UsuarioDto? Usuario { get; private set; }
 
@@ -32,10 +55,47 @@ public sealed class DetailsModel(
 
     public string Segmento { get; private set; } = ActiveView;
 
-    public bool IsDeletedView =>
-        string.Equals(Segmento, DeletedView, StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// View hint solicitado por el caller vía <c>returnStatus</c>. Es
+    /// sólo un hint — la verdad sobre el lockout sale del DTO. La vista
+    /// usa este valor para construir el "Volver al listado" con el
+    /// query string preservado.
+    /// </summary>
+    public bool IsBlockedView =>
+        string.Equals(Segmento, BlockedView, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Estado efectivo leído del DTO. Si el usuario está cargado y su
+    /// <see cref="UsuarioDto.Bloqueado"/> es <c>true</c>, la vista
+    /// muestra el banner de "Cuenta bloqueada" y las acciones de
+    /// Desbloquear. Tiene precedencia sobre <see cref="IsBlockedView"/>.
+    /// </summary>
+    /// <remarks>
+    /// REA-014: el nombre anterior <c>Bloqueado</c> sombreaba el
+    /// homónimo del DTO (<see cref="UsuarioDto.Bloqueado"/>) y hacía
+    /// trivial confundir el "flag de lockout del usuario X" con "este
+    /// PageModel cree que X está bloqueado". Se renombra a
+    /// <c>IsCuentaBloqueada</c> para hacer explícita la proyección.
+    /// </remarks>
+    public bool IsCuentaBloqueada => Usuario?.Bloqueado == true;
 
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
+    /// <summary>
+    /// Identificador del admin actualmente autenticado (claim
+    /// <see cref="ClaimTypes.NameIdentifier"/>). Se usa para auto-fence
+    /// contra Bloquear/Eliminar en la vista.
+    /// </summary>
+    public string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    /// <summary>
+    /// Helper que la vista usa para decidir si debe renderizar el form
+    /// de Bloquear / Eliminar sobre la fila del usuario con
+    /// identificador <paramref name="targetUserId"/>.
+    /// </summary>
+    public bool EsAutoAccion(string targetUserId) =>
+        !string.IsNullOrEmpty(CurrentUserId)
+        && string.Equals(CurrentUserId, targetUserId, StringComparison.Ordinal);
 
     public string? StatusMessage => PageFeedback.GetStatusMessage(TempData);
 
@@ -110,7 +170,8 @@ public sealed class DetailsModel(
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string NormalizeSegmento(string? status) =>
-        string.Equals(status, DeletedView, StringComparison.OrdinalIgnoreCase)
-            ? DeletedView
+        string.Equals(status, BlockedView, StringComparison.OrdinalIgnoreCase)
+            ? BlockedView
             : ActiveView;
 }
+

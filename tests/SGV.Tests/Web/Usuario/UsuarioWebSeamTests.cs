@@ -122,20 +122,20 @@ public class UsuarioWebSeamTests
     }
 
     [Fact]
-    public async Task FakeUsuarioApiClient_DefaultDesactivarAsync_ReturnsSuccess()
+    public async Task FakeUsuarioApiClient_DefaultEliminarAsync_ReturnsSuccess()
     {
-        // AC: por defecto, el fake devuelve éxito con DTO activo. Si
-        // alguien cambia el default sin actualizar las pruebas, este
-        // test falla ruidosamente en vez de propagar el cambio
-        // silencioso.
+        // AC: por defecto, el fake devuelve éxito (Value nulo) para
+        // reflejar el 204 No Content del backend. Si alguien cambia el
+        // default sin actualizar las pruebas, este test falla
+        // ruidosamente en vez de propagar el cambio silencioso.
         var fake = new FakeUsuarioApiClient();
         var id = "u-default";
 
-        var result = await fake.DesactivarAsync(id);
+        var result = await fake.EliminarAsync(id);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(id, result.Value!.Id);
-        Assert.Contains(id, fake.DeleteCalls);
+        Assert.Null(result.Value);
+        Assert.Contains(id, fake.EliminarCalls);
     }
 
     [Fact]
@@ -143,23 +143,23 @@ public class UsuarioWebSeamTests
     {
         var fake = new FakeUsuarioApiClient
         {
-            DesactivarResult = UsuarioCommandResult.Failure(
+            EliminarResult = UsuarioCommandResult.Failure(
                 new UsuarioError(
-                    Type: UsuarioErrorType.Validation,
-                    Code: "AutoBaja",
-                    Message: "No podés darte de baja a vos mismo.",
+                    Type: UsuarioErrorType.Unauthorized,
+                    Code: "AutoEliminacion",
+                    Message: "No puede eliminar su propio usuario.",
                     StatusCode: 403,
                     Categoria: SGV.Contracts.Comun.ErrorCategoria.Forbidden))
         };
         var id = "u-self";
 
-        var result = await fake.DesactivarAsync(id);
+        var result = await fake.EliminarAsync(id);
 
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.Error);
         Assert.Equal(SGV.Contracts.Comun.ErrorCategoria.Forbidden, result.Error!.Categoria);
-        Assert.Equal("AutoBaja", result.Error.Code);
-        Assert.Contains(id, fake.DeleteCalls);
+        Assert.Equal("AutoEliminacion", result.Error.Code);
+        Assert.Contains(id, fake.EliminarCalls);
     }
 
     [Fact]

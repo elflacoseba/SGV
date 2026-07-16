@@ -107,17 +107,44 @@ public sealed class UsuarioApiClient(HttpClient httpClient) : IUsuarioApiClient
     }
 
     /// <inheritdoc />
-    public async Task<UsuarioCommandResult> DesactivarAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<UsuarioCommandResult> EliminarAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-        // Backend PR1 expone 200 OK con DTO activo en DELETE (no 204)
-        // para soportar la rama AutoBaja en código que pueda inspeccionar
-        // el body; la rama 200 → Success existe también en otros
-        // clientes del shell (CargoApiClient acepta 200 y 204 vía
-        // IsSuccessStatusCode).
+        // Phase 3 del change 2026-07-15-quita-soft-delete-usuario: el
+        // backend expone 204 No Content en DELETE (hard-delete Identity)
+        // sin body, alineado con REST. El cliente tipado trata el 204
+        // como Success con Value nulo para no propagar excepciones ni
+        // falsos fallos. Si la respuesta incluye body (e.g. tests
+        // antiguos que devuelven 200 con DTO), también se acepta vía
+        // IsSuccessStatusCode.
         var response = await httpClient
             .DeleteAsync($"{BaseRoute}/{id}", cancellationToken)
+            .ConfigureAwait(false);
+
+        if (response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.NoContent)
+            {
+                return UsuarioCommandResult.Success(null!);
+            }
+
+            var dto = await response.Content
+                .ReadFromJsonAsync<UsuarioDto>(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            return UsuarioCommandResult.Success(dto!);
+        }
+
+        return await ToCommandResultAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<UsuarioCommandResult> BloquearAsync(string id, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+
+        var response = await httpClient
+            .PostAsync($"{BaseRoute}/{id}/bloquear", content: null, cancellationToken)
             .ConfigureAwait(false);
 
         if (response.IsSuccessStatusCode)
@@ -132,12 +159,12 @@ public sealed class UsuarioApiClient(HttpClient httpClient) : IUsuarioApiClient
     }
 
     /// <inheritdoc />
-    public async Task<UsuarioCommandResult> ReactivarAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<UsuarioCommandResult> DesbloquearAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
         var response = await httpClient
-            .PatchAsync($"{BaseRoute}/{id}/reactivar", null, cancellationToken)
+            .PostAsync($"{BaseRoute}/{id}/desbloquear", content: null, cancellationToken)
             .ConfigureAwait(false);
 
         if (response.IsSuccessStatusCode)
@@ -186,7 +213,7 @@ public sealed class UsuarioApiClient(HttpClient httpClient) : IUsuarioApiClient
     /// Espejo del <c>BuildQueryUri</c> de <c>PersonaApiClient</c>:
     /// serializa <c>page/pageSize</c> obligatorios y agrega
     /// <c>search</c>/<c>sort</c> sólo si vienen poblados.
-    /// <paramref name="segmento"/> se mapea a <c>status=eliminadas</c>
+    /// <paramref name="segmento"/> se mapea a <c>status=bloqueadas</c>
     /// cuando corresponde; cualquier otro valor (incluyendo
     /// <see cref="UsuarioSegmentoListado.Activas"/>) omite el parámetro
     /// y deja que la API caiga al default <c>activas</c>.
@@ -212,9 +239,9 @@ public sealed class UsuarioApiClient(HttpClient httpClient) : IUsuarioApiClient
             builder.Append(Uri.EscapeDataString(sort));
         }
 
-        if (segmento == UsuarioSegmentoListado.Eliminadas)
+        if (segmento == UsuarioSegmentoListado.Bloqueadas)
         {
-            builder.Append("&status=eliminadas");
+            builder.Append("&status=bloqueadas");
         }
 
         return builder.ToString();
