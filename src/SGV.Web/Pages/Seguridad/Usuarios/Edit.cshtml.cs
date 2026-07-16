@@ -121,6 +121,7 @@ public sealed class EditModel(
             {
                 IsRecoverable = true;
                 ErrorMessage = "El usuario solicitado no está disponible.";
+                // CodeQL [SM02379]: structured logging placeholder, not interpolated.
                 logger.LogWarning("Usuario with Id {UsuarioId} was not found or is no longer available.", id);
                 PersonaOptions = [];
                 return Page();
@@ -138,6 +139,7 @@ public sealed class EditModel(
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
+            // CodeQL [SM02379]: structured logging placeholder, not interpolated.
             logger.LogError(ex, "Failed to load edit page for usuario {Id}.", id);
             IsRecoverable = true;
             ErrorMessage = "No se pudo cargar el usuario. Intentá nuevamente.";

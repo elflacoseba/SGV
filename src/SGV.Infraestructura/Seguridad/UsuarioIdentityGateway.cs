@@ -144,13 +144,23 @@ public sealed class UsuarioIdentityGateway(
             return UserNotFound();
         }
 
+        // PR #148 review: transacción explícita para mantener
+        // simetría con CrearAsync/ActualizarAsync. Aunque el Update es
+        // atómico por sí solo, MapAsync ejecuta queries post-update;
+        // sin la transacción, un fallo en MapAsync dejaría IsDirty en
+        // DB sin propagar el UsuarioCommandResult al caller.
+        await using var transaction = await context.Database
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
         user.IsDeleted = true;
         var updateResult = await userManager.UpdateAsync(user).ConfigureAwait(false);
         if (!updateResult.Succeeded)
         {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             return ToIdentityFailure(updateResult);
         }
 
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return UsuarioCommandResult.Success(await MapAsync(user, cancellationToken).ConfigureAwait(false));
     }
 
@@ -165,13 +175,20 @@ public sealed class UsuarioIdentityGateway(
             return UserNotFound();
         }
 
+        // PR #148 review: ver nota en DesactivarAsync — misma
+        // justificación para la transacción explícita.
+        await using var transaction = await context.Database
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
         user.IsDeleted = false;
         var updateResult = await userManager.UpdateAsync(user).ConfigureAwait(false);
         if (!updateResult.Succeeded)
         {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             return ToIdentityFailure(updateResult);
         }
 
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return UsuarioCommandResult.Success(await MapAsync(user, cancellationToken).ConfigureAwait(false));
     }
 
