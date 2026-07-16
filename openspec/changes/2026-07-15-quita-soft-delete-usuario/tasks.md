@@ -61,12 +61,12 @@ Chain strategy: pending
 
 ## Phase 4: Tests
 
-- [ ] 4.1 Unit: gateway `Bloquear/Desbloquear/EliminarAsync`, filtro `LockoutEnd>UtcNow` en QueryAsync
-- [ ] 4.2 Unit: comando auto-fence (`AutoBloqueo`/`AutoEliminacion`), idempotencia bloqueo, doble delete 404
-- [ ] 4.3 Unit: login `UsuarioBloqueado`, login sin lockout emite JWT
-- [ ] 4.4 `MySqlFact`: migración idempotente (2º run), preflight, backfill datetime(6), FK CASCADE, Persona/Auditoría sobreviven
-- [ ] 4.5 `MySqlFact`: API `DELETE` 204, `POST /bloquear` 200, auto-fence 403, doble DELETE 404
-- [ ] 4.6 `MySqlFact`: Corte inmediato JWT — emitir JWT, bloquear, verificar 401
+- [x] 4.1 Unit: gateway `Bloquear/Desbloquear/EliminarAsync`, filtro `LockoutEnd>UtcNow` en QueryAsync
+- [x] 4.2 Unit: comando auto-fence (`AutoBloqueo`/`AutoEliminacion`), idempotencia bloqueo, doble delete 404
+- [x] 4.3 Unit: login `UsuarioBloqueado`, login sin lockout emite JWT
+- [x] 4.4 `MySqlFact`: migración idempotente (2º run), preflight, backfill datetime(6), FK CASCADE, Persona/Auditoría sobreviven
+- [x] 4.5 `MySqlFact`: API `DELETE` 204, `POST /bloquear` 200, auto-fence 403, doble DELETE 404
+- [x] 4.6 `MySqlFact`: Corte inmediato JWT — emitir JWT, bloquear, verificar 401
 - [ ] 4.7 `MySqlFact`: Corte inmediato cookie — cookie previa a bloqueo redirige a `/auth/sign-in`
 - [ ] 4.8 `MySqlFact`: segmentos `activas|bloqueadas` en web, modal irreversible, autoacciones ocultas
 
