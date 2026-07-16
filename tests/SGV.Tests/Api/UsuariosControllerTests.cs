@@ -53,8 +53,9 @@ public sealed class UsuariosControllerTests
         var response = await client.GetAsync("/api/v1/usuarios/consulta?page=1&pageSize=20&status=activas");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadFromJsonAsync<PagedResult<UsuarioDto>>();
-        Assert.NotNull(result);
+        var wrapper = await response.Content.ReadFromJsonAsync<UsuarioListadoDto>();
+        Assert.NotNull(wrapper);
+        var result = wrapper.Result;
         Assert.Equal(1, result.Page);
         Assert.Equal(20, result.PageSize);
         var user = Assert.Single(result.Items);

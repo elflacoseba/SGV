@@ -27,9 +27,9 @@ public sealed class UsuariosController(
     }
 
     [HttpGet("consulta")]
-    [ProducesResponseType(typeof(PagedResult<UsuarioDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UsuarioListadoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<PagedResult<UsuarioDto>>> GetConsulta(
+    public async Task<ActionResult<UsuarioListadoDto>> GetConsulta(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery(Name = "size")] int? size = null,
@@ -49,8 +49,9 @@ public sealed class UsuariosController(
             search,
             sort,
             segmento);
+        var result = await consulta.QueryAsync(query, cancellationToken);
 
-        return Ok(await consulta.QueryAsync(query, cancellationToken));
+        return Ok(new UsuarioListadoDto(result));
     }
 
     [HttpGet("{id}")]
