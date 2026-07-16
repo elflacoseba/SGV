@@ -256,7 +256,7 @@ public sealed class IndexModel(
         try
         {
             var segmento = IsDeletedView
-                ? UsuarioSegmentoListado.Eliminadas
+                ? UsuarioSegmentoListado.Bloqueadas
                 : UsuarioSegmentoListado.Activas;
             var response = await usuarioApiClient.QueryAsync(
                 new UsuarioListQuery(CurrentPage, DefaultPageSize, Search, Sort, segmento),
@@ -299,7 +299,7 @@ public sealed class IndexModel(
         try
         {
             var segmento = string.Equals(status, DeletedView, StringComparison.OrdinalIgnoreCase)
-                ? UsuarioSegmentoListado.Eliminadas
+                ? UsuarioSegmentoListado.Bloqueadas
                 : UsuarioSegmentoListado.Activas;
             var refreshed = await usuarioApiClient.QueryAsync(
                 new UsuarioListQuery(currentPage, DefaultPageSize, search, sort, segmento),

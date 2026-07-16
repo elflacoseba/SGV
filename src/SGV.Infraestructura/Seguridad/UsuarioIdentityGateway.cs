@@ -8,23 +8,41 @@ using SGV.Infraestructura.Persistencia;
 
 namespace SGV.Infraestructura.Seguridad;
 
+/// <summary>
+/// Identity-backed implementation of <see cref="IUsuarioIdentityGateway"/>
+/// and <see cref="IUsuarioServicioConsulta"/>.
+/// </summary>
+/// <remarks>
+/// Cambio <c>2026-07-15-quita-soft-delete-usuario</c>: la columna
+/// <c>IsDeleted</c> y las columnas generadas soft-delete-aware se
+/// retiran. La separación activa/bloqueada se hace ahora vía
+/// <c>LockoutEnd &gt; UtcNow</c> en <see cref="QueryAsync"/>. Las
+/// operaciones de ciclo de vida (<c>Bloquear</c>, <c>Desbloquear</c>,
+/// <c>Eliminar</c>) reemplazan a <c>Desactivar</c>/<c>Reactivar</c>.
+/// </remarks>
 public sealed class UsuarioIdentityGateway(
     UserManager<SgvIdentityUser> userManager,
     SgvDbContext context) : IUsuarioIdentityGateway, IUsuarioServicioConsulta
 {
+    /// <summary>
+    /// Sentinel lockout date for administrative block. Matches the
+    /// design decision D1: <c>datetime(6)</c> maximum accepted by MySQL
+    /// is <c>9999-12-31 23:59:59.999999</c>. We store it as
+    /// <c>9999-12-31 23:59:59</c> at second precision; the column type
+    /// (<c>datetime(6)</c>) preserves it as <c>9999-12-31 23:59:59.000000</c>.
+    /// <see cref="DateTimeOffset.MaxValue"/> would overflow the 7th
+    /// fraction during MySQL round-trip (see Engram #1135).
+    /// </summary>
+    private static readonly DateTimeOffset LockoutSentinelUtc =
+        new(9999, 12, 31, 23, 59, 59, TimeSpan.Zero);
+
     public async Task<UsuarioCommandResult> CrearAsync(
         CrearUsuarioRequest request,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        // PR #148 review: el índice IX_AspNetUsers_PersonaId fue
-        // reemplazado por la columna generada ActivePersonaIdUnique
-        // (NULL cuando IsDeleted = 1), de modo que la unicidad SQL vive
-        // sólo sobre usuarios activos. Aún así la verificación
-        // aplicación-nivel DEBE excluir explícitamente soft-deleted
-        // para no reusar la fila eliminada como si aún existiera.
         var existingPersonaUser = await context.Users
-            .AnyAsync(user => user.PersonaId == request.PersonaId && !user.IsDeleted, cancellationToken)
+            .AnyAsync(user => user.PersonaId == request.PersonaId, cancellationToken)
             .ConfigureAwait(false);
         if (existingPersonaUser)
         {
@@ -43,7 +61,6 @@ public sealed class UsuarioIdentityGateway(
             UserName = request.UserName,
             Email = request.Email,
             PersonaId = request.PersonaId,
-            IsDeleted = false
         };
 
         var createResult = await userManager.CreateAsync(user, request.Password).ConfigureAwait(false);
@@ -133,7 +150,7 @@ public sealed class UsuarioIdentityGateway(
         return UsuarioCommandResult.Success(await MapAsync(user, cancellationToken).ConfigureAwait(false));
     }
 
-    public async Task<UsuarioCommandResult> DesactivarAsync(
+    public async Task<UsuarioCommandResult> BloquearAsync(
         string userId,
         CancellationToken cancellationToken = default)
     {
@@ -144,15 +161,20 @@ public sealed class UsuarioIdentityGateway(
             return UserNotFound();
         }
 
-        // PR #148 review: transacción explícita para mantener
-        // simetría con CrearAsync/ActualizarAsync. Aunque el Update es
-        // atómico por sí solo, MapAsync ejecuta queries post-update;
-        // sin la transacción, un fallo en MapAsync dejaría IsDirty en
-        // DB sin propagar el UsuarioCommandResult al caller.
         await using var transaction = await context.Database
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
-        user.IsDeleted = true;
+
+        // LockoutEnabled must be true so IsLockedOutAsync honours the
+        // date. Without this, Identity silently ignores SetLockoutEndDateAsync.
+        user.LockoutEnabled = true;
+        var lockoutResult = await userManager.SetLockoutEndDateAsync(user, LockoutSentinelUtc).ConfigureAwait(false);
+        if (!lockoutResult.Succeeded)
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            return ToIdentityFailure(lockoutResult);
+        }
+
         var updateResult = await userManager.UpdateAsync(user).ConfigureAwait(false);
         if (!updateResult.Succeeded)
         {
@@ -164,7 +186,7 @@ public sealed class UsuarioIdentityGateway(
         return UsuarioCommandResult.Success(await MapAsync(user, cancellationToken).ConfigureAwait(false));
     }
 
-    public async Task<UsuarioCommandResult> ReactivarAsync(
+    public async Task<UsuarioCommandResult> DesbloquearAsync(
         string userId,
         CancellationToken cancellationToken = default)
     {
@@ -175,12 +197,21 @@ public sealed class UsuarioIdentityGateway(
             return UserNotFound();
         }
 
-        // PR #148 review: ver nota en DesactivarAsync — misma
-        // justificación para la transacción explícita.
         await using var transaction = await context.Database
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
-        user.IsDeleted = false;
+
+        var unlockResult = await userManager.SetLockoutEndDateAsync(user, null).ConfigureAwait(false);
+        if (!unlockResult.Succeeded)
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            return ToIdentityFailure(unlockResult);
+        }
+
+        // LockoutEnabled stays true per Identity contract — only
+        // LockoutEnd is cleared. This preserves the user's
+        // AccessFailedCount so a subsequent brute-force attempt can
+        // re-lock the account without resetting state.
         var updateResult = await userManager.UpdateAsync(user).ConfigureAwait(false);
         if (!updateResult.Succeeded)
         {
@@ -191,6 +222,38 @@ public sealed class UsuarioIdentityGateway(
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return UsuarioCommandResult.Success(await MapAsync(user, cancellationToken).ConfigureAwait(false));
     }
+
+    public async Task<UsuarioCommandResult> EliminarAsync(
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var user = await userManager.FindByIdAsync(userId).ConfigureAwait(false);
+        if (user is null)
+        {
+            return UserNotFound();
+        }
+
+        // DeleteAsync triggers FK CASCADE on AspNetUserRoles/Claims/
+        // Logins/Tokens. Persona RESTRICT FK stays intact; Auditorias
+        // holds a string column without FK so historical references
+        // remain queryable (see design D4).
+        var deleteResult = await userManager.DeleteAsync(user).ConfigureAwait(false);
+        if (!deleteResult.Succeeded)
+        {
+            return ToIdentityFailure(deleteResult);
+        }
+
+        return UsuarioCommandResult.Success(await MapAsync(user, cancellationToken).ConfigureAwait(false));
+    }
+
+    [Obsolete("Use BloquearAsync. El controller rediseña en Phase 2.")]
+    public Task<UsuarioCommandResult> DesactivarAsync(string userId, CancellationToken cancellationToken = default)
+        => BloquearAsync(userId, cancellationToken);
+
+    [Obsolete("Use DesbloquearAsync. El controller rediseña en Phase 2.")]
+    public Task<UsuarioCommandResult> ReactivarAsync(string userId, CancellationToken cancellationToken = default)
+        => DesbloquearAsync(userId, cancellationToken);
 
     /// <summary>
     /// Atajo preservado para callers que necesitan el catálogo plano
@@ -200,15 +263,6 @@ public sealed class UsuarioIdentityGateway(
     /// el <c>PageSize</c> a <see cref="MaxListPageSize"/> para evitar
     /// materializar potencialmente miles de filas en memoria.
     /// </summary>
-    /// <remarks>
-    /// PR #148 review: la implementación original pasaba
-    /// <c>int.MaxValue</c> como <c>PageSize</c>, lo que provoca un
-    /// pull completo de <c>AspNetUsers</c> sin filtrar. Para
-    /// datasets grandes, los callers deben migrar a
-    /// <see cref="QueryAsync"/> con paginación explícita; este atajo
-    /// queda acotado a un máximo razonable de 500 filas, suficiente
-    /// para catálogos pequeños y dropdowns.
-    /// </remarks>
     public async Task<IReadOnlyList<UsuarioDto>> ListAsync(CancellationToken cancellationToken = default)
     {
         var result = await QueryAsync(
@@ -231,13 +285,18 @@ public sealed class UsuarioIdentityGateway(
         UsuarioListQuery query,
         CancellationToken cancellationToken = default)
     {
+        // Activos: LockoutEnd null o en el pasado.
+        // Bloqueadas: LockoutEnd futuro (vigente). Cualquier LockoutEnd
+        // futuro cuenta, sin importar si es administrativo o por
+        // MaxFailedAccessAttempts — ver D5.
+        var nowUtc = DateTimeOffset.UtcNow;
         IQueryable<UsuarioQueryRow> users =
             from user in context.Users.AsNoTracking()
             join persona in context.Personas.AsNoTracking()
                 on user.PersonaId equals persona.Id
             where query.Segmento == UsuarioSegmentoListado.Activas
-                ? !user.IsDeleted
-                : user.IsDeleted
+                ? (user.LockoutEnd == null || user.LockoutEnd <= nowUtc)
+                : user.LockoutEnd > nowUtc
             select new UsuarioQueryRow
             {
                 Id = user.Id,
@@ -245,7 +304,8 @@ public sealed class UsuarioIdentityGateway(
                 UserName = user.UserName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
                 Nombres = persona.Nombres,
-                Apellidos = persona.Apellidos
+                Apellidos = persona.Apellidos,
+                LockoutEnd = user.LockoutEnd
             };
 
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -279,6 +339,7 @@ public sealed class UsuarioIdentityGateway(
                 Email = user.Email,
                 Nombres = user.Nombres,
                 Apellidos = user.Apellidos,
+                LockoutEnd = user.LockoutEnd,
                 Role = role == null ? null : role.Name
             })
             .ToListAsync(cancellationToken)
@@ -292,7 +353,8 @@ public sealed class UsuarioIdentityGateway(
                 row.UserName,
                 row.Email,
                 row.Nombres,
-                row.Apellidos
+                row.Apellidos,
+                row.LockoutEnd
             })
             .Select(group => new UsuarioDto(
                 group.Key.Id,
@@ -305,7 +367,8 @@ public sealed class UsuarioIdentityGateway(
                     .OrderBy(role => role, StringComparer.Ordinal)
                     .ToArray(),
                 group.Key.Nombres,
-                group.Key.Apellidos))
+                group.Key.Apellidos,
+                Bloqueado: group.Key.LockoutEnd is { } end && end > DateTimeOffset.UtcNow))
             .ToArray();
 
         return new PagedResult<UsuarioDto>(items, totalCount, query.Page, query.PageSize);
@@ -350,6 +413,9 @@ public sealed class UsuarioIdentityGateway(
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
+        // Rea-009 / RIS-006: lockout flag derived from LockoutEnd. Identity's
+        // contract is LockoutEnd > UtcNow ⇒ user is locked out.
+        var bloqueado = user.LockoutEnd is { } lockoutEnd && lockoutEnd > DateTimeOffset.UtcNow;
         return new UsuarioDto(
             user.Id,
             user.PersonaId,
@@ -357,7 +423,8 @@ public sealed class UsuarioIdentityGateway(
             user.Email ?? string.Empty,
             roles.OrderBy(role => role, StringComparer.Ordinal).ToArray(),
             persona?.Nombres,
-            persona?.Apellidos);
+            persona?.Apellidos,
+            Bloqueado: bloqueado);
     }
 
     private static IOrderedQueryable<UsuarioQueryRow> ApplySort(
@@ -425,6 +492,9 @@ public sealed class UsuarioIdentityGateway(
         public required string Email { get; init; }
         public required string Nombres { get; init; }
         public required string Apellidos { get; init; }
+        // Rea-009 / RIS-006: required to populate UsuarioDto.Bloqueado in
+        // QueryAsync without an extra roundtrip to AspNetUsers.
+        public DateTimeOffset? LockoutEnd { get; init; }
     }
 
     private sealed class UsuarioRoleRow : UsuarioQueryRow

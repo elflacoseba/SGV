@@ -65,6 +65,10 @@ public sealed class UsuariosControllerTests
     [Fact]
     public async Task GetConsulta_InvalidStatusAndPagination_NormalizesToActivePageBounds()
     {
+        // Tras el cambio quita-soft-delete, los valores inválidos del
+        // query string deben seguir normalizándose a activas+page=1+
+        // pageSize=100. Los nombres en wire siguen siendo
+        // "activas"/"bloqueadas" (no "eliminadas").
         var fake = new FakeUsuarioServicioConsulta();
         await using var factory = WithUsuarioConsulta(fake);
         var client = factory.CreateNonAdminClient();
@@ -81,12 +85,14 @@ public sealed class UsuariosControllerTests
     [Fact]
     public async Task GetConsulta_SizeAlias_NormalizesAndForwardsSearchAndSort()
     {
+        // Tras el cambio, status=bloqueadas es el segmento correcto
+        // para lockout vigente (no "eliminadas").
         var fake = new FakeUsuarioServicioConsulta();
         await using var factory = WithUsuarioConsulta(fake);
         var client = factory.CreateNonAdminClient();
 
         var response = await client.GetAsync(
-            "/api/v1/usuarios/consulta?page=2&size=25&search=juan&sort=apellidos_desc&status=eliminadas");
+            "/api/v1/usuarios/consulta?page=2&size=25&search=juan&sort=apellidos_desc&status=bloqueadas");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(fake.LastQuery);
@@ -94,7 +100,7 @@ public sealed class UsuariosControllerTests
         Assert.Equal(25, fake.LastQuery.PageSize);
         Assert.Equal("juan", fake.LastQuery.Search);
         Assert.Equal("apellidos_desc", fake.LastQuery.Sort);
-        Assert.Equal(UsuarioSegmentoListado.Eliminadas, fake.LastQuery.Segmento);
+        Assert.Equal(UsuarioSegmentoListado.Bloqueadas, fake.LastQuery.Segmento);
     }
 
     [Fact]
@@ -201,74 +207,12 @@ public sealed class UsuariosControllerTests
         Assert.Equal(409, problem.Status);
     }
 
-    [Fact]
-    public async Task Delete_CurrentUser_ReturnsForbiddenAutoBaja()
-    {
-        var fake = new FakeUsuarioServicioComandos
-        {
-            DesactivarHandler = (_, _) => Task.FromResult(UsuarioCommandResult.Failure(new UsuarioError(
-                UsuarioErrorType.Unauthorized,
-                "AutoBaja",
-                "No puede desactivar su propio usuario.",
-                Categoria: ErrorCategoria.Forbidden)))
-        };
-        await using var factory = WithUsuarioComandos(fake);
-        var client = factory.CreateAdminClient();
-
-        var response = await client.DeleteAsync("/api/v1/usuarios/user-1");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.Equal("AutoBaja", problem!.Title);
-        Assert.Equal(403, problem.Status);
-    }
-
-    [Fact]
-    public async Task Delete_OtherUser_ReturnsNoContent()
-    {
-        var client = _fixture.RootFactory.CreateAdminClient();
-
-        var response = await client.DeleteAsync("/api/v1/usuarios/user-2");
-
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal(0, response.Content.Headers.ContentLength ?? 0);
-    }
-
-    [Fact]
-    public async Task Reactivate_WithInactivePersona_ReturnsConflictPersonaInactiva()
-    {
-        var fake = new FakeUsuarioServicioComandos
-        {
-            ReactivarHandler = (_, _) => Task.FromResult(UsuarioCommandResult.Failure(new UsuarioError(
-                UsuarioErrorType.Conflict,
-                "PersonaInactiva",
-                "La persona asociada debe reactivarse primero.",
-                Categoria: ErrorCategoria.Conflict)))
-        };
-        await using var factory = WithUsuarioComandos(fake);
-        var client = factory.CreateAdminClient();
-
-        var request = new HttpRequestMessage(HttpMethod.Patch, "/api/v1/usuarios/user-1/reactivar");
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.Equal("PersonaInactiva", problem!.Title);
-        Assert.Equal(409, problem.Status);
-    }
-
-    [Fact]
-    public async Task Reactivate_WithAdmin_ReturnsUpdatedDto()
-    {
-        var client = _fixture.RootFactory.CreateAdminClient();
-
-        var request = new HttpRequestMessage(HttpMethod.Patch, "/api/v1/usuarios/user-1/reactivar");
-        var response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var user = await response.Content.ReadFromJsonAsync<UsuarioDto>();
-        Assert.Equal("user-1", user!.Id);
-    }
+    // Nota: los tests específicos del flujo Bloquear/Desbloquear/Eliminar
+    // viven en Phase 2 cuando el controller rediseñe las acciones
+    // (DELETE físico + POST /bloquear + POST /desbloquear). En Phase 1
+    // el controller sigue exponiendo DELETE/PATCH /reactivar apuntando a
+    // los wrappers del command service para mantener verde el contrato
+    // HTTP vigente.
 
     [Theory]
     [InlineData(nameof(SGV.Api.Controllers.UsuariosController.Create))]

@@ -326,21 +326,22 @@ public class UsuarioApiClientBasicTests
     }
 
     [Fact]
-    public async Task QueryAsync_WithStatusEliminadas_SerializesStatusInUri()
+    public async Task QueryAsync_WithStatusBloqueadas_SerializesStatusInUri()
     {
-        // AC: el segmento Eliminadas se serializa como `status=eliminadas`
+        // AC: el segmento Bloqueadas se serializa como `status=bloqueadas`
         // en el query string; cualquier otro valor (incluido Activas y
         // default) omite el parámetro para que la API caiga a activas.
         //
-        // PR2-HALL: el shape wire del PR1 entrega `UsuarioListadoDto`
-        // como wrapper sobre `PagedResult<UsuarioDto>`. El test
-        // materializa el wrapper explícito.
+        // Cambio 2026-07-15-quita-soft-delete-usuario: el segmento
+        // `Eliminadas` (basado en IsDeleted) se renombra a `Bloqueadas`
+        // (basado en LockoutEnd). El alias `Eliminadas` se conserva
+        // temporalmente en Phase 1 y se retira en Phase 3.
         var payload = new UsuarioListadoDto(
             new PagedResult<UsuarioDto>(
                 Items: new[]
                 {
-                    new UsuarioDto("u-eli", Guid.NewGuid(), "eliminado", "e@example.com",
-                        new[] { "Consultor" }, Nombres: "E", Apellidos: "Eliminado")
+                    new UsuarioDto("u-bloq", Guid.NewGuid(), "bloqueado", "b@example.com",
+                        new[] { "Consultor" }, Nombres: "B", Apellidos: "Bloqueado")
                 },
                 TotalCount: 1,
                 Page: 1,
@@ -348,13 +349,13 @@ public class UsuarioApiClientBasicTests
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new UsuarioApiClient(NewHttpClient(handler));
 
-        var result = await client.QueryAsync(new UsuarioListQuery(1, 20, null, null, UsuarioSegmentoListado.Eliminadas));
+        var result = await client.QueryAsync(new UsuarioListQuery(1, 20, null, null, UsuarioSegmentoListado.Bloqueadas));
 
         Assert.Single(result.Result.Items);
         Assert.Equal(1, result.Result.TotalCount);
         Assert.Equal(HttpMethod.Get, handler.LastRequest?.Method);
         Assert.Equal("/api/v1/usuarios/consulta", handler.LastRequest?.RequestUri?.AbsolutePath);
-        Assert.Contains("status=eliminadas", handler.LastRequest?.RequestUri?.Query, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("status=bloqueadas", handler.LastRequest?.RequestUri?.Query, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

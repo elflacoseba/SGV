@@ -40,8 +40,8 @@ public sealed class UsuariosController(
     {
         var normalizedPage = Math.Max(1, page);
         var normalizedPageSize = Math.Clamp(size ?? pageSize, 1, 100);
-        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
-            ? UsuarioSegmentoListado.Eliminadas
+        var segmento = string.Equals(status, "bloqueadas", StringComparison.OrdinalIgnoreCase)
+            ? UsuarioSegmentoListado.Bloqueadas
             : UsuarioSegmentoListado.Activas;
         var query = new UsuarioListQuery(
             normalizedPage,

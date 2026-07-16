@@ -26,7 +26,11 @@ public sealed class AuthServicio(
             return null;
         }
 
-        if (user.IsDeleted)
+        // Cambio 2026-07-15-quita-soft-delete-usuario: el chequeo de
+        // bloqueo se delega a IsLockedOutAsync (Identity) y se hace
+        // ANTES de CheckPasswordAsync para evitar timing leaks y
+        // enumeración.
+        if (await userManager.IsLockedOutAsync(user).ConfigureAwait(false))
         {
             return null;
         }
@@ -34,8 +38,22 @@ public sealed class AuthServicio(
         var validPassword = await userManager.CheckPasswordAsync(user, request.Password).ConfigureAwait(false);
         if (!validPassword)
         {
+            // RIS-001 (4R review): contar el intento fallido vía
+            // AccessFailedAsync. Identity aplica MaxFailedAccessAttempts
+            // (configurado a 5 en Program.cs IdentityCore) y, al cruzar
+            // el umbral, llena LockoutEnd hasta DefaultLockoutTimeSpan.
+            // Cuando IsLockedOutAsync pasa a true, devolvemos null igual
+            // que para credenciales inválidas — el caller (AuthController)
+            // mapea ambos casos a 401. La causa exacta (creds vs lockout)
+            // queda distinguible vía AccessFailedCount y LockoutEnd.
+            await userManager.AccessFailedAsync(user).ConfigureAwait(false);
             return null;
         }
+
+        // RIS-001 (4R review): resetear AccessFailedCount tras un login
+        // exitoso. Sin esto, brute-force continuaría acumulando aún cuando
+        // el atacante conociera la password.
+        await userManager.ResetAccessFailedCountAsync(user).ConfigureAwait(false);
 
         var jwt = options.Value;
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(jwt.TokenLifetimeMinutes);
