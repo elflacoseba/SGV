@@ -248,6 +248,61 @@ public sealed class UsuarioServicioComandosTests
     }
 
     [Fact]
+    public async Task BloquearAsync_CalledTwice_AuditsOnce()
+    {
+        var context = CreateContext();
+
+        var first = await context.Service.BloquearAsync(TargetUserId);
+        var second = await context.Service.BloquearAsync(TargetUserId);
+
+        Assert.True(first.IsSuccess);
+        Assert.True(second.IsSuccess);
+        Assert.True(second.Value!.Bloqueado);
+        Assert.Single(context.Auditoria.Entries);
+    }
+
+    [Fact]
+    public async Task BloquearAsync_OtherUser_WithExistingLockout_SucceedsWithoutDoubleAudit()
+    {
+        var context = CreateContext(seedBloqueado: true);
+
+        var result = await context.Service.BloquearAsync(TargetUserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value!.Bloqueado);
+        Assert.Empty(context.Auditoria.Entries);
+    }
+
+    [Fact]
+    public async Task EliminarAsync_CalledTwice_SecondReturns404NotFound()
+    {
+        var context = CreateContext();
+
+        var first = await context.Service.EliminarAsync(TargetUserId);
+        var second = await context.Service.EliminarAsync(TargetUserId);
+
+        Assert.True(first.IsSuccess);
+        Assert.False(second.IsSuccess);
+        Assert.Equal(UsuarioErrorType.NotFound, second.Error!.Type);
+        Assert.Equal("UsuarioNoEncontrado", second.Error.Code);
+        Assert.Single(context.Auditoria.Entries);
+    }
+
+    [Fact]
+    public async Task EliminarAsync_WhenUserDoesNotExist_AuditsNothingAndReturnsNotFound()
+    {
+        var context = CreateContext();
+        context.Gateway.Remove(TargetUserId);
+
+        var result = await context.Service.EliminarAsync(TargetUserId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UsuarioErrorType.NotFound, result.Error!.Type);
+        Assert.Equal("UsuarioNoEncontrado", result.Error.Code);
+        Assert.Empty(context.Auditoria.Entries);
+    }
+
+    [Fact]
     public async Task BloquearAsync_CurrentUser_ReturnsForbiddenAutoBloqueoWithoutCallingGateway()
     {
         var context = CreateContext(currentUserId: TargetUserId);
@@ -279,7 +334,7 @@ public sealed class UsuarioServicioComandosTests
     [Fact]
     public async Task DesbloquearAsync_OtherUser_UnlocksAndAuditsCriticalFields()
     {
-        var context = CreateContext();
+        var context = CreateContext(seedBloqueado: true);
 
         var result = await context.Service.DesbloquearAsync(TargetUserId);
 
@@ -287,6 +342,18 @@ public sealed class UsuarioServicioComandosTests
         Assert.True(context.Gateway.DesbloquearCalled);
         var audit = Assert.Single(context.Auditoria.Entries);
         Assert.Equal("DesbloqueoUsuario", audit.Accion);
+    }
+
+    [Fact]
+    public async Task DesbloquearAsync_WhenAlreadyUnlocked_SucceedsWithoutAudit()
+    {
+        var context = CreateContext();
+
+        var result = await context.Service.DesbloquearAsync(TargetUserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value!.Bloqueado);
+        Assert.Empty(context.Auditoria.Entries);
     }
 
     [Fact]
@@ -319,21 +386,6 @@ public sealed class UsuarioServicioComandosTests
         var audit = Assert.Single(context.Auditoria.Entries);
         Assert.Equal("EliminacionFisica", audit.Accion);
         Assert.Equal("old-name", audit.Anteriores["UserName"]);
-    }
-
-    [Fact]
-    public async Task BloquearAsync_AuditsPreviousBloqueadoFlag()
-    {
-        // RIS-004 (4R review): audit de BloqueoUsuario debe contener
-        // Bloqueado previo (no EmptyValues), para distinguir transiciones.
-        var context = CreateContext(seedBloqueado: true);
-
-        var result = await context.Service.BloquearAsync(TargetUserId);
-
-        Assert.True(result.IsSuccess);
-        var audit = Assert.Single(context.Auditoria.Entries);
-        Assert.Equal("BloqueoUsuario", audit.Accion);
-        Assert.Equal(true, audit.Anteriores["Bloqueado"]);
     }
 
     [Fact]
@@ -428,8 +480,6 @@ public sealed class UsuarioServicioComandosTests
         public CrearUsuarioRequest? CreatedRequest { get; private set; }
         public IReadOnlyCollection<string>? AssignedRoles { get; private set; }
         public ActualizarUsuarioRequest? UpdatedRequest { get; private set; }
-        public bool DesactivarCalled { get; private set; }
-        public bool ReactivarCalled { get; private set; }
         public bool BloquearCalled { get; private set; }
         public bool DesbloquearCalled { get; private set; }
         public bool EliminarCalled { get; private set; }
@@ -502,28 +552,6 @@ public sealed class UsuarioServicioComandosTests
             return Task.FromResult(UsuarioCommandResult.Success(updated));
         }
 
-        public Task<UsuarioCommandResult> DesactivarAsync(string userId, CancellationToken cancellationToken = default)
-        {
-            if (!_users.TryGetValue(userId, out var current))
-            {
-                return Task.FromResult(NotFound());
-            }
-
-            DesactivarCalled = true;
-            return Task.FromResult(UsuarioCommandResult.Success(current));
-        }
-
-        public Task<UsuarioCommandResult> ReactivarAsync(string userId, CancellationToken cancellationToken = default)
-        {
-            if (!_users.TryGetValue(userId, out var current))
-            {
-                return Task.FromResult(NotFound());
-            }
-
-            ReactivarCalled = true;
-            return Task.FromResult(UsuarioCommandResult.Success(current));
-        }
-
         public Task<UsuarioCommandResult> BloquearAsync(string userId, CancellationToken cancellationToken = default)
         {
             if (!_users.TryGetValue(userId, out var current))
@@ -532,7 +560,9 @@ public sealed class UsuarioServicioComandosTests
             }
 
             BloquearCalled = true;
-            return Task.FromResult(UsuarioCommandResult.Success(current));
+            var blocked = current with { Bloqueado = true };
+            _users[userId] = blocked;
+            return Task.FromResult(UsuarioCommandResult.Success(blocked));
         }
 
         public Task<UsuarioCommandResult> DesbloquearAsync(string userId, CancellationToken cancellationToken = default)
@@ -543,7 +573,9 @@ public sealed class UsuarioServicioComandosTests
             }
 
             DesbloquearCalled = true;
-            return Task.FromResult(UsuarioCommandResult.Success(current));
+            var unblocked = current with { Bloqueado = false };
+            _users[userId] = unblocked;
+            return Task.FromResult(UsuarioCommandResult.Success(unblocked));
         }
 
         public Task<UsuarioCommandResult> EliminarAsync(string userId, CancellationToken cancellationToken = default)

@@ -247,14 +247,6 @@ public sealed class UsuarioIdentityGateway(
         return UsuarioCommandResult.Success(await MapAsync(user, cancellationToken).ConfigureAwait(false));
     }
 
-    [Obsolete("Use BloquearAsync. El controller rediseña en Phase 2.")]
-    public Task<UsuarioCommandResult> DesactivarAsync(string userId, CancellationToken cancellationToken = default)
-        => BloquearAsync(userId, cancellationToken);
-
-    [Obsolete("Use DesbloquearAsync. El controller rediseña en Phase 2.")]
-    public Task<UsuarioCommandResult> ReactivarAsync(string userId, CancellationToken cancellationToken = default)
-        => DesbloquearAsync(userId, cancellationToken);
-
     /// <summary>
     /// Atajo preservado para callers que necesitan el catálogo plano
     /// de usuarios activos (e.g. dropdowns administrativos). Mantiene

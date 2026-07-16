@@ -807,8 +807,6 @@ internal sealed class FakeUsuarioServicioComandos : IUsuarioServicioComandos
     public Func<string, CancellationToken, Task<UsuarioCommandResult>>? BloquearHandler { get; set; }
     public Func<string, CancellationToken, Task<UsuarioCommandResult>>? DesbloquearHandler { get; set; }
     public Func<string, CancellationToken, Task<UsuarioCommandResult>>? EliminarHandler { get; set; }
-    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? DesactivarHandler { get; set; }
-    public Func<string, CancellationToken, Task<UsuarioCommandResult>>? ReactivarHandler { get; set; }
 
     public Task<UsuarioCommandResult> CrearAsync(CrearUsuarioRequest request, CancellationToken cancellationToken = default)
         => CrearHandler?.Invoke(request, cancellationToken)
@@ -851,20 +849,6 @@ internal sealed class FakeUsuarioServicioComandos : IUsuarioServicioComandos
         string userId,
         CancellationToken cancellationToken = default)
         => EliminarHandler?.Invoke(userId, cancellationToken)
-            ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Id = userId }));
-
-    [Obsolete("Use BloquearAsync.")]
-    public Task<UsuarioCommandResult> DesactivarAsync(
-        string userId,
-        CancellationToken cancellationToken = default)
-        => DesactivarHandler?.Invoke(userId, cancellationToken)
-            ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Id = userId }));
-
-    [Obsolete("Use DesbloquearAsync.")]
-    public Task<UsuarioCommandResult> ReactivarAsync(
-        string userId,
-        CancellationToken cancellationToken = default)
-        => ReactivarHandler?.Invoke(userId, cancellationToken)
             ?? Task.FromResult(UsuarioCommandResult.Success(FakeUsuarioServicioConsulta.DefaultUser with { Id = userId }));
 }
 

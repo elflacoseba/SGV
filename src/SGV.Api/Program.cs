@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -121,6 +123,36 @@ builder.Services
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(_ => { });
+builder.Services.AddSingleton<IRevalidatorCredenciales, RevalidatorCredenciales>();
+builder.Services.AddOptions<JwtBearerOptions>()
+    .Configure<IRevalidatorCredenciales>((options, revalidator) =>
+    {
+        var existingHandler = options.Events?.OnTokenValidated;
+        options.Events ??= new JwtBearerEvents();
+        options.Events.OnTokenValidated = async context =>
+        {
+            if (existingHandler is not null)
+            {
+                await existingHandler(context);
+            }
+
+            context.HttpContext.Items[RevalidatorCredenciales.ValidationMarker] = true;
+            var subject = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (string.IsNullOrWhiteSpace(subject))
+            {
+                return;
+            }
+
+            var isValid = await revalidator.SigueVigenteAsync(
+                subject,
+                context.HttpContext.RequestAborted);
+            if (!isValid)
+            {
+                context.Fail("Credencial revocada o cuenta bloqueada.");
+            }
+        };
+    });
 builder.Services.AddSingleton<IPostConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerFromJwtOptions>();
 builder.Services.AddAuthorization(opts =>
     opts.FallbackPolicy = new AuthorizationPolicyBuilder()
@@ -193,6 +225,36 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true
+        && context.User.Identities.Any(identity =>
+            string.Equals(
+                identity.AuthenticationType,
+                JwtBearerDefaults.AuthenticationScheme,
+                StringComparison.Ordinal))
+        && !context.Items.ContainsKey(RevalidatorCredenciales.ValidationMarker))
+    {
+        var subject = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (!string.IsNullOrWhiteSpace(subject))
+        {
+            var revalidator = context.RequestServices
+                .GetRequiredService<IRevalidatorCredenciales>();
+            var isValid = await revalidator.SigueVigenteAsync(
+                subject,
+                context.RequestAborted);
+            context.Items[RevalidatorCredenciales.ValidationMarker] = true;
+            if (!isValid)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
+        }
+    }
+
+    await next();
+});
 app.UseAuthorization();
 
 // Health check endpoints — anonymous and tag-based.

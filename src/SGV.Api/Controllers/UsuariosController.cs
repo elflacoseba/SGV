@@ -124,24 +124,41 @@ public sealed class UsuariosController(
         string id,
         CancellationToken cancellationToken)
     {
-        var result = await comandos.DesactivarAsync(id, cancellationToken);
+        var result = await comandos.EliminarAsync(id, cancellationToken);
         return result.IsSuccess
             ? NoContent()
             : ApiResults.ToProblemResult(result.Error!, HttpContext);
     }
 
-    [HttpPatch("{id}/reactivar")]
+    [HttpPost("{id}/bloquear")]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<UsuarioDto>> Reactivate(
+    public async Task<ActionResult<UsuarioDto>> Bloquear(
         string id,
         CancellationToken cancellationToken)
     {
-        var result = await comandos.ReactivarAsync(id, cancellationToken);
+        var result = await comandos.BloquearAsync(id, cancellationToken);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : ApiResults.ToProblemResult(result.Error!, HttpContext);
+    }
+
+    [HttpPost("{id}/desbloquear")]
+    [Authorize(Roles = RolesSgv.Administrador)]
+    [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<UsuarioDto>> Desbloquear(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var result = await comandos.DesbloquearAsync(id, cancellationToken);
         return result.IsSuccess
             ? Ok(result.Value)
             : ApiResults.ToProblemResult(result.Error!, HttpContext);
