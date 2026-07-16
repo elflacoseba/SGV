@@ -15,13 +15,21 @@
 
 @if (Model.IsNotFound)
 {
+    @* Estado recuperable: el backend respondió 404 (o un error de
+       transporte recuperable). El admin ve un mensaje claro y un link
+       de vuelta al listado — NO es un error duro. *@
     <div class="row">
         <div class="col-12">
             <div class="card">
                 <div class="card-body text-center py-5">
                     <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
                     <h5 class="text-muted">El usuario solicitado no está disponible.</h5>
-                    <p class="text-muted mb-0">Es posible que la cuenta haya sido eliminada o que haya ocurrido un error al consultarla.</p>
+                    <p class="text-muted mb-3">
+                        Es posible que la cuenta haya sido eliminada o que el servicio no haya podido responder.
+                    </p>
+                    <a class="btn btn-outline-secondary" href="@Model.BuildIndexUrl()">
+                        <i class="ti ti-arrow-left me-1"></i>Volver al listado
+                    </a>
                 </div>
             </div>
         </div>
@@ -36,6 +44,19 @@ else
                     <h4 class="card-title mb-1">@Model.Usuario!.UserName</h4>
                     <p class="text-muted mb-0">@Model.Usuario.Email</p>
                 </div>
+                @if (Model.Bloqueado)
+                {
+                    @* Phase 3: banner visible cuando Bloqueado=true. La
+                       fuente de verdad es el DTO; el returnStatus es sólo
+                       un hint y NO bloquea el render del banner. *@
+                    <div class="alert alert-warning rounded-0 mb-0 d-flex align-items-center" role="alert">
+                        <i class="ti ti-lock me-2 fs-lg"></i>
+                        <span>
+                            <strong>Cuenta bloqueada.</strong>
+                            Este usuario no puede iniciar sesión hasta que sea desbloqueado.
+                        </span>
+                    </div>
+                }
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-3 text-muted">Usuario</dt>
@@ -74,46 +95,69 @@ else
             </div>
         </div>
     </div>
-}
 
-<div class="row mt-3">
-    <div class="col-12 d-flex flex-wrap gap-2">
-        @if (!Model.IsNotFound && Model.EsAdministrador)
-        {
-            @if (!Model.IsDeletedView)
+    <div class="row mt-3">
+        <div class="col-12 d-flex flex-wrap gap-2">
+            @if (Model.EsAdministrador)
             {
-                <a class="btn btn-warning" href="@Model.BuildEditUrl(Model.Usuario!.Id)">
-                    <i class="ti ti-pencil me-1"></i>Editar
-                </a>
-                <form data-usuario-delete-form method="post" action="/seguridad/usuarios?handler=Delete">
-                    @Html.AntiForgeryToken()
-                    <input name="id" type="hidden" value="@Model.Usuario!.Id" />
-                    <input name="page" type="hidden" value="@Model.CurrentPage" />
-                    <input name="search" type="hidden" value="@Model.Search" />
-                    <input name="sort" type="hidden" value="@Model.Sort" />
-                    <input name="status" type="hidden" value="@Model.Segmento" />
-                    <button class="btn btn-danger" type="submit">
-                        <i class="ti ti-trash me-1"></i>Eliminar
-                    </button>
-                </form>
+                var esAuto = Model.EsAutoAccion(Model.Usuario!.Id);
+                @if (Model.Bloqueado)
+                {
+                    @* Estado bloqueado: sólo Desbloquear (no Edit, no Eliminar). *@
+                    <form data-usuario-desbloquear-form method="post" action="/seguridad/usuarios?handler=Desbloquear">
+                        @Html.AntiForgeryToken()
+                        <input name="id" type="hidden" value="@Model.Usuario.Id" />
+                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                        <input name="search" type="hidden" value="@Model.Search" />
+                        <input name="sort" type="hidden" value="@Model.Sort" />
+                        <input name="status" type="hidden" value="@Model.Segmento" />
+                        <button class="btn btn-success" type="submit">
+                            <i class="ti ti-lock-open me-1"></i>Desbloquear
+                        </button>
+                    </form>
+                }
+                else if (!esAuto)
+                {
+                    @* Estado activo + no auto: Edit + Bloquear + Eliminar. *@
+                    <a class="btn btn-warning" href="@Model.BuildEditUrl(Model.Usuario.Id)">
+                        <i class="ti ti-pencil me-1"></i>Editar
+                    </a>
+                    <form data-usuario-bloquear-form method="post" action="/seguridad/usuarios?handler=Bloquear">
+                        @Html.AntiForgeryToken()
+                        <input name="id" type="hidden" value="@Model.Usuario.Id" />
+                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                        <input name="search" type="hidden" value="@Model.Search" />
+                        <input name="sort" type="hidden" value="@Model.Sort" />
+                        <input name="status" type="hidden" value="@Model.Segmento" />
+                        <button class="btn btn-secondary" type="submit">
+                            <i class="ti ti-lock me-1"></i>Bloquear
+                        </button>
+                    </form>
+                    <form data-usuario-delete-form method="post" action="/seguridad/usuarios?handler=Delete">
+                        @Html.AntiForgeryToken()
+                        <input name="id" type="hidden" value="@Model.Usuario.Id" />
+                        <input name="page" type="hidden" value="@Model.CurrentPage" />
+                        <input name="search" type="hidden" value="@Model.Search" />
+                        <input name="sort" type="hidden" value="@Model.Sort" />
+                        <input name="status" type="hidden" value="@Model.Segmento" />
+                        <button class="btn btn-danger" type="submit">
+                            <i class="ti ti-trash me-1"></i>Eliminar
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    @* Estado activo pero target es self: ocultar Bloquear y
+                       Eliminar; mantener Edit por si quiere revisar sus
+                       propios datos sin acciones destructivas. *@
+                    <a class="btn btn-warning" href="@Model.BuildEditUrl(Model.Usuario.Id)">
+                        <i class="ti ti-pencil me-1"></i>Editar
+                    </a>
+                }
             }
-            else
-            {
-                <form data-usuario-reactivate-form method="post" action="/seguridad/usuarios?handler=Reactivate">
-                    @Html.AntiForgeryToken()
-                    <input name="id" type="hidden" value="@Model.Usuario!.Id" />
-                    <input name="page" type="hidden" value="@Model.CurrentPage" />
-                    <input name="search" type="hidden" value="@Model.Search" />
-                    <input name="sort" type="hidden" value="@Model.Sort" />
-                    <input name="status" type="hidden" value="@Model.Segmento" />
-                    <button class="btn btn-success" type="submit">
-                        <i class="ti ti-refresh me-1"></i>Reactivar
-                    </button>
-                </form>
-            }
-        }
-        <a class="btn btn-outline-secondary" href="@Model.BuildIndexUrl()">
-            <i class="ti ti-arrow-left me-1"></i>Volver al listado
-        </a>
+            <a class="btn btn-outline-secondary" href="@Model.BuildIndexUrl()">
+                <i class="ti ti-arrow-left me-1"></i>Volver al listado
+            </a>
+        </div>
     </div>
-</div>
+}
