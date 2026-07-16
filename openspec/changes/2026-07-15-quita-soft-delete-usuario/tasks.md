@@ -43,13 +43,13 @@ Chain strategy: pending
 
 ## Phase 2: Core
 
-- [ ] 2.1 RED: Test `UsuarioServicioComandos.Bloquear/Desbloquear/EliminarAsync` auto-fence, idempotencia, doble delete 404
-- [ ] 2.2 GREEN: `UsuarioServicioComandos.cs` — `Bloquear/Desbloquear/EliminarAsync`, auditoría `BloqueoUsuario`/`DesbloqueoUsuario`/`EliminacionFisica`, quitar `ReactivarAsync`
-- [ ] 2.3 GREEN: Crear `RevalidatorCredenciales.cs` en `SGV.Api/Seguridad/` — `IRevalidatorCredenciales.SigueVigenteAsync(sub)`
-- [ ] 2.4 GREEN: Configurar `JwtBearerOptions.Events.OnTokenValidated` — invocar revalidator, fallback middleware re-intenta
-- [ ] 2.5 GREEN: Crear `CookiePrincipalRevalidator.cs` en `SGV.Web/Auth/` — hook `AddCookie.Events.OnValidatePrincipal`
-- [ ] 2.6 GREEN: `UsuariosController.cs` — `DELETE` 204, `POST /bloquear` 200, `POST /desbloquear` 200, auto-fence, quitar `PATCH /reactivar`; `status=bloqueadas`
-- [ ] 2.7 GREEN: DI registration en `Program.cs` Api + Web (revalidator, hooks)
+- [x] 2.1 RED: Test `UsuarioServicioComandos.Bloquear/Desbloquear/EliminarAsync` auto-fence, idempotencia, doble delete 404
+- [x] 2.2 GREEN: `UsuarioServicioComandos.cs` — `Bloquear/Desbloquear/EliminarAsync`, auditoría `BloqueoUsuario`/`DesbloqueoUsuario`/`EliminacionFisica`, quitar `ReactivarAsync`
+- [x] 2.3 GREEN: Crear `RevalidatorCredenciales.cs` en `SGV.Api/Seguridad/` — `IRevalidatorCredenciales.SigueVigenteAsync(sub)`
+- [x] 2.4 GREEN: Configurar `JwtBearerOptions.Events.OnTokenValidated` — invocar revalidator, fallback middleware re-intenta
+- [x] 2.5 GREEN: Crear `CookiePrincipalRevalidator.cs` en `SGV.Web/Auth/` — hook `AddCookie.Events.OnValidatePrincipal`
+- [x] 2.6 GREEN: `UsuariosController.cs` — `DELETE` 204, `POST /bloquear` 200, `POST /desbloquear` 200, auto-fence, quitar `PATCH /reactivar`; `status=bloqueadas`
+- [x] 2.7 GREEN: DI registration en `Program.cs` Api + Web (revalidator, hooks)
 
 ## Phase 3: Web Layer
 

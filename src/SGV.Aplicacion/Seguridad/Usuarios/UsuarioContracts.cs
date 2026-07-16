@@ -52,22 +52,6 @@ public interface IUsuarioIdentityGateway
     /// consultables (la columna <c>UserId</c> es string sin FK).
     /// </summary>
     Task<UsuarioCommandResult> EliminarAsync(string userId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// DEPRECATED: usar <see cref="BloquearAsync"/>. Conservado
-    /// temporalmente en Phase 1 para no alterar el controller HTTP; el
-    /// rediseño del controller (POST /bloquear + DELETE físico) ocurre
-    /// en Phase 2. Phase 2 también retira este wrapper.
-    /// </summary>
-    [Obsolete("Use BloquearAsync. El controller rediseña en Phase 2.")]
-    Task<UsuarioCommandResult> DesactivarAsync(string userId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// DEPRECATED: usar <see cref="DesbloquearAsync"/>. Conservado
-    /// temporalmente en Phase 1.
-    /// </summary>
-    [Obsolete("Use DesbloquearAsync. El controller rediseña en Phase 2.")]
-    Task<UsuarioCommandResult> ReactivarAsync(string userId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -98,23 +82,6 @@ public interface IUsuarioServicioComandos
     /// devuelve <c>UsuarioNoEncontrado</c>.
     /// </summary>
     Task<UsuarioCommandResult> EliminarAsync(string userId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// DEPRECATED: usar <see cref="BloquearAsync"/>. Conservado
-    /// temporalmente en Phase 1 para no alterar el controller HTTP; el
-    /// rediseño del controller (DELETE físico + POST /bloquear +
-    /// POST /desbloquear) ocurre en Phase 2. Phase 2 también retira
-    /// este wrapper.
-    /// </summary>
-    [Obsolete("Use BloquearAsync. El controller rediseña en Phase 2.")]
-    Task<UsuarioCommandResult> DesactivarAsync(string userId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// DEPRECATED: usar <see cref="DesbloquearAsync"/>. Conservado
-    /// temporalmente en Phase 1.
-    /// </summary>
-    [Obsolete("Use DesbloquearAsync. El controller rediseña en Phase 2.")]
-    Task<UsuarioCommandResult> ReactivarAsync(string userId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

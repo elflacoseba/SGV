@@ -10,7 +10,8 @@
 |---|----------|-----------|
 | D1 | `LockoutEnabled=true` permanente; bloqueado = `LockoutEnd > UtcNow` (`IsLockedOutAsync`). Bloqueo: `LockoutEnd='9999-12-31 23:59:59.999999'` UTC. Desbloqueo: `null`. `AccessFailedCount` NO se resetea | API canónica. `AddYears(9999)` desborda `MaxValue` (7 fracciones), la 7ª se trunca; `datetime(6)` admite 6 (verificado en `information_schema.COLUMNS`). No resetear evita brute-force tras desbloqueo admin. |
 | D2 | `LoginAsync` invoca `IsLockedOutAsync` ANTES de `CheckPasswordAsync`; bloqueado → `null` con `UsuarioBloqueado` | SGV valida con `CheckPasswordAsync` directo; chequear antes evita enumeración y timing leaks. |
-| D3 | **Corte inmediato**: `IRevalidatorCredenciales.SigueVigenteAsync(sub)` (UserManager + DbContext vía `IServiceScopeFactory`) en `JwtBearerOptions.Events.OnTokenValidated` (API) y `AddCookie.Events.OnValidatePrincipal` (Web). `ApiBearerTokenHandler` propaga el rechazo | (a) `RevokedTokens` agrega query+storage por logout admin; (b) `SecurityStamp` claim carga al usuario por `sub` igual. (c) PK lookup, 1 query por request, sin token store, sin cambios al JWT. Desbloqueo NO revive JWT previo. |
+| D3 | **Corte inmediato** (API): `IRevalidatorCredenciales.SigueVigenteAsync(sub)` (UserManager + DbContext vía `IServiceScopeFactory`) en `JwtBearerOptions.Events.OnTokenValidated` (API) + middleware fallback post-auth | (a) `RevokedTokens` agrega query+storage por logout admin; (b) `SecurityStamp` claim carga al usuario por `sub` igual. (c) PK lookup, 1 query por request, sin token store, sin cambios al JWT. Desbloqueo NO revive JWT previo. |
+| D3b | **Corte inmediato** (Web): `CookiePrincipalRevalidator` registrado en `AddCookie.Events.OnValidatePrincipal`. **Implementación vía cliente HTTP dedicado** (no `UserManager` directo) porque `SGV.Web` sólo referencia `SGV.Contracts` y no tiene acceso a `SgvIdentityUser`/`SgvDbContext`. El cliente consulta un endpoint del API con el JWT bearer del `AuthenticationProperties` y delega la decisión. **Fail-open en 5xx** del transporte: si la API está caída, la cookie se preserva temporalmente para no cerrar sesiones por indisponibilidad. `ApiBearerTokenHandler` propaga el rechazo al cliente tipado | Mantiene la frontera arquitectónica del repo (`SGV.Web` shell, `SGV.Api` composition root). El fail-open evita un DoS accidental cuando la API está degradada. El coste es 1 HTTP request extra por request autenticada en Web (mitigable con Q2 cache 1-2s, diferido). |
 | D4 | `UserManager.DeleteAsync` + FK CASCADE purgan `AspNetUserRoles/Claims/Logins/Tokens`. `Personas` (FK RESTRICT) y `Auditorias` (string sin FK) sobreviven | Cascade garantiza atomicidad. |
 | D5 | `UsuarioSegmentoListado.Eliminadas`→`Bloqueadas`; `UsuarioDto.Bloqueado:bool` derivado de `LockoutEnd > UtcNow`. Sin `OrigenBloqueo` en wire | Decisión cerrada: un segmento cubre admin + lockouts temporales. |
 | D6 | API: `DELETE`→204; `POST /{id}/bloquear` y `POST /{id}/desbloquear`→200. `[Authorize(Roles="Administrador")]`. `ProblemDetails` vía `ApiResults.ToProblemResult`. Auditoría: `BloqueoUsuario`, `DesbloqueoUsuario`, `EliminacionFisica` atómicos bajo la misma tx EF | 200 permite confirmar estado con `UsuarioDto`. El interceptor de auditoría ya envuelve la transacción. |
@@ -20,9 +21,17 @@
 
 ```
 Bloquear/Eliminar ─► SetLockoutEndDateAsync / DeleteAsync + Auditoria (misma tx)
-Request protegida (API/Web) ─► JWT bearer / cookie auth
-                          └► IRevalidatorCredenciales.SigueVigenteAsync(sub)
-                  if null || IsLockedOutAsync ─► Fail / expire cookie
+
+Request protegida API ─► JWT bearer
+                     └► IRevalidatorCredenciales.SigueVigenteAsync(sub)  [UserManager directo]
+                  if null || IsLockedOutAsync ─► Fail
+                            Request sigue
+
+Request protegida Web ─► cookie auth
+                     └► CookiePrincipalRevalidator
+                          └► HttpClient (bearer) ─► GET /api/v1/usuarios/{userId} ─► UsuariosController (en API)
+                  if !SigueVigente || 401/403/404 ─► RejectPrincipal + SignOut cookie
+                  if 5xx ─► fail-open (preserva cookie, log warning)
                             Request sigue
 ```
 

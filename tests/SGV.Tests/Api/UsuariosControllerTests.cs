@@ -207,19 +207,125 @@ public sealed class UsuariosControllerTests
         Assert.Equal(409, problem.Status);
     }
 
-    // Nota: los tests específicos del flujo Bloquear/Desbloquear/Eliminar
-    // viven en Phase 2 cuando el controller rediseñe las acciones
-    // (DELETE físico + POST /bloquear + POST /desbloquear). En Phase 1
-    // el controller sigue exponiendo DELETE/PATCH /reactivar apuntando a
-    // los wrappers del command service para mantener verde el contrato
-    // HTTP vigente.
+    [Fact]
+    public async Task Delete_WithAdmin_ReturnsNoContentAndCallsEliminar()
+    {
+        var called = false;
+        var fake = new FakeUsuarioServicioComandos
+        {
+            EliminarHandler = (id, _) =>
+            {
+                called = true;
+                return Task.FromResult(UsuarioCommandResult.Success(
+                    FakeUsuarioServicioConsulta.DefaultUser with { Id = id }));
+            }
+        };
+        await using var factory = WithUsuarioComandos(fake);
+        var client = factory.CreateAdminClient();
+
+        var response = await client.DeleteAsync("/api/v1/usuarios/user-1");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.True(called);
+    }
+
+    [Fact]
+    public async Task Bloquear_WithAdmin_ReturnsOkAndCallsBloquear()
+    {
+        var called = false;
+        var fake = new FakeUsuarioServicioComandos
+        {
+            BloquearHandler = (id, _) =>
+            {
+                called = true;
+                return Task.FromResult(UsuarioCommandResult.Success(
+                    FakeUsuarioServicioConsulta.DefaultUser with { Id = id, Bloqueado = true }));
+            }
+        };
+        await using var factory = WithUsuarioComandos(fake);
+        var client = factory.CreateAdminClient();
+
+        var response = await client.PostAsync("/api/v1/usuarios/user-1/bloquear", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(called);
+        var user = await response.Content.ReadFromJsonAsync<UsuarioDto>();
+        Assert.True(user!.Bloqueado);
+    }
+
+    [Fact]
+    public async Task Desbloquear_WithAdmin_ReturnsOkAndCallsDesbloquear()
+    {
+        var called = false;
+        var fake = new FakeUsuarioServicioComandos
+        {
+            DesbloquearHandler = (id, _) =>
+            {
+                called = true;
+                return Task.FromResult(UsuarioCommandResult.Success(
+                    FakeUsuarioServicioConsulta.DefaultUser with { Id = id, Bloqueado = false }));
+            }
+        };
+        await using var factory = WithUsuarioComandos(fake);
+        var client = factory.CreateAdminClient();
+
+        var response = await client.PostAsync("/api/v1/usuarios/user-1/desbloquear", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(called);
+        var user = await response.Content.ReadFromJsonAsync<UsuarioDto>();
+        Assert.False(user!.Bloqueado);
+    }
+
+    [Fact]
+    public async Task Bloquear_WhenCommandRejectsSelfMutation_ReturnsForbiddenProblem()
+    {
+        var fake = new FakeUsuarioServicioComandos
+        {
+            BloquearHandler = (_, _) => Task.FromResult(UsuarioCommandResult.Failure(new UsuarioError(
+                UsuarioErrorType.Unauthorized,
+                "AutoBloqueo",
+                "No puede bloquear su propio usuario.",
+                Categoria: ErrorCategoria.Forbidden)))
+        };
+        await using var factory = WithUsuarioComandos(fake);
+        var client = factory.CreateAdminClient();
+
+        var response = await client.PostAsync("/api/v1/usuarios/user-1/bloquear", content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal("AutoBloqueo", problem!.Title);
+    }
+
+    [Fact]
+    public async Task Delete_WhenCommandRejectsSelfMutation_ReturnsForbiddenProblem()
+    {
+        var fake = new FakeUsuarioServicioComandos
+        {
+            EliminarHandler = (_, _) => Task.FromResult(UsuarioCommandResult.Failure(new UsuarioError(
+                UsuarioErrorType.Unauthorized,
+                "AutoEliminacion",
+                "No puede eliminar su propio usuario.",
+                Categoria: ErrorCategoria.Forbidden)))
+        };
+        await using var factory = WithUsuarioComandos(fake);
+        var client = factory.CreateAdminClient();
+
+        var response = await client.DeleteAsync("/api/v1/usuarios/user-1");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal("AutoEliminacion", problem!.Title);
+    }
 
     [Theory]
     [InlineData(nameof(SGV.Api.Controllers.UsuariosController.Create))]
     [InlineData(nameof(SGV.Api.Controllers.UsuariosController.AssignRoles))]
     [InlineData("Update")]
     [InlineData("Delete")]
-    [InlineData("Reactivate")]
+    [InlineData("Bloquear")]
+    [InlineData("Desbloquear")]
     public void MutationAction_RequiresAdministratorRole(string methodName)
     {
         var method = typeof(SGV.Api.Controllers.UsuariosController)
@@ -235,7 +341,8 @@ public sealed class UsuariosControllerTests
     [InlineData("PUT", "/api/v1/usuarios/user-1")]
     [InlineData("PUT", "/api/v1/usuarios/user-1/roles")]
     [InlineData("DELETE", "/api/v1/usuarios/user-1")]
-    [InlineData("PATCH", "/api/v1/usuarios/user-1/reactivar")]
+    [InlineData("POST", "/api/v1/usuarios/user-1/bloquear")]
+    [InlineData("POST", "/api/v1/usuarios/user-1/desbloquear")]
     public async Task Mutation_WithAuthenticatedNonAdmin_ReturnsForbidden(string method, string uri)
     {
         var client = _fixture.RootFactory.CreateNonAdminClient();

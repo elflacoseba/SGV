@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -121,6 +123,37 @@ builder.Services
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(_ => { });
+builder.Services.AddSingleton<IRevalidatorCredenciales, RevalidatorCredenciales>();
+builder.Services.AddOptions<JwtBearerOptions>()
+    .Configure<IRevalidatorCredenciales>((options, revalidator) =>
+    {
+        var existingHandler = options.Events?.OnTokenValidated;
+        options.Events ??= new JwtBearerEvents();
+        options.Events.OnTokenValidated = async context =>
+        {
+            if (existingHandler is not null)
+            {
+                await existingHandler(context);
+            }
+
+            var subject = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (string.IsNullOrWhiteSpace(subject))
+            {
+                context.Fail("subject claim required");
+                return;
+            }
+
+            var isValid = await revalidator.SigueVigenteAsync(
+                subject,
+                context.HttpContext.RequestAborted);
+            context.HttpContext.Items[RevalidatorCredenciales.ValidationMarker] = true;
+            if (!isValid)
+            {
+                context.Fail("Credencial revocada o cuenta bloqueada.");
+            }
+        };
+    });
 builder.Services.AddSingleton<IPostConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerFromJwtOptions>();
 builder.Services.AddAuthorization(opts =>
     opts.FallbackPolicy = new AuthorizationPolicyBuilder()
@@ -193,6 +226,45 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true
+        && !context.Items.ContainsKey(RevalidatorCredenciales.ValidationMarker))
+    {
+        // Real bearer principals carry `iss` (issuer) once MapInboundClaims
+        // has run; the Test auth scheme and similar stubs do not. This lets
+        // the revalidator run on production JWT without affecting test or
+        // non-bearer pipelines.
+        var hasIssuer = context.User.HasClaim(c => c.Type == JwtRegisteredClaimNames.Iss);
+        if (!hasIssuer)
+        {
+            await next();
+            return;
+        }
+
+        var subject = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
+        var revalidator = context.RequestServices
+            .GetRequiredService<IRevalidatorCredenciales>();
+        var isValid = await revalidator.SigueVigenteAsync(
+            subject,
+            context.RequestAborted);
+        context.Items[RevalidatorCredenciales.ValidationMarker] = true;
+        if (!isValid)
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+    }
+
+    await next();
+});
 app.UseAuthorization();
 
 // Health check endpoints — anonymous and tag-based.

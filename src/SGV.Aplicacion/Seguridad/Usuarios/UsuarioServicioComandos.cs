@@ -188,12 +188,15 @@ public sealed class UsuarioServicioComandos(
         // auditoría; antes era EmptyValues, lo que perdía la transición
         // `Bloqueado=false → Bloqueado=true`. previous.Bloqueado ya viene
         // poblado por Corr 4 (UsuarioIdentityGateway.MapAsync).
-        await RegistrarAuditoriaAsync(
-            result.Value!,
-            "BloqueoUsuario",
-            CriticalValues(previous),
-            CriticalValues(result.Value!),
-            cancellationToken).ConfigureAwait(false);
+        if (!previous.Bloqueado)
+        {
+            await RegistrarAuditoriaAsync(
+                result.Value!,
+                "BloqueoUsuario",
+                CriticalValues(previous),
+                CriticalValues(result.Value!),
+                cancellationToken).ConfigureAwait(false);
+        }
 
         return result;
     }
@@ -220,12 +223,15 @@ public sealed class UsuarioServicioComandos(
         }
 
         // RIS-004: análogo a BloquearAsync.
-        await RegistrarAuditoriaAsync(
-            result.Value!,
-            "DesbloqueoUsuario",
-            CriticalValues(previous),
-            CriticalValues(result.Value!),
-            cancellationToken).ConfigureAwait(false);
+        if (previous.Bloqueado)
+        {
+            await RegistrarAuditoriaAsync(
+                result.Value!,
+                "DesbloqueoUsuario",
+                CriticalValues(previous),
+                CriticalValues(result.Value!),
+                cancellationToken).ConfigureAwait(false);
+        }
 
         return result;
     }
@@ -268,14 +274,6 @@ public sealed class UsuarioServicioComandos(
 
         return await identityGateway.EliminarAsync(userId, cancellationToken).ConfigureAwait(false);
     }
-
-    [Obsolete("Use BloquearAsync. El controller rediseña en Phase 2.")]
-    public Task<UsuarioCommandResult> DesactivarAsync(string userId, CancellationToken cancellationToken = default)
-        => BloquearAsync(userId, cancellationToken);
-
-    [Obsolete("Use DesbloquearAsync. El controller rediseña en Phase 2.")]
-    public Task<UsuarioCommandResult> ReactivarAsync(string userId, CancellationToken cancellationToken = default)
-        => DesbloquearAsync(userId, cancellationToken);
 
     private static readonly IReadOnlyDictionary<string, object?> EmptyValues =
         new Dictionary<string, object?>();
