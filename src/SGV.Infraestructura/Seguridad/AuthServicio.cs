@@ -26,6 +26,11 @@ public sealed class AuthServicio(
             return null;
         }
 
+        if (user.IsDeleted)
+        {
+            return null;
+        }
+
         var validPassword = await userManager.CheckPasswordAsync(user, request.Password).ConfigureAwait(false);
         if (!validPassword)
         {

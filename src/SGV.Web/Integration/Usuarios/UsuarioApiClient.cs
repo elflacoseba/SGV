@@ -181,22 +181,6 @@ public sealed class UsuarioApiClient(HttpClient httpClient) : IUsuarioApiClient
                 PageSize: query.PageSize));
     }
 
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<string>> GetRolesAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
-
-        var response = await httpClient
-            .GetAsync($"{BaseRoute}/{userId}/roles", cancellationToken)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content
-            .ReadFromJsonAsync<IReadOnlyList<string>>(cancellationToken: cancellationToken)
-            .ConfigureAwait(false)
-            ?? [];
-    }
-
     /// <summary>
     /// Construye la URI absoluta del endpoint paginado de usuarios.
     /// Espejo del <c>BuildQueryUri</c> de <c>PersonaApiClient</c>:

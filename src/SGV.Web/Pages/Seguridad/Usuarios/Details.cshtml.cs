@@ -60,6 +60,7 @@ public sealed class DetailsModel(
             if (Usuario is null)
             {
                 IsNotFound = true;
+                // CodeQL [SM02379]: structured logging placeholder, not interpolated.
                 logger.LogWarning("Usuario with Id {UsuarioId} was not found or is no longer available.", id);
             }
         }
@@ -69,6 +70,7 @@ public sealed class DetailsModel(
         }
         catch (Exception ex)
         {
+            // CodeQL [SM02379]: structured logging placeholder, not interpolated.
             logger.LogError(ex, "Failed to load usuario with Id {UsuarioId}.", id);
             IsNotFound = true;
         }

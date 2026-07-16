@@ -436,23 +436,6 @@ public class UsuarioApiClientBasicTests
         Assert.Equal("PersonaInactiva", result.Error.Code);
     }
 
-    [Fact]
-    public async Task GetRolesAsync_Http200_ReturnsRolesAndHitsRolesRoute()
-    {
-        // AC: atajo preservado para PR4. GET /api/v1/usuarios/{userId}/roles
-        // devuelve IReadOnlyList<string> con el catálogo de roles del
-        // usuario. El shell lo usa para poblar el editor o validar el
-        // estado de roles antes de un PUT.
-        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, new[] { "Administrador", "Consultor" }));
-        var client = new UsuarioApiClient(NewHttpClient(handler));
-
-        var result = await client.GetRolesAsync("u-roles");
-
-        Assert.Equal(2, result.Count);
-        Assert.Contains("Administrador", result);
-        Assert.Equal($"/api/v1/usuarios/u-roles/roles", handler.LastRequest?.RequestUri?.AbsolutePath);
-    }
-
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, ErrorCategoria.Unauthorized)]
     [InlineData(HttpStatusCode.RequestTimeout, ErrorCategoria.Transport)]

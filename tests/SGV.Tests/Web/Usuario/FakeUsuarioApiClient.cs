@@ -327,19 +327,6 @@ public sealed class FakeUsuarioApiClient : SGV.Web.Integration.Usuarios.IUsuario
                 PageSize: query.PageSize)));
     }
 
-    public Task<IReadOnlyList<string>> GetRolesAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        if (_allResult is null)
-        {
-            return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
-        }
-
-        var usuario = _allResult.FirstOrDefault(u => u.Id == userId);
-        var roles = usuario?.Roles;
-        IReadOnlyList<string> result = roles is null ? Array.Empty<string>() : roles.ToArray();
-        return Task.FromResult(result);
-    }
-
     private List<UsuarioDto> ApplyStatusFilter(List<UsuarioDto> source, UsuarioSegmentoListado segmento)
     {
         return segmento == UsuarioSegmentoListado.Eliminadas

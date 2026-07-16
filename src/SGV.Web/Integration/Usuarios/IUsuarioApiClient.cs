@@ -112,11 +112,4 @@ public interface IUsuarioApiClient
     /// código <c>PersonaInactiva</c>.
     /// </summary>
     Task<UsuarioCommandResult> ReactivarAsync(string id, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Atajo preservado para el flujo de roles. Devuelve los nombres de
-    /// los roles asignados al usuario con id <paramref name="userId"/>
-    /// consumiendo <c>GET /api/v1/usuarios/{userId}/roles</c>.
-    /// </summary>
-    Task<IReadOnlyList<string>> GetRolesAsync(string userId, CancellationToken cancellationToken = default);
 }

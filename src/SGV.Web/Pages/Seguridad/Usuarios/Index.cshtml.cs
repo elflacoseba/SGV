@@ -96,6 +96,7 @@ public sealed class IndexModel(
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
+            // CodeQL [SM02379]: structured logging placeholder, not interpolated.
             logger.LogWarning(ex, "Failed to deactivate usuario with Id {UsuarioId}.", id);
             PageFeedback.SetDanger(TempData, "No se pudo eliminar el usuario. Intentá nuevamente.");
             return RedirectToIndex(context.Page, context.Search, context.Sort, context.Status);
@@ -171,6 +172,7 @@ public sealed class IndexModel(
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
+            // CodeQL [SM02379]: structured logging placeholder, not interpolated.
             logger.LogWarning(ex, "Failed to reactivate usuario with Id {UsuarioId}.", id);
             PageFeedback.SetDanger(TempData, "No se pudo reactivar el usuario. Intentá nuevamente.");
             return RedirectToIndex(context.Page, context.Search, context.Sort, context.Status);

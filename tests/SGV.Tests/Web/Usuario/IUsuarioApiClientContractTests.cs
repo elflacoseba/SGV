@@ -10,16 +10,18 @@ namespace SGV.Tests.Web.Usuario;
 /// Aprobación de contrato de <see cref="IUsuarioApiClient"/>.
 ///
 /// <para>
-/// La interface define ocho métodos introducidos en el change
+/// La interface define siete métodos introducidos en el change
 /// <c>Implementa módulo usuarios</c>: <c>GetAllActivasAsync</c>,
 /// <c>QueryAsync</c>, <c>GetByIdAsync</c>, <c>CreateAsync</c>,
 /// <c>UpdateAsync</c>, <c>DesactivarAsync</c> (+ alias
-/// <c>DeleteAsync</c> default-implemented), <c>ReactivarAsync</c> y
-/// <c>GetRolesAsync</c>. Estos tests son guards de contrato: si alguien
-/// borra un método, le cambia el nombre, devuelve un tipo distinto o le
-/// renombra un parámetro (e.g. <c>id</c> → <c>userId</c>), el test
-/// falla ANTES de que el cambio silencioso impacte las Razor Pages de
-/// PR 3/4.
+/// <c>DeleteAsync</c> default-implemented) y <c>ReactivarAsync</c>.
+/// El atajo <c>GetRolesAsync</c> fue retirado por el review de PR #148
+/// porque apuntaba a <c>GET /api/v1/usuarios/{userId}/roles</c>, ruta
+/// que nunca existió en el backend. Estos tests son guards de contrato:
+/// si alguien borra un método, le cambia el nombre, devuelve un tipo
+/// distinto o le renombra un parámetro (e.g. <c>id</c> → <c>userId</c>),
+/// el test falla ANTES de que el cambio silencioso impacte las Razor
+/// Pages de PR 3/4.
 /// </para>
 ///
 /// <para>
@@ -153,35 +155,29 @@ public class IUsuarioApiClientContractTests
     }
 
     [Fact]
-    public void Interface_ExposesGetRolesAsyncWithExpectedSignature()
+    public void Interface_DoesNotExposeGetRolesAsync()
     {
-        // Atajo preservado para PR3/4: GET /api/v1/usuarios/{userId}/roles.
-        // No se introduce en este PR como flujo crítico pero la firma debe
-        // existir desde ya para evitar un refactor de la página de roles
-        // cuando llegue PR 4.
-        var method = typeof(IUsuarioApiClient).GetMethod(nameof(IUsuarioApiClient.GetRolesAsync));
+        // PR #148 review: GET /api/v1/usuarios/{userId}/roles nunca
+        // existió en el controller — la única ruta vigente es
+        // GET /api/v1/usuarios/roles (catálogo global) +
+        // PUT /api/v1/usuarios/{userId}/roles (asignación). El método
+        // GetRolesAsync del cliente queda como dead code y se elimina.
+        // Este guard evita un refactor silencioso que lo restaure.
+        var method = typeof(IUsuarioApiClient).GetMethod("GetRolesAsync");
 
-        Assert.NotNull(method);
-        Assert.Equal(typeof(Task<IReadOnlyList<string>>), method!.ReturnType);
-
-        var parameters = method.GetParameters();
-        Assert.Equal(2, parameters.Length);
-        Assert.Equal("userId", parameters[0].Name);
-        Assert.Equal(typeof(string), parameters[0].ParameterType);
-        Assert.Equal("cancellationToken", parameters[1].Name);
-        Assert.Equal(typeof(CancellationToken), parameters[1].ParameterType);
-        Assert.True(parameters[1].HasDefaultValue);
+        Assert.Null(method);
     }
 
     [Fact]
-    public void Interface_ExposesExactlyNinePublicAsyncMethods()
+    public void Interface_ExposesExactlyEightPublicAsyncMethods()
     {
         // Defensa contra refactors "creativos" que sumen un nuevo método
         // (e.g. <c>BulkCreateAsync</c>) sin actualizar la suite de
-        // contract tests. La cantidad esperada es 8 métodos "primary"
-        // (GetAllActivasAsync, QueryAsync, GetByIdAsync, CreateAsync,
-        // UpdateAsync, DesactivarAsync, ReactivarAsync, GetRolesAsync)
-        // más el alias <c>DeleteAsync</c> default-implemented, total 9.
+        // contract tests. Tras la baja de GetRolesAsync (PR #148 review)
+        // quedan 7 métodos "primary" (GetAllActivasAsync, QueryAsync,
+        // GetByIdAsync, CreateAsync, UpdateAsync, DesactivarAsync,
+        // ReactivarAsync) más el alias <c>DeleteAsync</c> default-
+        // implemented, total 8.
         var publicMethods = typeof(IUsuarioApiClient)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => !m.IsSpecialName) // excluye accessors
@@ -197,7 +193,6 @@ public class IUsuarioApiClientContractTests
                 "DesactivarAsync",
                 "GetAllActivasAsync",
                 "GetByIdAsync",
-                "GetRolesAsync",
                 "QueryAsync",
                 "ReactivarAsync",
                 "UpdateAsync"
