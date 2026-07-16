@@ -248,71 +248,114 @@ public sealed class UsuarioServicioComandosTests
     }
 
     [Fact]
-    public async Task DesactivarAsync_CurrentUser_ReturnsForbiddenAutoBajaWithoutCallingGateway()
+    public async Task BloquearAsync_CurrentUser_ReturnsForbiddenAutoBloqueoWithoutCallingGateway()
     {
         var context = CreateContext(currentUserId: TargetUserId);
 
-        var result = await context.Service.DesactivarAsync(TargetUserId);
+        var result = await context.Service.BloquearAsync(TargetUserId);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("AutoBaja", result.Error!.Code);
+        Assert.Equal("AutoBloqueo", result.Error!.Code);
         Assert.Equal(ErrorCategoria.Forbidden, result.Error.Categoria);
-        Assert.False(context.Gateway.DesactivarCalled);
+        Assert.False(context.Gateway.BloquearCalled);
         Assert.Empty(context.Auditoria.Entries);
     }
 
     [Fact]
-    public async Task DesactivarAsync_OtherUser_SoftDeletesAndAuditsCriticalFields()
+    public async Task BloquearAsync_OtherUser_LocksAndAuditsCriticalFields()
     {
         var context = CreateContext();
 
-        var result = await context.Service.DesactivarAsync(TargetUserId);
+        var result = await context.Service.BloquearAsync(TargetUserId);
 
         Assert.True(result.IsSuccess);
-        Assert.True(context.Gateway.DesactivarCalled);
+        Assert.True(context.Gateway.BloquearCalled);
         var audit = Assert.Single(context.Auditoria.Entries);
-        Assert.Equal("BajaLogica", audit.Accion);
+        Assert.Equal("BloqueoUsuario", audit.Accion);
+        Assert.Equal("old-name", audit.Nuevos["UserName"]);
+        Assert.Equal(RolesSgv.Consultor, audit.Nuevos["Roles"]);
+    }
+
+    [Fact]
+    public async Task DesbloquearAsync_OtherUser_UnlocksAndAuditsCriticalFields()
+    {
+        var context = CreateContext();
+
+        var result = await context.Service.DesbloquearAsync(TargetUserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(context.Gateway.DesbloquearCalled);
+        var audit = Assert.Single(context.Auditoria.Entries);
+        Assert.Equal("DesbloqueoUsuario", audit.Accion);
+    }
+
+    [Fact]
+    public async Task EliminarAsync_OtherUser_DeletesAndAuditsEliminacionFisica()
+    {
+        var context = CreateContext();
+
+        var result = await context.Service.EliminarAsync(TargetUserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(context.Gateway.EliminarCalled);
+        var audit = Assert.Single(context.Auditoria.Entries);
+        Assert.Equal("EliminacionFisica", audit.Accion);
         Assert.Equal("old-name", audit.Anteriores["UserName"]);
-        Assert.Equal("old@test.com", audit.Anteriores["Email"]);
         Assert.Equal(RolesSgv.Consultor, audit.Anteriores["Roles"]);
     }
 
     [Fact]
-    public async Task ReactivarAsync_WithInactivePersona_ReturnsConflictPersonaInactivaWithoutCallingGateway()
+    public async Task EliminarAsync_WhenGatewayDeleteFails_StillPersistsAudit()
     {
-        var inactivePersona = CreatePersona();
-        inactivePersona.Desactivar();
-        var context = CreateContext(inactivePersona);
+        // RES-002 (4R review): con delete físico fallando, la auditoría
+        // de EliminacionFisica ya debe estar persistida.
+        var context = CreateContext();
+        context.Gateway.EliminarShouldFail = true;
 
-        var result = await context.Service.ReactivarAsync(TargetUserId);
+        var result = await context.Service.EliminarAsync(TargetUserId);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("PersonaInactiva", result.Error!.Code);
-        Assert.Equal(ErrorCategoria.Conflict, result.Error.Categoria);
-        Assert.False(context.Gateway.ReactivarCalled);
-        Assert.Empty(context.Auditoria.Entries);
+        Assert.True(context.Gateway.EliminarCalled);
+        var audit = Assert.Single(context.Auditoria.Entries);
+        Assert.Equal("EliminacionFisica", audit.Accion);
+        Assert.Equal("old-name", audit.Anteriores["UserName"]);
     }
 
     [Fact]
-    public async Task ReactivarAsync_WithActivePersona_ReactivatesAndAuditsCriticalFields()
+    public async Task BloquearAsync_AuditsPreviousBloqueadoFlag()
     {
-        var context = CreateContext();
-        await context.Gateway.DesactivarAsync(TargetUserId);
+        // RIS-004 (4R review): audit de BloqueoUsuario debe contener
+        // Bloqueado previo (no EmptyValues), para distinguir transiciones.
+        var context = CreateContext(seedBloqueado: true);
 
-        var result = await context.Service.ReactivarAsync(TargetUserId);
+        var result = await context.Service.BloquearAsync(TargetUserId);
 
         Assert.True(result.IsSuccess);
-        Assert.True(context.Gateway.ReactivarCalled);
         var audit = Assert.Single(context.Auditoria.Entries);
-        Assert.Equal("Reactivacion", audit.Accion);
-        Assert.Equal("old-name", audit.Nuevos["UserName"]);
-        Assert.Equal(RolesSgv.Consultor, audit.Nuevos["Roles"]);
+        Assert.Equal("BloqueoUsuario", audit.Accion);
+        Assert.Equal(true, audit.Anteriores["Bloqueado"]);
+    }
+
+    [Fact]
+    public async Task EliminarAsync_AuditsPreviousBloqueadoFlag()
+    {
+        // RIS-004 (4R review): la auditoría de EliminacionFisica debe
+        // contener el Bloqueado previo del snapshot.
+        var context = CreateContext(seedBloqueado: true);
+
+        var result = await context.Service.EliminarAsync(TargetUserId);
+
+        Assert.True(result.IsSuccess);
+        var audit = Assert.Single(context.Auditoria.Entries);
+        Assert.Equal("EliminacionFisica", audit.Accion);
+        Assert.Equal(true, audit.Anteriores["Bloqueado"]);
     }
 
     private static TestContext CreateContext(
         Persona? persona = null,
         string currentUserId = CurrentUserId,
-        bool personaExists = true)
+        bool personaExists = true,
+        bool seedBloqueado = false)
     {
         if (personaExists)
         {
@@ -327,7 +370,8 @@ public sealed class UsuarioServicioComandosTests
             "old@test.com",
             [RolesSgv.Consultor],
             persona?.Nombres,
-            persona?.Apellidos));
+            persona?.Apellidos,
+            Bloqueado: seedBloqueado));
         var auditoria = new FakeAuditoriaServicio();
         var service = new UsuarioServicioComandos(
             new FakePersonaRepository(persona),
@@ -386,6 +430,19 @@ public sealed class UsuarioServicioComandosTests
         public ActualizarUsuarioRequest? UpdatedRequest { get; private set; }
         public bool DesactivarCalled { get; private set; }
         public bool ReactivarCalled { get; private set; }
+        public bool BloquearCalled { get; private set; }
+        public bool DesbloquearCalled { get; private set; }
+        public bool EliminarCalled { get; private set; }
+
+        /// <summary>
+        /// RES-002 (4R review): cuando es <c>true</c>, la próxima
+        /// invocación de <see cref="EliminarAsync"/> retorna un failure
+        /// sin tocar el store. Usado por
+        /// <c>EliminarAsync_WhenGatewayDeleteFails_StillPersistsAudit</c>
+        /// para verificar que la auditoría persiste aún si el delete
+        /// físico falla.
+        /// </summary>
+        public bool EliminarShouldFail { get; set; }
 
         public void Seed(UsuarioDto user) => _users[user.Id] = user;
         public void Remove(string id) => _users.Remove(id);
@@ -466,6 +523,59 @@ public sealed class UsuarioServicioComandosTests
             ReactivarCalled = true;
             return Task.FromResult(UsuarioCommandResult.Success(current));
         }
+
+        public Task<UsuarioCommandResult> BloquearAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            if (!_users.TryGetValue(userId, out var current))
+            {
+                return Task.FromResult(NotFound());
+            }
+
+            BloquearCalled = true;
+            return Task.FromResult(UsuarioCommandResult.Success(current));
+        }
+
+        public Task<UsuarioCommandResult> DesbloquearAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            if (!_users.TryGetValue(userId, out var current))
+            {
+                return Task.FromResult(NotFound());
+            }
+
+            DesbloquearCalled = true;
+            return Task.FromResult(UsuarioCommandResult.Success(current));
+        }
+
+        public Task<UsuarioCommandResult> EliminarAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            if (!_users.TryGetValue(userId, out var current))
+            {
+                return Task.FromResult(NotFound());
+            }
+
+            EliminarCalled = true;
+
+            // RES-002: si el flag está activo, simulamos un fallo del
+            // gateway (ej. FK constraint o timeout) sin tocar el store, de
+            // manera que la prueba verifique que la auditoría ya fue
+            // persistida antes de este punto.
+            if (EliminarShouldFail)
+            {
+                return Task.FromResult(Failure(
+                    UsuarioErrorType.Conflict,
+                    "EliminacionFallida",
+                    "No se pudo completar la eliminación física.",
+                    ErrorCategoria.Conflict));
+            }
+
+            _users.Remove(userId);
+            return Task.FromResult(UsuarioCommandResult.Success(current));
+        }
+
+        private static UsuarioCommandResult Failure(
+            UsuarioErrorType type, string code, string message, ErrorCategoria categoria)
+            => UsuarioCommandResult.Failure(new UsuarioError(
+                type, code, message, Categoria: categoria));
 
         private static UsuarioCommandResult NotFound()
             => UsuarioCommandResult.Failure(new UsuarioError(

@@ -186,7 +186,7 @@ public sealed class UsuarioApiClient(HttpClient httpClient) : IUsuarioApiClient
     /// Espejo del <c>BuildQueryUri</c> de <c>PersonaApiClient</c>:
     /// serializa <c>page/pageSize</c> obligatorios y agrega
     /// <c>search</c>/<c>sort</c> sólo si vienen poblados.
-    /// <paramref name="segmento"/> se mapea a <c>status=eliminadas</c>
+    /// <paramref name="segmento"/> se mapea a <c>status=bloqueadas</c>
     /// cuando corresponde; cualquier otro valor (incluyendo
     /// <see cref="UsuarioSegmentoListado.Activas"/>) omite el parámetro
     /// y deja que la API caiga al default <c>activas</c>.
@@ -212,9 +212,9 @@ public sealed class UsuarioApiClient(HttpClient httpClient) : IUsuarioApiClient
             builder.Append(Uri.EscapeDataString(sort));
         }
 
-        if (segmento == UsuarioSegmentoListado.Eliminadas)
+        if (segmento == UsuarioSegmentoListado.Bloqueadas)
         {
-            builder.Append("&status=eliminadas");
+            builder.Append("&status=bloqueadas");
         }
 
         return builder.ToString();

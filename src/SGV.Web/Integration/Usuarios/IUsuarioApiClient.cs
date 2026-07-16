@@ -40,7 +40,7 @@ public interface IUsuarioApiClient
     /// <summary>
     /// Ejecuta la consulta paginada y segmentada vía
     /// <c>GET /api/v1/usuarios/consulta</c>. <c>query.Segmento</c> se
-    /// serializa como query string <c>status=eliminadas</c> cuando
+    /// serializa como query string <c>status=bloqueadas</c> cuando
     /// corresponde; cualquier otro valor (incluyendo
     /// <see cref="UsuarioSegmentoListado.Activas"/>) omite el parámetro
     /// y deja que la API caiga a <c>activas</c> por defecto.

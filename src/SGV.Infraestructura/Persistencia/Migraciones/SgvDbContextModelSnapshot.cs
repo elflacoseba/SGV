@@ -1644,13 +1644,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
-                    b.Property<string>("ActiveUserNameUnique")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasMaxLength(256)
-                        .HasColumnType("varchar(256)")
-                        .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN LOWER(`UserName`) ELSE NULL END", true)
-                        .UseCollation("utf8mb4_0900_ai_ci");
-
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("longtext");
@@ -1661,11 +1654,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(false);
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("tinyint(1)");
@@ -1704,10 +1692,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         .HasColumnType("varchar(256)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ActiveUserNameUnique")
-                        .IsUnique()
-                        .HasDatabaseName("IX_AspNetUsers_ActiveUserNameUnique");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");

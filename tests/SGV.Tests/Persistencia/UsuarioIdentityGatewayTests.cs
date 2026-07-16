@@ -16,6 +16,18 @@ using Xunit;
 
 namespace SGV.Tests.Persistencia;
 
+/// <summary>
+/// Tests del gateway de usuarios (queries, actualización y unicidad de
+/// PersonaId) adaptados al modelo post-soft-delete. Los tests de
+/// Bloquear/Desbloquear/Eliminar viven en
+/// <see cref="BloquearDesbloquearEliminarGatewayTests"/>.
+/// </summary>
+/// <remarks>
+/// Se removieron los tests que dependían de <c>IsDeleted</c> y de
+/// <c>Desactivar/Reactivar</c>: ambos ya no existen en el modelo de
+/// la entidad. La separación activa/bloqueada se filtra por
+/// <c>LockoutEnd &gt; UtcNow</c>.
+/// </remarks>
 public sealed class UsuarioIdentityGatewayTests
 {
     [MySqlFact]
@@ -23,21 +35,21 @@ public sealed class UsuarioIdentityGatewayTests
     {
         await using var fixture = await GatewayFixture.CreateAsync();
         var marker = fixture.Marker;
-        await fixture.AddUserAsync($"{marker}-active", "Ana", marker, isDeleted: false, [RolesSgv.Administrador]);
-        await fixture.AddUserAsync($"{marker}-deleted", "Beto", marker, isDeleted: true, [RolesSgv.Consultor]);
+        var activeUser = await fixture.AddUserAsync($"{marker}-active", "Ana", marker, blocked: false, [RolesSgv.Administrador]);
+        var blockedUser = await fixture.AddUserAsync($"{marker}-blocked", "Beto", marker, blocked: true, [RolesSgv.Consultor]);
 
         var active = await fixture.Gateway.QueryAsync(
             new UsuarioListQuery(1, 20, marker, "username_asc", UsuarioSegmentoListado.Activas));
-        var deleted = await fixture.Gateway.QueryAsync(
-            new UsuarioListQuery(1, 20, marker, "username_asc", UsuarioSegmentoListado.Eliminadas));
+        var bloqueadas = await fixture.Gateway.QueryAsync(
+            new UsuarioListQuery(1, 20, marker, "username_asc", UsuarioSegmentoListado.Bloqueadas));
 
-        var activeUser = Assert.Single(active.Items);
-        Assert.Equal("Ana", activeUser.Nombres);
-        Assert.Equal(marker, activeUser.Apellidos);
-        Assert.Equal([RolesSgv.Administrador], activeUser.Roles);
-        var deletedUser = Assert.Single(deleted.Items);
-        Assert.Equal("Beto", deletedUser.Nombres);
-        Assert.Equal([RolesSgv.Consultor], deletedUser.Roles);
+        var activeUserResult = Assert.Single(active.Items);
+        Assert.Equal("Ana", activeUserResult.Nombres);
+        Assert.Equal(marker, activeUserResult.Apellidos);
+        Assert.Equal([RolesSgv.Administrador], activeUserResult.Roles);
+        var blockedUserResult = Assert.Single(bloqueadas.Items);
+        Assert.Equal("Beto", blockedUserResult.Nombres);
+        Assert.Equal([RolesSgv.Consultor], blockedUserResult.Roles);
     }
 
     [MySqlFact]
@@ -50,7 +62,7 @@ public sealed class UsuarioIdentityGatewayTests
             $"{fixture.Marker}-search",
             uniqueName,
             uniqueSurname,
-            isDeleted: false,
+            blocked: false,
             [RolesSgv.Consultor]);
 
         var byName = await fixture.Gateway.QueryAsync(new UsuarioListQuery(
@@ -114,14 +126,6 @@ public sealed class UsuarioIdentityGatewayTests
     [MySqlFact]
     public async Task ListAsync_CapsPageSizeToReasonableMaximum()
     {
-        // PR #148 review: el atajo ListAsync cargaba int.MaxValue filas,
-        // materializando todos los usuarios en memoria incluso para
-        // tenants grandes. La corrección acota el PageSize a un
-        // máximo razonable (500) para que el endpoint siga siendo un
-        // atajo útil para catálogos pequeños (dropdowns, etc.) sin
-        // convertirse en una bomba de memoria. Para datasets que
-        // excedan el cap, los callers deben migrar a QueryAsync con
-        // paginación explícita.
         await using var fixture = await GatewayFixture.CreateAsync();
         var interceptor = new ListPageSizeInterceptor();
         var resultWithInterceptor = await ListAsyncWithInterceptorAsync(fixture, interceptor);
@@ -139,13 +143,13 @@ public sealed class UsuarioIdentityGatewayTests
         // administrativas consumen vía QueryAsync).
         await using var fixture = await GatewayFixture.CreateAsync();
         var marker = $"listasync-{Guid.NewGuid():N}"[..14];
-        await fixture.AddUserAsync($"{marker}-active", "Ana", marker, isDeleted: false, [RolesSgv.Consultor]);
-        await fixture.AddUserAsync($"{marker}-deleted", "Beto", marker, isDeleted: true, [RolesSgv.Consultor]);
+        await fixture.AddUserAsync($"{marker}-active", "Ana", marker, blocked: false, [RolesSgv.Consultor]);
+        await fixture.AddUserAsync($"{marker}-blocked", "Beto", marker, blocked: true, [RolesSgv.Consultor]);
 
         var result = await fixture.Gateway.ListAsync();
 
         Assert.Contains(result, user => user.UserName == $"{marker}-active");
-        Assert.DoesNotContain(result, user => user.UserName == $"{marker}-deleted");
+        Assert.DoesNotContain(result, user => user.UserName == $"{marker}-blocked");
     }
 
     private static async Task<IReadOnlyList<UsuarioDto>> ListAsyncWithInterceptorAsync(
@@ -196,14 +200,6 @@ public sealed class UsuarioIdentityGatewayTests
 
         private void CapturePageSize(DbCommand command)
         {
-            // EF + Pomelo usa placeholders `?` sin nombre para los
-            // parámetros, así que identificamos el PageSize por
-            // POSICIÓN dentro del LIMIT: `LIMIT @skip, @take`. Si no
-            // los encontramos por nombre, miramos todos los parámetros
-            // y elegimos el que esté acotado a algo razonable (<= 5000)
-            // y no sea 0 ni 1 — heurística basta para esta asserción
-            // porque ListAsync es la única operación del módulo que
-            // usa este patrón.
             if (ObservedPageSize.HasValue)
             {
                 return;
@@ -279,91 +275,20 @@ public sealed class UsuarioIdentityGatewayTests
     }
 
     [MySqlFact]
-    public async Task DesactivarAndReactivarAsync_MovesUserBetweenSegments()
-    {
-        await using var fixture = await GatewayFixture.CreateAsync();
-        var user = await fixture.AddUserAsync(
-            $"{fixture.Marker}-toggle",
-            "Toggle",
-            fixture.Marker,
-            false,
-            [RolesSgv.Consultor]);
-
-        var deactivate = await fixture.Gateway.DesactivarAsync(user.Id);
-        var deleted = await fixture.Gateway.QueryAsync(new UsuarioListQuery(
-            1,
-            20,
-            fixture.Marker,
-            null,
-            UsuarioSegmentoListado.Eliminadas));
-        var reactivate = await fixture.Gateway.ReactivarAsync(user.Id);
-        var active = await fixture.Gateway.QueryAsync(new UsuarioListQuery(
-            1,
-            20,
-            fixture.Marker,
-            null,
-            UsuarioSegmentoListado.Activas));
-
-        Assert.True(deactivate.IsSuccess);
-        Assert.Contains(deleted.Items, item => item.Id == user.Id);
-        Assert.True(reactivate.IsSuccess);
-        Assert.Contains(active.Items, item => item.Id == user.Id);
-    }
-
-    [MySqlFact]
-    public async Task CrearAsync_WithSoftDeletedUserForSamePersona_CreatesNewUserWithoutConflict()
-    {
-        // PR #148 review: la unicidad en PersonaId debe excluir
-        // soft-deleted para permitir la reactivación del flujo. La
-        // columna generada ActivePersonaIdUnique hace lo mismo a nivel
-        // SQL; este test verifica la línea defensiva a nivel gateway
-        // (`!u.IsDeleted` en el `AnyAsync`) para detectar regresiones en
-        // cualquier capa.
-        await using var fixture = await GatewayFixture.CreateAsync();
-        var persona = await fixture.AddPersonaAsync($"{fixture.Marker}", $"{fixture.Marker}");
-
-        var firstUser = await fixture.AddUserForPersonaAsync(
-            persona,
-            $"{fixture.Marker}-first",
-            isDeleted: true,
-            [RolesSgv.Consultor]);
-
-        // El DbContext del fixture es singleton (compartido con el
-        // gateway) y EF modela la relación Persona→User como 1:1, así
-        // que el primer usuario sigue trackeado al momento de invocar
-        // CrearAsync para el segundo. En producción cada request
-        // obtiene un scope fresco, por lo que no vemos este conflicto;
-        // simulamos ese aislamiento detachando el primer usuario antes
-        // de la segunda operación.
-        fixture.Context.ChangeTracker.Clear();
-
-        var request = new CrearUsuarioRequest(
-            persona.Id,
-            $"{fixture.Marker}-second",
-            $"{fixture.Marker}-second@test.com",
-            "Password1!",
-            [RolesSgv.Consultor]);
-        var result = await fixture.Gateway.CrearAsync(request);
-
-        Assert.True(result.IsSuccess);
-        Assert.NotEqual(firstUser.Id, result.Value!.Id);
-        Assert.Equal($"{fixture.Marker}-second", result.Value.UserName);
-        Assert.Equal(persona.Id, result.Value.PersonaId);
-    }
-
-    [MySqlFact]
     public async Task CrearAsync_WithActiveUserForSamePersona_ReturnsConflictPersonaYaTieneUsuario()
     {
-        // Contrapartida del test anterior: cuando el usuario previo para
-        // la misma Persona está ACTIVO, la unicidad soft-delete-aware
-        // SÍ debe disparar el Conflict "PersonaYaTieneUsuario".
+        // La unicidad en PersonaId se mantiene plana (UNIQUE en
+        // IX_AspNetUsers_PersonaId) sin la columna generada soft-delete
+        // -aware. Cualquier intento de crear un segundo usuario activo
+        // para la misma Persona debe disparar el Conflict
+        // "PersonaYaTieneUsuario".
         await using var fixture = await GatewayFixture.CreateAsync();
         var persona = await fixture.AddPersonaAsync($"{fixture.Marker}", $"{fixture.Marker}");
 
         await fixture.AddUserForPersonaAsync(
             persona,
             $"{fixture.Marker}-first",
-            isDeleted: false,
+            blocked: false,
             [RolesSgv.Consultor]);
 
         fixture.Context.ChangeTracker.Clear();
@@ -417,87 +342,6 @@ public sealed class UsuarioIdentityGatewayTests
 
         context.Auditorias.Remove(audit);
         await context.SaveChangesAsync();
-    }
-
-    [MySqlFact]
-    public async Task Migration_AppliesSuccessfullyToCleanDatabase()
-    {
-        var databaseName = $"sgv_users_{Guid.NewGuid():N}"[..24];
-        var databaseConnection = new MySqlConnectionStringBuilder(
-            TestSgvDbContextFactory.ResolveConnectionString())
-        {
-            Database = databaseName
-        };
-        var serverConnection = new MySqlConnectionStringBuilder(databaseConnection.ConnectionString)
-        {
-            Database = string.Empty
-        };
-
-        await using var adminConnection = new MySqlConnection(serverConnection.ConnectionString);
-        await adminConnection.OpenAsync();
-        await using (var create = adminConnection.CreateCommand())
-        {
-            create.CommandText = $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;";
-            await create.ExecuteNonQueryAsync();
-        }
-
-        try
-        {
-            var options = new DbContextOptionsBuilder<SgvDbContext>()
-                .UseMySql(
-                    databaseConnection.ConnectionString,
-                    new MySqlServerVersion(new Version(8, 0, 36)))
-                .Options;
-            await using var context = new SgvDbContext(options);
-
-            await context.Database.MigrateAsync();
-
-            var columns = await context.Database
-                .SqlQueryRaw<string>(
-                    "SELECT COLUMN_NAME AS Value FROM INFORMATION_SCHEMA.COLUMNS " +
-                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'AspNetUsers' " +
-                    "AND COLUMN_NAME IN ('IsDeleted', 'ActiveUserNameUnique')")
-                .ToListAsync();
-            Assert.Equal(["ActiveUserNameUnique", "IsDeleted"], columns.Order().ToArray());
-        }
-        finally
-        {
-            await using var drop = adminConnection.CreateCommand();
-            drop.CommandText = $"DROP DATABASE IF EXISTS `{databaseName}`;";
-            await drop.ExecuteNonQueryAsync();
-        }
-    }
-
-    [MySqlFact]
-    public async Task Migration_CreatesGeneratedActiveUserNameColumnAndUniqueIndex()
-    {
-        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
-        var connection = context.Database.GetDbConnection();
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT EXTRA, GENERATION_EXPRESSION
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'AspNetUsers'
-              AND COLUMN_NAME = 'ActiveUserNameUnique';
-            """;
-        await using var reader = await command.ExecuteReaderAsync();
-
-        Assert.True(await reader.ReadAsync());
-        Assert.Contains("STORED GENERATED", reader.GetString(0), StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("lower", reader.GetString(1), StringComparison.OrdinalIgnoreCase);
-        await reader.CloseAsync();
-
-        command.CommandText = """
-            SELECT NON_UNIQUE
-            FROM INFORMATION_SCHEMA.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'AspNetUsers'
-              AND INDEX_NAME = 'IX_AspNetUsers_ActiveUserNameUnique';
-            """;
-        var nonUnique = Convert.ToInt32(await command.ExecuteScalarAsync());
-        Assert.Equal(0, nonUnique);
     }
 
     private sealed class FakeUsuarioActual(string userId) : IUsuarioActual
@@ -587,7 +431,7 @@ public sealed class UsuarioIdentityGatewayTests
             string userName,
             string nombres,
             string apellidos,
-            bool isDeleted,
+            bool blocked,
             IReadOnlyCollection<string> roles)
         {
             var persona = await AddPersonaAsync(nombres, apellidos);
@@ -599,7 +443,10 @@ public sealed class UsuarioIdentityGatewayTests
                 NormalizedUserName = userName.ToUpperInvariant(),
                 Email = $"{Guid.NewGuid():N}@user.test",
                 NormalizedEmail = $"{Guid.NewGuid():N}@USER.TEST",
-                IsDeleted = isDeleted,
+                LockoutEnabled = true,
+                LockoutEnd = blocked
+                    ? BloquearFechaFuturo()
+                    : null,
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             };
@@ -639,7 +486,7 @@ public sealed class UsuarioIdentityGatewayTests
         public async Task<SgvIdentityUser> AddUserForPersonaAsync(
             PersonaEntity persona,
             string userName,
-            bool isDeleted,
+            bool blocked,
             IReadOnlyCollection<string> roles)
         {
             var user = new SgvIdentityUser
@@ -650,7 +497,10 @@ public sealed class UsuarioIdentityGatewayTests
                 NormalizedUserName = userName.ToUpperInvariant(),
                 Email = $"{Guid.NewGuid():N}@user.test",
                 NormalizedEmail = $"{Guid.NewGuid():N}@USER.TEST",
-                IsDeleted = isDeleted,
+                LockoutEnabled = true,
+                LockoutEnd = blocked
+                    ? BloquearFechaFuturo()
+                    : null,
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             };
@@ -667,26 +517,13 @@ public sealed class UsuarioIdentityGatewayTests
 
         public async ValueTask DisposeAsync()
         {
-            // PR #148 review: el FK 1:1 AspNetUsers.PersonaId → Personas.Id
-            // puede referenciar Personas sembradas con usuarios creados
-            // por el gateway en un DbContext separado (que el fixture no
-            // trackea). Tras la baja lógica del primer usuario, el
-            // gateway puede crear un segundo Usuario activo para la
-            // misma Persona — ambos quedan en DB y el fixture debe
-            // limpiar AMBOS al disponer. Usamos SQL directo con FK
-            // checks desactivados para sortear el modelo conceptual 1:1
-            // de EF (que rechazaría un Remove del principal).
-#pragma warning disable EF1002 // Raw SQL interpolated values are Guids.ToString("N") — hex-only, safe.
+#pragma warning disable EF1002
             await Context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS=0");
             try
             {
                 if (_personaIds.Count > 0)
                 {
                     var personaIdList = string.Join(",", _personaIds.Select(id => $"'{id}'"));
-                    // Borro TODOS los AspNetUsers que referencian las
-                    // Personas del fixture, no sólo los _userIds
-                    // trackeados: el gateway puede haber insertado
-                    // usuarios adicionales en su propio DbContext.
                     await Context.Database.ExecuteSqlRawAsync(
                         $"DELETE FROM `AspNetUserRoles` WHERE `UserId` IN " +
                         $"(SELECT `Id` FROM `AspNetUsers` WHERE `PersonaId` IN ({personaIdList}))");
@@ -704,5 +541,8 @@ public sealed class UsuarioIdentityGatewayTests
             Context.ChangeTracker.Clear();
             await _provider.DisposeAsync();
         }
+
+        private static DateTimeOffset BloquearFechaFuturo()
+            => new(9999, 12, 31, 23, 59, 59, TimeSpan.Zero);
     }
 }

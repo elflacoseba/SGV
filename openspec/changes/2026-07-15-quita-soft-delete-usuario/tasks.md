@@ -29,17 +29,17 @@ Chain strategy: pending
 
 ## Phase 1: Foundation
 
-- [ ] 1.1 RED: Integration test Q1 — verificar OnTokenValidated/OnValidatePrincipal corren antes de autorización, fallback middleware post-auth
-- [ ] 1.2 RED: Test migración preflight fail-loud con duplicados PersonaId
-- [ ] 1.3 RED: Test migración backfill `IsDeleted=1` → `LockoutEnd` futuro
-- [ ] 1.4 GREEN: `SgvIdentityUser.cs` — quitar `IsDeleted`
-- [ ] 1.5 GREEN: `SgvIdentityUserConfiguracion.cs` — quitar `IsDeleted`, columnas generadas, sus índices; swap `IX_AspNetUsers_PersonaId` a UNIQUE
-- [ ] 1.6 GREEN: `UsuarioContracts.cs` — `Eliminadas`→`Bloqueadas`, `Bloqueado:bool`, error codes `AutoBloqueo`/`AutoEliminacion`/`UsuarioBloqueado`/`UsuarioNoEncontrado`
-- [ ] 1.7 GREEN: `IUsuarioIdentityGateway` + `IUsuarioServicioComandos` — `Bloquear/Desbloquear/EliminarAsync`, quitar `Desactivar/Reactivar`
-- [ ] 1.8 GREEN: `UsuarioIdentityGateway.cs` — `Bloquear/Desbloquear/EliminarAsync` usando `SetLockoutEndAsync`/`DeleteAsync`; `QueryAsync` filtra `LockoutEnd>UtcNow`; `CrearAsync` sin `!IsDeleted`
-- [ ] 1.9 GREEN: `AuthServicio.LoginAsync` — invocar `IsLockedOutAsync` antes de `CheckPasswordAsync`, retornar null si bloqueado
-- [ ] 1.10 GREEN: Migración forward-only D7: (1) preflight, (2) backfill, (3) DROP FK, (4) DROP índices generados, (5) DROP cols, (6) DROP `IX_AspNetUsers_PersonaId`, (7) ADD UNIQUE `IX_AspNetUsers_PersonaId`, (8) ADD FK RESTRICT
-- [ ] 1.11 Regenerar `docs/migracion-inicial-sgv.sql` con `--idempotent`
+- [x] 1.1 RED: Integration test Q1 — verificar OnTokenValidated/OnValidatePrincipal corren antes de autorización, fallback post-auth
+- [x] 1.2 RED: Test migración preflight fail-loud con duplicados PersonaId
+- [x] 1.3 RED: Test migración backfill `IsDeleted=1` → `LockoutEnd` futuro
+- [x] 1.4 GREEN: `SgvIdentityUser.cs` — quitar `IsDeleted`
+- [x] 1.5 GREEN: `SgvIdentityUserConfiguracion.cs` — quitar `IsDeleted`, columnas generadas, sus índices; swap `IX_AspNetUsers_PersonaId` a UNIQUE
+- [x] 1.6 GREEN: `UsuarioContracts.cs` — `Eliminadas`→`Bloqueadas`, `Bloqueado:bool`, error codes
+- [x] 1.7 GREEN: `IUsuarioIdentityGateway` + `IUsuarioServicioComandos` — `Bloquear/Desbloquear/EliminarAsync`, quitar `Desactivar/Reactivar`
+- [x] 1.8 GREEN: `UsuarioIdentityGateway.cs` — `Bloquear/Desbloquear/EliminarAsync` usando `SetLockoutEndAsync`/`DeleteAsync`; `QueryAsync` filtra `LockoutEnd>UtcNow`; `CrearAsync` sin `!IsDeleted`
+- [x] 1.9 GREEN: `AuthServicio.LoginAsync` — invocar `IsLockedOutAsync` antes de `CheckPasswordAsync`, retornar null si bloqueado
+- [x] 1.10 GREEN: Migración forward-only D7: (1) preflight, (2) backfill, (3) DROP FK, (4) DROP índices generados, (5) DROP cols, (6) DROP `IX_AspNetUsers_PersonaId`, (7) ADD UNIQUE `IX_AspNetUsers_PersonaId`, (8) ADD FK RESTRICT
+- [x] 1.11 Regenerar `docs/migracion-inicial-sgv.sql` con `--idempotent`
 
 ## Phase 2: Core
 
