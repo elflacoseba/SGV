@@ -1,26 +1,6 @@
-# Especificación de listado, detalle, baja y reactivación web de usuarios
+# Delta para `usuario-web-listado-detalle-baja`
 
-## Purpose
-
-Definir el slice autenticado de `Usuarios` en `SGV.Web` para listar cuentas activas y bloqueadas de forma segmentada, ver el detalle readonly, ejecutar bloqueo, desbloqueo y eliminación física con PRG — sin expandirse a alta, edición de credenciales ni gestión de roles.
-
-## Requirements
-
-### Requirement: REQ-ULD-01 Acceso autenticado al módulo de usuarios
-
-`SGV.Web` MUST exponer el módulo `Seguridad/Usuarios` solo a usuarios autenticados; los anónimos MUST ser redirigidos a `/auth/sign-in`.
-
-#### Scenario: Usuario autenticado abre el módulo
-
-- **DADO** un usuario autenticado en la shell
-- **CUANDO** accede al módulo `Usuarios`
-- **ENTONCES** la aplicación MUST responder con el listado dentro del shell autenticado.
-
-#### Scenario: Usuario anónimo intenta acceder
-
-- **DADO** un usuario no autenticado
-- **CUANDO** solicita `/seguridad/usuarios` o un detalle
-- **ENTONCES** MUST redirigirlo a `/auth/sign-in`.
+## MODIFIED Requirements
 
 ### Requirement: REQ-ULD-02 Listado segmentado server-side con búsqueda y orden
 
@@ -87,6 +67,8 @@ La página MUST preservar `status`, `search`, `sort` y `p` en links, formularios
 - **CUANDO** la página construye links, hidden inputs y mensajes post-redirect
 - **ENTONCES** `status` MUST preservarse en orden, paginación, búsqueda, POSTs y alertas.
 
+## ADDED Requirements
+
 ### Requirement: REQ-ULD-08 Acciones Bloquear y Desbloquear con PRG
 
 `?handler=Bloquear` y `?handler=Desbloquear` MUST exigir rol `Administrador`, MUST invocar `POST /api/v1/usuarios/{id}/bloquear` y `POST /api/v1/usuarios/{id}/desbloquear`, MUST redirigir al segmento resultante (`bloqueadas` o `activas`) cuando la operación es exitosa y MUST conservar el segmento con feedback accionable cuando falla (`AutoBloqueo`, `UsuarioNoEncontrado`).
@@ -103,7 +85,9 @@ La página MUST preservar `status`, `search`, `sort` y `p` en links, formularios
 - **CUANDO** intenta `?handler=Bloquear` sobre sí mismo
 - **ENTONCES** el backend MUST rechazarlo con `AutoBloqueo` y la interfaz MUST mostrar feedback accionable.
 
-## Out of scope
+## REMOVED Requirements
 
-- No incluye alta (`Create`) ni edición (`Edit`) — cubierto por `usuario-web-crear-editar`.
-- No incluye cambio de contraseña, lockout/unlock, CRUD de roles ni gestión de sesiones.
+### Requirement: REQ-ULD-06 Reactivación con PRG y feedback de persona inactiva
+
+(Reason: la reactivación lógica se retira junto con el soft-delete; el desbloqueo se cubre en REQ-ULD-08.)
+(Migration: `?handler=Reactivate` → `?handler=Desbloquear`; API `POST /desbloquear`.)

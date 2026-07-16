@@ -57,25 +57,41 @@ El sistema MUST permitir asignar a un usuario existente uno o más roles del cat
 
 ### Requirement: Paginación y segmentación de Usuarios
 
-`GET /api/v1/usuarios/consulta?page=&pageSize=&search=&sort=&status=activas|eliminadas` MUST estar disponible para cualquier usuario autenticado. `search` MUST aplicar sobre `UserName|Email|Nombres|Apellidos`. `status` omitido o inválido MUST caer a `activas`. Respuesta MUST ser `PagedResult<UsuarioDto>` (incluyendo `Nombres`/`Apellidos` y roles).
+`GET /api/v1/usuarios/consulta?page=&pageSize=&search=&sort=&status=activas|bloqueadas` MUST estar disponible para cualquier usuario autenticado. `search` MUST aplicar sobre `UserName|Email|Nombres|Apellidos`. `status` omitido o inválido MUST caer a `activas`. Respuesta MUST ser `PagedResult<UsuarioDto>` (con `Nombres`/`Apellidos` y roles). `bloqueadas` MUST incluir a todo usuario con `LockoutEnd` futuro vigente; `activas` MUST excluir eliminados físicamente y a todo aquel con lockout vigente.
 
-#### Scenario: Listar usuarios con paginación, búsqueda y orden server-side
+#### Scenario: Listar con paginación, búsqueda y orden server-side
 
-- **DADO** usuarios activos persistidos
-- **CUANDO** se solicita `/consulta?search=juan&sort=apellidos_asc&p=1`
-- **ENTONCES** MUST responder `200` con `PagedResult<UsuarioDto>` paginado, excluyendo inactivos, con la búsqueda y el orden aplicados antes de `Skip/Take`.
+- **DADO** usuarios activos y bloqueados persistidos
+- **CUANDO** se solicita `/consulta?search=juan&sort=apellidos_asc&p=1&status=bloqueadas`
+- **ENTONCES** MUST responder `200` con `PagedResult<UsuarioDto>` paginado, sólo con `LockoutEnd` futuro vigente, con búsqueda y orden aplicados antes de `Skip/Take`.
 
 #### Scenario: Paginación o status inválidos se normalizan
 
-- **DADO** usuarios en ambos segmentos en persistencia
+- **DADO** usuarios en ambos segmentos
 - **CUANDO** se consulta `/consulta?status=archivo&page=0&pageSize=500`
-- **ENTONCES** MUST caer a `activas` con `page=1` y `pageSize` limitado a `100`.
+- **ENTONCES** MUST caer a `activas` con `page=1` y `pageSize` ≤ `100`.
 
 #### Scenario: Búsqueda sin coincidencias devuelve página vacía
 
-- **DADO** un usuario autenticado consulta un segmento válido
-- **CUANDO** `search` no coincide con ningún usuario del segmento
+- **DADO** un autenticado consulta un segmento válido
+- **CUANDO** `search` no coincide
 - **ENTONCES** MUST responder `200` con `items` vacíos y `totalCount=0`.
+
+### Requirement: Eliminación física de un usuario
+
+`DELETE /api/v1/usuarios/{id}` MUST exigir rol `Administrador` y MUST ejecutar la eliminación física definida en `usuario-delete-fisico` (borrado de `AspNetUsers` y cascadas técnicas; conserva `Persona` y `Auditorias`). El endpoint MUST rechazar auto-eliminación e inexistentes según lo definido allí.
+
+#### Scenario: Eliminación física exitosa
+
+- **DADO** un usuario activo o bloqueado
+- **CUANDO** un `Administrador` envía `DELETE`
+- **ENTONCES** MUST responder `200`, eliminar físicamente la fila y conservar `Persona` y `Auditorias`.
+
+#### Scenario: Auto-eliminación prohibida
+
+- **DADO** un `Administrador` cuyo `id` coincide con el objetivo
+- **CUANDO** intenta `DELETE` sobre sí mismo
+- **ENTONCES** MUST responder `403` con código `AutoEliminacion` sin aplicar la baja.
 
 ### Requirement: Consulta paginada libre de N+1 en roles
 
@@ -110,44 +126,28 @@ El sistema MUST permitir asignar a un usuario existente uno o más roles del cat
 - **ENTONCES** la respuesta MUST ser coherente con la última escritura persistida
 - **Y** MUST informarse al cliente si la edición quedó invalidada por otro cambio.
 
-### Requirement: Baja lógica de un usuario
-
-`DELETE /api/v1/usuarios/{id}` MUST exigir rol `Administrador`, MUST marcar `IsDeleted=1` en `AspNetUsers` (sin borrado físico) y MUST respetar la columna generada `ActiveUserNameUnique` para que el `UserName` quede libre para reactivaciones futuras sin colisionar.
-
-#### Scenario: Baja lógica exitosa
-
-- **DADO** un usuario activo
-- **CUANDO** un `Administrador` envía `DELETE`
-- **ENTONCES** MUST responder `200`, marcar `IsDeleted=1`, dejarlo fuera del segmento `activas` y exponerlo en `eliminadas`.
-
-#### Scenario: Auto-baja prohibida
-
-- **DADO** un `Administrador` autenticado que coincide con el `id` objetivo
-- **CUANDO** intenta ejecutar `DELETE` sobre sí mismo
-- **ENTONCES** MUST responder `403 Forbidden` (o `ErrorCategoria.Conflict`) sin aplicar la baja.
-
-### Requirement: Reactivación lógica de un usuario con validación de Persona activa
-
-`PATCH /api/v1/usuarios/{id}/reactivar` MUST exigir rol `Administrador`, MUST poner `IsDeleted=0`, MUST verificar que la `PersonaId` asociada exista y esté `IsDeleted=0`. Si la `Persona` está inactiva o no existe, MUST responder `ErrorCategoria.Conflict` con código `PersonaInactiva`.
-
-#### Scenario: Reactivación exitosa
-
-- **DADO** un usuario eliminado cuya `Persona` vinculada está activa
-- **CUANDO** un `Administrador` envía `PATCH /reactivar`
-- **ENTONCES** MUST responder `200`, exponer al usuario en `activas` y liberar el `UserName` para reasignación única.
-
-#### Scenario: Reactivación fallida por Persona inactiva
-
-- **DADO** un usuario eliminado cuya `Persona` vinculada tiene `IsDeleted=1`
-- **CUANDO** un `Administrador` envía `PATCH /reactivar`
-- **ENTONCES** MUST responder `409 Conflict` con `ErrorCategoria.Conflict`, código `PersonaInactiva` y mensaje accionable.
-
 ### Requirement: Taxonomía de errores en operaciones de usuarios
 
-Las operaciones de `UsuariosController` MUST reportar sus errores mediante la taxonomía `ErrorCategoria` con códigos por dominio (`PersonaInactiva`, `RolNoSoportado`, `UserNameDuplicado`, `EmailDuplicado`, `AutoBaja`, `PersonaRequerida`) consistente con la regla #125.
+Las operaciones de `UsuariosController` MUST reportar errores vía `ErrorCategoria` con códigos por dominio: `PersonaInactiva`, `RolNoSoportado`, `UserNameDuplicado`, `EmailDuplicado`, `AutoBaja`, `AutoBloqueo`, `AutoEliminacion`, `UsuarioBloqueado`, `UsuarioNoEncontrado`, `PersonaRequerida`. Bloqueo, desbloqueo y eliminación extienden este catálogo.
 
 #### Scenario: Errores discriminados por categoria
 
 - **DADO** cualquier endpoint de `UsuariosController`
 - **CUANDO** se produce un fallo de dominio
-- **ENTONCES** la respuesta MUST tipar `ErrorCategoria` (`Conflict`, `Validation`, `NotFound`, `Unauthorized`, `Transport`) y MUST incluir un código de dominio legible por la UI.
+- **ENTONCES** la respuesta MUST tipar `ErrorCategoria` (`Conflict`, `Validation`, `NotFound`, `Unauthorized`, `Transport`) y MUST incluir un código de dominio legible.
+
+### Requirement: Invalidación inmediata de credenciales activas tras bloqueo o eliminación
+
+Bloquear o eliminar una cuenta MUST cortar de inmediato el acceso del JWT bearer y de la cookie web ya emitidos, sin esperar `exp` ni logout. Una llamada API con JWT válido dentro de `exp` MUST responder `401`; la API MUST NOT emitir un nuevo JWT durante el lockout ni tras eliminación. Los observables de cookie se cubren en `sgv-web-authentication`.
+
+#### Scenario: 401 inmediato tras bloqueo o eliminación
+
+- **DADO** usuario autenticado con JWT vigente
+- **CUANDO** `Administrador` ejecuta `POST /bloquear` o `DELETE` sobre esa cuenta
+- **ENTONCES** la siguiente llamada API con ese JWT MUST responder `401`, sin esperar `exp`.
+
+#### Scenario: Desbloqueo exige login fresco
+
+- **DADO** usuario bloqueado con JWT emitido antes del bloqueo
+- **CUANDO** `Administrador` ejecuta `POST /desbloquear` y el usuario reintenta con el JWT previo
+- **ENTONCES** el JWT MUST seguir rechazado; el acceso MUST restaurarse solo tras un login fresco.

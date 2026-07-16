@@ -43,7 +43,7 @@ El sistema MUST validar credenciales usando el contrato existente de `POST /api/
 
 ### Requirement: Logout y protección del dashboard
 
-El sistema MUST requerir sesión autenticada para acceder al dashboard inicial y MUST ofrecer logout explícito que invalide la sesión web.
+El sistema MUST requerir sesión autenticada para acceder al dashboard inicial y MUST ofrecer logout explícito que invalide la sesión web. Adicionalmente, MUST redirigir a `/auth/sign-in` cuando la cuenta autenticada quede bloqueada con `LockoutEnd` futuro o eliminada físicamente, sin esperar logout ni expiración de cookie. El acceso MUST restaurarse solo mediante un login fresco posterior.
 
 #### Scenario: Acceso anónimo a dashboard
 
@@ -58,6 +58,18 @@ El sistema MUST requerir sesión autenticada para acceder al dashboard inicial y
 - THEN la sesión web MUST invalidarse
 - AND un acceso posterior al dashboard MUST redirigir a `/auth/sign-in`
 
+#### Scenario: Cuenta bloqueada mid-session redirige a login
+
+- GIVEN un usuario autenticado en el dashboard con cookie vigente
+- WHEN un `Administrador` bloquea esa cuenta vía API
+- THEN la siguiente navegación MUST redirigir a `/auth/sign-in` sin esperar logout.
+
+#### Scenario: Cuenta eliminada mid-session redirige a login
+
+- GIVEN un usuario autenticado en el dashboard con cookie vigente
+- WHEN un `Administrador` elimina físicamente esa cuenta
+- THEN la siguiente navegación MUST redirigir a `/auth/sign-in` aunque la cookie siga presente.
+
 ### Requirement: Endpoints de autenticación centralizados
 
 El sistema MUST consumir las rutas de autenticación desde una definición centralizada y reutilizable compartida con `SGV.Api`; los PageModels de `SGV.Web` MUST NOT duplicar literales de rutas del API.
@@ -67,10 +79,6 @@ El sistema MUST consumir las rutas de autenticación desde una definición centr
 - GIVEN una interacción de login o logout en `SGV.Web`
 - WHEN la página necesita resolver la ruta del API correspondiente
 - THEN la ruta MUST obtenerse desde la definición centralizada compartida
-
-## Requisitos AÑADIDOS
-
-> Delta introducida por el change `2026-07-10-endurecer-cookie-cors-deploy` (issue #101, PR #106). Verificado en `openspec/changes/archive/2026-07-10-endurecer-cookie-cors-deploy/verify-report.md`.
 
 ### Requisito: Atributos de la cookie de autenticación por ambiente
 
@@ -124,17 +132,9 @@ La cookie que carga el ticket de autenticación de `SGV.Web` DEBE aplicar atribu
 - **ENTONCES** la sesión web NO DEBE crearse
 - **Y** la pantalla de login DEBE mostrar un error de autenticación controlado.
 
-## Requisitos AÑADIDOS
-
-> Delta introducida por el change `2026-07-14-fix-126-operational-tech-debt` (issue #126). Verificado en `openspec/changes/archive/2026-07-14-fix-126-operational-tech-debt/verify-report.md`.
-
 ### Requisito: Consistencia lingüística del copy de error en login
 
-El PageModel de login (`SignIn.cshtml.cs`) DEBE mostrar mensajes de
-error de transporte (`HttpRequestException`, `TaskCanceledException`)
-en español neutro/profesional, consistente con el tono del resto de la
-UI de SGV. Los mensajes DEBEN ser accibles (texto plano, no
-dependientes de color ni ícono exclusivamente).
+El PageModel de login (`SignIn.cshtml.cs`) DEBE mostrar mensajes de error de transporte (`HttpRequestException`, `TaskCanceledException`) en español neutro/profesional, consistente con el tono del resto de la UI de SGV. Los mensajes DEBEN ser accibles (texto plano, no dependientes de color ni ícono exclusivamente).
 
 #### Escenario: Mensaje de error de transporte es legible y en español
 
@@ -154,3 +154,25 @@ dependientes de color ni ícono exclusivamente).
 - **ENTONCES** la página DEBE renderizarse con un mensaje de timeout en español neutro/profesional
 - **Y** el mensaje DEBE ser texto plano visible (no oculto detrás de un ícono o color)
 - **Y** el usuario DEBE permanecer en la página de login (sin redirección a `/Error`).
+
+### Requirement: Rechazo de cookie cuando la cuenta está bloqueada o eliminada
+
+La cookie de autenticación web MUST NO considerarse válida mientras la cuenta del titular esté bloqueada con `LockoutEnd` futuro o haya sido eliminada físicamente. La siguiente petición web protegida para esa cuenta MUST redirigir al navegador a `/auth/sign-in`, sin esperar logout explícito ni expiración natural de la cookie. La API consumida vía `ApiBearerTokenHandler` también MUST rechazar el JWT asociado con `401` (observable cubierto en `identity-user-role-management`).
+
+#### Scenario: Cookie activa rechazada tras bloqueo
+
+- **DADO** usuario con cookie web vigente en `SGV.Web`
+- **CUANDO** `Administrador` ejecuta `POST /api/v1/usuarios/{id}/bloquear`
+- **ENTONCES** la siguiente navegación a una página protegida MUST redirigir a `/auth/sign-in`.
+
+#### Scenario: Cookie activa rechazada tras eliminación física
+
+- **DADO** usuario con cookie web vigente
+- **CUANDO** `Administrador` ejecuta `DELETE /api/v1/usuarios/{id}`
+- **ENTONCES** la siguiente navegación MUST redirigir a `/auth/sign-in` aunque la cookie siga presente.
+
+#### Scenario: Desbloqueo requiere login fresco
+
+- **DADO** sesión cookie previamente rechazada por bloqueo
+- **CUANDO** `Administrador` ejecuta `POST /desbloquear` y el usuario navega con la cookie previa
+- **ENTONCES** MUST seguir redirigiendo a `/auth/sign-in`; el acceso MUST restaurarse solo tras un login fresco.
