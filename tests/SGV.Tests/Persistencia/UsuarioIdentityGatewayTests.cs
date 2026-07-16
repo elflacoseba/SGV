@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Infraestructura.Persistencia;
@@ -111,6 +112,117 @@ public sealed class UsuarioIdentityGatewayTests
     }
 
     [MySqlFact]
+    public async Task ListAsync_CapsPageSizeToReasonableMaximum()
+    {
+        // PR #148 review: el atajo ListAsync cargaba int.MaxValue filas,
+        // materializando todos los usuarios en memoria incluso para
+        // tenants grandes. La corrección acota el PageSize a un
+        // máximo razonable (500) para que el endpoint siga siendo un
+        // atajo útil para catálogos pequeños (dropdowns, etc.) sin
+        // convertirse en una bomba de memoria. Para datasets que
+        // excedan el cap, los callers deben migrar a QueryAsync con
+        // paginación explícita.
+        await using var fixture = await GatewayFixture.CreateAsync();
+        var interceptor = new ListPageSizeInterceptor();
+        var resultWithInterceptor = await ListAsyncWithInterceptorAsync(fixture, interceptor);
+
+        Assert.NotNull(resultWithInterceptor);
+        Assert.True(interceptor.ObservedPageSize <= 500,
+            $"PageSize debe estar limitado a 500; se observó {interceptor.ObservedPageSize}.");
+    }
+
+    [MySqlFact]
+    public async Task ListAsync_ReturnsActiveUsersUsingEligibleSegment()
+    {
+        // Triangulación: el atajo debe seguir devolviendo únicamente
+        // usuarios activos (mismo segmento que las páginas
+        // administrativas consumen vía QueryAsync).
+        await using var fixture = await GatewayFixture.CreateAsync();
+        var marker = $"listasync-{Guid.NewGuid():N}"[..14];
+        await fixture.AddUserAsync($"{marker}-active", "Ana", marker, isDeleted: false, [RolesSgv.Consultor]);
+        await fixture.AddUserAsync($"{marker}-deleted", "Beto", marker, isDeleted: true, [RolesSgv.Consultor]);
+
+        var result = await fixture.Gateway.ListAsync();
+
+        Assert.Contains(result, user => user.UserName == $"{marker}-active");
+        Assert.DoesNotContain(result, user => user.UserName == $"{marker}-deleted");
+    }
+
+    private static async Task<IReadOnlyList<UsuarioDto>> ListAsyncWithInterceptorAsync(
+        GatewayFixture fixture,
+        ListPageSizeInterceptor interceptor)
+    {
+        var options = new DbContextOptionsBuilder<SgvDbContext>()
+            .UseMySql(
+                TestSgvDbContextFactory.ResolveConnectionString(),
+                new MySqlServerVersion(new Version(8, 0, 36)))
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var context = new SgvDbContext(options);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(context);
+        services.AddIdentityCore<SgvIdentityUser>()
+            .AddRoles<IdentityRole>()
+            .AddEntityFrameworkStores<SgvDbContext>();
+        await using var provider = services.BuildServiceProvider();
+        var userManager = provider.GetRequiredService<UserManager<SgvIdentityUser>>();
+        var gateway = new UsuarioIdentityGateway(userManager, context);
+        return await gateway.ListAsync();
+    }
+
+    private sealed class ListPageSizeInterceptor : DbCommandInterceptor
+    {
+        public int? ObservedPageSize { get; private set; }
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result)
+        {
+            CapturePageSize(command);
+            return base.ReaderExecuting(command, eventData, result);
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            CapturePageSize(command);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        private void CapturePageSize(DbCommand command)
+        {
+            // EF + Pomelo usa placeholders `?` sin nombre para los
+            // parámetros, así que identificamos el PageSize por
+            // POSICIÓN dentro del LIMIT: `LIMIT @skip, @take`. Si no
+            // los encontramos por nombre, miramos todos los parámetros
+            // y elegimos el que esté acotado a algo razonable (<= 5000)
+            // y no sea 0 ni 1 — heurística basta para esta asserción
+            // porque ListAsync es la única operación del módulo que
+            // usa este patrón.
+            if (ObservedPageSize.HasValue)
+            {
+                return;
+            }
+
+            foreach (DbParameter parameter in command.Parameters)
+            {
+                if (parameter.Value is int intValue
+                    && intValue > 1
+                    && intValue <= 5000)
+                {
+                    ObservedPageSize = intValue;
+                    return;
+                }
+            }
+        }
+    }
+
+    [MySqlFact]
     public async Task ActualizarAsync_ValidRequest_PersistsCredentialsAndRolesAtomically()
     {
         await using var fixture = await GatewayFixture.CreateAsync();
@@ -196,6 +308,77 @@ public sealed class UsuarioIdentityGatewayTests
         Assert.Contains(deleted.Items, item => item.Id == user.Id);
         Assert.True(reactivate.IsSuccess);
         Assert.Contains(active.Items, item => item.Id == user.Id);
+    }
+
+    [MySqlFact]
+    public async Task CrearAsync_WithSoftDeletedUserForSamePersona_CreatesNewUserWithoutConflict()
+    {
+        // PR #148 review: la unicidad en PersonaId debe excluir
+        // soft-deleted para permitir la reactivación del flujo. La
+        // columna generada ActivePersonaIdUnique hace lo mismo a nivel
+        // SQL; este test verifica la línea defensiva a nivel gateway
+        // (`!u.IsDeleted` en el `AnyAsync`) para detectar regresiones en
+        // cualquier capa.
+        await using var fixture = await GatewayFixture.CreateAsync();
+        var persona = await fixture.AddPersonaAsync($"{fixture.Marker}", $"{fixture.Marker}");
+
+        var firstUser = await fixture.AddUserForPersonaAsync(
+            persona,
+            $"{fixture.Marker}-first",
+            isDeleted: true,
+            [RolesSgv.Consultor]);
+
+        // El DbContext del fixture es singleton (compartido con el
+        // gateway) y EF modela la relación Persona→User como 1:1, así
+        // que el primer usuario sigue trackeado al momento de invocar
+        // CrearAsync para el segundo. En producción cada request
+        // obtiene un scope fresco, por lo que no vemos este conflicto;
+        // simulamos ese aislamiento detachando el primer usuario antes
+        // de la segunda operación.
+        fixture.Context.ChangeTracker.Clear();
+
+        var request = new CrearUsuarioRequest(
+            persona.Id,
+            $"{fixture.Marker}-second",
+            $"{fixture.Marker}-second@test.com",
+            "Password1!",
+            [RolesSgv.Consultor]);
+        var result = await fixture.Gateway.CrearAsync(request);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEqual(firstUser.Id, result.Value!.Id);
+        Assert.Equal($"{fixture.Marker}-second", result.Value.UserName);
+        Assert.Equal(persona.Id, result.Value.PersonaId);
+    }
+
+    [MySqlFact]
+    public async Task CrearAsync_WithActiveUserForSamePersona_ReturnsConflictPersonaYaTieneUsuario()
+    {
+        // Contrapartida del test anterior: cuando el usuario previo para
+        // la misma Persona está ACTIVO, la unicidad soft-delete-aware
+        // SÍ debe disparar el Conflict "PersonaYaTieneUsuario".
+        await using var fixture = await GatewayFixture.CreateAsync();
+        var persona = await fixture.AddPersonaAsync($"{fixture.Marker}", $"{fixture.Marker}");
+
+        await fixture.AddUserForPersonaAsync(
+            persona,
+            $"{fixture.Marker}-first",
+            isDeleted: false,
+            [RolesSgv.Consultor]);
+
+        fixture.Context.ChangeTracker.Clear();
+
+        var request = new CrearUsuarioRequest(
+            persona.Id,
+            $"{fixture.Marker}-second",
+            $"{fixture.Marker}-second@test.com",
+            "Password1!",
+            [RolesSgv.Consultor]);
+        var result = await fixture.Gateway.CrearAsync(request);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PersonaYaTieneUsuario", result.Error!.Code);
+        Assert.Equal(ErrorCategoria.Conflict, result.Error.Categoria);
     }
 
     [MySqlFact]
@@ -370,7 +553,7 @@ public sealed class UsuarioIdentityGatewayTests
             Marker = $"usr{Guid.NewGuid():N}"[..14];
         }
 
-        public string Marker { get; }
+        public string Marker { get; private set; }
         public SgvDbContext Context { get; }
         public UserManager<SgvIdentityUser> UserManager { get; }
         public UsuarioIdentityGateway Gateway { get; }
@@ -407,17 +590,7 @@ public sealed class UsuarioIdentityGatewayTests
             bool isDeleted,
             IReadOnlyCollection<string> roles)
         {
-            var persona = new PersonaEntity
-            {
-                Id = Guid.NewGuid(),
-                Legajo = $"LEG-{Guid.NewGuid():N}"[..18],
-                Nombres = nombres,
-                Apellidos = apellidos,
-                Email = $"{Guid.NewGuid():N}@persona.test",
-                IsActive = true,
-                IsDeleted = false,
-                CreatedAt = DateTime.UtcNow
-            };
+            var persona = await AddPersonaAsync(nombres, apellidos);
             var user = new SgvIdentityUser
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -431,7 +604,6 @@ public sealed class UsuarioIdentityGatewayTests
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             };
 
-            Context.Personas.Add(persona);
             Context.Users.Add(user);
             foreach (var role in roles)
             {
@@ -443,12 +615,93 @@ public sealed class UsuarioIdentityGatewayTests
             return user;
         }
 
+        public async Task<PersonaEntity> AddPersonaAsync(
+            string nombres,
+            string apellidos)
+        {
+            var persona = new PersonaEntity
+            {
+                Id = Guid.NewGuid(),
+                Legajo = $"LEG-{Guid.NewGuid():N}"[..18],
+                Nombres = nombres,
+                Apellidos = apellidos,
+                Email = $"{Guid.NewGuid():N}@persona.test",
+                IsActive = true,
+                IsDeleted = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            Context.Personas.Add(persona);
+            await Context.SaveChangesAsync();
+            _personaIds.Add(persona.Id);
+            return persona;
+        }
+
+        public async Task<SgvIdentityUser> AddUserForPersonaAsync(
+            PersonaEntity persona,
+            string userName,
+            bool isDeleted,
+            IReadOnlyCollection<string> roles)
+        {
+            var user = new SgvIdentityUser
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                PersonaId = persona.Id,
+                UserName = userName,
+                NormalizedUserName = userName.ToUpperInvariant(),
+                Email = $"{Guid.NewGuid():N}@user.test",
+                NormalizedEmail = $"{Guid.NewGuid():N}@USER.TEST",
+                IsDeleted = isDeleted,
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N")
+            };
+
+            Context.Users.Add(user);
+            foreach (var role in roles)
+            {
+                Context.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = role });
+            }
+            await Context.SaveChangesAsync();
+            _userIds.Add(user.Id);
+            return user;
+        }
+
         public async ValueTask DisposeAsync()
         {
-            Context.UserRoles.RemoveRange(Context.UserRoles.Where(role => _userIds.Contains(role.UserId)));
-            Context.Users.RemoveRange(Context.Users.Where(user => _userIds.Contains(user.Id)));
-            Context.Personas.RemoveRange(Context.Personas.Where(persona => _personaIds.Contains(persona.Id)));
-            await Context.SaveChangesAsync();
+            // PR #148 review: el FK 1:1 AspNetUsers.PersonaId → Personas.Id
+            // puede referenciar Personas sembradas con usuarios creados
+            // por el gateway en un DbContext separado (que el fixture no
+            // trackea). Tras la baja lógica del primer usuario, el
+            // gateway puede crear un segundo Usuario activo para la
+            // misma Persona — ambos quedan en DB y el fixture debe
+            // limpiar AMBOS al disponer. Usamos SQL directo con FK
+            // checks desactivados para sortear el modelo conceptual 1:1
+            // de EF (que rechazaría un Remove del principal).
+#pragma warning disable EF1002 // Raw SQL interpolated values are Guids.ToString("N") — hex-only, safe.
+            await Context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS=0");
+            try
+            {
+                if (_personaIds.Count > 0)
+                {
+                    var personaIdList = string.Join(",", _personaIds.Select(id => $"'{id}'"));
+                    // Borro TODOS los AspNetUsers que referencian las
+                    // Personas del fixture, no sólo los _userIds
+                    // trackeados: el gateway puede haber insertado
+                    // usuarios adicionales en su propio DbContext.
+                    await Context.Database.ExecuteSqlRawAsync(
+                        $"DELETE FROM `AspNetUserRoles` WHERE `UserId` IN " +
+                        $"(SELECT `Id` FROM `AspNetUsers` WHERE `PersonaId` IN ({personaIdList}))");
+                    await Context.Database.ExecuteSqlRawAsync(
+                        $"DELETE FROM `AspNetUsers` WHERE `PersonaId` IN ({personaIdList})");
+                    await Context.Database.ExecuteSqlRawAsync(
+                        $"DELETE FROM `Personas` WHERE `Id` IN ({personaIdList})");
+                }
+            }
+            finally
+            {
+                await Context.Database.ExecuteSqlRawAsync("SET FOREIGN_KEY_CHECKS=1");
+            }
+#pragma warning restore EF1002
+            Context.ChangeTracker.Clear();
             await _provider.DisposeAsync();
         }
     }

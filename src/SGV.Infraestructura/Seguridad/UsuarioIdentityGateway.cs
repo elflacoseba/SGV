@@ -17,8 +17,14 @@ public sealed class UsuarioIdentityGateway(
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // PR #148 review: el índice IX_AspNetUsers_PersonaId fue
+        // reemplazado por la columna generada ActivePersonaIdUnique
+        // (NULL cuando IsDeleted = 1), de modo que la unicidad SQL vive
+        // sólo sobre usuarios activos. Aún así la verificación
+        // aplicación-nivel DEBE excluir explícitamente soft-deleted
+        // para no reusar la fila eliminada como si aún existiera.
         var existingPersonaUser = await context.Users
-            .AnyAsync(user => user.PersonaId == request.PersonaId, cancellationToken)
+            .AnyAsync(user => user.PersonaId == request.PersonaId && !user.IsDeleted, cancellationToken)
             .ConfigureAwait(false);
         if (existingPersonaUser)
         {
@@ -169,13 +175,32 @@ public sealed class UsuarioIdentityGateway(
         return UsuarioCommandResult.Success(await MapAsync(user, cancellationToken).ConfigureAwait(false));
     }
 
+    /// <summary>
+    /// Atajo preservado para callers que necesitan el catálogo plano
+    /// de usuarios activos (e.g. dropdowns administrativos). Mantiene
+    /// la firma <see cref="IReadOnlyList{UsuarioDto}"/> sin
+    /// paginación para no romper los call sites vigentes, pero ACOTA
+    /// el <c>PageSize</c> a <see cref="MaxListPageSize"/> para evitar
+    /// materializar potencialmente miles de filas en memoria.
+    /// </summary>
+    /// <remarks>
+    /// PR #148 review: la implementación original pasaba
+    /// <c>int.MaxValue</c> como <c>PageSize</c>, lo que provoca un
+    /// pull completo de <c>AspNetUsers</c> sin filtrar. Para
+    /// datasets grandes, los callers deben migrar a
+    /// <see cref="QueryAsync"/> con paginación explícita; este atajo
+    /// queda acotado a un máximo razonable de 500 filas, suficiente
+    /// para catálogos pequeños y dropdowns.
+    /// </remarks>
     public async Task<IReadOnlyList<UsuarioDto>> ListAsync(CancellationToken cancellationToken = default)
     {
         var result = await QueryAsync(
-            new UsuarioListQuery(1, int.MaxValue, null, "username_asc"),
+            new UsuarioListQuery(1, MaxListPageSize, null, "username_asc"),
             cancellationToken).ConfigureAwait(false);
         return result.Items;
     }
+
+    private const int MaxListPageSize = 500;
 
     public async Task<UsuarioDto?> GetByIdAsync(
         string userId,

@@ -73,6 +73,42 @@ public sealed class UsuarioServicioComandosTests
         Assert.Null(context.Gateway.CreatedRequest);
     }
 
+    [Theory]
+    [InlineData("not-an-email")]
+    [InlineData("@no-local-part.com")]
+    [InlineData("missing-at-sign.com")]
+    public async Task CrearAsync_WithInvalidEmail_ReturnsEmailInvalidoValidation(string invalidEmail)
+    {
+        // PR #148 review: ActualizarAsync ya validaba formato de email
+        // con MailAddress.TryCreate, pero CrearAsync no lo hacía. El
+        // helper compartido IsValidEmail garantiza el mismo
+        // comportamiento en ambos puntos de entrada para no aceptar
+        // emails que el backend de Identity rechazaría downstream.
+        var context = CreateContext();
+        var request = new CrearUsuarioRequest(PersonaId, "admin", invalidEmail, "Password1!", [RolesSgv.Administrador]);
+
+        var result = await context.Service.CrearAsync(request);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("EmailInvalido", result.Error!.Code);
+        Assert.Equal(ErrorCategoria.Validation, result.Error.Categoria);
+        Assert.Null(context.Gateway.CreatedRequest);
+    }
+
+    [Theory]
+    [InlineData("admin@test.com")]
+    [InlineData("first.last+tag@sub.domain.example.com")]
+    public async Task CrearAsync_WithValidEmail_ProceedsToGateway(string validEmail)
+    {
+        var context = CreateContext();
+        var request = new CrearUsuarioRequest(PersonaId, "admin", validEmail, "Password1!", [RolesSgv.Administrador]);
+
+        var result = await context.Service.CrearAsync(request);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(validEmail, context.Gateway.CreatedRequest!.Email);
+    }
+
     [Fact]
     public async Task CrearAsync_WithUnsupportedRole_RejectsWithoutCreatingIdentityUser()
     {

@@ -32,6 +32,15 @@ public sealed class UsuarioServicioComandos(
             return Validation("DatosInvalidos", "Usuario, email y contraseña son obligatorios.");
         }
 
+        // PR #148 review: ActualizarAsync ya validaba el formato del
+        // email con MailAddress.TryCreate. Replicamos el helper
+        // compartido aquí para no aceptar emails que el backend de
+        // Identity rechazaría downstream con un error menos explícito.
+        if (!IsValidEmail(request.Email))
+        {
+            return Validation("EmailInvalido", "El email no tiene un formato válido.");
+        }
+
         if (!IsValidRoleSet(request.Roles))
         {
             return Validation("RolNoSoportado", "Uno o más roles no pertenecen al catálogo fijo de SGV.");
@@ -116,7 +125,10 @@ public sealed class UsuarioServicioComandos(
             return Validation("DatosInvalidos", "Usuario y email son obligatorios.");
         }
 
-        if (!MailAddress.TryCreate(request.Email, out _))
+        // PR #148 review: la validación de email ahora vive en el
+        // helper compartido IsValidEmail. El comportamiento observable
+        // (código EmailInvalido + categoria Validation) se mantiene.
+        if (!IsValidEmail(request.Email))
         {
             return Validation("EmailInvalido", "El email no tiene un formato válido.");
         }
@@ -236,6 +248,17 @@ public sealed class UsuarioServicioComandos(
 
     private static bool IsValidRoleSet(IReadOnlyCollection<string> roles)
         => roles.Count > 0 && RolesSgv.TodosValidos(roles);
+
+    /// <summary>
+    /// PR #148 review: helper compartido entre <see cref="CrearAsync"/>
+    /// y <see cref="ActualizarAsync"/> para validar el formato del
+    /// email antes de invocar al gateway. <see cref="MailAddress.TryCreate(string, out _)"/>
+    /// es la primitiva oficial de .NET para esto y es consistente con
+    /// la validación interna de ASP.NET Core Identity.
+    /// </summary>
+    private static bool IsValidEmail(string? email)
+        => !string.IsNullOrWhiteSpace(email)
+            && MailAddress.TryCreate(email, out _);
 
     private static IReadOnlyDictionary<string, object?> CriticalValues(UsuarioDto user)
         => new Dictionary<string, object?>(StringComparer.Ordinal)
