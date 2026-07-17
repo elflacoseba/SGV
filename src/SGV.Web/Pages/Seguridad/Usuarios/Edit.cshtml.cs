@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Comun;
-using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Common;
@@ -16,15 +15,15 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 /// <see cref="SGV.Web.Pages.Personas.EditModel"/>: exige rol
 /// <c>Administrador</c>, precarga los datos vía
 /// <see cref="IUsuarioApiClient.GetByIdAsync"/> (incluida la Persona
-/// vinculada para mostrarla como read-only), y persiste vía
+/// vinculada para mostrarla como card preseleccionada), y persiste vía
 /// <see cref="IUsuarioApiClient.UpdateAsync"/>. PRG re-redirige al propio
 /// edit tras 200; 400 mapea <c>FieldErrors</c>; 409 muestra el campo
 /// afectado. Usuario inexistente muestra estado recuperable.
 /// <para>
-/// Edit sólo modifica <c>UserName</c>, <c>Email</c> y <c>Roles</c>; la
-/// <c>Persona</c> es inmutable (fuera del scope del change — ver
-/// <c>specs/usuario-web-crear-editar/spec.md</c> §Out of scope). El cambio
-/// de password desde la UI administrativa también queda fuera del scope.
+/// Edit modifica <c>UserName</c>, <c>Email</c> y <c>Roles</c>; el selector
+/// permite cambiar o quitar la Persona visible sin incorporarla al request
+/// <see cref="ActualizarUsuarioRequest"/>. El cambio de password desde la UI
+/// administrativa queda fuera del scope.
 /// </para>
 /// <para>
 /// Issue #125 / Slice 3: switch exhaustivo sobre
@@ -35,14 +34,14 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 [Authorize]
 public sealed class EditModel(
     IUsuarioApiClient usuarioApiClient,
-    IPersonaOptionsProvider personaOptionsProvider,
     IAuthSessionRedirector authRedirector,
     ILogger<EditModel> logger) : PageModel, IUsuarioForm
 {
     [BindProperty]
     public UsuarioInputModel Input { get; set; } = new();
 
-    public IReadOnlyList<PersonaDto> PersonaOptions { get; private set; } = [];
+    [BindProperty]
+    public string? PersonaDisplay { get; set; }
 
     public string? ErrorMessage { get; private set; }
 
@@ -80,9 +79,9 @@ public sealed class EditModel(
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
 
     /// <summary>
-    /// GET handler. Carga el usuario por id y, en paralelo, el catálogo
-    /// de Personas activas para resolver la descripción read-only de la
-    /// Persona vinculada. Si el usuario no existe o la consulta falla,
+    /// GET handler. Carga el usuario por id y deriva la presentación de la
+    /// Persona vinculada directamente del <see cref="UsuarioDto"/>. Si el
+    /// usuario no existe o la consulta falla,
     /// marca <see cref="IsRecoverable"/> y muestra un mensaje recuperable
     /// sin renderizar el formulario. Los parámetros <c>p</c>, <c>search</c>,
     /// <c>sort</c> y <c>returnStatus</c> se preservan para los enlaces
@@ -110,30 +109,22 @@ public sealed class EditModel(
 
         try
         {
-            // Cargar usuario + catálogo de Personas en paralelo.
-            var usuarioTask = usuarioApiClient.GetByIdAsync(id, cancellationToken);
-            var personasTask = personaOptionsProvider.GetActivasAsync(cancellationToken);
-
-            await Task.WhenAll(usuarioTask, personasTask);
-
-            var usuario = await usuarioTask;
+            var usuario = await usuarioApiClient.GetByIdAsync(id, cancellationToken);
             if (usuario is null)
             {
                 IsRecoverable = true;
                 ErrorMessage = "El usuario solicitado no está disponible.";
                 // CodeQL [SM02379]: structured logging placeholder, not interpolated.
                 logger.LogWarning("Usuario with Id {UsuarioId} was not found or is no longer available.", id);
-                PersonaOptions = [];
                 return Page();
             }
-
-            PersonaOptions = await personasTask;
 
             Input.UserName = usuario.UserName ?? string.Empty;
             Input.Email = usuario.Email ?? string.Empty;
             Input.PersonaId = usuario.PersonaId;
             Input.Password = null; // El cambio de password queda fuera del scope.
             Input.Roles = usuario.Roles.ToArray();
+            PersonaDisplay = FormatPersonaDisplay(usuario.Apellidos, usuario.Nombres);
 
             return Page();
         }
@@ -152,9 +143,7 @@ public sealed class EditModel(
     /// atómico (UserName+Email+Roles), y mapea el resultado a feedback del
     /// usuario. Tras éxito, PRG a sí mismo con TempData. Tras fallo de
     /// validación/conflicto, re-renderiza el formulario con los mensajes de
-    /// error preservando el input. Recarga el catálogo de Personas en
-    /// cualquier rama que re-renderice, para mantener el banner read-only
-    /// sincronizado con la realidad del backend.
+    /// error preservando el input y el texto de la card seleccionado.
     /// </summary>
     public async Task<IActionResult> OnPostAsync(
         string id,
@@ -181,9 +170,13 @@ public sealed class EditModel(
         // "User") no deben llegar al backend.
         Input.Roles = UsuarioInputModel.FilterByCatalog(Input.Roles);
 
+        // PersonaId no forma parte de ActualizarUsuarioRequest. Quitar la
+        // selección en Edit es válido y no debe activar la regla [Required]
+        // compartida con Create.
+        ModelState.Remove(UsuarioFormKeys.PersonaIdKey);
+
         if (!ModelState.IsValid)
         {
-            await LoadPersonasAsync(cancellationToken);
             return Page();
         }
 
@@ -202,7 +195,6 @@ public sealed class EditModel(
             logger.LogError(ex, "Usuario update transport failure.");
             ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
-            await LoadPersonasAsync(cancellationToken);
             return Page();
         }
 
@@ -236,7 +228,6 @@ public sealed class EditModel(
 
                 ErrorMessage = PageFeedback.UnauthorizedMessage;
                 ModelState.AddModelError(string.Empty, ErrorMessage);
-                await LoadPersonasAsync(cancellationToken);
                 return Page();
             }
 
@@ -256,34 +247,13 @@ public sealed class EditModel(
             }
         }
 
-        await LoadPersonasAsync(cancellationToken);
         return Page();
     }
 
-    /// <summary>
-    /// Carga el catálogo de Personas activas para mantener la sección
-    /// read-only (que muestra la Persona vinculada) sincronizada con la
-    /// realidad del backend. Idempotente; re-cargar el catálogo tras un
-    /// fallo recuperable deja la lista vacía para no romper el render.
-    /// </summary>
-    private async Task LoadPersonasAsync(CancellationToken cancellationToken)
+    private static string FormatPersonaDisplay(string? apellidos, string? nombres)
     {
-        try
-        {
-            PersonaOptions = await personaOptionsProvider.GetActivasAsync(cancellationToken);
-            ErrorMessage = null;
-        }
-        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
-        {
-            logger.LogError(ex, "Failed to load personas activas for usuario edit page.");
-            PersonaOptions = [];
-            // No pisar ErrorMessage si ya estaba seteado por la rama
-            // principal (transporte / recuperable). Sólo lo seteamos si
-            // todavía no hay un mensaje más específico.
-            if (string.IsNullOrWhiteSpace(ErrorMessage))
-            {
-                ErrorMessage = "No se pudo cargar el catálogo de personas. Intentá nuevamente.";
-            }
-        }
+        var display = string.Join(", ", new[] { apellidos, nombres }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        return string.IsNullOrWhiteSpace(display) ? "Persona vinculada" : display;
     }
 }

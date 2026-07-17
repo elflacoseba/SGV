@@ -125,7 +125,7 @@ Chain strategy: pending
 
 ---
 
-### WU-5 — Página Create sin dropdown
+### [x] WU-5 — Página Create sin dropdown
 
 **Objetivo**: `Create.cshtml(.cs)` deja de depender de `IPersonaOptionsProvider`. En GET, invoca `IPersonaApiClient.QueryAsync(page=1, pageSize=1, soloSinUsuario=true)` para REQ-UCE-09 (banner si `TotalCount==0`). El campo Persona expone el botón `Buscar Persona` (REQ-USB-01). `409` por carrera muestra feedback en campo (D-10).
 
@@ -148,7 +148,7 @@ Chain strategy: pending
 
 ---
 
-### WU-6 — Página Edit con card preseleccionada
+### [x] WU-6 — Página Edit con card preseleccionada
 
 **Objetivo**: `Edit.cshtml(.cs)` reemplaza `IPersonaOptionsProvider` por la persona ya cargada desde `usuarioApiClient.GetByIdAsync`. Persona actual se muestra como card (REQ-USB-02). `Quitar` → estado vacío (REQ-UCE-08). `Cambiar` → modal excluye persona actual.
 
@@ -170,7 +170,7 @@ Chain strategy: pending
 
 ---
 
-### WU-7 — Partial `_PersonaBuscadorModal.cshtml`
+### [x] WU-7 — Partial `_PersonaBuscadorModal.cshtml`
 
 **Objetivo**: Crear el partial Bootstrap 5 con markup accesible (role="dialog", aria-modal, aria-labelledby). Cuatro estados: Inicial, Empty, Loading, Error. Tabla paginada 25 filas, columnas `Apellido y Nombre | Documento | Legajo | Email | Acción`. Paginación `Anterior` + numérica (1..N con elipsis si >7) + `Siguiente`. Contrato `ViewData`: `ModalId`, `HiddenInputName`, `HiddenInputId`, `DisplayContainerId`, `CurrentPersonaId` (Guid?), `CurrentPersonaDisplay` (string?). Integrado en `_Form.cshtml`.
 
@@ -193,7 +193,7 @@ Chain strategy: pending
 
 ---
 
-### WU-8 — JavaScript + Cleanup (D-05)
+### [x] WU-8 — JavaScript + Cleanup (D-05)
 
 **Objetivo**: JS modular para fetch async, debounce, estados visuales, manejo de teclado. Eliminar `IPersonaOptionsProvider`/`HttpPersonaOptionsProvider`/`FakePersonaOptionsProvider` y toda su infraestructura de DI, tests, y fixture.
 

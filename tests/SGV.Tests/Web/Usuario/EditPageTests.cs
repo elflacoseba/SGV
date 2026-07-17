@@ -2,9 +2,9 @@ using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
 using SGV.Contracts.Comun;
-using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Collections;
+using SGV.Tests.Web.Persona;
 using SGV.Web.Integration.Usuarios;
 using Xunit;
 
@@ -33,8 +33,7 @@ public sealed class EditPageTests
     {
         var id = "u-1";
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(
-            new FakeUsuarioApiClient(),
-            FakePersonaOptionsProvider.Empty());
+            new FakeUsuarioApiClient());
 
         var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{id}");
 
@@ -43,47 +42,87 @@ public sealed class EditPageTests
     }
 
     // ──────────────────────────────────────────────
-    // T-XX 2: GET prellena UserName/Email/Roles; Persona aparece read-only
+    // WU-6: GET muestra la Persona vinculada como card
     // ──────────────────────────────────────────────
 
     [Fact]
-    public async Task Get_Edit_WhenUsuarioExists_PrefillsFormWithCurrentValuesAndReadonlyPersona()
+    public async Task Get_Edit_ConPersonaVinculada_RenderizaCardPreseleccionada()
     {
         var personaId = Guid.NewGuid();
         var usuario = BuildUsuario("u-edit", personaId, "Ana", "García");
-        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = new FakePersonaApiClient();
 
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient,
+            personaApiClient,
+            adminRole: true);
 
         var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{usuario.Id}");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Editar usuario", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(usuario.UserName, content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(usuario.Email, content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches(
+            $@"<input(?=[^>]*name=""{Regex.Escape(UsuarioFormKeys.PersonaIdKey)}"")(?=[^>]*value=""{personaId:D}"")[^>]*>",
+            content);
+        Assert.Contains("Quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cambiar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(
+            $@"<select[^>]*name=""{Regex.Escape(UsuarioFormKeys.PersonaIdKey)}""",
+            content);
+        Assert.Empty(personaApiClient.QueryCalls);
+    }
 
-        // El campo Password NO debe aparecer en Edit.
-        Assert.DoesNotContain($"name=\"{UsuarioFormKeys.PasswordKey}\"", content, StringComparison.OrdinalIgnoreCase);
+    [Fact]
+    public async Task Get_Edit_BotonQuitar_LimpiaSelector_VuelveAEstadoVacio()
+    {
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario("u-edit", personaId, "Ana", "García");
+        var personaApiClient = new FakePersonaApiClient();
 
-        // La Persona aparece como read-only (no como select editable).
-        Assert.DoesNotContain(
-            $"<select[^>]*name=\"{UsuarioFormKeys.PersonaIdKey}\"",
-            content, StringComparison.OrdinalIgnoreCase);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            FakeUsuarioApiClient.WithUsuarioList(usuario),
+            personaApiClient,
+            adminRole: true);
 
-        // Los roles aparecen como checkboxes (uno por valor del catálogo).
-        Assert.Contains("value=\"Administrador\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("value=\"GestorVacantes\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("value=\"Consultor\"", content, StringComparison.OrdinalIgnoreCase);
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
-        // El input de UserName aparece prellenado con el valor actual.
-        var userNameMatch = Regex.Match(
-            content,
-            $@"<input[^>]*name=""{Regex.Escape(UsuarioFormKeys.UserNameKey)}""[^>]*value=""([^""]+)""",
-            RegexOptions.IgnoreCase);
-        Assert.True(userNameMatch.Success, $"Expected {UsuarioFormKeys.UserNameKey} input with a value attribute.");
-        Assert.Equal(usuario.UserName, userNameMatch.Groups[1].Value);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-empty", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(personaApiClient.QueryCalls);
+    }
+
+    [Fact]
+    public async Task Post_Edit_SinPersonaSeleccionada_PermiteActualizarCamposEditables()
+    {
+        var id = "u-edit";
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario(id, personaId, "Ana", "García");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        apiClient.UpdateResult = UsuarioCommandResult.Success(
+            new UsuarioDto(id, personaId, "agarcia", "ana@example.com", new[] { "Consultor" }));
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+        var getResponse = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{id}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            $"/seguridad/usuarios/editar/{id}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Input.UserName"] = "agarcia",
+                ["Input.Email"] = "ana@example.com",
+                ["Input.Roles"] = "Consultor"
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Single(apiClient.UpdateCalls);
     }
 
     // ──────────────────────────────────────────────
@@ -94,9 +133,7 @@ public sealed class EditPageTests
     public async Task Get_Edit_WhenUsuarioNotFound_ShowsRecoverableState()
     {
         var apiClient = FakeUsuarioApiClient.WithUsuarioList();
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
 
         var response = await lease.Client.GetAsync("/seguridad/usuarios/editar/u-missing");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -125,9 +162,7 @@ public sealed class EditPageTests
             UpdateResult = UsuarioCommandResult.Success(
                 new UsuarioDto(id, personaId, "aeditado", "editado@example.com", new[] { "Administrador", "Consultor" }))
         };
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
 
         var getResponse = await lease.Client.GetAsync(
             $"/seguridad/usuarios/editar/{id}?p=2&search=anuevo&sort=username_desc&returnStatus=activas");
@@ -182,9 +217,7 @@ public sealed class EditPageTests
                     ["email"] = new[] { "El email ya está registrado." }
                 })
         };
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
 
         var getResponse = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{id}");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -234,9 +267,7 @@ public sealed class EditPageTests
                     "Ya existe un usuario activo con el nombre 'agarcia'.",
                     Categoria: ErrorCategoria.Conflict))
         };
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
 
         var getResponse = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{id}");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -275,9 +306,7 @@ public sealed class EditPageTests
         {
             UpdateException = new HttpRequestException("network down")
         };
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
 
         var getResponse = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{id}");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -305,7 +334,4 @@ public sealed class EditPageTests
 
     private static UsuarioDto BuildUsuario(string id, Guid personaId, string nombres, string apellidos)
         => new(id, personaId, "agarcia", "ana@example.com", new[] { "Consultor" }, nombres, apellidos);
-
-    private static PersonaDto BuildPersona(string legajo, string nombres, string apellidos)
-        => new(Guid.NewGuid(), legajo, nombres, apellidos, null, null, null, null, true);
 }

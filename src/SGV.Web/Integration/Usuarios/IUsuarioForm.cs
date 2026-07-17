@@ -1,5 +1,3 @@
-using SGV.Contracts.Personas.Consultas.Dtos;
-
 namespace SGV.Web.Integration.Usuarios;
 
 /// <summary>
@@ -9,11 +7,9 @@ namespace SGV.Web.Integration.Usuarios;
 /// interfaz con <see cref="IsEdit"/> en <c>false</c>; <c>Edit</c> la
 /// implementará con <c>true</c>.
 /// <para>
-/// El partial usa este contrato para renderizar distinto según el modo:
-/// el dropdown de Personas y el input de Password sólo aparecen en
-/// Create (la Persona es inmutable en Edit; el cambio de password queda
-/// fuera del scope del change). El catálogo de roles siempre se
-/// renderiza como checkboxes del catálogo fijo
+/// El partial usa este contrato para compartir el selector modal de Persona
+/// entre Create/Edit y ocultar únicamente Password en Edit. El catálogo de
+/// roles siempre se renderiza como checkboxes del catálogo fijo
 /// <see cref="SGV.Contracts.Seguridad.RolesSgv.Todos"/>.
 /// </para>
 /// </summary>
@@ -23,15 +19,14 @@ public interface IUsuarioForm
     UsuarioInputModel Input { get; }
 
     /// <summary>
-    /// Opciones del catálogo de Personas activas para popular el dropdown
-    /// de <c>PersonaId</c>. Sólo se renderiza en Create
-    /// (<see cref="IsEdit"/> es <c>false</c>); en Edit la Persona es
-    /// inmutable y se muestra como read-only.
+    /// Texto visible de la Persona seleccionada. Create lo conserva como
+    /// campo bindeable para re-renderizar la card tras un error; Edit lo
+    /// deriva del DTO del usuario.
     /// </summary>
-    IReadOnlyList<PersonaDto> PersonaOptions { get; }
+    string? PersonaDisplay { get; }
 
     /// <summary>
-    /// Mensaje de error general recuperable (catálogo caído, error de
+    /// Mensaje de error general recuperable (consulta caída, error de
     /// transporte en POST, etc.). El partial lo muestra bajo el
     /// <c>asp-validation-summary="ModelOnly"</c>.
     /// </summary>
@@ -39,8 +34,7 @@ public interface IUsuarioForm
 
     /// <summary>
     /// <c>true</c> cuando la página es Edit — el partial usa este flag
-    /// para ocultar los campos inmutables (Persona dropdown + Password).
-    /// Create siempre devuelve <c>false</c>.
+    /// para ocultar Password. Create siempre devuelve <c>false</c>.
     /// </summary>
     bool IsEdit { get; }
 

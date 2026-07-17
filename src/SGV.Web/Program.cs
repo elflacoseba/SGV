@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using SGV.Api.Infrastructure.Health;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Auth;
 using SGV.Web.Integration.Auth;
@@ -186,14 +187,6 @@ builder.Services.AddHttpClient<IUsuarioApiClient, UsuarioApiClient>((serviceProv
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
-// Catálogo de Personas activas para el dropdown de Create de Usuarios
-// (PR 4/4 introduce la Razor Page que lo consume; PR 2 sólo expone el
-// seam para que las Pages y los tests puedan triangular la selección
-// contra una implementación fake). Sin el HttpClient tipado porque el
-// catálogo lo provee IPersonaApiClient.GetAllActivasAsync (sólo lectura,
-// sin auth adicional a la del cookie).
-builder.Services.AddTransient<IPersonaOptionsProvider, HttpPersonaOptionsProvider>();
-
 // Health checks — upstream probe and response writer
 builder.Services.AddHealthChecks()
     .AddCheck<SgvApiUpstreamHealthCheck>("sgv-api-upstream", tags: new[] { "ready" });
@@ -213,6 +206,27 @@ app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// BFF same-origin para el buscador modal. Mantiene el JWT en el servidor:
+// el navegador usa la cookie Web y el cliente tipado reenvía el bearer a API.
+app.MapGet("/api/v1/personas/consulta", async (
+    int p,
+    int pageSize,
+    string? search,
+    bool? soloSinUsuario,
+    IPersonaApiClient personaApiClient,
+    CancellationToken cancellationToken) =>
+{
+    var query = new PersonaListQuery(
+        Page: Math.Max(1, p),
+        PageSize: Math.Clamp(pageSize, 1, 100),
+        Search: search,
+        Sort: "apellidos_asc",
+        Segmento: PersonaSegmentoListado.Activas,
+        SoloSinUsuario: soloSinUsuario);
+    var result = await personaApiClient.QueryAsync(query, cancellationToken);
+    return Results.Ok(result);
+}).RequireAuthorization();
 
 // Health check endpoints — anonymous, no auth required.
 // /health/live responds 200 unconditionally (process is alive).

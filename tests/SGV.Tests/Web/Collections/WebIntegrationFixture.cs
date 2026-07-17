@@ -118,39 +118,14 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             usuarioApiClient: usuario));
 
-    /// <summary>
-    /// Lease autenticado contra el módulo Usuarios con un
-    /// <see cref="IPersonaOptionsProvider"/> fake inyectado. Necesario
-    /// para triangular el dropdown de Personas activas que consume
-    /// <c>Pages/Seguridad/Usuarios/Create.cshtml</c> (PR 4/4 del change
-    /// <c>Implementa módulo usuarios</c>).
-    /// </summary>
-    public Task<WebClientLease> CreateUsuarioLeaseAsync(
-        IUsuarioApiClient usuario,
-        IPersonaOptionsProvider personaOptionsProvider,
-        bool adminRole = false)
-        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
-            ConfigureBaseUrl, BuildAuthHandler(adminRole),
-            usuarioApiClient: usuario,
-            personaOptionsProvider: personaOptionsProvider));
-
-    /// <summary>
-    /// Lease autenticado contra el módulo Usuarios con un
-    /// <see cref="IPersonaApiClient"/> y un <see cref="IPersonaOptionsProvider"/>
-    /// fake inyectados. Útil cuando Create debe triangular el dropdown de
-    /// Personas activas mientras otros tests del módulo (Index/Details)
-    /// no lo ejercitan.
-    /// </summary>
     public Task<WebClientLease> CreateUsuarioLeaseAsync(
         IUsuarioApiClient usuario,
         IPersonaApiClient personaApiClient,
-        IPersonaOptionsProvider personaOptionsProvider,
         bool adminRole = false)
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             personaApiClient: personaApiClient,
-            usuarioApiClient: usuario,
-            personaOptionsProvider: personaOptionsProvider));
+            usuarioApiClient: usuario));
 
     public Task<WebClientLease> CreateUnidadOrganizativaLeaseAsync(
         FakeUnidadOrganizativaApiClient unidad, bool adminRole = false)
