@@ -269,6 +269,7 @@ internal sealed class FakePersonaRepository : IPersonaRepository
         int pageSize,
         string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        bool? soloSinUsuario = null,
         CancellationToken cancellationToken = default)
     {
         // Mirror production predicate so the service unit tests can assert

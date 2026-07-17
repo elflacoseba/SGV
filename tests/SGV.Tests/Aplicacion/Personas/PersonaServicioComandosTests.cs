@@ -447,6 +447,7 @@ internal sealed class FakePersonaWriteRepository : IPersonaRepository
         int pageSize,
         string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        bool? soloSinUsuario = null,
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Write-only fake does not support QueryAsync.");
 }

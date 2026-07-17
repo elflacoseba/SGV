@@ -260,6 +260,7 @@ internal sealed class FakePersonaReadRepository : IPersonaRepository
     public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(
         string? search, int page, int pageSize, string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        bool? soloSinUsuario = null,
         CancellationToken ct = default)
         => Task.FromResult<(IReadOnlyList<Persona>, int)>(([], 0));
 }

@@ -28,6 +28,8 @@ public sealed class PersonaServicioConsulta(IPersonaRepository repository)
             query.PageSize,
             query.Sort,
             query.Segmento,
+            // TODO(WU-2): propagar query.SoloSinUsuario.
+            soloSinUsuario: null,
             cancellationToken).ConfigureAwait(false);
 
         return new PersonaListadoDto(

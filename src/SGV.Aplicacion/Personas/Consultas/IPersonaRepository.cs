@@ -62,6 +62,14 @@ public interface IPersonaRepository : IReadOnlyRepository<Persona>
     /// BEFORE pagination so page boundaries are consistent with the visible
     /// ordering (e.g. <c>apellidos_desc</c> returns Z→A on every page).
     /// </summary>
+    /// <param name="soloSinUsuario">
+    /// When <c>true</c>, Activas are restricted to personas with no
+    /// <c>AspNetUsers.PersonaId</c> pointing at them (anti-join). When
+    /// <c>null</c> or <c>false</c>, the flag is ignored and the
+    /// previous behavior is preserved (back-compat). Combined with
+    /// <see cref="PersonaSegmentoListado.Eliminadas"/>, returns an
+    /// empty result without invoking the anti-join.
+    /// </param>
     /// <remarks>
     /// Sort values supported: <c>legajo_asc/desc</c>, <c>apellidos_asc/desc</c>,
     /// <c>nombres_asc/desc</c>, <c>email_asc/desc</c>. Any other value falls
@@ -73,5 +81,6 @@ public interface IPersonaRepository : IReadOnlyRepository<Persona>
         int pageSize,
         string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
+        bool? soloSinUsuario = null,
         CancellationToken cancellationToken = default);
 }
