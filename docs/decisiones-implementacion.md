@@ -560,4 +560,26 @@ Tracker PR (no-merge) mantiene la integración final en `feat/2026-07-15-impleme
 - PR3: Razor Pages Index segmentado + Details readonly + Delete (PRG) + Reactivar (PRG).
 - PR4: Razor Pages Create con dropdown Personas + Edit atómico + `_Form.cshtml` compartido + ítem colapsable "Seguridad" en `_Sidenav.cshtml` (gateado `EsAdministrador`).
 
+## Buscador modal de Personas en Crear/Editar Usuario — manejo de `409` (D-10 corregida)
+
+Change archivado: `2026-07-17-buscador-personas-modal` (PRs #158, #159, #160). El `design.md` archivado (D-10) proponía reflejar el `409` por carrera (persona ya con usuario activo) como `ModelState.AddModelError(string.Empty, ...)`, copiando el patrón `CodigoDuplicado` de Cargos. La implementación, en cambio, sigue `tasks.md` y la spec REQ-UCE-10: `ModelState.AddModelError("Input.PersonaId", "Esa persona ya tiene un usuario activo.")`.
+
+### Decisión vigente
+
+Ante `409` en POST de Crear o Edit de Usuario, el feedback se vincula al campo `PersonaId` del formulario (no al `ModelState` general). Esto preserva mejor el form para reintento y cumple REQ-UCE-10 de forma verificable por test (`Post_Create_Con409_PreservaFormYMuestraErrorEnPersonaId` y equivalente Edit).
+
+### Por qué se apartó del `design.md` original
+
+El `design.md` archivado es audit trail del change cerrado y **no se modifica**. Esta entrada en `docs/decisiones-implementacion.md` es la referencia vigente para implementaciones futuras. La razón del apartamiento: `string.Empty` produce un error visible en el `asp-validation-summary` (mejor para errores globales del form, p.ej. conexión con el backend), mientras que `Input.PersonaId` produce el error pegado al campo, que es lo que el usuario necesita ver para entender qué dato конкретно está ocupado. La spec REQ-UCE-10 ya exigía lo segundo.
+
+### Comportamiento a replicar en próximos cambios análogos
+
+Cuando un error 409 (o equivalente de conflicto único) provenga de un endpoint consumido por un formulario Razor:
+
+- **Sí** usar `ModelState.AddModelError("<nombre-del-campo>", "<mensaje-acotado-al-campo>")` para feedback pegado al input.
+- **Sí** preservar el resto del form para reintento (excepto password, que nunca se preserva).
+- **No** usar `string.Empty` salvo que el error sea genuinamente transversal al form.
+
+Archivos vigentes: `src/SGV.Web/Pages/Seguridad/Usuarios/Create.cshtml.cs`, `src/SGV.Web/Pages/Seguridad/Usuarios/Edit.cshtml.cs` (ambos en `OnPostAsync` / handler equivalente).
+
 
