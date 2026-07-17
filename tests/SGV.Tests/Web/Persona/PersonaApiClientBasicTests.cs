@@ -336,6 +336,80 @@ public class PersonaApiClientBasicTests
         Assert.Null(handler.LastRequest);
     }
 
+    [Fact]
+    public async Task QueryAsync_WithSoloSinUsuarioTrue_SerializesSoloSinUsuarioInUri()
+    {
+        // AC WU-4 (D-02/D-04): cuando `SoloSinUsuario == true`, el cliente
+        // serializa `&soloSinUsuario=true` en el query string para que la
+        // API aplique el anti-join contra `AspNetUsers.PersonaId`. El
+        // valor debe viajar sin doble-encoding (Uri.EscapeDataString no
+        // aplica a `true` literal, sólo al valor).
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, new PersonaListadoDto([], 0, 1, 25)));
+        var client = new PersonaApiClient(NewHttpClient(handler));
+
+        _ = await client.QueryAsync(new PersonaListQuery(
+            Page: 1,
+            PageSize: 25,
+            Search: null,
+            Sort: null,
+            Segmento: PersonaSegmentoListado.Activas,
+            SoloSinUsuario: true));
+
+        var query = handler.LastRequest?.RequestUri?.Query ?? string.Empty;
+        Assert.Contains("soloSinUsuario=true", query, StringComparison.OrdinalIgnoreCase);
+        // No debe haber doble-encoding: `%5C` es un backslash escapado y
+        // no debe aparecer cuando se serializa `true` literal.
+        Assert.DoesNotContain("%5C", query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithSoloSinUsuarioNullOrFalse_OmitsParameter()
+    {
+        // AC WU-4 (back-compat REQ-PM-01): `SoloSinUsuario` ausente,
+        // `null` o `false` MUST omitir el parámetro del query string para
+        // preservar el contrato de los consumidores vigentes (Index
+        // Personas, typeahead) que no envían el flag.
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, new PersonaListadoDto([], 0, 1, 20)));
+        var client = new PersonaApiClient(NewHttpClient(handler));
+
+        // Caso 1: null (default).
+        _ = await client.QueryAsync(new PersonaListQuery(
+            Page: 1, PageSize: 20, Search: null, Sort: null, Segmento: PersonaSegmentoListado.Activas));
+        Assert.DoesNotContain(
+            "soloSinUsuario",
+            handler.LastRequest?.RequestUri?.Query ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+
+        // Caso 2: false explícito.
+        _ = await client.QueryAsync(new PersonaListQuery(
+            Page: 1, PageSize: 20, Search: null, Sort: null,
+            Segmento: PersonaSegmentoListado.Activas, SoloSinUsuario: false));
+        Assert.DoesNotContain(
+            "soloSinUsuario",
+            handler.LastRequest?.RequestUri?.Query ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task QueryAsync_WithSoloSinUsuarioTrue_TransportFails_PropagatesNativeException(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        // AC WU-4 (web-apiclient-transport-contract): la introducción de
+        // `soloSinUsuario` en BuildQueryUri no debe agregar try-catch
+        // espurios. La excepción nativa del pipeline HTTP debe burbujear
+        // tal cual para que el PageModel la clasifique vía
+        // TransportFailureClassifier y muestre un error recuperable.
+        HttpMessageHandler handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new PersonaApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.QueryAsync(new PersonaListQuery(
+                Page: 1, PageSize: 25, Search: null, Sort: null,
+                Segmento: PersonaSegmentoListado.Activas, SoloSinUsuario: true)));
+    }
+
     private static HttpClient NewHttpClient(HttpMessageHandler handler) =>
         new(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
 
