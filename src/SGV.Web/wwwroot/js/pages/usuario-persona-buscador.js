@@ -22,6 +22,7 @@
     var submit = root.querySelector('[data-usuario-persona-submit]');
     var debounceTimer;
     var lastTrigger;
+    var currentFetchController;
 
     function showState(name) {
         modal.querySelectorAll('[data-usuario-persona-status] > div').forEach(function (state) {
@@ -51,6 +52,10 @@
             submit.disabled = false;
         }
         hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+        if (currentFetchController) {
+            currentFetchController.abort();
+            currentFetchController = null;
+        }
         window.bootstrap.Modal.getOrCreateInstance(modal).hide();
     }
 
@@ -137,6 +142,11 @@
             return;
         }
 
+        if (currentFetchController) {
+            currentFetchController.abort();
+        }
+        currentFetchController = new AbortController();
+
         showState('loading');
         modal.querySelectorAll('.page-link').forEach(function (button) { button.disabled = true; });
         var url = new URL(modal.dataset.apiUrl, window.location.origin);
@@ -146,11 +156,15 @@
         url.searchParams.set('pageSize', '25');
 
         try {
-            var response = await window.fetch(url, { headers: { Accept: 'application/json' } });
+            var response = await window.fetch(url, {
+                headers: { Accept: 'application/json' },
+                signal: currentFetchController.signal
+            });
             if (!response.ok) {
                 throw new Error('HTTP ' + response.status);
             }
             var payload = await response.json();
+            currentFetchController = null;
             var items = (payload.items || []).filter(function (persona) {
                 return persona.id !== modal.dataset.currentPersonaId;
             });
@@ -161,7 +175,11 @@
             renderRows(items);
             renderPagination(payload.page || page, Math.max(1, Math.ceil(payload.totalCount / 25)));
             showState('results');
-        } catch (_) {
+        } catch (error) {
+            if (error && error.name === 'AbortError') {
+                return;
+            }
+            currentFetchController = null;
             showState('error');
         }
     }
@@ -200,5 +218,11 @@
 
     modal.addEventListener('show.bs.modal', function (event) { lastTrigger = event.relatedTarget; });
     modal.addEventListener('shown.bs.modal', function () { searchInput.focus(); });
-    modal.addEventListener('hidden.bs.modal', function () { if (lastTrigger) { lastTrigger.focus(); } });
+    modal.addEventListener('hidden.bs.modal', function () {
+        if (currentFetchController) {
+            currentFetchController.abort();
+            currentFetchController = null;
+        }
+        if (lastTrigger) { lastTrigger.focus(); }
+    });
 })(document);
