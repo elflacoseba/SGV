@@ -572,8 +572,9 @@ public sealed class IndexPageTests
     [Fact]
     public async Task Get_Index_RendersBloquearButton_WithDataAttributeAndNoFormAction()
     {
-        // REQ-UCB-01 + REQ-UCB-10: el botón Bloquear debe disparar el
-        // modal en lugar de hacer submit directo a ?handler=Bloquear.
+        // REQ-UCB-01 + REQ-UCB-10: tras PR 2, el botón Bloquear dispara
+        // SweetAlert2 (cableado vía data-usuario-bloquear-button +
+        // usuarios-index.js) en lugar de un modal Bootstrap nativo.
         var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
 
@@ -584,21 +585,22 @@ public sealed class IndexPageTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("data-usuario-bloquear-button", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-bs-target=\"#confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
-        // El botón no debe llevar formaction: el submit se difiere al confirm
-        // del modal para que el handler OnPostBloquearAsync sólo se invoque
-        // tras confirmación explícita.
+        // PR 2: nada de data-bs-toggle/data-bs-target — el JS maneja la
+        // confirmación vía Swal.fire (ver usuarios-index.js).
+        Assert.DoesNotContain("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-bs-target=\"#confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        // El botón no debe llevar formaction: el submit lo dispara el
+        // handler JS sólo tras confirmación explícita.
         Assert.DoesNotContain("formaction=\"?handler=Bloquear\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public async Task Get_Index_BloquearButtonDoesNotSubmitDirectly()
     {
-        // REQ-UCB-01 + REQ-UCB-10: tras la confirmación modal, el botón
-        // Bloquear NO debe seguir siendo un type=submit que apunte al
-        // handler por formaction. La confirmación se gestiona vía
-        // data-bs-toggle="modal" y el handler JS difiere el submit.
+        // REQ-UCB-01 + REQ-UCB-10: el botón Bloquear sigue siendo
+        // type="button" — la responsabilidad del submit pasa a
+        // wireUsuarioBloquearConfirmation en usuarios-index.js.
         var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
 
@@ -609,8 +611,6 @@ public sealed class IndexPageTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("data-usuario-bloquear-button", content, StringComparison.OrdinalIgnoreCase);
-        // type="button" garantiza que el click no dispara el submit
-        // nativo del formulario (la responsabilidad pasa al handler JS).
         Assert.DoesNotContain("formaction=\"?handler=Bloquear\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("data-usuario-bloquear-button\" type=\"submit\"", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -618,9 +618,10 @@ public sealed class IndexPageTests
     [Fact]
     public async Task Get_Index_RendersBloquearModal_WithConfirmButton()
     {
-        // REQ-UCB-01 + REQ-UCB-04 + REQ-UCB-10: el modal #confirm-bloquear-modal
-        // se renderiza con su título, su botón de confirmación explícito y
-        // cuerpo sin PII.
+        // REQ-UCB-01 + REQ-UCB-04 + REQ-UCB-10: PR 2 reemplaza el modal
+        // Bootstrap por SweetAlert2. El contrato observable de la vista
+        // es: el bundle de SweetAlert2 + el script usuarios-index.js están
+        // cargados, y NO existe markup nativo del modal viejo.
         var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
 
@@ -630,15 +631,26 @@ public sealed class IndexPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-usuario-bloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Bloquear usuario", content, StringComparison.OrdinalIgnoreCase);
+        // Bundle SweetAlert2 cargado.
+        Assert.Contains("/plugins/sweetalert2/sweetalert2.all.min.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/plugins/sweetalert2/sweetalert2.min.css", content, StringComparison.OrdinalIgnoreCase);
+        // Script de wiring cargado.
+        Assert.Contains("/js/pages/usuarios-index.js", content, StringComparison.OrdinalIgnoreCase);
+        // Sin markup nativo del modal viejo.
+        Assert.DoesNotContain("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-bloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
+        // El título del alert queda embebido en usuarios-index.js, no en
+        // la vista; el cuerpo del alert también (text: 'esta usuario').
     }
 
     [Fact]
     public async Task Get_Index_BloquearModal_HasAriaWiring()
     {
-        // REQ-UCB-05: atributos AA mínimos del modal.
+        // REQ-UCB-05: PR 2 reemplaza el aria-labelledby propio del modal
+        // Bootstrap por el manejo interno de SweetAlert2 (que envuelve
+        // title en <h2 aria-label> automáticamente). El contrato observable
+        // es: el bundle + script están cargados y NO hay markup nativo del
+        // modal viejo.
         var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
 
@@ -648,10 +660,11 @@ public sealed class IndexPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("aria-labelledby=\"confirm-bloquear-modal-title\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("aria-hidden=\"true\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("tabindex=\"-1\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/plugins/sweetalert2/sweetalert2.all.min.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/usuarios-index.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("aria-labelledby=\"confirm-bloquear-modal-title\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-bloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -688,10 +701,12 @@ public sealed class IndexPageTests
     [Fact]
     public async Task Get_Index_BloquearModal_DoesNotContainPii()
     {
-        // REQ-UCB-04 + REQ-UCB-10: el cuerpo del modal #confirm-bloquear-modal
-        // NO debe exponer UserName / Email / Nombres / Apellidos del
-        // usuario objetivo; igual que el modal de Eliminar vigente, la
-        // confirmación se reduce a "este usuario".
+        // REQ-UCB-04 + REQ-UCB-10: PR 2 — el cuerpo del alert
+        // SweetAlert2 de Bloquear NO debe exponer PII del usuario
+        // objetivo. Como el alert se renderiza en runtime desde
+        // usuarios-index.js (no desde markup Razor), la verificación
+        // se hace sobre el bundle completo: PII sólo debe aparecer
+        // en la tabla de resultados, no en el wiring del alert.
         var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
 
@@ -701,19 +716,26 @@ public sealed class IndexPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
-        var modalStart = content.IndexOf("id=\"confirm-bloquear-modal\"", StringComparison.OrdinalIgnoreCase);
-        Assert.True(modalStart >= 0);
-        // Tomamos el bloque hasta el próximo modal (id="confirm-...") o
-        // hasta el final del documento.
-        var nextModalStart = content.IndexOf("id=\"confirm-", modalStart + 1, StringComparison.OrdinalIgnoreCase);
-        var modalEnd = nextModalStart >= 0 ? nextModalStart : content.Length;
-        var modalBlock = content.Substring(modalStart, modalEnd - modalStart);
-
-        Assert.DoesNotContain("agarcía", modalBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("ana@example.com", modalBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("García", modalBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">Ana<", modalBlock, StringComparison.OrdinalIgnoreCase);
+        // El bundle SweetAlert2 + script usuarios-index.js deben estar
+        // presentes, pero sin PII: el alert sólo dice "este usuario".
+        Assert.Contains("/plugins/sweetalert2/sweetalert2.all.min.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/usuarios-index.js", content, StringComparison.OrdinalIgnoreCase);
+        // El bloque <script src="/js/pages/usuarios-index.js"> debe
+        // emitir la config canónica sin PII.
+        var scriptStart = content.IndexOf("usuarios-index.js", StringComparison.OrdinalIgnoreCase);
+        Assert.True(scriptStart >= 0);
+        // La página completa no debe incluir el modal viejo ni sus atributos.
+        Assert.DoesNotContain("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-bloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("aria-labelledby=\"confirm-bloquear-modal-title\"", content, StringComparison.OrdinalIgnoreCase);
+        // Y el JS no debe estar interpolando PII: el title es estático
+        // 'Bloquear usuario' (assertado por el harness JS en
+        // UsuariosIndexPageJsTests.cs). Verificamos que el source del
+        // script emitido por Razor sea el archivo estático, no algo
+        // que interpoló datos del usuario.
+        Assert.DoesNotContain("agarcía", content.IndexOf("usuarios-index.js", StringComparison.OrdinalIgnoreCase) >= 0
+            ? content.Substring(scriptStart)
+            : string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -732,16 +754,19 @@ public sealed class IndexPageTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("data-usuario-desbloquear-button", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-bs-target=\"#confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        // PR 2: nada de modal Bootstrap nativo.
+        Assert.DoesNotContain("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-bs-target=\"#confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("formaction=\"?handler=Desbloquear\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public async Task Get_Index_RendersDesbloquearModal_WithConfirmButton()
     {
-        // REQ-UCB-02 + REQ-UCB-04 + REQ-UCB-10: el modal de desbloqueo
-        // existe con su título y su botón de confirmación.
+        // REQ-UCB-02 + REQ-UCB-04 + REQ-UCB-10: PR 2 reemplaza el modal
+        // Bootstrap por SweetAlert2 — el bundle + script deben estar
+        // cargados y el modal viejo no debe existir.
         var bloqueada = BuildUsuario("u-blocked", "blocked", "Elena", "Bloqueada", "elena@example.com", "Consultor");
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(bloqueada);
         apiClient.SeedBlocked(bloqueada.Id);
@@ -752,16 +777,17 @@ public sealed class IndexPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-usuario-desbloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Desbloquear usuario", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/plugins/sweetalert2/sweetalert2.all.min.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/usuarios-index.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-desbloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public async Task Get_Index_DesbloquearModal_DoesNotContainPii()
     {
-        // REQ-UCB-04 + REQ-UCB-10: el modal #confirm-desbloquear-modal NO
-        // debe exponer PII del usuario objetivo.
+        // REQ-UCB-04 + REQ-UCB-10: PR 2 — el alert SweetAlert2 de
+        // Desbloquear NO debe exponer PII del usuario objetivo.
         var bloqueada = BuildUsuario("u-blocked", "blocked", "Elena", "Bloqueada", "elena@example.com", "Consultor");
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(bloqueada);
         apiClient.SeedBlocked(bloqueada.Id);
@@ -772,17 +798,10 @@ public sealed class IndexPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
-        var modalStart = content.IndexOf("id=\"confirm-desbloquear-modal\"", StringComparison.OrdinalIgnoreCase);
-        Assert.True(modalStart >= 0);
-        var nextModalStart = content.IndexOf("id=\"confirm-", modalStart + 1, StringComparison.OrdinalIgnoreCase);
-        var modalEnd = nextModalStart >= 0 ? nextModalStart : content.Length;
-        var modalBlock = content.Substring(modalStart, modalEnd - modalStart);
-
-        Assert.DoesNotContain("blocked", modalBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("elena@example.com", modalBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Bloqueada", modalBlock, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(">Elena<", modalBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/plugins/sweetalert2/sweetalert2.all.min.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/usuarios-index.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-desbloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
