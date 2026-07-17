@@ -111,7 +111,9 @@ else
                         <input name="search" type="hidden" value="@Model.Search" />
                         <input name="sort" type="hidden" value="@Model.Sort" />
                         <input name="status" type="hidden" value="@Model.Segmento" />
-                        <button class="btn btn-success" type="submit">
+                        <button class="btn btn-success"
+                                data-usuario-desbloquear-button
+                                data-bs-toggle="modal" data-bs-target="#confirm-desbloquear-modal" type="button">
                             <i class="ti ti-lock-open me-1"></i>Desbloquear
                         </button>
                     </form>
@@ -129,7 +131,9 @@ else
                         <input name="search" type="hidden" value="@Model.Search" />
                         <input name="sort" type="hidden" value="@Model.Sort" />
                         <input name="status" type="hidden" value="@Model.Segmento" />
-                        <button class="btn btn-secondary" type="submit">
+                        <button class="btn btn-secondary"
+                                data-usuario-bloquear-button
+                                data-bs-toggle="modal" data-bs-target="#confirm-bloquear-modal" type="button">
                             <i class="ti ti-lock me-1"></i>Bloquear
                         </button>
                     </form>
@@ -160,4 +164,68 @@ else
             </a>
         </div>
     </div>
+}
+
+@* Modales de confirmación obligatoria para Bloquear / Desbloquear.
+   Replican el patrón UX de Index.cshtml: difieren el submit del form
+   hasta confirmación explícita (REQ-UCB-03, REQ-UCB-04). Partial
+   compartido con Index: ver _ConfirmarAccionUsuarioModal.cshtml. *@
+@await Html.PartialAsync("_ConfirmarAccionUsuarioModal", null, new ViewDataDictionary(ViewData)
+{
+    ["ModalId"] = "confirm-bloquear-modal",
+    ["Title"] = "Bloquear usuario",
+    ["ConfirmButtonClass"] = "btn-secondary",
+    ["ConfirmSelector"] = "usuario-bloquear-confirm",
+    ["PendingTriggerVar"] = "__pendingBloquearTrigger",
+    ["ConfirmAriaLabel"] = "Bloquear"
+})
+
+@await Html.PartialAsync("_ConfirmarAccionUsuarioModal", null, new ViewDataDictionary(ViewData)
+{
+    ["ModalId"] = "confirm-desbloquear-modal",
+    ["Title"] = "Desbloquear usuario",
+    ["ConfirmButtonClass"] = "btn-success",
+    ["ConfirmSelector"] = "usuario-desbloquear-confirm",
+    ["PendingTriggerVar"] = "__pendingDesbloquearTrigger",
+    ["ConfirmAriaLabel"] = "Desbloquear"
+})
+
+@section Scripts {
+<script>
+    (function () {
+        // Helper reutilizable: ancla el disparador al botón Confirmar y
+        // al ciclo de vida del modal. Misma implementación que en Index
+        // (D-05, D-06, D-07) — sólo cambian los selectores.
+        var setup = function (btnSel, confirmSel, pendingVar) {
+            var confirmBtn = document.querySelector(confirmSel);
+            if (!confirmBtn) return;
+            var modal = document.getElementById(confirmBtn.closest('.modal').id);
+            confirmBtn.addEventListener('click', function () {
+                if (confirmBtn.disabled) return;
+                var trigger = window[pendingVar];
+                if (!trigger) return;
+                confirmBtn.disabled = true;
+                trigger.submit();
+                window[pendingVar] = null;
+            });
+            document.querySelectorAll(btnSel).forEach(function (btn) {
+                btn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    if (window[pendingVar]) return;
+                    window[pendingVar] = btn.closest('form');
+                });
+            });
+            modal.addEventListener('hidden.bs.modal', function (event) {
+                window[pendingVar] = null;
+                confirmBtn.disabled = false;
+                if (event.relatedTarget) event.relatedTarget.focus();
+            });
+        };
+        // Bloquear / Desbloquear (REQ-UCB-03). Sólo uno está presente
+        // por render (según IsCuentaBloqueada); el helper hace early
+        // return si el confirm button no existe.
+        setup('[data-usuario-bloquear-button]', '[data-usuario-bloquear-confirm]', '__pendingBloquearTrigger');
+        setup('[data-usuario-desbloquear-button]', '[data-usuario-desbloquear-confirm]', '__pendingDesbloquearTrigger');
+    })();
+</script>
 }
