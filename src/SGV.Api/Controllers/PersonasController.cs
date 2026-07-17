@@ -52,16 +52,20 @@ public class PersonasController : ControllerBase
     /// Consulta paginada y filtrada de personas activas o eliminadas. El parámetro
     /// <c>status</c> acepta <c>activas</c> (por defecto, también usado cuando el
     /// valor es desconocido o se omite) o <c>eliminadas</c>. No mezcla ambos
-    /// conjuntos en una misma respuesta. Cualquier usuario autenticado puede
-    /// invocar este endpoint; las mutaciones siguen requiriendo
-    /// <c>Administrador</c> (ver <see cref="Create"/>, <see cref="Update"/>,
-    /// <see cref="Delete"/>, <see cref="Reactivate"/>).
+    /// conjuntos en una misma respuesta. El parámetro <c>soloSinUsuario</c>
+    /// restringe el segmento <c>activas</c> a personas sin
+    /// <c>AspNetUsers.PersonaId</c> asociado (REQ-PM-01); ausente, <c>false</c>
+    /// o <c>null</c> preserva el comportamiento vigente. Cualquier usuario
+    /// autenticado puede invocar este endpoint; las mutaciones siguen
+    /// requiriendo <c>Administrador</c> (ver <see cref="Create"/>,
+    /// <see cref="Update"/>, <see cref="Delete"/>, <see cref="Reactivate"/>).
     /// </summary>
     /// <param name="page">Número de página (default: 1).</param>
     /// <param name="pageSize">Tamaño de página (default: 20, máximo 100).</param>
     /// <param name="search">Búsqueda substring case-insensitive sobre <c>Legajo|Nombres|Apellidos|Email|NumeroDocumento</c>.</param>
     /// <param name="sort">Expresión de orden server-side (e.g. <c>apellidos_desc</c>). Valores soportados: <c>legajo_asc/desc</c>, <c>apellidos_asc/desc</c>, <c>nombres_asc/desc</c>, <c>email_asc/desc</c>. Cualquier otro valor cae a <c>apellidos_asc</c>.</param>
     /// <param name="status">Filtro de estado: <c>activas</c> (por defecto) o <c>eliminadas</c>.</param>
+    /// <param name="soloSinUsuario">Cuando es <c>true</c>, restringe el segmento activo a personas sin usuario activo asociado. Cualquier otro valor es ignorado.</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Resultado paginado de personas usando el contrato <c>PersonaListadoDto</c>.</returns>
     /// <response code="200">Resultado paginado devuelto correctamente con el mismo contrato <c>PersonaDto</c> para vistas activas o eliminadas; no mezcla ambos conjuntos en una misma respuesta.</response>
@@ -77,6 +81,7 @@ public class PersonasController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] string? sort = null,
         [FromQuery] string? status = null,
+        [FromQuery] bool? soloSinUsuario = null,
         CancellationToken cancellationToken = default)
     {
         if (page < 1 || pageSize < 1 || pageSize > 100)
@@ -94,7 +99,8 @@ public class PersonasController : ControllerBase
             ? PersonaSegmentoListado.Eliminadas
             : PersonaSegmentoListado.Activas;
 
-        var query = new PersonaListQuery(page, pageSize, search, sort, segmento);
+        var query = new PersonaListQuery(
+            page, pageSize, search, sort, segmento, soloSinUsuario);
         var result = await _servicio.ListarAsync(query, cancellationToken);
         return Ok(result);
     }

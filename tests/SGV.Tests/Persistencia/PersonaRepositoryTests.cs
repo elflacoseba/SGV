@@ -5,6 +5,7 @@ using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Dominio.Personas;
+using SGV.Infraestructura.Seguridad;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -690,7 +691,275 @@ public sealed class PersonaRepositoryTests
         }
     }
 
+    // ===================== QueryAsync soloSinUsuario tests =====================
+
+    /// <summary>
+    /// REQ-PM-01: <c>soloSinUsuario=true</c> + Activas → la consulta devuelve
+    /// sólo las personas activas sin usuario activo asociado (anti-join sobre
+    /// <c>AspNetUsers.PersonaId</c>). Una persona con usuario debe quedar
+    /// excluida; las demás activas (sin usuario) deben permanecer.
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_SoloSinUsuarioTrue_ExcluyePersonasConUsuario()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var token = $"SSU{Guid.NewGuid():N}"[..10];
+
+        // 3 activas + 1 eliminada. Sólo la primera tendrá usuario.
+        var pConUsuario = CreatePersonaEntity($"PER-SSU-{token}-CU");
+        var pSinUsuarioA = CreatePersonaEntity($"PER-SSU-{token}-SA");
+        var pSinUsuarioB = CreatePersonaEntity($"PER-SSU-{token}-SB");
+        var pEliminada = CreatePersonaEntity(
+            $"PER-SSU-{token}-DEL", isActive: false, isDeleted: true);
+        pEliminada.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<PersonaEntity>().AddRangeAsync(
+            pConUsuario, pSinUsuarioA, pSinUsuarioB, pEliminada);
+        await context.SaveChangesAsync();
+
+        var user = CreateIdentityUserParaPersona(pConUsuario.Id, token);
+        await context.Users.AddAsync(user);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new PersonaRepository(context);
+            var (items, totalCount) = await repo.QueryAsync(
+                search: $"PER-SSU-{token}",
+                page: 1, pageSize: 25,
+                sort: null,
+                segmento: PersonaSegmentoListado.Activas,
+                soloSinUsuario: true,
+                cancellationToken: default);
+
+            Assert.Equal(2, totalCount);
+            var ids = items.Select(i => i.Id).ToHashSet();
+            Assert.DoesNotContain(pConUsuario.Id, ids);
+            Assert.Contains(pSinUsuarioA.Id, ids);
+            Assert.Contains(pSinUsuarioB.Id, ids);
+        }
+        finally
+        {
+            // Orden importante: limpiar AspNetUsers antes que Personas por la FK.
+            await RemoveIdentityUsersAsync(context, token);
+            context.Set<PersonaEntity>().RemoveRange(
+                await context.Set<PersonaEntity>()
+                    .Where(p => p.Legajo!.StartsWith($"PER-SSU-{token}"))
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// REQ-PM-01: <c>soloSinUsuario=true</c> + <c>Segmento=Eliminadas</c> →
+    /// cortocircuito: <c>items=[]</c> y <c>totalCount=0</c> sin invocar el
+    /// anti-join (no tiene sentido buscar personas eliminadas sin usuario).
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_SoloSinUsuarioTrueConEliminadas_RetornaVacio()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var token = $"SSUE{Guid.NewGuid():N}"[..10];
+
+        var pActiva = CreatePersonaEntity($"PER-SSUE-{token}-A");
+        var pEliminadaSinUsuario = CreatePersonaEntity(
+            $"PER-SSUE-{token}-DEL", isActive: false, isDeleted: true);
+        pEliminadaSinUsuario.DeletedAt = DateTime.UtcNow;
+
+        await context.Set<PersonaEntity>().AddRangeAsync(pActiva, pEliminadaSinUsuario);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new PersonaRepository(context);
+            var (items, totalCount) = await repo.QueryAsync(
+                search: $"PER-SSUE-{token}",
+                page: 1, pageSize: 25,
+                sort: null,
+                segmento: PersonaSegmentoListado.Eliminadas,
+                soloSinUsuario: true,
+                cancellationToken: default);
+
+            Assert.Empty(items);
+            Assert.Equal(0, totalCount);
+        }
+        finally
+        {
+            context.Set<PersonaEntity>().RemoveRange(
+                await context.Set<PersonaEntity>()
+                    .Where(p => p.Legajo!.StartsWith($"PER-SSUE-{token}"))
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// REQ-PM-01: <c>soloSinUsuario=false</c> (o ausente) preserva el
+    /// comportamiento previo: la consulta devuelve todas las activas,
+    /// INCLUDING las que ya tienen usuario. Back-compat estricto con Index
+    /// Personas, typeahead, y consumidores existentes.
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_SoloSinUsuarioFalseONull_PreservaBackCompat()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var token = $"SSUB{Guid.NewGuid():N}"[..10];
+
+        var pConUsuario = CreatePersonaEntity($"PER-SSUB-{token}-CU");
+        var pSinUsuarioA = CreatePersonaEntity($"PER-SSUB-{token}-SA");
+        var pSinUsuarioB = CreatePersonaEntity($"PER-SSUB-{token}-SB");
+
+        await context.Set<PersonaEntity>().AddRangeAsync(
+            pConUsuario, pSinUsuarioA, pSinUsuarioB);
+        await context.SaveChangesAsync();
+
+        var user = CreateIdentityUserParaPersona(pConUsuario.Id, token);
+        await context.Users.AddAsync(user);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new PersonaRepository(context);
+
+            // false
+            var (itemsFalse, totalFalse) = await repo.QueryAsync(
+                search: $"PER-SSUB-{token}",
+                page: 1, pageSize: 25,
+                sort: null,
+                segmento: PersonaSegmentoListado.Activas,
+                soloSinUsuario: false,
+                cancellationToken: default);
+
+            // null
+            var (itemsNull, totalNull) = await repo.QueryAsync(
+                search: $"PER-SSUB-{token}",
+                page: 1, pageSize: 25,
+                sort: null,
+                segmento: PersonaSegmentoListado.Activas,
+                soloSinUsuario: null,
+                cancellationToken: default);
+
+            Assert.Equal(3, totalFalse);
+            Assert.Equal(3, totalNull);
+            Assert.Equal(
+                new[] { pConUsuario.Id, pSinUsuarioA.Id, pSinUsuarioB.Id }.OrderBy(g => g),
+                itemsFalse.Select(i => i.Id).OrderBy(g => g));
+            Assert.Equal(
+                new[] { pConUsuario.Id, pSinUsuarioA.Id, pSinUsuarioB.Id }.OrderBy(g => g),
+                itemsNull.Select(i => i.Id).OrderBy(g => g));
+        }
+        finally
+        {
+            await RemoveIdentityUsersAsync(context, token);
+            context.Set<PersonaEntity>().RemoveRange(
+                await context.Set<PersonaEntity>()
+                    .Where(p => p.Legajo!.StartsWith($"PER-SSUB-{token}"))
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// REQ-PM-01: ortogonalidad del filtro. Combinado con <c>search</c>,
+    /// <c>sort</c> y <c>page</c>, el filtro <c>soloSinUsuario</c> se compone
+    /// antes del <c>Skip/Take</c> y el <c>totalCount</c> refleja el conteo
+    /// post-filtro (no el previo).
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_SoloSinUsuarioCombinaConSearchSortPaginacion()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var token = $"SSUO{Guid.NewGuid():N}"[..8];
+
+        // 5 personas activas con apellido "Garcia<N>" que comparten el token
+        // en su Legajo y apellido. Sólo 2 quedan sin usuario activo.
+        var pG1 = CreatePersonaEntity($"PER-SSUO-{token}-G1");
+        pG1.Apellidos = "Garcia Uno";
+        var pG2 = CreatePersonaEntity($"PER-SSUO-{token}-G2");
+        pG2.Apellidos = "Garcia Dos";
+        var pG3 = CreatePersonaEntity($"PER-SSUO-{token}-G3");
+        pG3.Apellidos = "Garcia Tres";
+
+        var user1 = CreateIdentityUserParaPersona(pG1.Id, token);
+        var user3 = CreateIdentityUserParaPersona(pG3.Id, token);
+
+        await context.Set<PersonaEntity>().AddRangeAsync(pG1, pG2, pG3);
+        await context.SaveChangesAsync();
+
+        await context.Users.AddRangeAsync(user1, user3);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new PersonaRepository(context);
+            var (page1, totalCount) = await repo.QueryAsync(
+                search: $"PER-SSUO-{token}",
+                page: 1, pageSize: 1,
+                sort: "apellidos_asc",
+                segmento: PersonaSegmentoListado.Activas,
+                soloSinUsuario: true,
+                cancellationToken: default);
+
+            // pG1 (con usuario) + pG3 (con usuario) son filtradas.
+            // Sólo pG2 queda visible. pageSize=1 → 1 ítem en página, totalCount=1.
+            Assert.Equal(1, totalCount);
+            var item = Assert.Single(page1);
+            Assert.Equal(pG2.Id, item.Id);
+            Assert.Equal("Garcia Dos", item.Apellidos);
+        }
+        finally
+        {
+            await RemoveIdentityUsersAsync(context, token);
+            context.Set<PersonaEntity>().RemoveRange(
+                await context.Set<PersonaEntity>()
+                    .Where(p => p.Legajo!.StartsWith($"PER-SSUO-{token}"))
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
     // ── Helpers ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Crea un <see cref="SgvIdentityUser"/> mínimo válido apuntando a una
+    /// persona activa. El <c>UserName</c> y el <c>Email</c> se generan con el
+    /// <paramref name="token"/> para que sea fácil de limpiar al final del
+    /// test sin afectar a otras filas.
+    /// </summary>
+    private static SgvIdentityUser CreateIdentityUserParaPersona(
+        Guid personaId, string token)
+    {
+        var id = Guid.NewGuid().ToString("N");
+        return new SgvIdentityUser
+        {
+            Id = id,
+            UserName = $"u-{token}-{id[..8]}@ssu.test",
+            NormalizedUserName = $"U-{token}-{id[..8]}@SSU.TEST",
+            Email = $"u-{token}-{id[..8]}@ssu.test",
+            NormalizedEmail = $"U-{token}-{id[..8]}@SSU.TEST",
+            EmailConfirmed = false,
+            PersonaId = personaId,
+            SecurityStamp = id
+        };
+    }
+
+    /// <summary>
+    /// Limpia los <see cref="SgvIdentityUser"/> creados en un test por su
+    /// prefijo de token (UserName/Email). Necesario ANTES de eliminar las
+    /// Personas por la FK con <c>Restrict</c>.
+    /// </summary>
+    private static async Task RemoveIdentityUsersAsync(SgvDbContext context, string token)
+    {
+        var prefix = $"u-{token}-";
+        var users = await context.Users
+            .Where(u => u.UserName!.StartsWith(prefix))
+            .ToListAsync();
+        if (users.Count > 0)
+        {
+            context.Users.RemoveRange(users);
+            await context.SaveChangesAsync();
+        }
+    }
 
     private static PersonaEntity CreatePersonaEntity(
         string prefix,

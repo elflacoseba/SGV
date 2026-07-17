@@ -28,7 +28,8 @@ public sealed class PersonaServicioConsulta(IPersonaRepository repository)
             query.PageSize,
             query.Sort,
             query.Segmento,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            query.SoloSinUsuario).ConfigureAwait(false);
 
         return new PersonaListadoDto(
             items.Select(MapToDto).ToList(),

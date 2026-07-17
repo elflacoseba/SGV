@@ -220,11 +220,149 @@ public sealed class PersonaServicioConsultaTests
         Assert.Equal(new[] { "Alpha", "Zulu" },
             resultado.Items.Select(i => i.Apellidos).ToArray());
     }
+
+    // ===================== ListarAsync soloSinUsuario propagation tests =====================
+
+    /// <summary>
+    /// WU-2 (REQ-PM-01): cuando el query trae <c>SoloSinUsuario=true</c>, el
+    /// servicio DEBE propagarlo al repositorio sin transformación ni valor
+    /// por defecto. Si el servicio lo descartara, el repo no podría
+    /// aplicar el anti-join y se rompería el contrato del buscador modal.
+    /// </summary>
+    [Fact]
+    public async Task ListarAsync_SoloSinUsuarioTrue_PropagaARepositorio()
+    {
+        var repo = new FakePersonaRepository { Datos = [PersonaActiva] };
+        var servicio = new PersonaServicioConsulta(repo);
+
+        await servicio.ListarAsync(
+            new PersonaListQuery(
+                Page: 1, PageSize: 10, Search: null, Sort: null,
+                Segmento: PersonaSegmentoListado.Activas,
+                SoloSinUsuario: true),
+            default);
+
+        Assert.True(repo.CapturedSoloSinUsuario);
+    }
+
+    /// <summary>
+    /// WU-2: <c>SoloSinUsuario</c> ausente (no provisto en el named ctor)
+    /// DEBE propagar <c>null</c> al repositorio, preservando el
+    /// comportamiento vigente para todos los consumidores existentes
+    /// (Index Personas, typeahead, etc.).
+    /// </summary>
+    [Fact]
+    public async Task ListarAsync_SoloSinUsuarioNoSet_PropagaNull()
+    {
+        var repo = new FakePersonaRepository { Datos = [PersonaActiva] };
+        var servicio = new PersonaServicioConsulta(repo);
+
+        await servicio.ListarAsync(
+            new PersonaListQuery(
+                Page: 1, PageSize: 10, Search: null, Sort: null,
+                Segmento: PersonaSegmentoListado.Activas),
+            default);
+
+        Assert.Null(repo.CapturedSoloSinUsuario);
+    }
+
+    /// <summary>
+    /// WU-2: <c>SoloSinUsuario</c> nulo explícito en el named ctor DEBE
+    /// propagar <c>null</c> al repositorio (no-default a false). Back-compat
+    /// estricto con el contrato vigente.
+    /// </summary>
+    [Fact]
+    public async Task ListarAsync_SoloSinUsuarioNull_PropagaNull()
+    {
+        var repo = new FakePersonaRepository { Datos = [PersonaActiva] };
+        var servicio = new PersonaServicioConsulta(repo);
+
+        await servicio.ListarAsync(
+            new PersonaListQuery(
+                Page: 1, PageSize: 10, Search: null, Sort: null,
+                Segmento: PersonaSegmentoListado.Activas,
+                SoloSinUsuario: null),
+            default);
+
+        Assert.Null(repo.CapturedSoloSinUsuario);
+    }
+
+    /// <summary>
+    /// WU-2: la propagación del flag DEBE ser ortogonal al <c>Segmento</c>.
+    /// Combinado con <c>Eliminadas</c>, el servicio sigue propagando
+    /// <c>true</c> al repositorio (la decisión del cortocircuito vive en
+    /// el repo, no en el servicio).
+    /// </summary>
+    [Fact]
+    public async Task ListarAsync_SoloSinUsuarioTrueConEliminadas_PropagaTrueYRespetaSegmento()
+    {
+        var personaEliminada = CrearPersonaInactiva();
+        var repo = new FakePersonaRepository { Datos = [personaEliminada] };
+        var servicio = new PersonaServicioConsulta(repo);
+
+        var resultado = await servicio.ListarAsync(
+            new PersonaListQuery(
+                Page: 1, PageSize: 10, Search: null, Sort: null,
+                Segmento: PersonaSegmentoListado.Eliminadas,
+                SoloSinUsuario: true),
+            default);
+
+        Assert.True(repo.CapturedSoloSinUsuario);
+        Assert.Single(resultado.Items);
+        Assert.Equal(personaEliminada.Id, resultado.Items[0].Id);
+    }
+
+    /// <summary>
+    /// WU-2: el servicio DEBE propagar la query COMPLETA (search, sort,
+    /// page, pageSize, segmento) sin alterar ningún campo. Cualquier
+    /// reasignación, valor por defecto distinto o descarte rompería el
+    /// contrato del buscador modal.
+    /// </summary>
+    [Fact]
+    public async Task ListarAsync_SoloSinUsuarioTrueCombinaConSearchSort_PropagaTodo()
+    {
+        // Persona(nombres, apellidos, legajo, email).
+        var p1 = new Persona("Ana",  "García", "LEG-G1", "a@x.com") { Id = Guid.NewGuid() };
+        var p2 = new Persona("Beto", "García", "LEG-G2", "b@x.com") { Id = Guid.NewGuid() };
+        var repo = new FakePersonaRepository { Datos = [p1, p2] };
+        var servicio = new PersonaServicioConsulta(repo);
+
+        var resultado = await servicio.ListarAsync(
+            new PersonaListQuery(
+                Page: 2, PageSize: 1, Search: "García", Sort: "apellidos_asc",
+                Segmento: PersonaSegmentoListado.Activas,
+                SoloSinUsuario: true),
+            default);
+
+        Assert.True(repo.CapturedSoloSinUsuario);
+        Assert.Equal(2, resultado.Page);
+        Assert.Equal(1, resultado.PageSize);
+        // Sort apellidos_asc / ThenBy nombres_asc → [Ana García, Beto García].
+        // Page 2 pageSize 1 → Beto García.
+        Assert.Equal("García", resultado.Items[0].Apellidos);
+        Assert.Equal("Beto", resultado.Items[0].Nombres);
+    }
 }
 
 internal sealed class FakePersonaRepository : IPersonaRepository
 {
     public List<Persona> Datos { get; set; } = [];
+
+    /// <summary>
+    /// Último <c>soloSinUsuario</c> recibido en <see cref="QueryAsync"/>.
+    /// Inmutable entre llamadas hasta que se resetée con
+    /// <see cref="ResetCapturedSoloSinUsuario"/>; permite aserciones
+    /// precisas en los tests de propagación del servicio.
+    /// </summary>
+    public bool? CapturedSoloSinUsuario { get; private set; }
+
+    public int QueryAsyncCallCount { get; private set; }
+
+    public void ResetCapturedSoloSinUsuario()
+    {
+        CapturedSoloSinUsuario = null;
+        QueryAsyncCallCount = 0;
+    }
 
     public Task<Persona?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -269,8 +407,12 @@ internal sealed class FakePersonaRepository : IPersonaRepository
         int pageSize,
         string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool? soloSinUsuario = null)
     {
+        CapturedSoloSinUsuario = soloSinUsuario;
+        QueryAsyncCallCount++;
+
         // Mirror production predicate so the service unit tests can assert
         // segmented pagination/sort behavior without a real DB.
         var filtered = Datos.Where(p =>

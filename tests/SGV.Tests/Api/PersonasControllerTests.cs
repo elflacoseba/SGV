@@ -765,6 +765,139 @@ public sealed class PersonasControllerTests
         Assert.NotEqual(FakePersonaServicioConsulta.PersonaId1, item.Id);
     }
 
+    // ---- GET /consulta soloSinUsuario (WU-3, REQ-PM-01) ----
+
+    /// <summary>
+    /// REQ-PM-01: <c>?soloSinUsuario=true</c> en el query string DEBE
+    /// propagarse al servicio como <c>PersonaListQuery.SoloSinUsuario=true</c>.
+    /// Si el controller lo ignorara o lo filtrara, el repo no podría
+    /// aplicar el anti-join sobre AspNetUsers y el buscador modal quedaría
+    /// sin efecto.
+    /// </summary>
+    [Fact]
+    public async Task GetConsulta_ConSoloSinUsuarioTrue_PropagaAlServicio()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync(
+            "/api/v1/personas/consulta?soloSinUsuario=true");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedQueries);
+        Assert.Equal(true, observed.SoloSinUsuario);
+    }
+
+    /// <summary>
+    /// REQ-PM-01: <c>?soloSinUsuario=true&amp;status=eliminadas</c> DEBE
+    /// propagar el flag como <c>true</c> al servicio y mantener
+    /// <c>Segmento=Eliminadas</c>; el cortocircuito del repo (items=[],
+    /// totalCount=0) lo aplica el repositorio, no el controller.
+    /// </summary>
+    [Fact]
+    public async Task GetConsulta_ConSoloSinUsuarioTrueYEliminadas_PropagaAmbosFlags()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync(
+            "/api/v1/personas/consulta?soloSinUsuario=true&status=eliminadas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedQueries);
+        Assert.Equal(true, observed.SoloSinUsuario);
+        Assert.Equal(PersonaSegmentoListado.Eliminadas, observed.Segmento);
+    }
+
+    /// <summary>
+    /// REQ-PM-01: <c>soloSinUsuario</c> ausente en el query string DEBE
+    /// preservar el comportamiento vigente (back-compat): el binding de
+    /// ASP.NET en ausencia del parámetro deja el valor nullable en
+    /// <c>null</c> y el repo no aplica filtro.
+    /// </summary>
+    [Fact]
+    public async Task GetConsulta_SoloSinUsuarioAusente_PropagaNull()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/consulta");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedQueries);
+        Assert.Null(observed.SoloSinUsuario);
+    }
+
+    /// <summary>
+    /// REQ-PM-01: <c>soloSinUsuario=false</c> explícito DEBE propagarse al
+    /// servicio como <c>bool = false</c> (no se normaliza). El repo trata
+    /// <c>null</c> y <c>false</c> de forma idéntica (ambos desactivan el
+    /// filtro) gracias a <c>if (soloSinUsuario == true)</c>, así que la
+    /// semántica observable para el cliente es la misma que ausente.
+    /// </summary>
+    [Fact]
+    public async Task GetConsulta_SoloSinUsuarioFalse_PropagaFalse()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync(
+            "/api/v1/personas/consulta?soloSinUsuario=false");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedQueries);
+        Assert.Equal(false, observed.SoloSinUsuario);
+    }
+
+    /// <summary>
+    /// REQ-PM-01: la composición completa — <c>soloSinUsuario</c> +
+    /// <c>search</c> + <c>sort</c> + <c>page</c>/<c>pageSize</c> + segmento
+    /// — DEBE propagarse íntegra al servicio sin reasignar ni descartar.
+    /// </summary>
+    [Fact]
+    public async Task GetConsulta_SoloSinUsuarioCombinaConSearchSortYPage_PropagaTodo()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync(
+            "/api/v1/personas/consulta?soloSinUsuario=true&search=garcia&sort=apellidos_desc&page=2&pageSize=5&status=activas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedQueries);
+        Assert.Equal(true, observed.SoloSinUsuario);
+        Assert.Equal("garcia", observed.Search);
+        Assert.Equal("apellidos_desc", observed.Sort);
+        Assert.Equal(2, observed.Page);
+        Assert.Equal(5, observed.PageSize);
+        Assert.Equal(PersonaSegmentoListado.Activas, observed.Segmento);
+    }
+
     /// <summary>
     /// Fake en memoria de <see cref="IPersonaServicioConsulta"/> que captura la
     /// última query recibida y devuelve datos controlados por segmento. Usado

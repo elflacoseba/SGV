@@ -4,6 +4,7 @@ using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
+using SGV.Infraestructura.Seguridad;
 
 namespace SGV.Infraestructura.Persistencia.Repositorios;
 
@@ -157,7 +158,8 @@ public sealed class PersonaRepository(SgvDbContext context)
         int pageSize,
         string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool? soloSinUsuario = null)
     {
         IQueryable<PersonaEntity> query = Context
             .Set<PersonaEntity>()
@@ -165,6 +167,25 @@ public sealed class PersonaRepository(SgvDbContext context)
             .Where(p => segmento == PersonaSegmentoListado.Activas
                 ? (p.IsActive && !p.IsDeleted)
                 : (!p.IsActive && p.IsDeleted));
+
+        // soloSinUsuario=true + Eliminadas → cortocircuito (no anti-join) por
+        // contrato de REQ-PM-01. Mantenemos el conteo 0 sin tocar la query
+        // ni invocar joins adicionales.
+        if (soloSinUsuario == true && segmento == PersonaSegmentoListado.Eliminadas)
+        {
+            return (Array.Empty<Persona>(), 0);
+        }
+
+        if (soloSinUsuario == true)
+        {
+            // Anti-join semántico contra AspNetUsers.PersonaId. Una persona
+            // sólo califica si NO existe ningún Identity user apuntando a ella.
+            // EF traduce esto a WHERE NOT EXISTS (…), que usa el índice UNIQUE
+            // IX_AspNetUsers_PersonaId — sin sort ni temp table.
+            query = query.Where(p => !Context
+                .Set<SgvIdentityUser>()
+                .Any(u => u.PersonaId == p.Id));
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
