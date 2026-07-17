@@ -97,7 +97,7 @@ Chain strategy: pending
 
 ---
 
-### WU-4 — Cliente HTTP + Fake
+### WU-4 — Cliente HTTP + Fake ✅ PR-2
 
 **Objetivo**: `PersonaApiClient.BuildQueryUri` serializa `soloSinUsuario=true` sólo cuando aplica. `FakePersonaApiClient` extiende su `QueryAsync` para filtrar por `SoloSinUsuario`. `WithSoloSinUsuarioSet(IEnumerable<Guid>)` en el fake.
 
@@ -105,17 +105,21 @@ Chain strategy: pending
 - `src/SGV.Web/Integration/Personas/PersonaApiClient.cs` (+ param en `BuildQueryUri` y `QueryAsync`)
 - `tests/SGV.Tests/Web/Persona/FakePersonaApiClient.cs` (+ filtro `SoloSinUsuario` + helper `WithSoloSinUsuarioSet`)
 
-**Tests (RED)** (3 `[Fact]` + 1 `[Fact]`):
-- `BuildQueryUri_ConSoloSinUsuarioTrue_SerializaParam` — URI contiene `&soloSinUsuario=true`
-- `BuildQueryUri_ConSoloSinUsuarioNullOFalse_OmiteParam` — back-compat URI
-- `BuildQueryUri_ConTransportFailure_PropagaExcepcionNativa` — sin try-catch falso
-- `FakePersonaApiClient_QueryAsync_ConSoloSinUsuarioTrue_Filtra` — `WithSoloSinUsuarioSet` funciona
+**Tests (RED → GREEN)** (5 métodos / 7 invocaciones: 3 `[Fact]` + 1 `[Theory×3]` en `PersonaApiClientBasicTests.cs`; 2 `[Fact]` en `FakePersonaApiClientTests.cs`):
+- `QueryAsync_WithSoloSinUsuarioTrue_SerializesSoloSinUsuarioInUri` — URI contiene `&soloSinUsuario=true` (sin doble-encoding)
+- `QueryAsync_WithSoloSinUsuarioNullOrFalse_OmitsParameter` — back-compat URI (cubre `null` y `false` explícito)
+- `QueryAsync_WithSoloSinUsuarioTrue_TransportFails_PropagatesNativeException` — `[Theory]` × 3 escenarios (`TaskCanceled`, `HttpRequest`, `DnsFailure`); sin try-catch, excepciones nativas burbujean
+- `FakePersonaApiClient_QueryAsync_WithSoloSinUsuarioTrue_ExcludesIdsFromSet` — `WithSoloSinUsuarioSet` filtra correctamente
+- `FakePersonaApiClient_QueryAsync_WithSoloSinUsuarioNullOrFalse_DoesNotExcludeFromSet` — back-compat en el fake
 
-**Implementación (GREEN)**: Agregar parámetro a `BuildQueryUri`. En `FakePersonaApiClient`, si `query.SoloSinUsuario == true`, excluir ids del set `_soloSinUsuarioSet` del resultado. El helper `WithSoloSinUsuarioSet` crea el set.
+**Implementación (GREEN)**:
+- `PersonaApiClient.BuildQueryUri`: + parámetro `bool? soloSinUsuario`; serializa `&soloSinUsuario=true` sólo cuando `soloSinUsuario == true` (idéntico al patrón `segmento==Eliminadas → status=eliminadas`).
+- `PersonaApiClient.QueryAsync`: propaga `query.SoloSinUsuario` al `BuildQueryUri`.
+- `FakePersonaApiClient`: nuevo `HashSet<Guid> _soloSinUsuarioSet`, helper fluido `WithSoloSinUsuarioSet(IEnumerable<Guid>)` que retorna `this` para chaining, y método privado `ApplySoloSinUsuarioFilter` que excluye ids del set cuando `query.SoloSinUsuario == true`.
 
-**Refactor**: Extraer la lógica de filtro `SoloSinUsuario` a método privado.
+**Refactor**: extracción de `ApplySoloSinUsuarioFilter` a método privado (siguiendo el patrón vigente de `ApplyStatusFilter` / `ApplySort`). Helper `WithSoloSinUsuarioSet` valida `ArgumentNullException` en su entrada. Sin duplicación.
 
-**Validación**: `dotnet test SGV.slnx --filter "FullyQualifiedName~FakePersonaApiClient|PersonaApiClient"`
+**Validación**: `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~PersonaApiClient|FullyQualifiedName~FakePersonaApiClient"` → 53/53 passing (46 baseline + 7 nuevos). Suite completa → 2433/2433 passing (2426 baseline + 7 nuevos), 0 regresiones, 0 skipped.
 
 **Tamaño estimado**: ~70 líneas (20 producción + 50 tests)
 

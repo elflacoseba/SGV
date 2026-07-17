@@ -94,4 +94,51 @@ public class FakePersonaApiClientTests
         Assert.Equal(juan.Id, result.Items[0].Id);
         Assert.Equal(ana.Id, result.Items[1].Id);
     }
+
+    [Fact]
+    public async Task QueryAsync_WithSoloSinUsuarioTrue_ExcludesIdsFromSet()
+    {
+        // AC WU-4: el fake debe soportar el helper `WithSoloSinUsuarioSet`
+        // que modela qué personas activas ya tienen un usuario asociado.
+        // Cuando el query pide `SoloSinUsuario == true`, el fake excluye
+        // esos ids del resultado (espejo del anti-join que hace el repo
+        // real contra `AspNetUsers.PersonaId`).
+        var conUsuario = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
+        var sinUsuario = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, true);
+        var apiClient = FakePersonaApiClient
+            .WithPersonaList(conUsuario, sinUsuario)
+            .WithSoloSinUsuarioSet(new[] { conUsuario.Id });
+
+        var result = await apiClient.QueryAsync(new PersonaListQuery(
+            Page: 1, PageSize: 25, Search: null, Sort: null,
+            Segmento: PersonaSegmentoListado.Activas, SoloSinUsuario: true));
+
+        Assert.Single(result.Items);
+        Assert.Equal(sinUsuario.Id, result.Items[0].Id);
+        Assert.Equal(1, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithSoloSinUsuarioNullOrFalse_DoesNotExcludeFromSet()
+    {
+        // Back-compat REQ-PM-01: cuando `SoloSinUsuario` es null o false,
+        // el fake debe devolver todas las personas activas (incluso las
+        // que estén en el `_soloSinUsuarioSet`), preservando el contrato
+        // vigente para los consumidores que no envían el flag.
+        var conUsuario = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
+        var sinUsuario = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, true);
+        var apiClient = FakePersonaApiClient
+            .WithPersonaList(conUsuario, sinUsuario)
+            .WithSoloSinUsuarioSet(new[] { conUsuario.Id });
+
+        // Caso null (default).
+        var nullResult = await apiClient.QueryAsync(new PersonaListQuery(
+            1, 20, null, null, PersonaSegmentoListado.Activas));
+        Assert.Equal(2, nullResult.Items.Count);
+
+        // Caso false explícito.
+        var falseResult = await apiClient.QueryAsync(new PersonaListQuery(
+            1, 20, null, null, PersonaSegmentoListado.Activas, SoloSinUsuario: false));
+        Assert.Equal(2, falseResult.Items.Count);
+    }
 }

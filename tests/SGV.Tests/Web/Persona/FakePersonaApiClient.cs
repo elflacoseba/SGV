@@ -94,13 +94,24 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
     /// éxito con el DTO de la primera persona activa.
     /// </summary>
     public PersonaCommandResult ReactivarResult { get; set; } = PersonaCommandResult.Success(
-        new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, "DNI", "30123456", null, true));
+        new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true));
 
     /// <summary>Identificadores enviados a <see cref="ReactivarAsync"/>.</summary>
     public List<Guid> ReactivarCalls { get; } = new();
 
     /// <summary>Excepción opcional que <see cref="ReactivarAsync"/> lanza.</summary>
     public Exception? ReactivarException { get; set; }
+
+    /// <summary>
+    /// Conjunto de identificadores de personas activas que ya tienen un
+    /// usuario asociado. Cuando <see cref="QueryAsync"/> recibe un
+    /// <see cref="SGV.Contracts.Personas.Consultas.Dtos.PersonaListQuery"/>
+    /// con <c>SoloSinUsuario == true</c>, estos ids se excluyen del
+    /// resultado (espejo del anti-join contra
+    /// <c>AspNetUsers.PersonaId</c> que hace el repositorio real). Cambio
+    /// WU-4 del change <c>2026-07-17-buscador-personas-modal</c>.
+    /// </summary>
+    private readonly HashSet<Guid> _soloSinUsuarioSet = new();
 
     /// <summary>
     /// Construye un fake que devuelve la lista especificada en
@@ -115,6 +126,23 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
     /// </summary>
     public static FakePersonaApiClient WithFailure(Exception exception)
         => new(null, exception);
+
+    /// <summary>
+    /// Registra qué personas activas ya tienen un usuario asociado en el
+    /// fake. <see cref="QueryAsync"/> los excluirá del resultado cuando el
+    /// query solicite <c>SoloSinUsuario == true</c>. Helper fluido que
+    /// permite encadenar configuración:
+    /// <c>FakePersonaApiClient.WithPersonaList(...).WithSoloSinUsuarioSet(...)</c>.
+    /// </summary>
+    public FakePersonaApiClient WithSoloSinUsuarioSet(IEnumerable<Guid> ids)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        foreach (var id in ids)
+        {
+            _soloSinUsuarioSet.Add(id);
+        }
+        return this;
+    }
 
     public Task<IReadOnlyList<PersonaDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -212,6 +240,12 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
         var source = (_getAllResult ?? Array.Empty<PersonaDto>()).ToList();
         var snapshot = ApplyStatusFilter(source, query.Segmento);
 
+        // Filtro `soloSinUsuario`: cuando `true`, excluimos las personas
+        // activas que ya tienen un usuario asociado. Cuando es `null` o
+        // `false`, el filtro se omite para preservar back-compat con
+        // consumidores vigentes (Index Personas, typeahead).
+        snapshot = ApplySoloSinUsuarioFilter(snapshot, query.SoloSinUsuario);
+
         var lowered = query.Search?.ToLowerInvariant();
         if (!string.IsNullOrWhiteSpace(lowered))
         {
@@ -254,6 +288,24 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
         return segmento == PersonaSegmentoListado.Eliminadas
             ? source.Where(p => _deletedIds.Contains(p.Id)).ToList()
             : source.Where(p => !_deletedIds.Contains(p.Id)).ToList();
+    }
+
+    /// <summary>
+    /// Aplica el filtro <c>SoloSinUsuario</c>: cuando el query pide
+    /// <c>true</c>, excluye los ids registrados vía
+    /// <see cref="WithSoloSinUsuarioSet"/>. Cuando es <c>null</c> o
+    /// <c>false</c>, no aplica ningún filtro (back-compat). Espejo del
+    /// anti-join contra <c>AspNetUsers.PersonaId</c> del repo real
+    /// (REQ-PM-01, REQ-USB-10).
+    /// </summary>
+    private List<PersonaDto> ApplySoloSinUsuarioFilter(List<PersonaDto> source, bool? soloSinUsuario)
+    {
+        if (soloSinUsuario != true)
+        {
+            return source;
+        }
+
+        return source.Where(p => !_soloSinUsuarioSet.Contains(p.Id)).ToList();
     }
 
     private static List<PersonaDto> ApplySort(List<PersonaDto> source, string? sort) =>
