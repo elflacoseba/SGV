@@ -6,6 +6,7 @@ using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Common;
+using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Usuarios;
 using SGV.Web.Pages.Common;
 
@@ -31,14 +32,19 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 [Authorize]
 public sealed class CreateModel(
     IUsuarioApiClient usuarioApiClient,
-    IPersonaOptionsProvider personaOptionsProvider,
+    IPersonaApiClient personaApiClient,
     IAuthSessionRedirector authRedirector,
     ILogger<CreateModel> logger) : PageModel, IUsuarioForm
 {
     [BindProperty]
     public UsuarioInputModel Input { get; set; } = new();
 
-    public IReadOnlyList<PersonaDto> PersonaOptions { get; private set; } = [];
+    [BindProperty]
+    public string? PersonaDisplay { get; set; }
+
+    public IReadOnlyList<PersonaDto> PersonaOptions => [];
+
+    public int TotalCountSugerido { get; private set; }
 
     public string? ErrorMessage { get; private set; }
 
@@ -86,7 +92,7 @@ public sealed class CreateModel(
         ReturnSort = sort ?? string.Empty;
         ReturnStatus = RouteValuesPreserver.NormalizeDeletedStatus(status) ?? string.Empty;
 
-        await LoadPersonasAsync(cancellationToken);
+        await LoadPersonaAvailabilityAsync(cancellationToken);
         return Page();
     }
 
@@ -114,7 +120,7 @@ public sealed class CreateModel(
 
         if (!ModelState.IsValid)
         {
-            await LoadPersonasAsync(cancellationToken);
+            await LoadPersonaAvailabilityAsync(cancellationToken);
             return Page();
         }
 
@@ -123,7 +129,7 @@ public sealed class CreateModel(
         if (Input.PersonaId is null)
         {
             ModelState.AddModelError(UsuarioFormKeys.PersonaIdKey, "Debe seleccionar una persona activa.");
-            await LoadPersonasAsync(cancellationToken);
+            await LoadPersonaAvailabilityAsync(cancellationToken);
             return Page();
         }
 
@@ -147,7 +153,7 @@ public sealed class CreateModel(
             logger.LogError(ex, "Usuario create transport failure.");
             ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
-            await LoadPersonasAsync(cancellationToken);
+            await LoadPersonaAvailabilityAsync(cancellationToken);
             return Page();
         }
 
@@ -180,7 +186,7 @@ public sealed class CreateModel(
 
                 ErrorMessage = PageFeedback.UnauthorizedMessage;
                 ModelState.AddModelError(string.Empty, ErrorMessage);
-                await LoadPersonasAsync(cancellationToken);
+                await LoadPersonaAvailabilityAsync(cancellationToken);
                 return Page();
             }
 
@@ -189,7 +195,16 @@ public sealed class CreateModel(
             // UsuarioPostResultMapper.TryMap.
             if (result.Error.Categoria == ErrorCategoria.Conflict)
             {
-                ModelState.AddModelError(string.Empty, result.Error.Message);
+                if (string.Equals(result.Error.Code, "PersonaYaTieneUsuario", StringComparison.Ordinal))
+                {
+                    ModelState.AddModelError(
+                        UsuarioFormKeys.PersonaIdKey,
+                        "Esa persona ya tiene un usuario activo.");
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, result.Error.Message);
+                }
             }
             else if (!UsuarioPostResultMapper.TryMap(result, ModelState))
             {
@@ -200,30 +215,38 @@ public sealed class CreateModel(
             }
         }
 
-        await LoadPersonasAsync(cancellationToken);
+        await LoadPersonaAvailabilityAsync(cancellationToken);
         return Page();
     }
 
     /// <summary>
-    /// Carga el catálogo de Personas activas vía
-    /// <see cref="IPersonaOptionsProvider"/>. Cualquier excepción
-    /// (transporte o payload) se traduce a un estado recuperable: la
-    /// lista queda vacía, el dropdown muestra el placeholder y se setea
-    /// <see cref="ErrorMessage"/> para que el form siga visible y el
-    /// usuario pueda reintentar.
+    /// Consulta únicamente el total de Personas activas sin usuario para
+    /// decidir si el formulario debe mostrar el banner con CTA. La búsqueda
+    /// interactiva del modal usa páginas de 25 filas desde JavaScript.
     /// </summary>
-    private async Task LoadPersonasAsync(CancellationToken cancellationToken)
+    private async Task LoadPersonaAvailabilityAsync(CancellationToken cancellationToken)
     {
         try
         {
-            PersonaOptions = await personaOptionsProvider.GetActivasAsync(cancellationToken);
-            ErrorMessage = null;
+            var result = await personaApiClient.QueryAsync(
+                new PersonaListQuery(
+                    Page: 1,
+                    PageSize: 1,
+                    Search: null,
+                    Sort: null,
+                    Segmento: PersonaSegmentoListado.Activas,
+                    SoloSinUsuario: true),
+                cancellationToken);
+            TotalCountSugerido = result.TotalCount;
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
-            logger.LogError(ex, "Failed to load personas activas for usuario create page.");
-            PersonaOptions = [];
-            ErrorMessage = "No se pudo cargar el catálogo de personas. Intentá nuevamente.";
+            logger.LogError(ex, "Failed to query available personas for usuario create page.");
+            TotalCountSugerido = 0;
+            if (string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                ErrorMessage = "No se pudo consultar las personas disponibles. Intentá nuevamente.";
+            }
         }
     }
 }

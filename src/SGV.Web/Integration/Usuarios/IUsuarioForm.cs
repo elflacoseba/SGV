@@ -23,15 +23,20 @@ public interface IUsuarioForm
     UsuarioInputModel Input { get; }
 
     /// <summary>
-    /// Opciones del catálogo de Personas activas para popular el dropdown
-    /// de <c>PersonaId</c>. Sólo se renderiza en Create
-    /// (<see cref="IsEdit"/> es <c>false</c>); en Edit la Persona es
-    /// inmutable y se muestra como read-only.
+    /// Catálogo legacy utilizado únicamente por la rama Edit hasta completar
+    /// la migración del selector compartido.
     /// </summary>
     IReadOnlyList<PersonaDto> PersonaOptions { get; }
 
     /// <summary>
-    /// Mensaje de error general recuperable (catálogo caído, error de
+    /// Texto visible de la Persona seleccionada. Create lo conserva como
+    /// campo bindeable para re-renderizar la card tras un error; Edit lo
+    /// deriva del DTO del usuario.
+    /// </summary>
+    string? PersonaDisplay => null;
+
+    /// <summary>
+    /// Mensaje de error general recuperable (consulta caída, error de
     /// transporte en POST, etc.). El partial lo muestra bajo el
     /// <c>asp-validation-summary="ModelOnly"</c>.
     /// </summary>

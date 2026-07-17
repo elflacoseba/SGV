@@ -6,6 +6,7 @@ using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Collections;
+using SGV.Tests.Web.Persona;
 using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Usuarios;
 using Xunit;
@@ -34,9 +35,9 @@ public sealed class CreatePageTests
     [Fact]
     public async Task Get_Create_WhenAuthenticatedWithoutAdminRole_RedirectsToAccessDenied()
     {
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+        await using var lease = await CreateUsuarioLeaseAsync(
             new FakeUsuarioApiClient(),
-            FakePersonaOptionsProvider.Empty());
+            adminRole: false);
 
         var response = await lease.Client.GetAsync("/seguridad/usuarios/crear");
 
@@ -45,65 +46,67 @@ public sealed class CreatePageTests
     }
 
     // ──────────────────────────────────────────────
-    // T-XX 2: GET retorna formulario vacío con dropdown poblado
+    // WU-5: GET expone buscador sin catálogo completo
     // ──────────────────────────────────────────────
 
     [Fact]
-    public async Task Get_Create_WhenAuthenticatedAsAdmin_RendersEmptyFormWithPersonaDropdown()
+    public async Task Get_Create_NoRenderizaSelectPoblado_RenderizaBotonBuscar()
     {
         var personas = new[]
         {
             BuildPersona("L-1", "Ana", "García"),
             BuildPersona("L-2", "Juan", "Pérez")
         };
-        var apiClient = new FakeUsuarioApiClient();
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(personas);
+        var personaApiClient = FakePersonaApiClient.WithPersonaList(personas);
 
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            new FakeUsuarioApiClient(),
+            personaApiClient,
+            FakePersonaOptionsProvider.WithActivas(personas),
+            adminRole: true);
 
         var response = await lease.Client.GetAsync("/seguridad/usuarios/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Nuevo usuario", content, StringComparison.OrdinalIgnoreCase);
-
-        // El formulario debe exponer los inputs/select esperados (espejo _Form.cshtml).
-        Assert.Contains($"name=\"{UsuarioFormKeys.PersonaIdKey}\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"name=\"{UsuarioFormKeys.UserNameKey}\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"name=\"{UsuarioFormKeys.EmailKey}\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"name=\"{UsuarioFormKeys.PasswordKey}\"", content, StringComparison.OrdinalIgnoreCase);
-
-        // El catálogo debe popular el select y el checkbox de roles.
-        Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Pérez, Juan", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("name=\"Input.Roles\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("value=\"Administrador\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("value=\"GestorVacantes\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("value=\"Consultor\"", content, StringComparison.OrdinalIgnoreCase);
-
-        // El proveedor fue invocado exactamente una vez durante el GET.
-        Assert.Equal(1, personasProvider.GetActivasCalls);
+        Assert.DoesNotMatch(
+            $@"<select[^>]*name=""{Regex.Escape(UsuarioFormKeys.PersonaIdKey)}""",
+            content);
+        Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────
-    // T-XX 3: GET con dropdown vacío → mensaje guía + submit bloqueado
+    // WU-5: totalCount=0 muestra banner y CTA
     // ──────────────────────────────────────────────
 
     [Fact]
-    public async Task Get_Create_WhenNoActivePersonas_ShowsGuidanceAndDisabledSubmit()
+    public async Task Get_Create_ConTotalCountCero_MuestraBannerConCtaAPersonasCrear()
     {
-        var apiClient = new FakeUsuarioApiClient();
-        var personasProvider = FakePersonaOptionsProvider.Empty();
+        var personaApiClient = new FakePersonaApiClient
+        {
+            QueryHandler = query => new PersonaListadoDto([], 0, query.Page, query.PageSize)
+        };
 
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            new FakeUsuarioApiClient(),
+            personaApiClient,
+            FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García")),
+            adminRole: true);
 
         var response = await lease.Client.GetAsync("/seguridad/usuarios/crear");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("No hay personas activas", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("/personas/crear", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("disabled=\"disabled\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No hay personas disponibles para asociar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"/personas/crear\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Crear persona", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
+
+        var query = Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal(1, query.Page);
+        Assert.Equal(1, query.PageSize);
+        Assert.True(query.SoloSinUsuario);
     }
 
     // ──────────────────────────────────────────────
@@ -119,9 +122,10 @@ public sealed class CreatePageTests
             CreateResult = UsuarioCommandResult.Success(
                 new UsuarioDto("u-new", personaId, "anuevo", "anuevo@example.com", new[] { "Consultor" }))
         };
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-NEW", "Nueva", "Persona"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await CreateUsuarioLeaseAsync(
+            apiClient,
+            adminRole: true,
+            BuildPersona("L-NEW", "Nueva", "Persona"));
 
         var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear?p=2&search=anuevo&sort=username_asc");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -177,9 +181,10 @@ public sealed class CreatePageTests
                     ["email"] = new[] { "El email no tiene un formato válido." }
                 })
         };
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await CreateUsuarioLeaseAsync(
+            apiClient,
+            adminRole: true,
+            BuildPersona("L-1", "Ana", "García"));
 
         var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -208,8 +213,11 @@ public sealed class CreatePageTests
             Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(UsuarioFormKeys.EmailKey)}""[^>]*>[\s\S]*?formato v.{{1,5}}lido[\s\S]*?</span>", RegexOptions.IgnoreCase),
             $"Expected the backend field-error message to be rendered inside the {UsuarioFormKeys.EmailKey} field-validation span.");
 
-        // El dropdown debe re-renderizarse con las opciones para preservar contexto.
-        Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
+        // El selector debe conservar el identificador enviado para que la persona
+        // pueda cambiarse sin volver a completar el resto del formulario.
+        Assert.Matches(
+            $@"<input(?=[^>]*name=""{Regex.Escape(UsuarioFormKeys.PersonaIdKey)}"")(?=[^>]*value=""{personaId:D}"")[^>]*>",
+            content);
     }
 
     // ──────────────────────────────────────────────
@@ -229,9 +237,10 @@ public sealed class CreatePageTests
                     "Ya existe un usuario activo con el nombre 'agarcia'.",
                     Categoria: ErrorCategoria.Conflict))
         };
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await CreateUsuarioLeaseAsync(
+            apiClient,
+            adminRole: true,
+            BuildPersona("L-1", "Ana", "García"));
 
         var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -258,6 +267,78 @@ public sealed class CreatePageTests
         Assert.Contains("agarcia", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Post_Create_Con409_PreservaFormYMuestraErrorEnPersonaId()
+    {
+        var personaId = Guid.NewGuid();
+        var persona = new PersonaDto(
+            personaId,
+            "L-1",
+            "Ana",
+            "García",
+            "ana@example.com",
+            "DNI",
+            "12345678",
+            null,
+            true);
+        var usuarioApiClient = new FakeUsuarioApiClient
+        {
+            CreateResult = UsuarioCommandResult.Failure(
+                new UsuarioError(
+                    UsuarioErrorType.Conflict,
+                    "PersonaYaTieneUsuario",
+                    "La persona ya tiene un usuario asociado.",
+                    Categoria: ErrorCategoria.Conflict))
+        };
+        var personaApiClient = FakePersonaApiClient.WithPersonaList(persona);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient,
+            personaApiClient,
+            FakePersonaOptionsProvider.WithActivas(persona),
+            adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            "/seguridad/usuarios/crear",
+            new FormUrlEncodedContent(new List<KeyValuePair<string, string>>
+            {
+                new("__RequestVerificationToken", antiforgeryToken),
+                new("Input.PersonaId", personaId.ToString()),
+                new("PersonaDisplay", "García, Ana (DNI: 12345678)"),
+                new("Input.UserName", "agarcia"),
+                new("Input.Email", "ana@example.com"),
+                new("Input.Password", "Password1!"),
+                new("Input.Roles", "Administrador"),
+                new("Input.Roles", "Consultor")
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Matches(
+            $@"<span[^>]*data-valmsg-for=""{Regex.Escape(UsuarioFormKeys.PersonaIdKey)}""[^>]*>[\s\S]*?Esa persona ya tiene un usuario activo\.[\s\S]*?</span>",
+            content);
+        Assert.Matches(
+            $@"<input(?=[^>]*name=""{Regex.Escape(UsuarioFormKeys.PersonaIdKey)}"")(?=[^>]*value=""{personaId:D}"")[^>]*>",
+            content);
+        Assert.Contains("value=\"agarcia\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("value=\"ana@example.com\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches(
+            $@"<input(?=[^>]*name=""{Regex.Escape(UsuarioFormKeys.PasswordKey)}"")(?=[^>]*type=""password"")[^>]*>",
+            content);
+        Assert.Contains("García, Ana (DNI: 12345678)", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches(
+            @"<input(?=[^>]*name=""Input\.Roles"")(?=[^>]*value=""Administrador"")(?=[^>]*checked)[^>]*>",
+            content);
+        Assert.Matches(
+            @"<input(?=[^>]*name=""Input\.Roles"")(?=[^>]*value=""Consultor"")(?=[^>]*checked)[^>]*>",
+            content);
+    }
+
     // ──────────────────────────────────────────────
     // T-XX 7: POST fallo de transporte → estado recuperable
     // ──────────────────────────────────────────────
@@ -270,9 +351,10 @@ public sealed class CreatePageTests
         {
             CreateException = new HttpRequestException("network down")
         };
-        var personasProvider = FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García"));
-
-        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, personasProvider, adminRole: true);
+        await using var lease = await CreateUsuarioLeaseAsync(
+            apiClient,
+            adminRole: true,
+            BuildPersona("L-1", "Ana", "García"));
 
         var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
@@ -298,6 +380,16 @@ public sealed class CreatePageTests
         Assert.Contains("atransport", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("No se pudo contactar al servicio", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    private Task<WebClientLease> CreateUsuarioLeaseAsync(
+        IUsuarioApiClient usuarioApiClient,
+        bool adminRole,
+        params PersonaDto[] personas)
+        => _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient,
+            FakePersonaApiClient.WithPersonaList(personas),
+            FakePersonaOptionsProvider.WithActivas(personas),
+            adminRole);
 
     private static PersonaDto BuildPersona(string legajo, string nombres, string apellidos)
         => new(Guid.NewGuid(), legajo, nombres, apellidos, null, null, null, null, true);

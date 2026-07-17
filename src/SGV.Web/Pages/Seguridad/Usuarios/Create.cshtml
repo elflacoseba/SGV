@@ -8,11 +8,11 @@
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
 
-@if (Model.PersonaOptions.Count == 0)
+@if (Model.TotalCountSugerido == 0)
 {
     <div class="alert alert-warning" role="alert">
-        <strong>No hay personas activas para asociar.</strong>
-        Para crear un usuario primero debés dar de alta una persona activa.
+        <strong>No hay personas disponibles para asociar.</strong>
+        Podés crear una persona y volver a intentar.
         <a class="alert-link ms-2" href="/personas/crear">
             <i class="ti ti-plus me-1"></i>Crear persona
         </a>
@@ -41,8 +41,8 @@
                     @await Html.PartialAsync("_Form", Model)
 
                     <div class="d-flex gap-2 mt-4">
-                        <button type="submit" class="btn btn-primary"
-                                disabled="@(Model.PersonaOptions.Count == 0 ? "disabled" : null)">
+                        <button type="submit" class="btn btn-primary" data-usuario-persona-submit
+                                disabled="@(Model.Input.PersonaId is null ? "disabled" : null)">
                             Guardar
                         </button>
                         <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
