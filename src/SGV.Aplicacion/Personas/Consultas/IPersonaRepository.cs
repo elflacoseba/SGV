@@ -81,6 +81,6 @@ public interface IPersonaRepository : IReadOnlyRepository<Persona>
         int pageSize,
         string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
-        bool? soloSinUsuario = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool? soloSinUsuario = null);
 }

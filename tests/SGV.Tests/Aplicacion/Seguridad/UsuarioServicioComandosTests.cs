@@ -469,8 +469,8 @@ public sealed class UsuarioServicioComandosTests
             int pageSize,
             string? sort = null,
             PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
-            bool? soloSinUsuario = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            bool? soloSinUsuario = null)
             => Task.FromResult<(IReadOnlyList<Persona>, int)>(([], 0));
     }
 

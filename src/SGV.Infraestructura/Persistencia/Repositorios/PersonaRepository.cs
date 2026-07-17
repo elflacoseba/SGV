@@ -158,8 +158,8 @@ public sealed class PersonaRepository(SgvDbContext context)
         int pageSize,
         string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
-        bool? soloSinUsuario = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool? soloSinUsuario = null)
     {
         IQueryable<PersonaEntity> query = Context
             .Set<PersonaEntity>()

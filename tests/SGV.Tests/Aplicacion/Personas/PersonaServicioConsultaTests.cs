@@ -407,8 +407,8 @@ internal sealed class FakePersonaRepository : IPersonaRepository
         int pageSize,
         string? sort = null,
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
-        bool? soloSinUsuario = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool? soloSinUsuario = null)
     {
         CapturedSoloSinUsuario = soloSinUsuario;
         QueryAsyncCallCount++;
