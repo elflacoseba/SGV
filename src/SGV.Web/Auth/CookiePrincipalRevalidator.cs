@@ -102,10 +102,9 @@ public sealed class CookiePrincipalRevalidator(
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        // RIS-002: AuthSessionFactory seeds NameIdentifier with
-        // UserNameOrEmail first, then appends the JWT-derived user ID last.
-        // ClaimsPrincipal has no FindLast, so pick the last claim of that
-        // type — that is the only value the API accepts.
+        // Defense in depth: multiple NameIdentifier claims should not occur
+        // after the root fix. If they do, prefer the last one as the best
+        // signal from the validated JWT.
         var userId = context.Principal?
             .Claims.LastOrDefault(c => c.Type == ClaimTypes.NameIdentifier)
             ?.Value;

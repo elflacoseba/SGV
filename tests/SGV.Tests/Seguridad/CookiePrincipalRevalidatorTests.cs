@@ -93,11 +93,10 @@ public sealed class CookiePrincipalRevalidatorTests
     [Fact]
     public async Task ValidateAsync_PicksLastNameIdentifierWhenMultipleClaims()
     {
-        // RIS-002 / RES-002: AuthSessionFactory seeds NameIdentifier with
-        // UserNameOrEmail first, then appends the JWT-derived user ID last.
-        // The revalidator must use the JWT-derived ID (the only one the API
-        // accepts) or every sign-in would 404 on the next authenticated
-        // request and the cookie would be rejected.
+        // Defense-in-depth contract: session creation now trusts the JWT as
+        // the only NameIdentifier source, but a malformed or custom principal
+        // could still carry duplicates. The validated JWT-derived ID is the
+        // best signal and the only value the API accepts.
         var script = ScriptedHandler.Returning(HttpStatusCode.OK);
         var revalidator = Build(script);
         var jwtDerivedId = Guid.NewGuid().ToString("N");

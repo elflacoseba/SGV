@@ -36,7 +36,6 @@ internal sealed class AuthSessionFactory(
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, request.UserNameOrEmail),
             new(ClaimTypes.Name, request.UserNameOrEmail)
         };
 

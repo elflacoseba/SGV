@@ -166,8 +166,8 @@ public sealed class IndexPageTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         // Fila del admin actual: bloqueamos + borramos desde el row de la tabla
-        Assert.DoesNotContain($"data-usuario-bloquear-form\">\n                        <input name=\"id\" type=\"hidden\" value=\"{self.Id}\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain($"data-usuario-delete-form\">\n                        <input name=\"id\" type=\"hidden\" value=\"{self.Id}\"", content, StringComparison.OrdinalIgnoreCase);
+        AssertUsuarioActionFormNotRendered(content, "data-usuario-bloquear-form", self.Id);
+        AssertUsuarioActionFormNotRendered(content, "data-usuario-delete-form", self.Id);
         // El Details/Edit siguen visibles para no romper la navegación
         Assert.Contains($"/seguridad/usuarios/detalle/{self.Id}", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -783,6 +783,45 @@ public sealed class IndexPageTests
         Assert.DoesNotContain("elena@example.com", modalBlock, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Bloqueada", modalBlock, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(">Elena<", modalBlock, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Index_E2E_Admin_NoVeSusPropiosBotones()
+    {
+        var self = BuildUsuario("admin-test", "admin", "Admin", "Test", "admin@example.com", "Administrador");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(self);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var activeResponse = await lease.Client.GetAsync("/seguridad/usuarios?status=activas");
+        var activeContent = HttpUtility.HtmlDecode(await activeResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, activeResponse.StatusCode);
+        AssertUsuarioActionFormNotRendered(activeContent, "data-usuario-bloquear-form", self.Id);
+        AssertUsuarioActionFormNotRendered(activeContent, "data-usuario-delete-form", self.Id);
+        AssertUsuarioActionFormNotRendered(activeContent, "data-usuario-desbloquear-form", self.Id);
+
+        apiClient.SeedBlocked(self.Id);
+        var blockedResponse = await lease.Client.GetAsync("/seguridad/usuarios?status=bloqueadas");
+        var blockedContent = HttpUtility.HtmlDecode(await blockedResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, blockedResponse.StatusCode);
+        AssertUsuarioActionFormNotRendered(blockedContent, "data-usuario-bloquear-form", self.Id);
+        AssertUsuarioActionFormNotRendered(blockedContent, "data-usuario-delete-form", self.Id);
+        AssertUsuarioActionFormNotRendered(blockedContent, "data-usuario-desbloquear-form", self.Id);
+    }
+
+    private static void AssertUsuarioActionFormNotRendered(
+        string content,
+        string formAttribute,
+        string usuarioId)
+    {
+        var forms = content.Split("</form>", StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.DoesNotContain(
+            forms,
+            form => form.Contains(formAttribute, StringComparison.OrdinalIgnoreCase)
+                && form.Contains($"value=\"{usuarioId}\"", StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task<HttpResponseMessage> PostHandlerAsync(
