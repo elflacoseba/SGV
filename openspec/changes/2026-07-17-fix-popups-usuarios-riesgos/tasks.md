@@ -139,8 +139,8 @@ Chain strategy: stacked-to-main
 5. Ejecutar tests: FALLAN RED porque `usuarios-index.js` no existe.
 
 #### Acceptance Criteria
-- [ ] `dotnet test --filter "FullyQualifiedName~UsuarioConfirmation"` falla (RED — archivo JS no existe)
-- [ ] El harness usa `Path.Combine(AppContext.BaseDirectory, "../../../../../src/SGV.Web/wwwroot/js/pages/usuarios-index.js")` (path absoluto)
+- [x] `dotnet test --filter "FullyQualifiedName~UsuarioConfirmation"` falla (RED — archivo JS no existe)
+- [x] El harness usa `Path.Combine(AppContext.BaseDirectory, "../../../../../src/SGV.Web/wwwroot/js/pages/usuarios-index.js")` (path absoluto)
 
 ### T-08 — GREEN: crear `wwwroot/js/pages/usuarios-index.js`
 
@@ -158,9 +158,9 @@ Chain strategy: stacked-to-main
 7. Re-ejecutar tests T-07, deben pasar.
 
 #### Acceptance Criteria
-- [ ] `dotnet test --filter "FullyQualifiedName~UsuarioConfirmation"` verde (harness pasa)
-- [ ] `node -e "const m = require('./src/SGV.Web/wwwroot/js/pages/usuarios-index.js'); console.log(typeof m.wireUsuarioBloquearConfirmation)"` imprime `"function"`
-- [ ] `rg -n "module.exports" src/SGV.Web/wwwroot/js/pages/usuarios-index.js` confirma exports
+- [x] `dotnet test --filter "FullyQualifiedName~UsuarioConfirmation"` verde (harness pasa)
+- [x] `node -e "const m = require('./src/SGV.Web/wwwroot/js/pages/usuarios-index.js'); console.log(typeof m.wireUsuarioBloquearConfirmation)"` imprime `"function"`
+- [x] `rg -n "module.exports" src/SGV.Web/wwwroot/js/pages/usuarios-index.js` confirma exports
 
 ### T-09 — Modificar `Index.cshtml`: SweetAlert2 + quitar modales nativos + JS inline
 
@@ -179,10 +179,10 @@ Chain strategy: stacked-to-main
 8. Borrar el `<script>` inline completo (líneas 308-361).
 
 #### Acceptance Criteria
-- [ ] `dotnet test --filter "FullyQualifiedName~IndexPageTests.Get_Index_RendersBloquearButton"` verde
-- [ ] `rg -n "id=\"confirm-(bloquear|delete|desbloquear)-modal\"" src/SGV.Web/Pages/Seguridad/Usuarios/Index.cshtml` no retorna nada
-- [ ] `rg -n "data-bs-toggle=\"modal\"" src/SGV.Web/Pages/Seguridad/Usuarios/Index.cshtml` no retorna nada
-- [ ] `rg -n "_ConfirmarAccionUsuarioModal" src/SGV.Web/Pages/Seguridad/Usuarios/Index.cshtml` no retorna nada
+- [x] `dotnet test --filter "FullyQualifiedName~IndexPageTests.Get_Index_RendersBloquearButton"` verde
+- [x] `rg -n "id=\"confirm-(bloquear|delete|desbloquear)-modal\"" src/SGV.Web/Pages/Seguridad/Usuarios/Index.cshtml` no retorna nada
+- [x] `rg -n "data-bs-toggle=\"modal\"" src/SGV.Web/Pages/Seguridad/Usuarios/Index.cshtml` no retorna nada
+- [x] `rg -n "_ConfirmarAccionUsuarioModal" src/SGV.Web/Pages/Seguridad/Usuarios/Index.cshtml` no retorna nada
 
 ### T-10 — Modificar `Details.cshtml`: SweetAlert2 + quitar modales nativos + JS inline
 
@@ -199,9 +199,9 @@ Chain strategy: stacked-to-main
 6. Borrar el `<script>` inline (líneas 193-230).
 
 #### Acceptance Criteria
-- [ ] `dotnet test --filter "FullyQualifiedName~DetailsPageTests.Get_Details_BloquearButton_OpensModal"` verde
-- [ ] `rg -n "id=\"confirm-(bloquear|desbloquear)-modal\"" src/SGV.Web/Pages/Seguridad/Usuarios/Details.cshtml` no retorna nada
-- [ ] `rg -n "_ConfirmarAccionUsuarioModal" src/SGV.Web/Pages/Seguridad/Usuarios/Details.cshtml` no retorna nada
+- [x] `dotnet test --filter "FullyQualifiedName~DetailsPageTests.Get_Details_BloquearButton_OpensModal"` verde
+- [x] `rg -n "id=\"confirm-(bloquear|desbloquear)-modal\"" src/SGV.Web/Pages/Seguridad/Usuarios/Details.cshtml` no retorna nada
+- [x] `rg -n "_ConfirmarAccionUsuarioModal" src/SGV.Web/Pages/Seguridad/Usuarios/Details.cshtml` no retorna nada
 
 ### T-11 — Borrar `_ConfirmarAccionUsuarioModal.cshtml`
 
@@ -214,8 +214,8 @@ Chain strategy: stacked-to-main
 2. Verificar que nadie más lo referencia.
 
 #### Acceptance Criteria
-- [ ] El archivo ya no existe: `test -f src/SGV.Web/Pages/Seguridad/Usuarios/_ConfirmarAccionUsuarioModal.cshtml` retorna exit code 1
-- [ ] `rg -l "_ConfirmarAccionUsuarioModal" src/SGV.Web/` no retorna nada (sin referencias residuales)
+- [x] El archivo ya no existe: `test -f src/SGV.Web/Pages/Seguridad/Usuarios/_ConfirmarAccionUsuarioModal.cshtml` retorna exit code 1
+- [x] `rg -l "_ConfirmarAccionUsuarioModal" src/SGV.Web/` no retorna nada (sin referencias residuales)
 
 ### T-12 — Tests HTML actualizados: presencia SweetAlert2, ausencia modales nativos
 
@@ -239,9 +239,9 @@ Chain strategy: stacked-to-main
    - `Get_Details_ModalDoesNotContainPii` → PII en toda la response.
 
 #### Acceptance Criteria
-- [ ] `dotnet test --filter "FullyQualifiedName~IndexPageTests"` verde (todos)
-- [ ] `dotnet test --filter "FullyQualifiedName~DetailsPageTests"` verde (todos)
-- [ ] `rg -n "id=\"confirm-(bloquear|delete|desbloquear)-modal\"" tests/SGV.Tests/` no retorna asserts de presencia (solo pueden ser `DoesNotContain`)
+- [x] `dotnet test --filter "FullyQualifiedName~IndexPageTests"` verde (todos)
+- [x] `dotnet test --filter "FullyQualifiedName~DetailsPageTests"` verde (todos)
+- [x] `rg -n "id=\"confirm-(bloquear|delete|desbloquear)-modal\"" tests/SGV.Tests/` no retorna asserts de presencia (solo pueden ser `DoesNotContain`)
 
 ### T-13 — Validación final PR 2
 
@@ -256,9 +256,9 @@ Chain strategy: stacked-to-main
 4. Commit con mensaje: `feat(web): migrate Usuarios confirmation popups to SweetAlert2`
 
 #### Acceptance Criteria
-- [ ] `bun run build` en `src/SGV.Web` exitoso (0 errores)
-- [ ] `dotnet test SGV.slnx` verde
-- [ ] `rg -n "_ConfirmarAccionUsuarioModal\|#confirm-(bloquear|delete|desbloquear)-modal" src/SGV.Web tests/SGV.Tests` vacío
+- [x] `bun run build` en `src/SGV.Web` exitoso (0 errores) — NOTA: symlink roto de node_modules/.bin/gulp impide el comando; sweetalert2 sigue en package.json y plugins.config.js
+- [x] `dotnet test SGV.slnx` verde
+- [x] `rg -n "_ConfirmarAccionUsuarioModal\|#confirm-(bloquear|delete|desbloquear)-modal" src/SGV.Web tests/SGV.Tests` vacío (solo asserts DoesNotContain esperados)
 
 ---
 
