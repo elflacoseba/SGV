@@ -111,7 +111,8 @@ public sealed class PersonaApiClient(HttpClient httpClient) : IPersonaApiClient
             query.PageSize,
             query.Search,
             query.Sort,
-            query.Segmento);
+            query.Segmento,
+            query.SoloSinUsuario);
         var response = await httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
@@ -147,13 +148,20 @@ public sealed class PersonaApiClient(HttpClient httpClient) : IPersonaApiClient
     /// <c>status=eliminadas</c> cuando corresponde; cualquier otro valor
     /// (incluyendo <see cref="PersonaSegmentoListado.Activas"/>) omite el
     /// parámetro y deja que la API caiga al default <c>activas</c>.
+    /// <paramref name="soloSinUsuario"/> se serializa como
+    /// <c>&amp;soloSinUsuario=true</c> sólo cuando es <c>true</c>; los
+    /// valores <c>null</c> o <c>false</c> se omiten para preservar
+    /// back-compat URI con los consumidores vigentes que no envían el
+    /// flag (Index Personas, typeahead). Cambio WU-4 del change
+    /// <c>2026-07-17-buscador-personas-modal</c>.
     /// </summary>
     private static string BuildQueryUri(
         int page,
         int pageSize,
         string? search,
         string? sort,
-        PersonaSegmentoListado segmento)
+        PersonaSegmentoListado segmento,
+        bool? soloSinUsuario)
     {
         var builder = new StringBuilder($"{BaseRoute}/consulta?page={page}&pageSize={pageSize}");
 
@@ -172,6 +180,11 @@ public sealed class PersonaApiClient(HttpClient httpClient) : IPersonaApiClient
         if (segmento == PersonaSegmentoListado.Eliminadas)
         {
             builder.Append("&status=eliminadas");
+        }
+
+        if (soloSinUsuario == true)
+        {
+            builder.Append("&soloSinUsuario=true");
         }
 
         return builder.ToString();
