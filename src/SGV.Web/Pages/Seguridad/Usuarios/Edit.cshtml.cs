@@ -15,15 +15,15 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 /// <see cref="SGV.Web.Pages.Personas.EditModel"/>: exige rol
 /// <c>Administrador</c>, precarga los datos vía
 /// <see cref="IUsuarioApiClient.GetByIdAsync"/> (incluida la Persona
-/// vinculada para mostrarla como read-only), y persiste vía
+/// vinculada para mostrarla como card preseleccionada), y persiste vía
 /// <see cref="IUsuarioApiClient.UpdateAsync"/>. PRG re-redirige al propio
 /// edit tras 200; 400 mapea <c>FieldErrors</c>; 409 muestra el campo
 /// afectado. Usuario inexistente muestra estado recuperable.
 /// <para>
-/// Edit sólo modifica <c>UserName</c>, <c>Email</c> y <c>Roles</c>; la
-/// <c>Persona</c> es inmutable (fuera del scope del change — ver
-/// <c>specs/usuario-web-crear-editar/spec.md</c> §Out of scope). El cambio
-/// de password desde la UI administrativa también queda fuera del scope.
+/// Edit modifica <c>UserName</c>, <c>Email</c> y <c>Roles</c>; el selector
+/// permite cambiar o quitar la Persona visible sin incorporarla al request
+/// <see cref="ActualizarUsuarioRequest"/>. El cambio de password desde la UI
+/// administrativa queda fuera del scope.
 /// </para>
 /// <para>
 /// Issue #125 / Slice 3: switch exhaustivo sobre
@@ -79,9 +79,9 @@ public sealed class EditModel(
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
 
     /// <summary>
-    /// GET handler. Carga el usuario por id y, en paralelo, el catálogo
-    /// de Personas activas para resolver la descripción read-only de la
-    /// Persona vinculada. Si el usuario no existe o la consulta falla,
+    /// GET handler. Carga el usuario por id y deriva la presentación de la
+    /// Persona vinculada directamente del <see cref="UsuarioDto"/>. Si el
+    /// usuario no existe o la consulta falla,
     /// marca <see cref="IsRecoverable"/> y muestra un mensaje recuperable
     /// sin renderizar el formulario. Los parámetros <c>p</c>, <c>search</c>,
     /// <c>sort</c> y <c>returnStatus</c> se preservan para los enlaces
@@ -143,9 +143,7 @@ public sealed class EditModel(
     /// atómico (UserName+Email+Roles), y mapea el resultado a feedback del
     /// usuario. Tras éxito, PRG a sí mismo con TempData. Tras fallo de
     /// validación/conflicto, re-renderiza el formulario con los mensajes de
-    /// error preservando el input. Recarga el catálogo de Personas en
-    /// cualquier rama que re-renderice, para mantener el banner read-only
-    /// sincronizado con la realidad del backend.
+    /// error preservando el input y el texto de la card seleccionado.
     /// </summary>
     public async Task<IActionResult> OnPostAsync(
         string id,
@@ -171,6 +169,11 @@ public sealed class EditModel(
         // fijo de roles. Roles no vigentes (e.g. defaults de Identity como
         // "User") no deben llegar al backend.
         Input.Roles = UsuarioInputModel.FilterByCatalog(Input.Roles);
+
+        // PersonaId no forma parte de ActualizarUsuarioRequest. Quitar la
+        // selección en Edit es válido y no debe activar la regla [Required]
+        // compartida con Create.
+        ModelState.Remove(UsuarioFormKeys.PersonaIdKey);
 
         if (!ModelState.IsValid)
         {

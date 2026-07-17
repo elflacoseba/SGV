@@ -62,7 +62,6 @@ public sealed class CreatePageTests
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(
             new FakeUsuarioApiClient(),
             personaApiClient,
-            FakePersonaOptionsProvider.WithActivas(personas),
             adminRole: true);
 
         var response = await lease.Client.GetAsync("/seguridad/usuarios/crear");
@@ -91,7 +90,6 @@ public sealed class CreatePageTests
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(
             new FakeUsuarioApiClient(),
             personaApiClient,
-            FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García")),
             adminRole: true);
 
         var response = await lease.Client.GetAsync("/seguridad/usuarios/crear");
@@ -295,7 +293,6 @@ public sealed class CreatePageTests
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(
             usuarioApiClient,
             personaApiClient,
-            FakePersonaOptionsProvider.WithActivas(persona),
             adminRole: true);
 
         var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
@@ -388,7 +385,6 @@ public sealed class CreatePageTests
         => _fixture.CreateUsuarioLeaseAsync(
             usuarioApiClient,
             FakePersonaApiClient.WithPersonaList(personas),
-            FakePersonaOptionsProvider.WithActivas(personas),
             adminRole);
 
     private static PersonaDto BuildPersona(string legajo, string nombres, string apellidos)

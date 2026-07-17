@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
 using SGV.Contracts.Comun;
-using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Persona;
@@ -57,7 +56,6 @@ public sealed class EditPageTests
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(
             usuarioApiClient,
             personaApiClient,
-            FakePersonaOptionsProvider.WithActivas(BuildPersona("L-1", "Ana", "García")),
             adminRole: true);
 
         var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{usuario.Id}");
@@ -87,7 +85,6 @@ public sealed class EditPageTests
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(
             FakeUsuarioApiClient.WithUsuarioList(usuario),
             personaApiClient,
-            FakePersonaOptionsProvider.Empty(),
             adminRole: true);
 
         var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{usuario.Id}");
@@ -98,6 +95,34 @@ public sealed class EditPageTests
         Assert.Contains("data-usuario-persona-empty", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(personaApiClient.QueryCalls);
+    }
+
+    [Fact]
+    public async Task Post_Edit_SinPersonaSeleccionada_PermiteActualizarCamposEditables()
+    {
+        var id = "u-edit";
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario(id, personaId, "Ana", "García");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        apiClient.UpdateResult = UsuarioCommandResult.Success(
+            new UsuarioDto(id, personaId, "agarcia", "ana@example.com", new[] { "Consultor" }));
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+        var getResponse = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{id}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            $"/seguridad/usuarios/editar/{id}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Input.UserName"] = "agarcia",
+                ["Input.Email"] = "ana@example.com",
+                ["Input.Roles"] = "Consultor"
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Single(apiClient.UpdateCalls);
     }
 
     // ──────────────────────────────────────────────
@@ -309,7 +334,4 @@ public sealed class EditPageTests
 
     private static UsuarioDto BuildUsuario(string id, Guid personaId, string nombres, string apellidos)
         => new(id, personaId, "agarcia", "ana@example.com", new[] { "Consultor" }, nombres, apellidos);
-
-    private static PersonaDto BuildPersona(string legajo, string nombres, string apellidos)
-        => new(Guid.NewGuid(), legajo, nombres, apellidos, null, null, null, null, true);
 }

@@ -56,10 +56,26 @@ public sealed class PersonaBuscadorModalTests
         Assert.Contains("data-usuario-persona-estado-empty", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task PersonaBuscadorModal_ConsultaSameOrigin_UsaClienteTipadoDePersonas()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?search=garcia&soloSinUsuario=true&p=2&pageSize=25");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var query = Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal("garcia", query.Search);
+        Assert.Equal(2, query.Page);
+        Assert.Equal(25, query.PageSize);
+        Assert.True(query.SoloSinUsuario);
+    }
+
     private Task<WebClientLease> CreateLeaseAsync(FakePersonaApiClient? personaApiClient = null)
         => _fixture.CreateUsuarioLeaseAsync(
             new FakeUsuarioApiClient(),
             personaApiClient ?? new FakePersonaApiClient(),
-            FakePersonaOptionsProvider.Empty(),
             adminRole: true);
 }

@@ -19,8 +19,8 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 /// <see cref="IUsuarioApiClient.CreateAsync"/>. PRG al detalle del usuario
 /// creado tras 201; 400 mapea <c>FieldErrors</c> a los controles
 /// correspondientes; 409 muestra el campo afectado sin perder el resto
-/// del formulario. El dropdown de Personas activas se carga vía
-/// <see cref="IPersonaOptionsProvider"/>; cuando el catálogo está vacío,
+/// del formulario. La disponibilidad de Personas se consulta vía
+/// <see cref="IPersonaApiClient.QueryAsync"/>; cuando no hay candidatas,
 /// el submit queda bloqueado con un mensaje guía hacia
 /// <c>/personas/crear</c>.
 /// <para>
@@ -68,10 +68,9 @@ public sealed class CreateModel(
     /// <summary>
     /// GET handler del formulario. Si el usuario no es Administrador,
     /// devuelve <c>Forbid()</c> que delega al cookie scheme (redirige a
-    /// AccessDeniedPath, <c>/error/403</c>). Si el catálogo de Personas
-    /// activas está vacío, el formulario se renderiza igual pero el submit
-    /// queda bloqueado por la ausencia de opciones en el dropdown y un
-    /// banner informativo con link a <c>/personas/crear</c>.
+    /// AccessDeniedPath, <c>/error/403</c>). Consulta el total de Personas
+    /// activas sin usuario; cuando no hay candidatas, el formulario se
+    /// renderiza con un banner y CTA a <c>/personas/crear</c>.
     /// </summary>
     public async Task<IActionResult> OnGetAsync(
         string? p = null,
