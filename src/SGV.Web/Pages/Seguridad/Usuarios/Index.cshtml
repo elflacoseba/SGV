@@ -173,7 +173,7 @@
                                                     </a>
                                                     if (!esAuto)
                                                     {
-                                                        <form data-usuario-bloquear-form method="post">
+                                                        <form data-usuario-bloquear-form method="post" action="?handler=Bloquear">
                                                             @Html.AntiForgeryToken()
                                                             <input name="id" type="hidden" value="@item.Id" />
                                                             <input name="page" type="hidden" value="@Model.CurrentPage" />
@@ -182,7 +182,7 @@
                                                             <input name="status" type="hidden" value="@Model.Segmento" />
                                                             <button aria-label="Bloquear a @item.UserName" class="btn btn-secondary btn-icon btn-sm rounded-circle"
                                                                     data-usuario-bloquear-button
-                                                                    data-bs-toggle="tooltip" data-bs-title="Bloquear" formaction="?handler=Bloquear" type="submit">
+                                                                    data-bs-toggle="modal" data-bs-target="#confirm-bloquear-modal" type="button">
                                                                 <i class="ti ti-lock fs-lg"></i>
                                                             </button>
                                                         </form>
@@ -205,7 +205,7 @@
                                             }
                                             else if (Model.EsAdministrador)
                                             {
-                                                <form data-usuario-desbloquear-form method="post">
+                                                <form data-usuario-desbloquear-form method="post" action="?handler=Desbloquear">
                                                     @Html.AntiForgeryToken()
                                                     <input name="id" type="hidden" value="@item.Id" />
                                                     <input name="page" type="hidden" value="@Model.CurrentPage" />
@@ -214,7 +214,7 @@
                                                     <input name="status" type="hidden" value="@Model.Segmento" />
                                                     <button aria-label="Desbloquear a @item.UserName" class="btn btn-success btn-icon btn-sm rounded-circle"
                                                             data-usuario-desbloquear-button
-                                                            data-bs-toggle="tooltip" data-bs-title="Desbloquear" formaction="?handler=Desbloquear" type="submit">
+                                                            data-bs-toggle="modal" data-bs-target="#confirm-desbloquear-modal" type="button">
                                                         <i class="ti ti-lock-open fs-lg"></i>
                                                     </button>
                                                 </form>
@@ -279,23 +279,84 @@
     </div>
 </div>
 
+@* Modales de confirmación obligatoria para Bloquear / Desbloquear.
+   Replican el patrón UX de #confirm-delete-modal: difieren el submit
+   del form hasta confirmación explícita del Administrador, sin tocar
+   backend ni antifence server-side (REQ-UCB-01, REQ-UCB-02,
+   REQ-UCB-03, REQ-UCB-04). Partial compartido: ver
+   _ConfirmarAccionUsuarioModal.cshtml. *@
+@await Html.PartialAsync("_ConfirmarAccionUsuarioModal", null, new ViewDataDictionary(ViewData)
+{
+    ["ModalId"] = "confirm-bloquear-modal",
+    ["Title"] = "Bloquear usuario",
+    ["ConfirmButtonClass"] = "btn-secondary",
+    ["ConfirmSelector"] = "usuario-bloquear-confirm",
+    ["PendingTriggerVar"] = "__pendingBloquearTrigger",
+    ["ConfirmAriaLabel"] = "Bloquear"
+})
+
+@await Html.PartialAsync("_ConfirmarAccionUsuarioModal", null, new ViewDataDictionary(ViewData)
+{
+    ["ModalId"] = "confirm-desbloquear-modal",
+    ["Title"] = "Desbloquear usuario",
+    ["ConfirmButtonClass"] = "btn-success",
+    ["ConfirmSelector"] = "usuario-desbloquear-confirm",
+    ["PendingTriggerVar"] = "__pendingDesbloquearTrigger",
+    ["ConfirmAriaLabel"] = "Desbloquear"
+})
+
 @section Scripts {
 <script>
     (function () {
-        var confirmButton = document.querySelector('[data-usuario-delete-confirm]');
-        if (!confirmButton) return;
-        confirmButton.addEventListener('click', function () {
-            var trigger = window.__pendingDeleteTrigger;
-            if (!trigger) return;
-            trigger.submit();
-            window.__pendingDeleteTrigger = null;
-        });
-        document.querySelectorAll('[data-usuario-delete-button]').forEach(function (btn) {
-            btn.addEventListener('click', function (event) {
-                event.preventDefault();
-                window.__pendingDeleteTrigger = btn.closest('form');
+        // Helper reutilizable: ancla el disparador del modal al botón
+        // Confirmar y al ciclo de vida del modal. Cubre D-05 (anti
+        // doble-submit), D-06 (doble guard contra click repetido),
+        // D-07 (foco devuelto al cerrarse).
+        var setup = function (btnSel, confirmSel, pendingVar) {
+            var confirmBtn = document.querySelector(confirmSel);
+            if (!confirmBtn) return;
+            var modal = document.getElementById(confirmBtn.closest('.modal').id);
+            confirmBtn.addEventListener('click', function () {
+                if (confirmBtn.disabled) return;
+                var trigger = window[pendingVar];
+                if (!trigger) return;
+                confirmBtn.disabled = true;
+                trigger.submit();
+                window[pendingVar] = null;
             });
-        });
+            document.querySelectorAll(btnSel).forEach(function (btn) {
+                btn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    if (window[pendingVar]) return;
+                    window[pendingVar] = btn.closest('form');
+                });
+            });
+            modal.addEventListener('hidden.bs.modal', function (event) {
+                window[pendingVar] = null;
+                confirmBtn.disabled = false;
+                if (event.relatedTarget) event.relatedTarget.focus();
+            });
+        };
+        // Bloquear / Desbloquear (REQ-UCB-01, REQ-UCB-02).
+        setup('[data-usuario-bloquear-button]', '[data-usuario-bloquear-confirm]', '__pendingBloquearTrigger');
+        setup('[data-usuario-desbloquear-button]', '[data-usuario-desbloquear-confirm]', '__pendingDesbloquearTrigger');
+
+        // Eliminar: replica el patrón vigente con __pendingDeleteTrigger.
+        var confirmButton = document.querySelector('[data-usuario-delete-confirm]');
+        if (confirmButton) {
+            confirmButton.addEventListener('click', function () {
+                var trigger = window.__pendingDeleteTrigger;
+                if (!trigger) return;
+                trigger.submit();
+                window.__pendingDeleteTrigger = null;
+            });
+            document.querySelectorAll('[data-usuario-delete-button]').forEach(function (btn) {
+                btn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    window.__pendingDeleteTrigger = btn.closest('form');
+                });
+            });
+        }
     })();
 </script>
 }

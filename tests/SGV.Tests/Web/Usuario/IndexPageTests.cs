@@ -569,6 +569,222 @@ public sealed class IndexPageTests
         Assert.Empty(apiClient.DesbloquearCalls);
     }
 
+    [Fact]
+    public async Task Get_Index_RendersBloquearButton_WithDataAttributeAndNoFormAction()
+    {
+        // REQ-UCB-01 + REQ-UCB-10: el botón Bloquear debe disparar el
+        // modal en lugar de hacer submit directo a ?handler=Bloquear.
+        var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-usuario-bloquear-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-target=\"#confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        // El botón no debe llevar formaction: el submit se difiere al confirm
+        // del modal para que el handler OnPostBloquearAsync sólo se invoque
+        // tras confirmación explícita.
+        Assert.DoesNotContain("formaction=\"?handler=Bloquear\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_BloquearButtonDoesNotSubmitDirectly()
+    {
+        // REQ-UCB-01 + REQ-UCB-10: tras la confirmación modal, el botón
+        // Bloquear NO debe seguir siendo un type=submit que apunte al
+        // handler por formaction. La confirmación se gestiona vía
+        // data-bs-toggle="modal" y el handler JS difiere el submit.
+        var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-usuario-bloquear-button", content, StringComparison.OrdinalIgnoreCase);
+        // type="button" garantiza que el click no dispara el submit
+        // nativo del formulario (la responsabilidad pasa al handler JS).
+        Assert.DoesNotContain("formaction=\"?handler=Bloquear\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-bloquear-button\" type=\"submit\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_RendersBloquearModal_WithConfirmButton()
+    {
+        // REQ-UCB-01 + REQ-UCB-04 + REQ-UCB-10: el modal #confirm-bloquear-modal
+        // se renderiza con su título, su botón de confirmación explícito y
+        // cuerpo sin PII.
+        var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-bloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Bloquear usuario", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_BloquearModal_HasAriaWiring()
+    {
+        // REQ-UCB-05: atributos AA mínimos del modal.
+        var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("aria-labelledby=\"confirm-bloquear-modal-title\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("aria-hidden=\"true\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("tabindex=\"-1\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_RendersFormDataUsuarioBloquearForm_WithHiddenInputs()
+    {
+        // REQ-UCB-06 + REQ-UCB-08: tras el cambio a confirmación modal, el
+        // form data-usuario-bloquear-form debe seguir teniendo antiforgery
+        // y los hidden inputs de contexto (id/page/search/sort/status) que
+        // el PRG vigente necesita para preservar el segmento y los filtros.
+        var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync(
+            "/seguridad/usuarios?status=activas&p=1&search=ana&sort=user_asc");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-usuario-bloquear-form", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("__RequestVerificationToken", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"<input name=\"id\" type=\"hidden\" value=\"{first.Id}\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<input name=\"page\" type=\"hidden\" value=\"1\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<input name=\"search\" type=\"hidden\" value=\"ana\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<input name=\"sort\" type=\"hidden\" value=\"user_asc\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<input name=\"status\" type=\"hidden\" value=\"activas\"", content, StringComparison.OrdinalIgnoreCase);
+        // El form debe apuntar al handler Bloquear vía action (porque el
+        // botón ya no usa formaction tras la confirmación modal). Usamos
+        // regex con word boundary para no matchear el substring
+        // "action=" dentro de "formaction=" del botón vigente.
+        Assert.Matches(@"\baction=""[?]handler=Bloquear""", content);
+    }
+
+    [Fact]
+    public async Task Get_Index_BloquearModal_DoesNotContainPii()
+    {
+        // REQ-UCB-04 + REQ-UCB-10: el cuerpo del modal #confirm-bloquear-modal
+        // NO debe exponer UserName / Email / Nombres / Apellidos del
+        // usuario objetivo; igual que el modal de Eliminar vigente, la
+        // confirmación se reduce a "este usuario".
+        var first = BuildUsuario("u-1", "agarcía", "Ana", "García", "ana@example.com", "Administrador");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(first);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        var modalStart = content.IndexOf("id=\"confirm-bloquear-modal\"", StringComparison.OrdinalIgnoreCase);
+        Assert.True(modalStart >= 0);
+        // Tomamos el bloque hasta el próximo modal (id="confirm-...") o
+        // hasta el final del documento.
+        var nextModalStart = content.IndexOf("id=\"confirm-", modalStart + 1, StringComparison.OrdinalIgnoreCase);
+        var modalEnd = nextModalStart >= 0 ? nextModalStart : content.Length;
+        var modalBlock = content.Substring(modalStart, modalEnd - modalStart);
+
+        Assert.DoesNotContain("agarcía", modalBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ana@example.com", modalBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("García", modalBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(">Ana<", modalBlock, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_RendersDesbloquearButton_WithDataAttributeAndNoFormAction()
+    {
+        // REQ-UCB-02 + REQ-UCB-10: análogo al Bloquear pero para el
+        // segmento bloqueadas y el form data-usuario-desbloquear-form.
+        var bloqueada = BuildUsuario("u-blocked", "blocked", "Elena", "Bloqueada", "elena@example.com", "Consultor");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(bloqueada);
+        apiClient.SeedBlocked(bloqueada.Id);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios?status=bloqueadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-usuario-desbloquear-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-target=\"#confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("formaction=\"?handler=Desbloquear\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_RendersDesbloquearModal_WithConfirmButton()
+    {
+        // REQ-UCB-02 + REQ-UCB-04 + REQ-UCB-10: el modal de desbloqueo
+        // existe con su título y su botón de confirmación.
+        var bloqueada = BuildUsuario("u-blocked", "blocked", "Elena", "Bloqueada", "elena@example.com", "Consultor");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(bloqueada);
+        apiClient.SeedBlocked(bloqueada.Id);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios?status=bloqueadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-desbloquear-confirm", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Desbloquear usuario", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Index_DesbloquearModal_DoesNotContainPii()
+    {
+        // REQ-UCB-04 + REQ-UCB-10: el modal #confirm-desbloquear-modal NO
+        // debe exponer PII del usuario objetivo.
+        var bloqueada = BuildUsuario("u-blocked", "blocked", "Elena", "Bloqueada", "elena@example.com", "Consultor");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(bloqueada);
+        apiClient.SeedBlocked(bloqueada.Id);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios?status=bloqueadas");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        var modalStart = content.IndexOf("id=\"confirm-desbloquear-modal\"", StringComparison.OrdinalIgnoreCase);
+        Assert.True(modalStart >= 0);
+        var nextModalStart = content.IndexOf("id=\"confirm-", modalStart + 1, StringComparison.OrdinalIgnoreCase);
+        var modalEnd = nextModalStart >= 0 ? nextModalStart : content.Length;
+        var modalBlock = content.Substring(modalStart, modalEnd - modalStart);
+
+        Assert.DoesNotContain("blocked", modalBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("elena@example.com", modalBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Bloqueada", modalBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(">Elena<", modalBlock, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task<HttpResponseMessage> PostHandlerAsync(
         WebClientLease lease,
         string token,
