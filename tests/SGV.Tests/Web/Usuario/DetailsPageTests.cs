@@ -191,14 +191,7 @@ public sealed class DetailsPageTests
     [Fact]
     public async Task Get_Details_WhenAdminViewsSelf_RendersOnlyEdit_NoBloquearNoEliminar()
     {
-        // REL-004: el bootstrap de AuthenticateClientAsync envía
-        // UserNameOrEmail="admin", que AuthSessionFactory siembra como
-        // primer claim NameIdentifier (RIS-002). El JWT agrega luego
-        // NameIdentifier="admin-test" pero FindFirstValue devuelve el
-        // primero, así que CurrentUserId="admin" en este test. Si el
-        // DTO trae id="admin" el guard EsAutoAccion activa y la vista
-        // debe mostrar sólo Edit (no Bloquear/Eliminar/Desbloquear).
-        const string selfId = "admin";
+        const string selfId = "admin-test";
         var self = BuildUsuario(selfId);
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(self);
 

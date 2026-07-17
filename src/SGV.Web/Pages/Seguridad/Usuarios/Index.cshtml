@@ -203,7 +203,7 @@
                                                     }
                                                 }
                                             }
-                                            else if (Model.EsAdministrador)
+                                            else if (Model.EsAdministrador && !esAuto)
                                             {
                                                 <form data-usuario-desbloquear-form method="post" action="?handler=Desbloquear">
                                                     @Html.AntiForgeryToken()
