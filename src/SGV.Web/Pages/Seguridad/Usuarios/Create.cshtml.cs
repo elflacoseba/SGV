@@ -42,8 +42,6 @@ public sealed class CreateModel(
     [BindProperty]
     public string? PersonaDisplay { get; set; }
 
-    public IReadOnlyList<PersonaDto> PersonaOptions => [];
-
     public int TotalCountSugerido { get; private set; }
 
     public string? ErrorMessage { get; private set; }

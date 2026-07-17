@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Comun;
-using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Common;
@@ -35,14 +34,14 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 [Authorize]
 public sealed class EditModel(
     IUsuarioApiClient usuarioApiClient,
-    IPersonaOptionsProvider personaOptionsProvider,
     IAuthSessionRedirector authRedirector,
     ILogger<EditModel> logger) : PageModel, IUsuarioForm
 {
     [BindProperty]
     public UsuarioInputModel Input { get; set; } = new();
 
-    public IReadOnlyList<PersonaDto> PersonaOptions { get; private set; } = [];
+    [BindProperty]
+    public string? PersonaDisplay { get; set; }
 
     public string? ErrorMessage { get; private set; }
 
@@ -110,30 +109,22 @@ public sealed class EditModel(
 
         try
         {
-            // Cargar usuario + catálogo de Personas en paralelo.
-            var usuarioTask = usuarioApiClient.GetByIdAsync(id, cancellationToken);
-            var personasTask = personaOptionsProvider.GetActivasAsync(cancellationToken);
-
-            await Task.WhenAll(usuarioTask, personasTask);
-
-            var usuario = await usuarioTask;
+            var usuario = await usuarioApiClient.GetByIdAsync(id, cancellationToken);
             if (usuario is null)
             {
                 IsRecoverable = true;
                 ErrorMessage = "El usuario solicitado no está disponible.";
                 // CodeQL [SM02379]: structured logging placeholder, not interpolated.
                 logger.LogWarning("Usuario with Id {UsuarioId} was not found or is no longer available.", id);
-                PersonaOptions = [];
                 return Page();
             }
-
-            PersonaOptions = await personasTask;
 
             Input.UserName = usuario.UserName ?? string.Empty;
             Input.Email = usuario.Email ?? string.Empty;
             Input.PersonaId = usuario.PersonaId;
             Input.Password = null; // El cambio de password queda fuera del scope.
             Input.Roles = usuario.Roles.ToArray();
+            PersonaDisplay = FormatPersonaDisplay(usuario.Apellidos, usuario.Nombres);
 
             return Page();
         }
@@ -183,7 +174,6 @@ public sealed class EditModel(
 
         if (!ModelState.IsValid)
         {
-            await LoadPersonasAsync(cancellationToken);
             return Page();
         }
 
@@ -202,7 +192,6 @@ public sealed class EditModel(
             logger.LogError(ex, "Usuario update transport failure.");
             ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
-            await LoadPersonasAsync(cancellationToken);
             return Page();
         }
 
@@ -236,7 +225,6 @@ public sealed class EditModel(
 
                 ErrorMessage = PageFeedback.UnauthorizedMessage;
                 ModelState.AddModelError(string.Empty, ErrorMessage);
-                await LoadPersonasAsync(cancellationToken);
                 return Page();
             }
 
@@ -256,34 +244,13 @@ public sealed class EditModel(
             }
         }
 
-        await LoadPersonasAsync(cancellationToken);
         return Page();
     }
 
-    /// <summary>
-    /// Carga el catálogo de Personas activas para mantener la sección
-    /// read-only (que muestra la Persona vinculada) sincronizada con la
-    /// realidad del backend. Idempotente; re-cargar el catálogo tras un
-    /// fallo recuperable deja la lista vacía para no romper el render.
-    /// </summary>
-    private async Task LoadPersonasAsync(CancellationToken cancellationToken)
+    private static string FormatPersonaDisplay(string? apellidos, string? nombres)
     {
-        try
-        {
-            PersonaOptions = await personaOptionsProvider.GetActivasAsync(cancellationToken);
-            ErrorMessage = null;
-        }
-        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
-        {
-            logger.LogError(ex, "Failed to load personas activas for usuario edit page.");
-            PersonaOptions = [];
-            // No pisar ErrorMessage si ya estaba seteado por la rama
-            // principal (transporte / recuperable). Sólo lo seteamos si
-            // todavía no hay un mensaje más específico.
-            if (string.IsNullOrWhiteSpace(ErrorMessage))
-            {
-                ErrorMessage = "No se pudo cargar el catálogo de personas. Intentá nuevamente.";
-            }
-        }
+        var display = string.Join(", ", new[] { apellidos, nombres }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        return string.IsNullOrWhiteSpace(display) ? "Persona vinculada" : display;
     }
 }

@@ -1,5 +1,3 @@
-using SGV.Contracts.Personas.Consultas.Dtos;
-
 namespace SGV.Web.Integration.Usuarios;
 
 /// <summary>
@@ -21,12 +19,6 @@ public interface IUsuarioForm
 {
     /// <summary>Estado del formulario bindable.</summary>
     UsuarioInputModel Input { get; }
-
-    /// <summary>
-    /// Catálogo legacy utilizado únicamente por la rama Edit hasta completar
-    /// la migración del selector compartido.
-    /// </summary>
-    IReadOnlyList<PersonaDto> PersonaOptions { get; }
 
     /// <summary>
     /// Texto visible de la Persona seleccionada. Create lo conserva como
