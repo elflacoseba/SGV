@@ -91,3 +91,13 @@
         <span asp-validation-for="Input.Roles" class="text-danger"></span>
     </div>
 </div>
+
+@await Html.PartialAsync("_PersonaBuscadorModal", null, new ViewDataDictionary(ViewData)
+{
+    ["ModalId"] = "usuario-persona-buscador-modal",
+    ["HiddenInputName"] = "Input.PersonaId",
+    ["HiddenInputId"] = "Input_PersonaId",
+    ["DisplayContainerId"] = "usuario-persona-display",
+    ["CurrentPersonaId"] = Model.Input.PersonaId,
+    ["CurrentPersonaDisplay"] = Model.PersonaDisplay
+})
