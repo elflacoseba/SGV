@@ -23,23 +23,37 @@ Definir el slice de `Usuarios` en `SGV.Web` para que un `Administrador` cree nue
 - **ENTONCES** MUST responder `Forbid()`
 - **Y** MUST NOT invocar la mutación contra la API.
 
-### Requirement: REQ-UCE-02 Formulario Crear prellenado con Personas activas
+### Requirement: REQ-UCE-02 Selector de Persona con buscador modal en Crear Usuario
 
-`OnGetAsync` de crear MUST cargar el catálogo de personas activas y MUST construir un dropdown cuyo valor sea el `PersonaId`. Cuando el catálogo esté vacío, el formulario MUST bloquear el render del campo o guiar al usuario con un mensaje accionable y un link al alta de Persona.
+`OnGetAsync` de crear MUST NO cargar el catálogo completo de personas activas como insumo del campo (deja de invocar `IPersonaOptionsProvider.GetActivasAsync()` como render del campo). El campo MUST exponer el selector modal definido en `usuario-web-selector-persona-buscador`, manteniendo `Input.PersonaId` como hidden input para preservar el binding. El comportamiento de catálogo vacío se delega a REQ-UCE-09.
 
-#### Scenario: Dropdown poblado por defecto
+#### Scenario: GET Crear expone el buscador sin `<select>` poblado
 
-- **DADO** personas activas disponibles
-- **CUANDO** un `Administrador` abre `/seguridad/usuarios/crear`
-- **ENTONCES** MUST mostrar un dropdown poblado con `PersonaId`+`Nombres`+`Apellidos`
-- **Y** el formulario MUST permitir seleccionar una `Persona`.
+- **DADO** personas activas disponibles y un `Administrador`
+- **CUANDO** solicita `GET /seguridad/usuarios/crear`
+- **ENTONCES** MUST existir el botón `Buscar Persona`
+- **Y** MUST NOT existir un `<select name="Input.PersonaId">` poblado con `<option>` por persona
+- **Y** el campo MUST estar en estado `Vacío` (`Input.PersonaId = null`).
 
-#### Scenario: Dropdown vacío bloquea o guía
+#### Scenario: Persona seleccionada persiste en el hidden
 
-- **DADO** sin personas activas disponibles
-- **CUANDO** un `Administrador` abre `/seguridad/usuarios/crear`
-- **ENTONCES** MUST mostrar mensaje visible de alta de Persona primero (o MUST bloquear el submit)
-- **Y** MUST ofrecer un camino claro (link o instrucción) hacia `/personas/crear`.
+- **DADO** `Crear` con persona elegida en el modal
+- **CUANDO** el `Administrador` observa el formulario
+- **ENTONCES** MUST existir la card con el formato `Apellido, Nombre (TipoDoc: NroDoc)` o `Legajo`
+- **Y** MUST existir el `<input type="hidden" name="Input.PersonaId">` con el id elegido.
+
+#### Scenario: Submit sin persona seleccionada es rechazado
+
+- **DADO** `Crear` con `Input.PersonaId = null`
+- **CUANDO** el `Administrador` pulsa `Guardar`
+- **ENTONCES** MUST mostrarse el error `Debe seleccionar una persona activa.` en el campo
+- **Y** MUST NOT invocarse `POST /api/v1/usuarios`.
+
+#### Scenario: Banner vacío en Crear delega a REQ-UCE-09
+
+- **DADO** cero personas activas sin usuario
+- **CUANDO** se renderiza `Crear`
+- **ENTONCES** aplica REQ-UCE-09 (banner + CTA), independientemente del nuevo selector.
 
 ### Requirement: REQ-UCE-03 Validación del formulario Crear
 
@@ -123,6 +137,55 @@ El editor MUST exponer el catálogo de roles SGV (`Administrador`, `GestorVacant
 - **CUANDO** guarda cambios solo sobre roles
 - **ENTONCES** MUST persistir los nuevos roles
 - **Y** MUST preservar `UserName` y `Email` sin alterarlos.
+
+### Requirement: REQ-UCE-08 Pre-poblado de persona en Editar Usuario
+
+En `/seguridad/usuarios/editar/{id}`, `OnGetAsync` MUST recuperar la persona vinculada al usuario (o, si no existiera vínculo activo, quedarse sin selección) y exponerla en el estado `Seleccionada` del selector (REQ-USB-02). `Quitar` MUST volver al estado `Vacío` (REQ-USB-01) y `Cambiar` MUST abrir el popup excluyendo la persona actual de los resultados.
+
+#### Scenario: Editar carga la persona como card preseleccionada
+
+- **DADO** usuario activo con persona activa vinculada
+- **CUANDO** un `Administrador` abre `/seguridad/usuarios/editar/{id}`
+- **ENTONCES** el selector MUST renderizar la card preseleccionada
+- **Y** el botón `Buscar Persona`/`Cambiar` MUST permitir abrir el popup para reemplazarla.
+
+#### Scenario: Quitar en Editar vuelve al estado vacío
+
+- **DADO** editar con `García, Juan` preseleccionada
+- **CUANDO** el `Administrador` pulsa `Quitar`
+- **ENTONCES** el selector MUST pasar al estado del REQ-USB-01
+- **Y** el hidden `Input.PersonaId` MUST quedar `null` en el formulario resultante.
+
+#### Scenario: Cambiar abre el popup sin la persona actual
+
+- **DADO** editar con `García, Juan` preseleccionada
+- **CUANDO** el `Administrador` pulsa `Cambiar` o `Buscar Persona`
+- **ENTONCES** MUST abrirse el modal `#usuario-persona-buscador-modal`
+- **Y** la fila de `García, Juan` MUST NOT figurar entre los resultados del primer `GET /consulta`.
+
+### Requirement: REQ-UCE-09 Banner vacío Crear Usuario cuando no hay candidatas
+
+En `Crear Usuario`, cuando la consulta inicial del selector (`/consulta?soloSinUsuario=true` con cualquier `pageSize` razonable) reporta cero personas activas sin usuario, el formulario MUST mostrar un banner visible con un CTA hacia `/personas/crear`, análogo al patrón actual de dropdown vacío, y el botón `Guardar` SHOULD permanecer deshabilitado hasta que se seleccione una persona.
+
+#### Scenario: Sin personas activas candidatas muestra CTA a Crear Persona
+
+- **DADO** cero personas activas sin usuario en `/consulta?soloSinUsuario=true`
+- **CUANDO** un `Administrador` abre `/seguridad/usuarios/crear`
+- **ENTONCES** MUST mostrarse un banner con un link `Crear persona` que apunte a `/personas/crear`
+- **Y** el selector MUST seguir siendo operable (botón `Buscar Persona` visible)
+- **Y** el `submit` SHOULD estar bloqueado mientras `Input.PersonaId` sea `null`.
+
+### Requirement: REQ-UCE-10 Conservación del contrato API ante 409 por Persona duplicada
+
+Al guardar, si `POST /api/v1/usuarios` responde `409` porque la persona ya tiene un usuario activo (anti-join violado por condición de carrera), el selector MUST mostrar feedback de campo equivalente al patrón `Codigo` duplicado de Cargos — error visible en `Input.PersonaId` con opción accionable — sin perder el resto del formulario (`UserName`, `Email`, `Password` y roles) ni el hidden del selector.
+
+#### Scenario: 409 por condición de carrera preserva el formulario
+
+- **DADO** `Crear` con `UserName`/`Email`/`Password`/`Roles` válidos y `PersonaId` que otro request acaba de ocupar
+- **CUANDO** el backend responde `409`
+- **ENTONCES** el formulario MUST permanecer renderizado con valores previos
+- **Y** el selector MUST mostrar `Esa persona ya tiene un usuario activo.` sobre el campo
+- **Y** MUST existir un control que permita `Quitar` para limpiar el `Input.PersonaId` o `Cambiar` para reabrir el modal.
 
 ## Out of scope
 
