@@ -2,9 +2,12 @@ using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
 using SGV.Contracts.Comun;
+using SGV.Contracts.Personas.Consultas.Dtos;
+using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Persona;
+using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Usuarios;
 using Xunit;
 
@@ -20,6 +23,14 @@ namespace SGV.Tests.Web.Usuario;
 [Collection("WebIntegration")]
 public sealed class EditPageTests
 {
+    /// <summary>
+    /// Id que el handler de autenticación del fixture emite en el claim
+    /// <see cref="System.Security.Claims.ClaimTypes.NameIdentifier"/>
+    /// cuando se pide rol Administrador. Usar este id como target hace
+    /// que la página entre en la rama de auto-cambio de rol sin
+    /// necesidad de un handler custom.
+    /// </summary>
+    private const string AdminSelfUserId = "admin-test";
     private readonly WebIntegrationFixture _fixture;
 
     public EditPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
@@ -330,6 +341,174 @@ public sealed class EditPageTests
         Assert.Contains("Editar usuario", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("atransport", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("No se pudo contactar al servicio", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // Auto-cambio de rol (AutoCambioRol): el admin edita su propio
+    // usuario. UI deshabilita los checkboxes y agrega alert; el POST
+    // además fuerza los roles al estado actual del backend como
+    // defensa contra tampering.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Edit_WhenAdminEditsSelf_RendersAlertAndDisabledRoleCheckboxes()
+    {
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario(AdminSelfUserId, personaId, "Self", "Admin");
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = new FakePersonaApiClient();
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient,
+            personaApiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{AdminSelfUserId}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Alert visible con el mensaje esperado.
+        Assert.Contains("data-usuario-self-rol-alert", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No podés cambiar tu propio rol", content, StringComparison.OrdinalIgnoreCase);
+
+        // Todos los checkboxes de Roles tienen el atributo disabled.
+        var checkboxPattern = new Regex(
+            @"<input[^>]*name=""Input\.Roles""[^>]*>",
+            RegexOptions.IgnoreCase);
+        var matches = checkboxPattern.Matches(content);
+        Assert.NotEmpty(matches);
+        foreach (Match m in matches)
+        {
+            Assert.Contains("disabled", m.Value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // La card de Persona sigue renderizada con el PersonaDisplay.
+        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Admin, Self", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Edit_WhenAdminEditsSelfAndPersonaApiReturnsDto_RendersEnrichedCard()
+    {
+        // Variante enriquecida del self-edit: el API de Personas devuelve
+        // un DTO completo. La card debe mostrar Legajo, Documento, Email,
+        // Teléfono y el badge Activo.
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario(AdminSelfUserId, personaId, "Self", "Admin");
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaDto = new PersonaDto(
+            Id: personaId,
+            Legajo: "LEG-7777",
+            Nombres: "Self",
+            Apellidos: "Admin",
+            Email: "self.admin@example.com",
+            TipoDocumento: "DNI",
+            NumeroDocumento: "30123456",
+            Telefono: "+54 11 5555-0000",
+            IsActive: true);
+        var personaApiClient = FakePersonaApiClient.WithPersonaList(personaDto);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient,
+            personaApiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{AdminSelfUserId}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("LEG-7777", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DNI", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("30123456", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("self.admin@example.com", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("+54 11 5555-0000", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Activa", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-self-rol-alert", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenAdminEditsSelfAndFormTampered_RequestSentWithBackendRoles()
+    {
+        // El admin edita su propio usuario y manipula el POST para
+        // intentar subir su rol. La defensa web del EditModel debe
+        // hacer que el request a IUsuarioApiClient.UpdateAsync llegue
+        // con los roles ORIGINALES (los que el backend tiene hoy),
+        // anulando el tampering del form.
+        var personaId = Guid.NewGuid();
+        var originalRoles = new string[] { RolesSgv.Consultor };
+        var usuario = new UsuarioDto(
+            Id: AdminSelfUserId,
+            PersonaId: personaId,
+            UserName: "admin",
+            Email: "admin@example.com",
+            Roles: originalRoles,
+            Nombres: "Self",
+            Apellidos: "Admin");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        apiClient.UpdateResult = UsuarioCommandResult.Success(usuario);
+
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            apiClient,
+            personaApiClient,
+            adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{AdminSelfUserId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        // El POST intenta cambiar el rol a Administrador (manipulación).
+        var response = await lease.Client.PostAsync(
+            $"/seguridad/usuarios/editar/{AdminSelfUserId}",
+            new FormUrlEncodedContent(new List<KeyValuePair<string, string>>
+            {
+                new("__RequestVerificationToken", antiforgeryToken),
+                new("Input.UserName", "admin"),
+                new("Input.Email", "admin@example.com"),
+                new("Input.Roles", "Administrador")
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var updated = Assert.Single(apiClient.UpdateCalls);
+        // La defensa web forzó los roles al estado actual del backend.
+        Assert.Equal(originalRoles, updated.Request.Roles);
+    }
+
+    [Fact]
+    public async Task Get_Edit_WhenAdminEditsAnotherUser_DoesNotShowAutoCambioRol()
+    {
+        // Contrapartida del self-edit: cuando el admin edita a OTRO
+        // usuario, NO se muestra el alert ni los checkboxes quedan
+        // deshabilitados (deben estar operables).
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario("u-otro", personaId, "Otro", "Usuario");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = new FakePersonaApiClient();
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            apiClient,
+            personaApiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios/editar/u-otro");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Sin alert.
+        Assert.DoesNotContain("data-usuario-self-rol-alert", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("No podés cambiar tu propio rol", content, StringComparison.OrdinalIgnoreCase);
+
+        // Checkboxes habilitados.
+        var checkboxPattern = new Regex(
+            @"<input[^>]*name=""Input\.Roles""[^>]*>",
+            RegexOptions.IgnoreCase);
+        var matches = checkboxPattern.Matches(content);
+        Assert.NotEmpty(matches);
+        foreach (Match m in matches)
+        {
+            Assert.DoesNotContain("disabled", m.Value, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private static UsuarioDto BuildUsuario(string id, Guid personaId, string nombres, string apellidos)

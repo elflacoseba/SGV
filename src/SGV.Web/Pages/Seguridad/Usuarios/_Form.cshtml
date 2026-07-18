@@ -1,37 +1,111 @@
 @* This is a field partial, not a complete form. The consumer must provide: <form>, antiforgery token, hidden return, submit/cancel actions. *@
 @* Shared form partial for create/edit of Usuarios. *@
 @* Expects a model that implements IUsuarioForm. *@
+@using SGV.Contracts.Personas.Consultas.Dtos
 @model SGV.Web.Integration.Usuarios.IUsuarioForm
+
+@{
+    var personaVinculada = Model.PersonaVinculada;
+    var tienePersona = Model.Input.PersonaId.HasValue;
+    var documento = FormatDocumento(personaVinculada);
+}
 
 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
 <div class="row g-3">
     @* Selector compartido por Create/Edit. El id sigue siendo el contrato
-       bindeable; PersonaDisplay sólo conserva la presentación de la card. *@
+       bindeable; PersonaDisplay sólo conserva la presentación de la card.
+       En Edit, cuando el API trae los datos personales completos (DTO
+       PersonaDto), se renderiza una card enriquecida con Legajo, Documento,
+       Email y Teléfono; si el fetch falla o devolvió 404, cae al fallback
+       plano con el texto derivado del UsuarioDto. *@
     <div class="col-12">
         <label class="form-label" for="Input_PersonaId">Persona vinculada</label>
         <input type="hidden" asp-for="Input.PersonaId" />
         <input type="hidden" name="PersonaDisplay" value="@Model.PersonaDisplay" data-usuario-persona-display-input />
         <div id="usuario-persona-display" data-usuario-persona-display>
             <div class="card border mb-0" data-usuario-persona-card
-                 hidden="@(Model.Input.PersonaId.HasValue ? null : "hidden")">
-                <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
-                    <span data-usuario-persona-display-text>@Model.PersonaDisplay</span>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-danger"
-                                data-usuario-persona-quitar>
-                            Quitar
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-primary"
-                                data-usuario-persona-buscar data-bs-toggle="modal"
-                                data-bs-target="#usuario-persona-buscador-modal">
-                            Cambiar
-                        </button>
+                 hidden="@(tienePersona ? null : "hidden")">
+                @if (personaVinculada is not null)
+                {
+                    @* Card enriquecida: trae todos los campos del DTO de Persona. *@
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                            <div>
+                                <h6 class="card-title mb-1" data-usuario-persona-display-text>
+                                    @(personaVinculada.Apellidos), @(personaVinculada.Nombres)
+                                </h6>
+                                @if (!string.IsNullOrWhiteSpace(personaVinculada.Legajo))
+                                {
+                                    <span class="text-muted small">Legajo: @personaVinculada.Legajo</span>
+                                }
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        data-usuario-persona-quitar>
+                                    Quitar
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                        data-usuario-persona-buscar data-bs-toggle="modal"
+                                        data-bs-target="#usuario-persona-buscador-modal">
+                                    Cambiar
+                                </button>
+                            </div>
+                        </div>
+                        <dl class="row mb-0">
+                            @if (!string.IsNullOrWhiteSpace(documento))
+                            {
+                                <dt class="col-sm-3 text-muted">Documento</dt>
+                                <dd class="col-sm-9">@documento</dd>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(personaVinculada.Email))
+                            {
+                                <dt class="col-sm-3 text-muted">Email</dt>
+                                <dd class="col-sm-9">
+                                    <a href="mailto:@personaVinculada.Email">@personaVinculada.Email</a>
+                                </dd>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(personaVinculada.Telefono))
+                            {
+                                <dt class="col-sm-3 text-muted">Teléfono</dt>
+                                <dd class="col-sm-9">@personaVinculada.Telefono</dd>
+                            }
+                            <dt class="col-sm-3 text-muted">Estado</dt>
+                            <dd class="col-sm-9">
+                                @if (personaVinculada.IsActive)
+                                {
+                                    <span class="badge badge-soft-success">Activa</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-soft-secondary">Inactiva</span>
+                                }
+                            </dd>
+                        </dl>
                     </div>
-                </div>
+                }
+                else
+                {
+                    @* Fallback: 404 del API o error de transporte en el
+                       enriquecimiento. Mantiene el display plano vigente. *@
+                    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
+                        <span data-usuario-persona-display-text>@Model.PersonaDisplay</span>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    data-usuario-persona-quitar>
+                                Quitar
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    data-usuario-persona-buscar data-bs-toggle="modal"
+                                    data-bs-target="#usuario-persona-buscador-modal">
+                                Cambiar
+                            </button>
+                        </div>
+                    </div>
+                }
             </div>
             <div data-usuario-persona-empty
-                 hidden="@(Model.Input.PersonaId.HasValue ? "hidden" : null)">
+                 hidden="@(tienePersona ? "hidden" : null)">
                 <button type="button" class="btn btn-outline-primary"
                         data-usuario-persona-buscar data-bs-toggle="modal"
                         data-bs-target="#usuario-persona-buscador-modal">
@@ -73,7 +147,23 @@
         </div>
     }
 
-    <div class="col-12">
+    @* Auto-cambio de rol (defensa web contra tampering del POST):
+       cuando el admin edita su propio usuario, los checkboxes se
+       muestran deshabilitados y un alert explica el motivo. El backend
+       rechaza el cambio como segunda capa de defensa
+       (AutoCambioRol). *@
+    @if (Model.EsAccionSobreSiMismo)
+    {
+        <div class="col-12">
+            <div class="alert alert-warning d-flex align-items-center" role="alert"
+                 data-usuario-self-rol-alert>
+                <i class="ti ti-shield-lock me-2 fs-lg"></i>
+                <span>No podés cambiar tu propio rol. Pedí a otro administrador que lo ajuste.</span>
+            </div>
+        </div>
+    }
+
+    <div class="col-12" data-usuario-roles-section>
         <label class="form-label">Roles</label>
         <div class="d-flex flex-wrap gap-3">
             @foreach (var rol in Model.Input.RolesCatalogo)
@@ -83,7 +173,8 @@
                 <div class="form-check">
                     <input type="checkbox" name="Input.Roles" value="@rol"
                            class="form-check-input" id="Input_Roles_@rol"
-                           checked="@isChecked" />
+                           checked="@isChecked"
+                           disabled="@(Model.EsAccionSobreSiMismo ? "disabled" : null)" />
                     <label class="form-check-label" for="Input_Roles_@rol">@rol</label>
                 </div>
             }
@@ -101,3 +192,35 @@
     ["CurrentPersonaId"] = Model.Input.PersonaId,
     ["CurrentPersonaDisplay"] = Model.PersonaDisplay
 })
+
+@functions {
+    private static string FormatDocumento(PersonaDto? persona)
+    {
+        if (persona is null)
+        {
+            return string.Empty;
+        }
+
+        var tipo = persona.TipoDocumento;
+        var numero = persona.NumeroDocumento;
+        var sinTipo = string.IsNullOrWhiteSpace(tipo);
+        var sinNumero = string.IsNullOrWhiteSpace(numero);
+
+        if (sinTipo && sinNumero)
+        {
+            return string.Empty;
+        }
+
+        if (sinTipo)
+        {
+            return numero!;
+        }
+
+        if (sinNumero)
+        {
+            return tipo!;
+        }
+
+        return $"{tipo} {numero}";
+    }
+}

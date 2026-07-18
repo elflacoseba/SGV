@@ -317,6 +317,29 @@ public sealed class UsuarioServicioComandosTests
     }
 
     [Fact]
+    public async Task ActualizarAsync_CurrentUser_ReturnsForbiddenAutoCambioRolWithoutCallingGateway()
+    {
+        // Defensa simétrica a AutoBloqueo/AutoEliminacion: el admin no
+        // puede cambiarse su propio rol a través de ActualizarAsync. El
+        // gateway NO debe invocarse: la validación corre antes de tocar
+        // identityGateway.ObtenerAsync / ActualizarAsync.
+        var context = CreateContext(currentUserId: TargetUserId);
+        var request = new ActualizarUsuarioRequest(
+            "renamed",
+            "new@test.com",
+            [RolesSgv.Administrador]);
+
+        var result = await context.Service.ActualizarAsync(TargetUserId, request);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AutoCambioRol", result.Error!.Code);
+        Assert.Equal(UsuarioErrorType.Unauthorized, result.Error.Type);
+        Assert.Equal(ErrorCategoria.Forbidden, result.Error.Categoria);
+        Assert.Null(context.Gateway.UpdatedRequest);
+        Assert.Empty(context.Auditoria.Entries);
+    }
+
+    [Fact]
     public async Task BloquearAsync_OtherUser_LocksAndAuditsCriticalFields()
     {
         var context = CreateContext();
