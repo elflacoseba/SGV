@@ -73,6 +73,138 @@ public sealed class PersonaBuscadorModalTests
         Assert.True(query.SoloSinUsuario);
     }
 
+    [Fact]
+    public async Task BFF_BuscarConSearchDe200Caracteres_ReenviaAlClienteTipado()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var search = new string('a', 200);
+        var response = await lease.Client.GetAsync(
+            $"/api/v1/personas/consulta?p=1&pageSize=10&search={Uri.EscapeDataString(search)}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(personaApiClient.QueryCalls);
+        var query = personaApiClient.QueryCalls[0];
+        Assert.NotNull(query.Search);
+        Assert.Equal(200, query.Search!.Length);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSearchDe201Caracteres_Responde400YNoLlamaCliente()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var search = new string('a', 201);
+        var response = await lease.Client.GetAsync(
+            $"/api/v1/personas/consulta?p=1&pageSize=10&search={Uri.EscapeDataString(search)}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(personaApiClient.QueryCalls);
+        var detail = await response.Content.ReadAsStringAsync();
+        Assert.Contains("200", detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSortEmailDesc_PropagaAlClienteTipado()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&sort=email_desc");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal("email_desc", personaApiClient.QueryCalls[0].Sort);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSortDocumentoAsc_Responde400YNoLlamaCliente()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&sort=documento_asc");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(personaApiClient.QueryCalls);
+        var detail = await response.Content.ReadAsStringAsync();
+        Assert.Contains("apellidos_asc", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("apellidos_desc", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("nombres_asc", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("nombres_desc", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("legajo_asc", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("legajo_desc", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("email_asc", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("email_desc", detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSortInvalido_Responde400YNoLlamaCliente()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&sort=hack");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(personaApiClient.QueryCalls);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSegmentoEliminadas_PropagaAlClienteTipado()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&segmento=eliminadas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal(
+            SGV.Contracts.Personas.Consultas.Dtos.PersonaSegmentoListado.Eliminadas,
+            personaApiClient.QueryCalls[0].Segmento);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSegmentoInvalido_Responde400YNoLlamaCliente()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&segmento=todas");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(personaApiClient.QueryCalls);
+        var detail = await response.Content.ReadAsStringAsync();
+        Assert.Contains("activas", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("eliminadas", detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarSinSortNiSegmento_AplicaDefaultsBackCompat()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(personaApiClient.QueryCalls);
+        var query = personaApiClient.QueryCalls[0];
+        Assert.Equal("apellidos_asc", query.Sort);
+        Assert.Equal(
+            SGV.Contracts.Personas.Consultas.Dtos.PersonaSegmentoListado.Activas,
+            query.Segmento);
+    }
+
     private Task<WebClientLease> CreateLeaseAsync(FakePersonaApiClient? personaApiClient = null)
         => _fixture.CreateUsuarioLeaseAsync(
             new FakeUsuarioApiClient(),
