@@ -209,20 +209,69 @@ app.UseAuthorization();
 
 // BFF same-origin para el buscador modal. Mantiene el JWT en el servidor:
 // el navegador usa la cookie Web y el cliente tipado reenvía el bearer a API.
+const int SearchMaxLength = 200;
+
+// Mantener sincronizado con PersonaRepository.ApplySort:218-232.
+HashSet<string> allowedSorts = new(StringComparer.OrdinalIgnoreCase)
+{
+    "apellidos_asc", "apellidos_desc",
+    "nombres_asc", "nombres_desc",
+    "legajo_asc", "legajo_desc",
+    "email_asc", "email_desc",
+};
+
+HashSet<string> allowedSegmentos = new(StringComparer.OrdinalIgnoreCase)
+{
+    "activas", "eliminadas",
+};
+
 app.MapGet("/api/v1/personas/consulta", async (
     int p,
     int pageSize,
     string? search,
+    string? sort,
+    string? segmento,
     bool? soloSinUsuario,
     IPersonaApiClient personaApiClient,
     CancellationToken cancellationToken) =>
 {
+    if (!string.IsNullOrEmpty(search) && search.Length > SearchMaxLength)
+    {
+        return Results.Problem(
+            title: "Parámetro 'search' fuera de rango",
+            detail: $"El parámetro 'search' excede el límite de {SearchMaxLength} caracteres.",
+            statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    string resolvedSort = string.IsNullOrWhiteSpace(sort) ? "apellidos_asc" : sort.Trim();
+    if (!allowedSorts.Contains(resolvedSort))
+    {
+        return Results.Problem(
+            title: "Parámetro 'sort' inválido",
+            detail: $"El parámetro 'sort' debe ser uno de: {string.Join(", ", allowedSorts.OrderBy(s => s))}.",
+            statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    PersonaSegmentoListado resolvedSegmento = PersonaSegmentoListado.Activas;
+    if (!string.IsNullOrWhiteSpace(segmento))
+    {
+        if (segmento.Equals("eliminadas", StringComparison.OrdinalIgnoreCase))
+            resolvedSegmento = PersonaSegmentoListado.Eliminadas;
+        else if (!segmento.Equals("activas", StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.Problem(
+                title: "Parámetro 'segmento' inválido",
+                detail: "El parámetro 'segmento' debe ser 'activas' o 'eliminadas'.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+    }
+
     var query = new PersonaListQuery(
         Page: Math.Max(1, p),
         PageSize: Math.Clamp(pageSize, 1, 100),
         Search: search,
-        Sort: "apellidos_asc",
-        Segmento: PersonaSegmentoListado.Activas,
+        Sort: resolvedSort,
+        Segmento: resolvedSegmento,
         SoloSinUsuario: soloSinUsuario);
     var result = await personaApiClient.QueryAsync(query, cancellationToken);
     return Results.Ok(result);
