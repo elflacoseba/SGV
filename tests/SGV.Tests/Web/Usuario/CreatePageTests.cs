@@ -497,6 +497,52 @@ public sealed class CreatePageTests
     }
 
     // ──────────────────────────────────────────────
+    // Issue #170 / Bug 2: pipeline integral web→gateway→error español.
+    // POST con contraseña que viola la política MUST mostrar el código
+    // IdentityError localizado al español en el campo Input.Password.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Create_WhenPasswordPolicyFails_RendersSpanishError()
+    {
+        var personaId = Guid.NewGuid();
+        var apiClient = new FakeUsuarioApiClient
+        {
+            CreateResult = UsuarioCommandResult.Failure(
+                new UsuarioError(
+                    UsuarioErrorType.Validation,
+                    "IdentityError",
+                    "La contraseña debe incluir al menos un dígito.",
+                    Categoria: ErrorCategoria.Validation))
+        };
+        await using var lease = await CreateUsuarioLeaseAsync(
+            apiClient,
+            adminRole: true,
+            BuildPersona("L-1", "Ana", "García"));
+
+        var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            "/seguridad/usuarios/crear",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Input.PersonaId"] = personaId.ToString(),
+                ["Input.UserName"] = "apwd",
+                ["Input.Email"] = "apwd@example.com",
+                ["Input.Password"] = "Password1!",
+                ["Input.Roles"] = "Consultor"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("La contraseña debe incluir al menos un dígito", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
     // T-XX 7: POST fallo de transporte → estado recuperable
     // ──────────────────────────────────────────────
 
