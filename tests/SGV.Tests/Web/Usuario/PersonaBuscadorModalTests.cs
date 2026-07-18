@@ -116,8 +116,11 @@ public sealed class PersonaBuscadorModalTests
             "/api/v1/personas/consulta?p=1&pageSize=10&sort=email_desc");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Single(personaApiClient.QueryCalls);
-        Assert.Equal("email_desc", personaApiClient.QueryCalls[0].Sort);
+        var query = Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal("email_desc", query.Sort);
+        Assert.Equal(
+            SGV.Contracts.Personas.Consultas.Dtos.PersonaSegmentoListado.Activas,
+            query.Segmento);
     }
 
     [Fact]
@@ -133,13 +136,6 @@ public sealed class PersonaBuscadorModalTests
         Assert.Empty(personaApiClient.QueryCalls);
         var detail = await response.Content.ReadAsStringAsync();
         Assert.Contains("apellidos_asc", detail, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("apellidos_desc", detail, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("nombres_asc", detail, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("nombres_desc", detail, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("legajo_asc", detail, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("legajo_desc", detail, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("email_asc", detail, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("email_desc", detail, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -165,10 +161,11 @@ public sealed class PersonaBuscadorModalTests
             "/api/v1/personas/consulta?p=1&pageSize=10&segmento=eliminadas");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Single(personaApiClient.QueryCalls);
+        var query = Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal("apellidos_asc", query.Sort);
         Assert.Equal(
             SGV.Contracts.Personas.Consultas.Dtos.PersonaSegmentoListado.Eliminadas,
-            personaApiClient.QueryCalls[0].Segmento);
+            query.Segmento);
     }
 
     [Fact]
@@ -203,6 +200,47 @@ public sealed class PersonaBuscadorModalTests
         Assert.Equal(
             SGV.Contracts.Personas.Consultas.Dtos.PersonaSegmentoListado.Activas,
             query.Segmento);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSegmentoActivas_PropagaAlClienteTipado()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&segmento=activas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var query = Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal("apellidos_asc", query.Sort);
+        Assert.Equal(
+            SGV.Contracts.Personas.Consultas.Dtos.PersonaSegmentoListado.Activas,
+            query.Segmento);
+    }
+
+    [Theory]
+    [InlineData("apellidos_asc")]
+    [InlineData("apellidos_desc")]
+    [InlineData("nombres_asc")]
+    [InlineData("nombres_desc")]
+    [InlineData("legajo_asc")]
+    [InlineData("legajo_desc")]
+    [InlineData("email_asc")]
+    [InlineData("email_desc")]
+    [InlineData("APELLIDOS_ASC")]
+    [InlineData("Email_Desc")]
+    public async Task BFF_BuscarConSortWhitelist_PropagaAlClienteTipado(string sort)
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            $"/api/v1/personas/consulta?p=1&pageSize=10&sort={Uri.EscapeDataString(sort)}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var query = Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal(sort, query.Sort);
     }
 
     private Task<WebClientLease> CreateLeaseAsync(FakePersonaApiClient? personaApiClient = null)

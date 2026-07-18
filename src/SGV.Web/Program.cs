@@ -255,15 +255,16 @@ app.MapGet("/api/v1/personas/consulta", async (
     PersonaSegmentoListado resolvedSegmento = PersonaSegmentoListado.Activas;
     if (!string.IsNullOrWhiteSpace(segmento))
     {
-        if (segmento.Equals("eliminadas", StringComparison.OrdinalIgnoreCase))
-            resolvedSegmento = PersonaSegmentoListado.Eliminadas;
-        else if (!segmento.Equals("activas", StringComparison.OrdinalIgnoreCase))
+        if (!allowedSegmentos.Contains(segmento))
         {
             return Results.Problem(
                 title: "Parámetro 'segmento' inválido",
-                detail: "El parámetro 'segmento' debe ser 'activas' o 'eliminadas'.",
+                detail: $"El parámetro 'segmento' debe ser uno de: {string.Join(", ", allowedSegmentos)}.",
                 statusCode: StatusCodes.Status400BadRequest);
         }
+        resolvedSegmento = segmento.Equals("eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? PersonaSegmentoListado.Eliminadas
+            : PersonaSegmentoListado.Activas;
     }
 
     var query = new PersonaListQuery(
