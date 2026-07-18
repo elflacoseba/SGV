@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SGV.Api.Infrastructure.Health;
 using SGV.Contracts.Personas.Consultas.Dtos;
@@ -226,6 +227,7 @@ HashSet<string> allowedSegmentos = new(StringComparer.OrdinalIgnoreCase)
 };
 
 app.MapGet("/api/v1/personas/consulta", async (
+    HttpContext httpContext,
     int p,
     int pageSize,
     string? search,
@@ -233,8 +235,11 @@ app.MapGet("/api/v1/personas/consulta", async (
     string? segmento,
     bool? soloSinUsuario,
     IPersonaApiClient personaApiClient,
+    ILoggerFactory loggerFactory,
     CancellationToken cancellationToken) =>
 {
+    var logger = loggerFactory.CreateLogger("SGV.Web.Personas.BffUpstream");
+
     if (!string.IsNullOrEmpty(search) && search.Length > SearchMaxLength)
     {
         return Results.Problem(
@@ -274,8 +279,22 @@ app.MapGet("/api/v1/personas/consulta", async (
         Sort: resolvedSort,
         Segmento: resolvedSegmento,
         SoloSinUsuario: soloSinUsuario);
-    var result = await personaApiClient.QueryAsync(query, cancellationToken);
-    return Results.Ok(result);
+
+    try
+    {
+        var result = await personaApiClient.QueryAsync(query, cancellationToken);
+        return Results.Ok(result);
+    }
+    catch (HttpRequestException ex)
+    {
+        return PersonaBffUpstreamProblems.Build(
+            httpContext, logger, query, ex, clientCancelled: cancellationToken.IsCancellationRequested);
+    }
+    catch (TaskCanceledException ex)
+    {
+        return PersonaBffUpstreamProblems.Build(
+            httpContext, logger, query, ex, clientCancelled: cancellationToken.IsCancellationRequested);
+    }
 }).RequireAuthorization();
 
 // Health check endpoints — anonymous, no auth required.

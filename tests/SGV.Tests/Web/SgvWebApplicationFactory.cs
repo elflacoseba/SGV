@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
@@ -29,6 +31,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly IPuestosApiClient? _puestosApiClient;
     private readonly IPersonaApiClient? _personaApiClient;
     private readonly IUsuarioApiClient? _usuarioApiClient;
+    private readonly RecordingLoggerProvider? _recordingLoggerProvider;
 
     public SgvWebApplicationFactory()
     {
@@ -43,7 +46,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IHabilidadApiClient? habilidadApiClient,
         IPuestosApiClient? puestosApiClient,
         IPersonaApiClient? personaApiClient,
-        IUsuarioApiClient? usuarioApiClient)
+        IUsuarioApiClient? usuarioApiClient,
+        RecordingLoggerProvider? recordingLoggerProvider = null)
     {
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
@@ -54,6 +58,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         _puestosApiClient = puestosApiClient;
         _personaApiClient = personaApiClient;
         _usuarioApiClient = usuarioApiClient;
+        _recordingLoggerProvider = recordingLoggerProvider;
     }
 
     public SgvWebApplicationFactory WithOverrides(
@@ -65,7 +70,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IHabilidadApiClient? habilidadApiClient = null,
         IPuestosApiClient? puestosApiClient = null,
         IPersonaApiClient? personaApiClient = null,
-        IUsuarioApiClient? usuarioApiClient = null)
+        IUsuarioApiClient? usuarioApiClient = null,
+        RecordingLoggerProvider? recordingLoggerProvider = null)
     {
         return new SgvWebApplicationFactory(
             configureServices,
@@ -76,7 +82,8 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             habilidadApiClient,
             puestosApiClient,
             personaApiClient,
-            usuarioApiClient);
+            usuarioApiClient,
+            recordingLoggerProvider);
     }
 
     /// <summary>
@@ -186,6 +193,11 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<IUsuarioApiClient>();
                 services.AddSingleton(_usuarioApiClient);
+            }
+
+            if (_recordingLoggerProvider is not null)
+            {
+                services.AddLogging(builder => builder.AddProvider(_recordingLoggerProvider));
             }
 
         });

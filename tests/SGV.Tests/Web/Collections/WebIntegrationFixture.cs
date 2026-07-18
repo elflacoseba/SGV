@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Web._Shared;
 using SGV.Tests.Web.Cargo;
 using SGV.Tests.Web.Common;
 using SGV.Tests.Web.Habilidad;
@@ -126,6 +127,27 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             personaApiClient: personaApiClient,
             usuarioApiClient: usuario));
+
+    /// <summary>
+    /// Overload que adjunta un <see cref="RecordingLoggerProvider"/> al
+    /// pipeline de logging del host. Útil para tests que necesitan
+    /// assertear entradas de log + scope estructurado emitidos por el
+    /// código bajo prueba (e.g. issue #164: BFF que loggea fallos
+    /// upstream con scope conteniendo <c>Search</c>/<c>Sort</c>/<c>Segmento</c>/<c>CorrelationId</c>).
+    /// El provider es compartido por referencia con el test, así que las
+    /// entradas capturadas están disponibles inmediatamente después de
+    /// ejecutar la request HTTP.
+    /// </summary>
+    public Task<WebClientLease> CreateUsuarioLeaseAsync(
+        IUsuarioApiClient usuario,
+        IPersonaApiClient personaApiClient,
+        RecordingLoggerProvider recordingLoggerProvider,
+        bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            personaApiClient: personaApiClient,
+            usuarioApiClient: usuario,
+            recordingLoggerProvider: recordingLoggerProvider));
 
     public Task<WebClientLease> CreateUnidadOrganizativaLeaseAsync(
         FakeUnidadOrganizativaApiClient unidad, bool adminRole = false)
