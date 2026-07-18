@@ -434,7 +434,58 @@ public sealed class UsuarioIdentityGateway(
             _ => query.OrderBy(user => user.UserName)
         };
 
-    private static UsuarioCommandResult ToIdentityFailure(IdentityResult result)
+    /// <summary>
+    /// Lookup table that maps each <c>IdentityError.Code</c> reachable
+    /// under the current <c>IdentityOptions.Password</c> policy (plus the
+    /// format and duplication codes already covered by the gateway) to
+    /// a Spanish message. The lambdas take <see cref="IdentityError"/>
+    /// in case a future version exposes metadata via the description;
+    /// the 9.0.0 <c>IdentityError</c> surface used here only carries
+    /// <c>Code</c> and <c>Description</c>, so the values are hardcoded
+    /// to mirror the configuration in <c>SGV.Api/Program.cs</c>
+    /// (<c>RequiredLength = 6</c>, default <c>RequireUniqueChars = 1</c>).
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> IdentityErrorMap =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["PasswordTooShort"] = "La contraseña debe tener al menos 6 caracteres.",
+            ["PasswordRequiresNonAlphanumeric"] = "La contraseña debe incluir al menos un carácter no alfanumérico.",
+            ["PasswordRequiresDigit"] = "La contraseña debe incluir al menos un dígito.",
+            ["PasswordRequiresLower"] = "La contraseña debe incluir al menos una letra minúscula.",
+            ["PasswordRequiresUpper"] = "La contraseña debe incluir al menos una letra mayúscula.",
+            ["PasswordRequiresUniqueChars"] = "La contraseña debe incluir al menos 1 carácter único.",
+            ["InvalidEmail"] = "El email no tiene un formato válido.",
+            ["InvalidUserName"] = "El nombre de usuario sólo admite letras, números, punto, guión bajo y guión medio."
+        };
+
+    /// <summary>
+    /// Spanish fallback used when <c>IdentityError.Code</c> is not in
+    /// <see cref="IdentityErrorMap"/>. Guarantees that no English text
+    /// reaches the client even for codes Identity may introduce in
+    /// future releases (e.g. <c>ConcurrencyFailure</c>,
+    /// <c>RecoveryCodeRedemptionFailed</c>).
+    /// </summary>
+    private const string FallbackIdentityMessage =
+        "No se pudo completar la operación de identidad. Verifique los datos ingresados.";
+
+    /// <summary>
+    /// Localizes an <see cref="IdentityResult"/> failure into a
+    /// <see cref="UsuarioCommandResult"/>. <c>DuplicateUserName</c> /
+    /// <c>DuplicateEmail</c> preserve their <see cref="UsuarioErrorType.Conflict"/>
+    /// shape (unchanged from pre-#170 behaviour); every other code is
+    /// collapsed into a single <see cref="UsuarioErrorType.Validation"/>
+    /// with <c>Code = "IdentityError"</c> and a Spanish message —
+    /// translated via <see cref="IdentityErrorMap"/> when recognized,
+    /// falling back to <see cref="FallbackIdentityMessage"/> otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Marked <c>internal static</c> instead of <c>private static</c> so
+    /// the unit suite in <c>tests/SGV.Tests/Seguridad/UsuarioIdentityGatewayToIdentityFailureTests</c>
+    /// can exercise it directly via <c>InternalsVisibleTo("SGV.Tests")</c>
+    /// (configured in the .csproj). All call sites inside this class
+    /// stay unchanged.
+    /// </remarks>
+    internal static UsuarioCommandResult ToIdentityFailure(IdentityResult result)
     {
         var errors = result.Errors.ToArray();
         if (errors.Any(error => string.Equals(error.Code, "DuplicateUserName", StringComparison.Ordinal)))
@@ -455,10 +506,17 @@ public sealed class UsuarioIdentityGateway(
                 ErrorCategoria.Conflict);
         }
 
+        var translated = string.Join(
+            " ",
+            errors.Select(error =>
+                IdentityErrorMap.TryGetValue(error.Code, out var message)
+                    ? message
+                    : FallbackIdentityMessage));
+
         return Failure(
             UsuarioErrorType.Validation,
             "IdentityError",
-            string.Join(" ", errors.Select(error => error.Description)),
+            translated,
             ErrorCategoria.Validation);
     }
 

@@ -62,6 +62,13 @@ public sealed class CreateModel(
     /// </summary>
     public bool EsAccionSobreSiMismo => false;
 
+    /// <summary>
+    /// Alta: el dominio exige asignación 1:1 usuario↔rol. El partial
+    /// renderea un único <c>&lt;select&gt;</c> con placeholder
+    /// obligatorio. Issue #170 / Bug 1 / REQ-UCE-11.
+    /// </summary>
+    public bool RenderSingleRoleSelect => true;
+
     [BindProperty]
     public string? ReturnPage { get; set; }
 

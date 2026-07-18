@@ -308,7 +308,6 @@ public sealed class CreatePageTests
                 new("Input.UserName", "agarcia"),
                 new("Input.Email", "ana@example.com"),
                 new("Input.Password", "Password1!"),
-                new("Input.Roles", "Administrador"),
                 new("Input.Roles", "Consultor")
             }));
 
@@ -328,12 +327,152 @@ public sealed class CreatePageTests
             $@"<input(?=[^>]*name=""{Regex.Escape(UsuarioFormKeys.PasswordKey)}"")(?=[^>]*type=""password"")[^>]*>",
             content);
         Assert.Contains("García, Ana (DNI: 12345678)", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Matches(
-            @"<input(?=[^>]*name=""Input\.Roles"")(?=[^>]*value=""Administrador"")(?=[^>]*checked)[^>]*>",
+
+        // Issue #170 / REQ-UCE-11: alta renderea <select> único. El rol
+        // seleccionado debe re-renderizarse como <option ... selected> dentro
+        // del <select name="Input.Roles">.
+        var optionConsultor = Regex.Match(
+            content,
+            @"<option[^>]*value=""Consultor""[^>]*>",
+            RegexOptions.IgnoreCase).Value;
+        Assert.Contains("selected", optionConsultor, StringComparison.OrdinalIgnoreCase);
+        // El placeholder y los demás roles NO deben estar selected.
+        var optionPlaceholder = Regex.Match(
+            content,
+            @"<option[^>]*value=""""[^>]*>",
+            RegexOptions.IgnoreCase).Value;
+        Assert.DoesNotContain("selected", optionPlaceholder, StringComparison.OrdinalIgnoreCase);
+        var optionAdministrador = Regex.Match(
+            content,
+            @"<option[^>]*value=""Administrador""[^>]*>",
+            RegexOptions.IgnoreCase).Value;
+        Assert.DoesNotContain("selected", optionAdministrador, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // Issue #170 / REQ-UCE-11: POST alta sin rol seleccionado MUST
+    // ser rechazado por ModelState con el mensaje "Debe seleccionar
+    // un rol." ligado al campo Input.Roles, SIN invocar la API.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Create_WhenNoRoleSelected_ReturnsValidationErrorWithoutInvokingApi()
+    {
+        var personaId = Guid.NewGuid();
+        var apiClient = new FakeUsuarioApiClient();
+        await using var lease = await CreateUsuarioLeaseAsync(
+            apiClient,
+            adminRole: true,
+            BuildPersona("L-1", "Ana", "García"));
+
+        var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            "/seguridad/usuarios/crear",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Input.PersonaId"] = personaId.ToString(),
+                ["Input.UserName"] = "anuevo",
+                ["Input.Email"] = "anuevo@example.com",
+                ["Input.Password"] = "Password1!"
+                // NOTA: sin Input.Roles — el placeholder <select> queda en ""
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("Debe seleccionar un rol", content, StringComparison.OrdinalIgnoreCase);
+
+        // La API NO debe haberse invocado: la validación del cliente corta antes.
+        Assert.Empty(apiClient.CreateCalls);
+    }
+
+    // ──────────────────────────────────────────────
+    // Issue #170 / REQ-UCE-11 scenario GET Crear renderiza <select>
+    // único con placeholder obligatorio.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Create_RenderizaSelectUnicoConPlaceholderObligatorio()
+    {
+        await using var lease = await CreateUsuarioLeaseAsync(
+            new FakeUsuarioApiClient(),
+            adminRole: true,
+            BuildPersona("L-1", "Ana", "García"));
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios/crear");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // Debe existir exactamente un <select name="Input.Roles">.
+        var selectMatches = Regex.Matches(
+            content,
+            @"<select\b[^>]*name=""Input\.Roles""[^>]*>",
+            RegexOptions.IgnoreCase);
+        Assert.Single(selectMatches);
+
+        // Debe existir el placeholder obligatorio.
+        Assert.Contains("<option value=\"\">-- Seleccione un rol --</option>", content, StringComparison.Ordinal);
+
+        // Debe haber un <option> por cada rol del catálogo fijo.
+        Assert.Matches(@"<option\s+value=""Administrador""", content);
+        Assert.Matches(@"<option\s+value=""GestorVacantes""", content);
+        Assert.Matches(@"<option\s+value=""Consultor""", content);
+
+        // No debe haber checkboxes de Roles — la rama Create es <select> único.
+        Assert.DoesNotMatch(
+            @"<input\b[^>]*type=""checkbox""[^>]*name=""Input\.Roles""",
             content);
-        Assert.Matches(
-            @"<input(?=[^>]*name=""Input\.Roles"")(?=[^>]*value=""Consultor"")(?=[^>]*checked)[^>]*>",
-            content);
+    }
+
+    // ──────────────────────────────────────────────
+    // Issue #170 / Bug 2: pipeline integral web→gateway→error español.
+    // POST con contraseña que viola la política MUST mostrar el código
+    // IdentityError localizado al español en el campo Input.Password.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Create_WhenPasswordPolicyFails_RendersSpanishError()
+    {
+        var personaId = Guid.NewGuid();
+        var apiClient = new FakeUsuarioApiClient
+        {
+            CreateResult = UsuarioCommandResult.Failure(
+                new UsuarioError(
+                    UsuarioErrorType.Validation,
+                    "IdentityError",
+                    "La contraseña debe incluir al menos un dígito.",
+                    Categoria: ErrorCategoria.Validation))
+        };
+        await using var lease = await CreateUsuarioLeaseAsync(
+            apiClient,
+            adminRole: true,
+            BuildPersona("L-1", "Ana", "García"));
+
+        var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            "/seguridad/usuarios/crear",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Input.PersonaId"] = personaId.ToString(),
+                ["Input.UserName"] = "apwd",
+                ["Input.Email"] = "apwd@example.com",
+                ["Input.Password"] = "Password1!",
+                ["Input.Roles"] = "Consultor"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("La contraseña debe incluir al menos un dígito", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────

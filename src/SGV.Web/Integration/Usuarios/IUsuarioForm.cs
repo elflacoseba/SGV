@@ -59,6 +59,16 @@ public interface IUsuarioForm
     /// </summary>
     bool EsAccionSobreSiMismo { get; }
 
+    /// <summary>
+    /// <c>true</c> cuando el campo <c>Roles</c> debe renderearse como
+    /// un único <c>&lt;select&gt;</c> (alta en <c>Create</c>); <c>false</c>
+    /// cuando conserva los checkboxes multi-rol vigentes (<c>Edit</c>).
+    /// Issue #170 / Bug 1: el dominio exige asignación 1:1 usuario↔rol
+    /// al dar de alta, mientras que la edición mantiene el contrato
+    /// <c>ActualizarUsuarioRequest.Roles: IReadOnlyCollection&lt;string&gt;</c>.
+    /// </summary>
+    bool RenderSingleRoleSelect { get; }
+
     /// <summary>URL de retorno al listado preservando los filtros de la página anterior.</summary>
     string ReturnToListUrl { get; }
 }
