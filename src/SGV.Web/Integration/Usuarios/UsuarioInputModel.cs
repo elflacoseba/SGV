@@ -70,9 +70,14 @@ public sealed class UsuarioInputModel
     /// <c>application/x-www-form-urlencoded</c> materialice múltiples
     /// valores <c>Input.Roles</c> desde los checkboxes del partial.
     /// </para>
+    /// <para>
+    /// Issue #170 / Bug 1: el campo se renderea como <c>&lt;select&gt;</c>
+    /// único en alta, así que el mensaje de validación se alinea al
+    /// placeholder "-- Seleccione un rol --" (REQ-UCE-11).
+    /// </para>
     /// </summary>
-    [Required(ErrorMessage = "Debe asignar al menos un rol.")]
-    [MinLength(1, ErrorMessage = "Debe asignar al menos un rol.")]
+    [Required(ErrorMessage = "Debe seleccionar un rol.")]
+    [MinLength(1, ErrorMessage = "Debe seleccionar un rol.")]
     [Display(Name = "Roles")]
     public string[] Roles { get; set; } = Array.Empty<string>();
 
