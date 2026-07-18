@@ -3,211 +3,182 @@
 ## Propósito
 
 `Index.cshtml` y `Details.cshtml` de `SGV.Web/Pages/Seguridad/Usuarios` exponen acciones
-administrativas de `Bloquear` y `Desbloquear` que envían el formulario directo a
-`?handler=Bloquear` / `?handler=Desbloquear`. `Eliminar` ya exige un modal irreversible
-(`#confirm-delete-modal`, `REQ-ULD-05`); esta spec replica ese mismo patrón UX para
-`Bloquear` y `Desbloquear` en ambas vistas, exigiendo un modal de confirmación previo al
-POST, sin tocar backend, antifence server-side, PRG, segmentación ni semántica de error
-`AutoBloqueo` ya cubiertas por `usuario-lockout-administrativo`, `usuario-web-listado-detalle-baja`
-y `identity-user-role-management`.
+administrativas de `Bloquear`, `Desbloquear` y `Eliminar`. `Eliminar` ya exige confirmación
+SweetAlert2 (`wireUsuarioDeleteConfirmation`, `REQ-ULD-05`); esta spec replica ese mismo
+patrón UX para `Bloquear` y `Desbloquear` en ambas vistas, exigiendo confirmación vía
+SweetAlert2 previa al POST, sin tocar backend, antifence server-side, PRG, segmentación
+ni semántica de error `AutoBloqueo`, ya cubiertas por `usuario-lockout-administrativo`,
+`usuario-web-listado-detalle-baja` e `identity-user-role-management`.
 
-El slice UX añade dos modales separados (uno por acción), accesibles, que posponen el
-submit de cada form diferido hasta confirmación explícita del `Administrador`, conservan
+El slice UX expone 3 funciones SweetAlert2 separadas (una por acción) en
+`src/SGV.Web/wwwroot/js/pages/usuarios-index.js`: `wireUsuarioBloquearConfirmation`,
+`wireUsuarioDesbloquearConfirmation` y `wireUsuarioDeleteConfirmation`. Cada función
+difiere el submit de su form hasta confirmación explícita del `Administrador`, conserva
 el `@Html.AntiForgeryToken()` y los hidden inputs de contexto (`page`, `search`, `sort`,
-`status`) ya existentes, y reutilizan el PRG vigente de `OnPostBloquearAsync` /
+`status`) ya existentes, y reutiliza el PRG vigente de `OnPostBloquearAsync` /
 `OnPostDesbloquearAsync` (`RedirectToIndex` con TempData de feedback).
 
 ## Requisitos
 
 ### Requirement: REQ-UCB-01 Confirmación modal al Bloquear desde Index
 
-El click sobre un botón `data-usuario-bloquear-button` en `Index.cshtml` MUST abrir el modal
-`#confirm-bloquear-modal` con título "Bloquear usuario" y MUST diferir el submit del form
-`data-usuario-bloquear-form` hasta que el `Administrador` confirme con el botón
-`[data-usuario-bloquear-confirm]`. Cerrar el modal con `Esc`, clic en backdrop o
-`Cancelar` MUST NOT ejecutar el POST; al cerrar sin confirmar, el foco MUST volver al botón
-disparador original.
+`wireUsuarioBloquearConfirmation` en `src/SGV.Web/wwwroot/js/pages/usuarios-index.js` MUST abrir
+`Swal.fire` con título `Bloquear usuario`, texto `este usuario`, icono `warning`, cancelación,
+botones `Bloquear`/`Cancelar` y `reverseButtons: true`; MUST enviar el submit del form
+`data-usuario-bloquear-form` solo si `result.isConfirmed === true`. Cerrar con `Esc`, clic en
+backdrop o `Cancelar` MUST NOT ejecutar el POST.
 
-#### Scenario: Confirmar dispara el POST a Bloquear con antiforgery y contexto preservado
+#### Scenario: Confirmar bloquea
 
-- **DADO** un `Administrador` autenticado en `activas` viendo una fila con usuario
-  activo distinto de sí mismo
-- **CUANDO** hace click en `data-usuario-bloquear-button` y luego click en
-  `[data-usuario-bloquear-confirm]`
-- **ENTONCES** MUST ejecutarse un único `POST /seguridad/usuarios?handler=Bloquear`
-  con el antiforgery token válido y los hidden inputs `id`, `page`, `search`, `sort`,
-  `status`
-- **Y** el submit MUST respetar el PRG existente (`RedirectToIndex` con `TempData`).
+- **DADO** un administrador en `activas` y una fila ajena
+- **CUANDO** abre la alerta y pulsa `Bloquear`
+- **ENTONCES** MUST emitirse un POST `?handler=Bloquear` con antiforgery/contexto y PRG con feedback.
 
-#### Scenario: Cancelar no ejecuta POST
+#### Scenario: Cancelar no bloquea
 
-- **DADO** el modal abierto sobre una fila de `activas`
-- **CUANDO** el `Administrador` presiona `Cancelar`, `Esc` o el backdrop
-- **ENTONCES** MUST NO emitirse ningún `POST`
-- **Y** el foco MUST volver al botón `data-usuario-bloquear-button` original.
+- **DADO** la alerta abierta
+- **CUANDO** pulsa `Cancelar`, `Esc` o backdrop
+- **ENTONCES** MUST NOT enviarse el form ni redirigirse.
 
-#### Scenario: Doble click en el botón no dispara dos POST
+#### Scenario: Doble click no duplica
 
-- **DADO** el botón `data-usuario-bloquear-button` activado
-- **CUANDO** se hace doble click rápido antes del cambio de foco
-- **ENTONCES** el handler `window.__pendingBloquearTrigger` MUST almacenar una sola
-  referencia al form diferido y el modal MUST abrirse una única vez.
+- **DADO** una confirmación pendiente
+- **CUANDO** repite rápidamente el click
+- **ENTONCES** MUST existir una alerta activa y como máximo un POST.
 
 ### Requirement: REQ-UCB-02 Confirmación modal al Desbloquear desde Index
 
-El click sobre `data-usuario-desbloquear-button` en `Index.cshtml` (segmento `bloqueadas`)
-MUST abrir el modal `#confirm-desbloquear-modal` con título "Desbloquear usuario" y aplicar
-las mismas reglas y diferimiento que REQ-UCB-01 sobre `data-usuario-desbloquear-form`.
+`wireUsuarioDesbloquearConfirmation` en `src/SGV.Web/wwwroot/js/pages/usuarios-index.js` MUST usar
+igual configuración que REQ-UCB-01 con título `Desbloquear usuario`, texto `este usuario`,
+botón `Desbloquear` y `customClass.confirmButton: 'btn btn-success'`; MUST enviar solo si
+`result.isConfirmed === true`.
 
-#### Scenario: Confirmar dispara el POST a Desbloquear
+#### Scenario: Confirmar desbloquea
 
-- **DADO** un `Administrador` en `bloqueadas` con un usuario distinto de sí mismo
-- **CUANDO** confirma el modal de desbloqueo
-- **ENTONCES** MUST ejecutarse un único `POST ?handler=Desbloquear` con antiforgery y
-  contexto preservados
-- **Y** el PRG vigente MUST redirigir a `activas` con feedback visible.
+- **DADO** un administrador en `bloqueadas` y una fila ajena
+- **CUANDO** confirma `Desbloquear`
+- **ENTONCES** MUST emitirse un POST `?handler=Desbloquear`; el PRG MUST volver a `activas` con feedback.
 
-#### Scenario: Cancelar no ejecuta desbloqueo
+#### Scenario: Cancelar no desbloquea
 
-- **DADO** el modal `#confirm-desbloquear-modal` abierto
-- **CUANDO** se cancela por cualquier vía (`Esc`, backdrop, `Cancelar`)
-- **ENTONCES** MUST NO emitirse `POST` y el foco MUST volver al disparador.
+- **DADO** la alerta abierta
+- **CUANDO** la descarta por botón, `Esc` o backdrop
+- **ENTONCES** MUST NOT emitirse POST.
 
-### Requirement: REQ-UCB-03 Replicar la confirmación en Details.cshtml via partial compartido
+### Requirement: REQ-UCB-03 Replicar la confirmación en Details.cshtml
 
-`Details.cshtml` MUST diferir los submits de `data-usuario-bloquear-form` y
-`data-usuario-desbloquear-form` con los mismos `#confirm-bloquear-modal` y
-`#confirm-desbloquear-modal`, instanciados por un partial compartido
-`_ConfirmarAccionUsuarioModal.cshtml` ubicado bajo
-`src/SGV.Web/Pages/Seguridad/Usuarios/Shared/_ConfirmarAccionUsuarioModal.cshtml`
-(o `Pages/Shared/` si el routing del proyecto lo prefiere) para evitar duplicación.
+`Details.cshtml` MUST reutilizar el wiring SweetAlert2 de `usuarios-index.js` y MUST NOT
+depender de ningún partial Bootstrap. El bootstrap del script (autoinvocado cuando hay DOM
++ `window.Swal`) registra handlers sobre el `document` y cada `wire*Confirmation` hace
+early-return si no encuentra el form correspondiente, por lo que es idempotente aunque
+Details solo renderice un subset de los forms.
 
-#### Scenario: Details Bloquear exige confirmación
+#### Scenario: Details confirma Bloquear
 
-- **DADO** un `Administrador` en `Details` de un usuario activo distinto de sí mismo
-- **CUANDO** hace click en `data-usuario-bloquear-form` y confirma el modal
-- **ENTONCES** MUST emitirse un único `POST ?handler=Bloquear` con antiforgery y
-  contexto preservados.
+- **DADO** el detalle activo de un usuario ajeno
+- **CUANDO** confirma `Bloquear`
+- **ENTONCES** MUST emitirse un POST `?handler=Bloquear`.
 
-#### Scenario: Details Desbloquear exige confirmación
+#### Scenario: Details confirma Desbloquear
 
-- **DADO** un `Administrador` en `Details` de un usuario bloqueado distinto de sí mismo
-- **CUANDO** confirma el modal de desbloqueo
-- **ENTONCES** MUST emitirse un único `POST ?handler=Desbloquear`.
+- **DADO** el detalle bloqueado de un usuario ajeno
+- **CUANDO** confirma `Desbloquear`
+- **ENTONCES** MUST emitirse un POST `?handler=Desbloquear`.
 
 ### Requirement: REQ-UCB-04 Privacidad: sin PII en el cuerpo del modal
 
-Los cuerpos de `#confirm-bloquear-modal` y `#confirm-desbloquear-modal` MUST NOT incluir
-`UserName`, `Email`, `Nombres` ni `Apellidos` del usuario objetivo; la confirmación se
-reduce a "este usuario", igual que el modal de Eliminar vigente.
+Las alertas SweetAlert2 MUST usar solo `este usuario` en el texto; MUST NOT interpolar
+`UserName`, `Email`, `Nombres` ni `Apellidos` del usuario objetivo.
 
-#### Scenario: El modal no expone campos personales
+#### Scenario: Sin PII
 
-- **DADO** una fila renderizada en `activas` con `UserName="jperez"`,
-  `Email="jperez@x"`, `Nombres="Juan"`, `Apellidos="Pérez"`
-- **CUANDO** se abre el modal desde el botón Bloquear/Desbloquear
-- **ENTONCES** el DOM resultante MUST NOT contener las cadenas `jperez`,
-  `jperez@x`, `Juan` ni `Pérez`.
+- **DADO** Juan Pérez, `jperez@x`
+- **CUANDO** abre Bloquear o Desbloquear
+- **ENTONCES** título/texto MUST NOT contener esos datos.
 
 ### Requirement: REQ-UCB-05 Accesibilidad AA de los modales
 
-Cada modal MUST tener `aria-labelledby` apuntando a su título, `aria-hidden="true"` cuando
-está cerrado, MUST cerrarse con la tecla `Esc` y con click sobre el backdrop, MUST
-restaurar el foco en el botón disparador al cerrarse y MUST exponer el foco inicial en un
-control lógico del modal (el botón de cierre o el `Cancelar`).
+SweetAlert2 MUST ofrecer nombre accesible (título como `aria-label`), teclado (`Esc` cierra),
+cierre con backdrop y restauración del foco al disparador al cerrarse. `focusCancel: true`
+MUST exponer el foco inicial en `Cancelar` (control lógico primario).
 
-#### Scenario: Apertura por teclado y cierre con Esc devuelve foco
+#### Scenario: Teclado y foco
 
-- **DADO** el botón disparador enfocado por teclado
-- **CUANDO** se pulsa `Enter` para abrir el modal
-- **ENTONCES** MUST renderizarse visible con `aria-hidden="false"`
-- **Y** `Tab` MUST recorrer los controles en orden lógico (cerrar → cancelar → confirmar)
-- **Y** al pulsar `Esc` MUST cerrarse y devolver foco al disparador.
+- **DADO** el disparador enfocado
+- **CUANDO** abre con `Enter` y descarta con `Esc`
+- **ENTONCES** MUST cerrarse sin POST y restaurar el foco.
 
 ### Requirement: REQ-UCB-06 Antiforgery y PRG preservados
 
-Cada form diferido MUST mantener `@Html.AntiForgeryToken()` y los hidden inputs de
-contexto; el submit diferido MUST respetar el PRG existente de `OnPostBloquearAsync` /
-`OnPostDesbloquearAsync` (redirect al segmento resultante con `TempData` accionable).
+La migración a SweetAlert2 MUST preservar `@Html.AntiForgeryToken()` y los hidden inputs de
+contexto; cada submit diferido (via `form.requestSubmit(button)` o `form.submit()` fallback)
+MUST respetar el PRG existente de `OnPostBloquearAsync` / `OnPostDesbloquearAsync`.
 
-#### Scenario: POST tras confirmar llega al handler con token válido y redirige
+#### Scenario: Antiforgery y redirect
 
-- **DADO** el modal confirmado
-- **CUANDO** se emite el `POST` diferido
-- **ENTONCES** el handler MUST recibir un antiforgery válido
-- **Y** MUST ejecutar `RedirectToIndex` con `TempData` de feedback (éxito o error)
+- **DADO** una confirmación aceptada
+- **CUANDO** se envía el form
+- **ENTONCES** MUST validar antiforgery y redirigir con `TempData`.
 
 ### Requirement: REQ-UCB-07 Idempotencia ante doble click
 
-El handler que dispara el submit diferido MUST prevenir POSTs duplicados generados por
-doble click en el botón de confirmación del modal (`[data-usuario-bloquear-confirm]` /
-`[data-usuario-desbloquear-confirm]`), deshabilitando el botón antes de invocar
-`trigger.submit()` y/o limpiando `window.__pending*Trigger`.
+El wiring MUST impedir submits duplicados durante confirmación o navegación. SweetAlert2 v11
+no encola alerts — si la alerta ya está abierta, un segundo click se ignora.
+Backend: la lógica de auditoría no permite dobles transiciones (`Bloqueado=true → Bloqueado=true`
+es no-op).
 
-#### Scenario: Doble click sobre Confirmar produce un solo POST
+#### Scenario: Doble confirmación, un POST
 
-- **DADO** el modal abierto con su `Confirmar` habilitado
-- **CUANDO** se hace doble click rápido sobre `Confirmar`
-- **ENTONCES** el handler backend (`OnPostBloquearAsync` u `OnPostDesbloquearAsync`)
-  MUST recibir un único request y la auditoría MUST registrar un solo evento.
+- **DADO** una operación confirmada
+- **CUANDO** ocurren clicks repetidos
+- **ENTONCES** backend/auditoría MUST observar una operación.
 
 ### Requirement: REQ-UCB-08 Persistencia de contexto en PRG
 
-Confirmar un modal MUST preservar `status`, `p`, `search` y `sort` ya existentes en los
-hidden inputs; el segmento al que se redirige tras éxito MUST ser el consistente con el
-handler vigente (`bloqueadas` al bloquear, `activas` al desbloquear).
+El submit MUST preservar `status`, `p`, `search` y `sort` via hidden inputs; Bloquear MUST
+redirigir a `bloqueadas` y Desbloquear a `activas`.
 
-#### Scenario: Bloquear desde activas preserva filtros y redirige a bloqueadas
+#### Scenario: Contexto preservado
 
-- **DADO** un `Administrador` en `activas`, `p=3`, `search="juan"`, `sort="user_asc"`
-- **CUANDO** confirma el modal de Bloquear y la API responde éxito
-- **ENTONCES** el PRG MUST redirigir a `bloqueadas`, `p=1`, con el resto de filtros
-  preservados en hidden inputs del listado resultante y `TempData` de éxito visible.
+- **DADO** `p=3`, `search=juan`, `sort=user_asc`
+- **CUANDO** confirma Bloquear con éxito
+- **ENTONCES** MUST mostrar `bloqueadas`, `p=1`, filtros y feedback.
 
 ### Requirement: REQ-UCB-09 No regresión de AutoBloqueo y antifence de UI
 
-El botón Bloquear MUST seguir sin renderizarse para la fila del admin autenticado, igual
-que con `EsAutoAccion` actual, y el fence server-side MUST seguir activo como defensa en
-profundidad: un POST manual a `?handler=Bloquear` con `id` propio MUST ser rechazado por
-`OnPostBloquearAsync` con feedback `AutoBloqueo`.
+La fila propia MUST NOT renderizar Bloquear/Desbloquear (guard `if (!esAuto)` envuelve los
+forms); el auto-bloqueo manual via POST MUST rechazarse por `OnPostBloquearAsync` con
+feedback `AutoBloqueo`. El cause-root RIS-002 (siembra manual de `NameIdentifier`) está
+corregido: `CurrentUserId` retorna el GUID real del JWT, no `UserNameOrEmail`.
 
-#### Scenario: Admin no ve su propio botón Bloquear y el fence sigue activo
+#### Scenario: Autoacción bloqueada
 
-- **DADO** un `Administrador` que abre `Index` autenticado
-- **CUANDO** renderiza su propia fila
-- **ENTONCES** MUST NO existir el botón `data-usuario-bloquear-button` para esa fila
-- **Y** un `POST` manual a `?handler=Bloquear` con su propio `id` MUST ser rechazado
-  por `OnPostBloquearAsync` con feedback `AutoBloqueo` (sin lanzar excepción).
+- **DADO** un administrador en su fila
+- **CUANDO** renderiza acciones o fuerza el POST
+- **ENTONCES** botones MUST NOT existir y el POST MUST rechazarse con feedback `AutoBloqueo`.
 
 ### Requirement: REQ-UCB-10 Tests previos a la implementación (strict_tdd)
 
-Con `strict_tdd: true`, los tests smoke web MUST escribirse antes del código de UI y
-cubrir al menos: Index dispara modal Bloquear, Index dispara modal Desbloquear, Details
-dispara modal Bloquear, Details dispara modal Desbloquear, no exposición de PII,
-accesibilidad AA mínima, e idempotencia ante doble click.
+Tests MUST preceder al código y cubrir wiring Index/Details, confirmación, descarte,
+PII, accesibilidad, autoacción e idempotencia. El harness JS ejercita las 3 funciones
+SweetAlert2 con subprocess Node real y mock de `Swal`, probando confirmado, cancelado,
+`Esc` y backdrop.
 
 ## Decisiones de especificación
 
-- **Open Q1 — Un modal parametrizado vs dos separados.** Se zanja con **dos modales
-  separados** (`#confirm-bloquear-modal` y `#confirm-desbloquear-modal`) en línea con
-  el patrón vigente de `#confirm-delete-modal` (ya tres acciones, cada una con su
-  propio modal). Razones: claridad de copy ("Bloquear usuario" / "Desbloquear
-  usuario"), accesibilidad AA más simple al no depender de runtime templating, y
-  paridad estructural con la arquitectura de modales vigente.
-- **Open Q2 — Variables globales separadas vs mapa indexado.** Se zanja con **dos
-  variables globales separadas** (`window.__pendingBloquearTrigger` y
-  `window.__pendingDesbloquearTrigger`), replicando el patrón existente de
-  `window.__pendingDeleteTrigger`. Razones: minimizar la superficie de cambio,
-  coherencia con el código vigente de `Index.cshtml:282-300` y menor riesgo de
-  regresión. Un mapa indexado por acción es una evolución razonable pero pertenece a
-  una iteración futura fuera del alcance de esta spec.
+- **SweetAlert2 por acción separada**: 3 funciones independientes
+  (`wireUsuarioBloquearConfirmation`, `wireUsuarioDesbloquearConfirmation`,
+  `wireUsuarioDeleteConfirmation`) en `usuarios-index.js`, espejo estructural de
+  `cargos-index.js`. Cada función difiere el submit de su form `data-usuario-*-form`
+  solo si `result.isConfirmed === true`. `focusCancel: true` y
+  `showCloseButton: false` para accesibilidad.
+- **Preservación de contrato wire**: los atributos `data-usuario-*-form` y
+  `data-usuario-*-button` se conservan como contratos de tests. El submit usa
+  `form.requestSubmit(button)` (preserva antiforgery + hidden inputs).
 
 ## Consideraciones fuera de alcance
 
-- Cancelar `Bloquear` o `Desbloquear` por timeout del modal (autocierre). El modal
+- Cancelar `Bloquear` o `Desbloquear` por timeout de la alerta (autocierre). La alerta
   actual exige confirmación explícita o `Cancelar`/`Esc`.
-- Reemplazar `window.__pending*Trigger` por un mapa o por `Bootstrap.Modal`
-  programación imperativa; pertenece a una iteración de refactor posterior.
-- Internacionalización del copy del modal (más allá de español vigente).
-- Animaciones de entrada/salida personalizadas del modal (se usa el comportamiento
-  default de Bootstrap 5).
+- Internacionalización del copy de SweetAlert2 (más allá de español vigente).
+- Animaciones personalizadas de SweetAlert2 (se usa el comportamiento default v11).

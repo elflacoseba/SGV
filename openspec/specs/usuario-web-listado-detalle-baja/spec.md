@@ -69,13 +69,43 @@ El detalle MUST mostrar `UsuarioDto` en solo lectura (incluyendo `Nombres`/`Apel
 
 ### Requirement: REQ-ULD-05 Eliminación física confirmada con modal irreversible
 
-`?handler=Delete` MUST exigir rol `Administrador` (Forbid en caso contrario), MUST invocar `DELETE /api/v1/usuarios/{id}` y MUST requerir confirmación mediante modal irreversible antes de invocar la API. Tras éxito, MUST volver a `activas` con confirmación visible y omitir `LastDeletedId`. Rechazos (`AutoEliminacion`, `UsuarioNoEncontrado`, transporte) MUST traducirse a feedback accionable.
+`?handler=Delete` MUST exigir rol `Administrador` e invocar `DELETE /api/v1/usuarios/{id}` únicamente después de confirmación vía SweetAlert2. `wireUsuarioDeleteConfirmation` en `src/SGV.Web/wwwroot/js/pages/usuarios-index.js` MUST abrir `Swal.fire` con título `Eliminar usuario`, texto `Esta acción eliminará este usuario de forma permanente. No se puede deshacer.`, icono `warning`, cancelación visible, botones `Eliminar definitivamente`/`Cancelar` y `reverseButtons: true`; MUST enviar solo cuando `result.isConfirmed === true`. Éxitos y rechazos (`AutoEliminacion`, `UsuarioNoEncontrado`, transporte) MUST conservar PRG y feedback accionable.
 
-#### Scenario: Eliminación irreversible exitosa
+#### Scenario: Click abre confirmación irreversible
 
-- **DADO** un usuario activo eliminable distinto del autenticado
-- **CUANDO** un `Administrador` confirma el modal y la API responde éxito
-- **ENTONCES** MUST volver a `activas` con confirmación visible y el usuario MUST dejar de existir.
+- **DADO** un administrador ante una fila activa ajena
+- **CUANDO** pulsa `Eliminar`
+- **ENTONCES** MUST abrirse SweetAlert2 con la advertencia y acciones especificadas.
+
+#### Scenario: Confirmar elimina y redirige
+
+- **DADO** la alerta abierta para un usuario eliminable
+- **CUANDO** pulsa `Eliminar definitivamente` y la API responde `204`
+- **ENTONCES** MUST emitirse un POST `?handler=Delete`, guardarse `TempData` `El usuario se eliminó correctamente.` y redirigirse a `status=activas`.
+
+#### Scenario: Descartar no elimina
+
+- **DADO** la alerta abierta
+- **CUANDO** pulsa `Cancelar`, `Esc` o backdrop
+- **ENTONCES** MUST NOT enviarse el form ni invocarse la API.
+
+#### Scenario: La fila propia oculta Eliminar
+
+- **DADO** un administrador autenticado
+- **CUANDO** se renderiza su fila
+- **ENTONCES** `data-usuario-delete-button` MUST NOT existir.
+
+#### Scenario: La confirmación no expone PII
+
+- **DADO** una fila con username, email, nombres y apellidos
+- **CUANDO** abre la alerta
+- **ENTONCES** título/texto MUST usar solo `este usuario` y la advertencia general.
+
+#### Scenario: AutoEliminacion conserva feedback
+
+- **DADO** un POST manual sobre el usuario autenticado
+- **CUANDO** backend rechaza con `403 AutoEliminacion`
+- **ENTONCES** el PRG MUST publicar en `TempData` `No puede eliminar su propio usuario.` sin eliminar datos.
 
 ### Requirement: REQ-ULD-07 Preservación de contexto en PRG
 
