@@ -29,13 +29,13 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 /// administrativa queda fuera del scope.
 /// </para>
 /// <para>
-/// Defense-in-depth contra AutoCambioRol: el backend rechaza la
+/// Defense-in-depth contra AutoEdicionSelf: el backend rechaza cualquier
 /// actualización cuando el id del target coincide con el del admin
 /// autenticado (espejo de <c>AutoBloqueo</c> / <c>AutoEliminacion</c>).
-/// Adicionalmente, este PageModel fuerza en el POST que <c>Input.Roles</c>
-/// vuelva al valor real que el backend tiene hoy para ese usuario, lo
-/// que blinda contra tampering del form aún si la defensa del backend
-/// fuera removida o desfasada.
+/// La UI deshabilita los campos editables y oculta el submit. Además, este
+/// PageModel fuerza en el POST que <c>Input.Roles</c> vuelva al valor real
+/// que el backend tiene hoy para ese usuario, lo que blinda contra tampering
+/// del form aún si la defensa del backend fuera removida o desfasada.
 /// </para>
 /// <para>
 /// Issue #125 / Slice 3: switch exhaustivo sobre
@@ -105,16 +105,16 @@ public sealed class EditModel(
     /// <summary>
     /// Identificador del admin actualmente autenticado (claim
     /// <see cref="ClaimTypes.NameIdentifier"/>). Se usa para blindar el
-    /// formulario contra auto-cambio de rol, espejando el patrón vigente
+    /// formulario contra la auto-edición, espejando el patrón vigente
     /// en <c>DetailsModel.EsAutoAccion</c>.
     /// </summary>
     public string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     /// <summary>
     /// Helper que la vista usa para decidir si debe renderizar el form
-    /// con los checkboxes de Roles deshabilitados y el alert explicativo
-    /// de AutoCambioRol. Compare contra el id de la ruta, que es el id
-    /// del usuario que se está editando.
+    /// con los campos editables deshabilitados, sin submit y con el alert
+    /// explicativo de AutoEdicionSelf. Compara contra el id de la ruta,
+    /// que es el id del usuario que se está editando.
     /// </summary>
     public bool EsAccionSobreSiMismo(string? targetUserId) =>
         !string.IsNullOrEmpty(CurrentUserId)
@@ -235,14 +235,14 @@ public sealed class EditModel(
     /// validación/conflicto, re-renderiza el formulario con los mensajes de
     /// error preservando el input y el texto de la card seleccionado.
     /// <para>
-    /// Defense-in-depth de AutoCambioRol: cuando el id de la ruta coincide
+    /// Defense-in-depth de AutoEdicionSelf: cuando el id de la ruta coincide
     /// con el del admin autenticado, este handler sobreescribe
     /// <c>Input.Roles</c> con los roles que el API devuelve
     /// <c>ahora mismo</c> para ese usuario, ignorando los checkboxes
     /// enviados en el form. Si la consulta de roles frescos falla (404 o
     /// transporte), se ABORTA la persistencia para no propagar un cambio
-    /// de roles posiblemente manipulado: el form se re-renderiza con el
-    /// input del usuario y un mensaje de error recuperable.
+    /// de roles posiblemente manipulado. Si el backend rechaza la auto-edición,
+    /// el form se re-renderiza con feedback específico para el usuario.
     /// </para>
     /// </summary>
     public async Task<IActionResult> OnPostAsync(
@@ -281,12 +281,12 @@ public sealed class EditModel(
             return Page();
         }
 
-        // Defensa de AutoCambioRol web: si el target es el admin
-        // autenticado, forzar los roles a los del backend AHORA. Esto
-        // evita que el POST persista roles manipulados en los checkboxes
+        // Defensa web complementaria de AutoEdicionSelf: si el target es
+        // el admin autenticado, forzar los roles a los del backend AHORA.
+        // Esto evita que el POST persista roles manipulados en los checkboxes
         // (que la UI sirve deshabilitados pero un POST artesanal podría
         // bypassear) y provee una segunda capa defensiva contra la
-        // edición del propio rol.
+        // edición del propio usuario.
         if (EsAccionSobreSiMismo(id))
         {
             try
@@ -352,6 +352,13 @@ public sealed class EditModel(
 
         if (result.Error is not null)
         {
+            if (string.Equals(result.Error.Code, "AutoEdicionSelf", StringComparison.Ordinal))
+            {
+                ErrorMessage = "No podés modificar tu propio usuario desde esta pantalla. Pedí a otro administrador que lo ajuste.";
+                ModelState.AddModelError(string.Empty, ErrorMessage);
+                return Page();
+            }
+
             // Issue #125 / Slice 3: switch exhaustivo sobre ErrorCategoria.
             if (result.Error.Categoria == ErrorCategoria.Unauthorized)
             {

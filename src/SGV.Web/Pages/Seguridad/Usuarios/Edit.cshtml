@@ -54,8 +54,15 @@ else
                         @await Html.PartialAsync("_Form", Model)
 
                         <div class="d-flex gap-2 mt-4">
-                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
-                            <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
+                            @if (Model.EsAccionSobreSiMismo(RouteData.Values["id"]?.ToString()))
+                            {
+                                <a class="btn btn-light" href="@Model.ReturnToListUrl">Volver al listado</a>
+                            }
+                            else
+                            {
+                                <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                <a class="btn btn-light" href="@Model.ReturnToListUrl">Cancelar</a>
+                            }
                         </div>
                     </form>
                 </div>

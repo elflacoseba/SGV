@@ -27,7 +27,7 @@ public sealed class EditPageTests
     /// Id que el handler de autenticación del fixture emite en el claim
     /// <see cref="System.Security.Claims.ClaimTypes.NameIdentifier"/>
     /// cuando se pide rol Administrador. Usar este id como target hace
-    /// que la página entre en la rama de auto-cambio de rol sin
+    /// que la página entre en la rama de auto-edición del usuario sin
     /// necesidad de un handler custom.
     /// </summary>
     private const string AdminSelfUserId = "admin-test";
@@ -344,8 +344,8 @@ public sealed class EditPageTests
     }
 
     // ──────────────────────────────────────────────
-    // Auto-cambio de rol (AutoCambioRol): el admin edita su propio
-    // usuario. UI deshabilita los checkboxes y agrega alert; el POST
+    // Auto-edición prohibida (AutoEdicionSelf): el admin edita su propio
+    // usuario. UI deshabilita los campos editables y agrega alert; el POST
     // además fuerza los roles al estado actual del backend como
     // defensa contra tampering.
     // ──────────────────────────────────────────────
@@ -370,7 +370,7 @@ public sealed class EditPageTests
 
         // Alert visible con el mensaje esperado.
         Assert.Contains("data-usuario-self-rol-alert", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("No podés cambiar tu propio rol", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No podés modificar tu propio usuario", content, StringComparison.OrdinalIgnoreCase);
 
         // Todos los checkboxes de Roles tienen el atributo disabled.
         var checkboxPattern = new Regex(
@@ -382,6 +382,15 @@ public sealed class EditPageTests
         {
             Assert.Contains("disabled", m.Value, StringComparison.OrdinalIgnoreCase);
         }
+
+        Assert.Matches(
+            @"<input(?=[^>]*name=""Input\.UserName"")(?=[^>]*disabled)[^>]*>",
+            content);
+        Assert.Matches(
+            @"<input(?=[^>]*name=""Input\.Email"")(?=[^>]*disabled)[^>]*>",
+            content);
+        Assert.DoesNotContain("Guardar cambios", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Volver al listado", content, StringComparison.OrdinalIgnoreCase);
 
         // La card de Persona sigue renderizada con el PersonaDisplay.
         Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
@@ -475,7 +484,53 @@ public sealed class EditPageTests
     }
 
     [Fact]
-    public async Task Get_Edit_WhenAdminEditsAnotherUser_DoesNotShowAutoCambioRol()
+    public async Task Post_Edit_WhenAdminEditsSelfAndBackendRejectsAutoEdicionSelf_RendersSpecificMessage()
+    {
+        // Simula el escenario donde la defensa web no logra hacer always-fetch
+        // (ej. timeout) y el request llega al backend con roles originales,
+        // pero el backend rechaza con AutoEdicionSelf porque el admin sigue
+        // siendo el target. La UI debe mostrar el mensaje específico, no el
+        // genérico de "Conflicto al persistir el usuario".
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario(AdminSelfUserId, personaId, "Self", "Admin");
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        // El fake devuelve Forbidden AutoEdicionSelf para el PUT.
+        apiClient.UpdateResult = UsuarioCommandResult.Failure(
+            new UsuarioError(
+                UsuarioErrorType.Unauthorized,
+                "AutoEdicionSelf",
+                "No puede modificar su propio usuario.",
+                Categoria: ErrorCategoria.Forbidden));
+
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            apiClient,
+            personaApiClient,
+            adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{AdminSelfUserId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            $"/seguridad/usuarios/editar/{AdminSelfUserId}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Input.UserName"] = "admin",
+                ["Input.Email"] = "admin@example.com",
+                ["Input.Roles"] = "Administrador"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("No podés modificar tu propio usuario", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Conflicto al persistir el usuario", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Edit_WhenAdminEditsAnotherUser_DoesNotShowAutoEdicionSelf()
     {
         // Contrapartida del self-edit: cuando el admin edita a OTRO
         // usuario, NO se muestra el alert ni los checkboxes quedan
@@ -497,7 +552,7 @@ public sealed class EditPageTests
 
         // Sin alert.
         Assert.DoesNotContain("data-usuario-self-rol-alert", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("No podés cambiar tu propio rol", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("No podés modificar tu propio usuario", content, StringComparison.OrdinalIgnoreCase);
 
         // Checkboxes habilitados.
         var checkboxPattern = new Regex(

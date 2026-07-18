@@ -121,13 +121,13 @@ public sealed class UsuarioServicioComandos(
             return Validation("DatosInvalidos", "Usuario y email son obligatorios.");
         }
 
-        // Auto-cambio de rol prohibido: no podés cambiarte los roles a vos mismo.
+        // Auto-edición prohibida: no podés modificarte a vos mismo desde esta pantalla.
         if (string.Equals(usuarioActual.UserId, userId, StringComparison.Ordinal))
         {
             return Failure(
                 UsuarioErrorType.Unauthorized,
-                "AutoCambioRol",
-                "No puede cambiar el rol de su propio usuario.",
+                "AutoEdicionSelf",
+                "No puede modificar su propio usuario.",
                 ErrorCategoria.Forbidden);
         }
 
