@@ -129,13 +129,17 @@ public sealed class EditModel(
     bool IUsuarioForm.EsAccionSobreSiMismo => EsAccionSobreSiMismo(_routeUserId);
 
     /// <summary>
-    /// Edición: conserva los checkboxes multi-rol vigentes
-    /// (<c>ActualizarUsuarioRequest.Roles: IReadOnlyCollection&lt;string&gt;</c>).
-    /// El partial sigue con la grilla vigente. Issue #170 / Bug 1 /
-    /// REQ-UCE-11. Explicit interface impl mantiene consistencia con
+    /// Edición: alinea con la regla de negocio 1:1 usuario↔rol
+    /// (Issue #170 / Bug 1 / REQ-UCE-11). El partial renderea el mismo
+    /// <c>&lt;select&gt;</c> único con placeholder obligatorio que usa
+    /// Create. El contrato wire sigue siendo
+    /// <c>ActualizarUsuarioRequest.Roles: IReadOnlyCollection&lt;string&gt;</c>,
+    /// así que el binder materializa un <c>string[]</c> de un único
+    /// elemento y el API no requiere cambios. Explicit interface impl
+    /// mantiene consistencia con
     /// <see cref="IUsuarioForm.EsAccionSobreSiMismo"/>.
     /// </summary>
-    bool IUsuarioForm.RenderSingleRoleSelect => false;
+    bool IUsuarioForm.RenderSingleRoleSelect => true;
 
     /// <summary>
     /// GET handler. Carga el usuario por id y deriva la presentación de la

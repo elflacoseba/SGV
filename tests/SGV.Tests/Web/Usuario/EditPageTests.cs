@@ -171,7 +171,7 @@ public sealed class EditPageTests
         var apiClient = new FakeUsuarioApiClient
         {
             UpdateResult = UsuarioCommandResult.Success(
-                new UsuarioDto(id, personaId, "aeditado", "editado@example.com", new[] { "Administrador", "Consultor" }))
+                new UsuarioDto(id, personaId, "aeditado", "editado@example.com", new[] { "Administrador" }))
         };
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
 
@@ -187,8 +187,7 @@ public sealed class EditPageTests
                 new("Input.PersonaId", personaId.ToString()),
                 new("Input.UserName", "aeditado"),
                 new("Input.Email", "editado@example.com"),
-                new("Input.Roles", "Administrador"),
-                new("Input.Roles", "Consultor")
+                new("Input.Roles", "Administrador")
             }));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -202,7 +201,7 @@ public sealed class EditPageTests
         Assert.Equal(id, updated.Id);
         Assert.Equal("aeditado", updated.Request.UserName);
         Assert.Equal("editado@example.com", updated.Request.Email);
-        Assert.Equal(new[] { "Administrador", "Consultor" }, updated.Request.Roles);
+        Assert.Equal(new[] { "Administrador" }, updated.Request.Roles);
 
         var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
@@ -351,7 +350,7 @@ public sealed class EditPageTests
     // ──────────────────────────────────────────────
 
     [Fact]
-    public async Task Get_Edit_WhenAdminEditsSelf_RendersAlertAndDisabledRoleCheckboxes()
+    public async Task Get_Edit_WhenAdminEditsSelf_RendersAlertAndDisabledRoleSelect()
     {
         var personaId = Guid.NewGuid();
         var usuario = BuildUsuario(AdminSelfUserId, personaId, "Self", "Admin");
@@ -372,16 +371,15 @@ public sealed class EditPageTests
         Assert.Contains("data-usuario-self-rol-alert", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("No podés modificar tu propio usuario", content, StringComparison.OrdinalIgnoreCase);
 
-        // Todos los checkboxes de Roles tienen el atributo disabled.
-        var checkboxPattern = new Regex(
-            @"<input[^>]*name=""Input\.Roles""[^>]*>",
+        // El <select name="Input.Roles"> está deshabilitado (Issue #170 /
+        // REQ-UCE-11: edición refleja la regla 1:1 usuario↔rol, mismo
+        // control que usa Create).
+        var selectMatch = Regex.Match(
+            content,
+            @"<select\b[^>]*\bname=""Input\.Roles""[^>]*>",
             RegexOptions.IgnoreCase);
-        var matches = checkboxPattern.Matches(content);
-        Assert.NotEmpty(matches);
-        foreach (Match m in matches)
-        {
-            Assert.Contains("disabled", m.Value, StringComparison.OrdinalIgnoreCase);
-        }
+        Assert.True(selectMatch.Success, "Esperaba un <select name=\"Input.Roles\"> en la pantalla de edición.");
+        Assert.Contains("disabled", selectMatch.Value, StringComparison.OrdinalIgnoreCase);
 
         Assert.Matches(
             @"<input(?=[^>]*name=""Input\.UserName"")(?=[^>]*disabled)[^>]*>",
@@ -533,8 +531,9 @@ public sealed class EditPageTests
     public async Task Get_Edit_WhenAdminEditsAnotherUser_DoesNotShowAutoEdicionSelf()
     {
         // Contrapartida del self-edit: cuando el admin edita a OTRO
-        // usuario, NO se muestra el alert ni los checkboxes quedan
-        // deshabilitados (deben estar operables).
+        // usuario, NO se muestra el alert y el <select name="Input.Roles">
+        // queda habilitado (Issue #170 / REQ-UCE-11: edición usa el mismo
+        // <select> único que Create).
         var personaId = Guid.NewGuid();
         var usuario = BuildUsuario("u-otro", personaId, "Otro", "Usuario");
         var apiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
@@ -554,16 +553,13 @@ public sealed class EditPageTests
         Assert.DoesNotContain("data-usuario-self-rol-alert", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("No podés modificar tu propio usuario", content, StringComparison.OrdinalIgnoreCase);
 
-        // Checkboxes habilitados.
-        var checkboxPattern = new Regex(
-            @"<input[^>]*name=""Input\.Roles""[^>]*>",
+        // <select name="Input.Roles"> habilitado.
+        var selectMatch = Regex.Match(
+            content,
+            @"<select\b[^>]*\bname=""Input\.Roles""[^>]*>",
             RegexOptions.IgnoreCase);
-        var matches = checkboxPattern.Matches(content);
-        Assert.NotEmpty(matches);
-        foreach (Match m in matches)
-        {
-            Assert.DoesNotContain("disabled", m.Value, StringComparison.OrdinalIgnoreCase);
-        }
+        Assert.True(selectMatch.Success, "Esperaba un <select name=\"Input.Roles\"> en la pantalla de edición.");
+        Assert.DoesNotContain("disabled", selectMatch.Value, StringComparison.OrdinalIgnoreCase);
     }
 
     private static UsuarioDto BuildUsuario(string id, Guid personaId, string nombres, string apellidos)
