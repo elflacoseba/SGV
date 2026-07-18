@@ -48,6 +48,20 @@ public sealed class CreateModel(
 
     public bool IsEdit => false;
 
+    /// <summary>
+    /// Create no precarga persona: el usuario elige en el modal del form.
+    /// Devuelve <c>null</c> para que el partial caiga al fallback
+    /// <see cref="PersonaDisplay"/>.
+    /// </summary>
+    public PersonaDto? PersonaVinculada => null;
+
+    /// <summary>
+    /// Create nunca opera sobre el propio usuario del admin (el id
+    /// siempre es un id nuevo asignado por el backend). El partial
+    /// puede ignorar la rama de auto-cambio de rol.
+    /// </summary>
+    public bool EsAccionSobreSiMismo => false;
+
     [BindProperty]
     public string? ReturnPage { get; set; }
 

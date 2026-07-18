@@ -121,6 +121,16 @@ public sealed class UsuarioServicioComandos(
             return Validation("DatosInvalidos", "Usuario y email son obligatorios.");
         }
 
+        // Auto-edición prohibida: no podés modificarte a vos mismo desde esta pantalla.
+        if (string.Equals(usuarioActual.UserId, userId, StringComparison.Ordinal))
+        {
+            return Failure(
+                UsuarioErrorType.Unauthorized,
+                "AutoEdicionSelf",
+                "No puede modificar su propio usuario.",
+                ErrorCategoria.Forbidden);
+        }
+
         if (!IsValidEmail(request.Email))
         {
             return Validation("EmailInvalido", "El email no tiene un formato válido.");

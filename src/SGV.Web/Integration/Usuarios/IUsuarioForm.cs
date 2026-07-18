@@ -1,3 +1,5 @@
+using SGV.Contracts.Personas.Consultas.Dtos;
+
 namespace SGV.Web.Integration.Usuarios;
 
 /// <summary>
@@ -26,6 +28,16 @@ public interface IUsuarioForm
     string? PersonaDisplay { get; }
 
     /// <summary>
+    /// Datos personales completos de la Persona vinculada, traídos del
+    /// API cuando el usuario tiene una Persona asignada. <c>null</c> en
+    /// Create o cuando el API devolvió 404 / falló el transporte. El
+    /// partial usa este DTO para renderizar la card enriquecida
+    /// (Legajo, Nombres, Apellidos, Email, Documento, Teléfono y badge
+    /// de estado activo); en su ausencia cae a <see cref="PersonaDisplay"/>.
+    /// </summary>
+    PersonaDto? PersonaVinculada { get; }
+
+    /// <summary>
     /// Mensaje de error general recuperable (consulta caída, error de
     /// transporte en POST, etc.). El partial lo muestra bajo el
     /// <c>asp-validation-summary="ModelOnly"</c>.
@@ -37,6 +49,15 @@ public interface IUsuarioForm
     /// para ocultar Password. Create siempre devuelve <c>false</c>.
     /// </summary>
     bool IsEdit { get; }
+
+    /// <summary>
+    /// <c>true</c> cuando el id del usuario editado coincide con el id
+    /// del admin autenticado. Edit lo expone contra el id de la ruta;
+    /// Create siempre devuelve <c>false</c>. El partial usa este flag
+    /// para desactivar los checkboxes de Roles y mostrar el alert de
+    /// auto-cambio de rol.
+    /// </summary>
+    bool EsAccionSobreSiMismo { get; }
 
     /// <summary>URL de retorno al listado preservando los filtros de la página anterior.</summary>
     string ReturnToListUrl { get; }
