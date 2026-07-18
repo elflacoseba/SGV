@@ -231,6 +231,11 @@ public sealed class DetailsPageTests
         Assert.DoesNotContain("data-bs-target=\"#confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("id=\"confirm-bloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("formaction=\"?handler=Bloquear\"", content, StringComparison.OrdinalIgnoreCase);
+        // Regression guard: usuarios-index.js dispara form.requestSubmit(button)
+        // y la spec exige submit button. Con type="button" la llamada tira
+        // TypeError y el form nunca se envía.
+        Assert.Contains("data-usuario-bloquear-button type=\"submit\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-delete-button type=\"submit\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -256,6 +261,8 @@ public sealed class DetailsPageTests
         Assert.DoesNotContain("data-bs-target=\"#confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("formaction=\"?handler=Desbloquear\"", content, StringComparison.OrdinalIgnoreCase);
+        // Regression guard análogo a Bloquear en Get_Details_BloquearButton_OpensModal.
+        Assert.Contains("data-usuario-desbloquear-button type=\"submit\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

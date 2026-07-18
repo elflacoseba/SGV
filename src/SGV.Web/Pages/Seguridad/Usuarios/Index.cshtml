@@ -185,11 +185,11 @@
                                                             <input name="sort" type="hidden" value="@Model.Sort" />
                                                             <input name="status" type="hidden" value="@Model.Segmento" />
                                                             <button aria-label="Bloquear a @item.UserName" class="btn btn-secondary btn-icon btn-sm rounded-circle"
-                                                                    data-usuario-bloquear-button type="button">
+                                                                    data-usuario-bloquear-button type="submit">
                                                                 <i class="ti ti-lock fs-lg"></i>
                                                             </button>
                                                         </form>
-                                                        <form data-usuario-delete-form method="post">
+                                                        <form data-usuario-delete-form method="post" action="?handler=Delete">
                                                             @Html.AntiForgeryToken()
                                                             <input name="id" type="hidden" value="@item.Id" />
                                                             <input name="page" type="hidden" value="@Model.CurrentPage" />
@@ -197,7 +197,7 @@
                                                             <input name="sort" type="hidden" value="@Model.Sort" />
                                                             <input name="status" type="hidden" value="@Model.Segmento" />
                                                             <button aria-label="Eliminar a @item.UserName" class="btn btn-danger btn-icon btn-sm rounded-circle"
-                                                                    data-usuario-delete-button type="button">
+                                                                    data-usuario-delete-button type="submit">
                                                                 <i class="ti ti-trash fs-lg"></i>
                                                             </button>
                                                         </form>
@@ -214,7 +214,7 @@
                                                     <input name="sort" type="hidden" value="@Model.Sort" />
                                                     <input name="status" type="hidden" value="@Model.Segmento" />
                                                     <button aria-label="Desbloquear a @item.UserName" class="btn btn-success btn-icon btn-sm rounded-circle"
-                                                            data-usuario-desbloquear-button type="button">
+                                                            data-usuario-desbloquear-button type="submit">
                                                         <i class="ti ti-lock-open fs-lg"></i>
                                                     </button>
                                                 </form>

@@ -696,6 +696,13 @@ public sealed class IndexPageTests
         // regex con word boundary para no matchear el substring
         // "action=" dentro de "formaction=" del botón vigente.
         Assert.Matches(@"\baction=""[?]handler=Bloquear""", content);
+        // Regression guard: usuarios-index.js dispara form.requestSubmit(button).
+        // La spec HTML5 exige que el submitter sea un submit button; con
+        // type="button" la llamada tira TypeError y el form no se envía.
+        Assert.Contains("data-usuario-bloquear-button type=\"submit\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-delete-button type=\"submit\"", content, StringComparison.OrdinalIgnoreCase);
+        // El form Delete debe apuntar al handler Delete (antes no tenía action).
+        Assert.Contains("data-usuario-delete-form method=\"post\" action=\"?handler=Delete\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -759,6 +766,10 @@ public sealed class IndexPageTests
         Assert.DoesNotContain("data-bs-target=\"#confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("id=\"confirm-desbloquear-modal\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("formaction=\"?handler=Desbloquear\"", content, StringComparison.OrdinalIgnoreCase);
+        // Regression guard: el botón Desbloquear debe ser submit button para
+        // que form.requestSubmit(button) ejecute el submit. Ver
+        // Get_Index_RendersFormDataUsuarioBloquearForm_WithHiddenInputs.
+        Assert.Contains("data-usuario-desbloquear-button type=\"submit\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
