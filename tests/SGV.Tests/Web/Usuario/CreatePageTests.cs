@@ -415,6 +415,27 @@ public sealed class CreatePageTests
             RegexOptions.IgnoreCase);
         Assert.Single(selectMatches);
 
+        // El <select> debe llevar data-choices="" para que Choices.js
+        // (cargado vía /js/pages/form-choice.js) lo estetice como
+        // dropdown colapsado Inspinia. Issue #170 follow-up visual:
+        // sin data-choices, el <select> nativo muestra todas las
+        // opciones a la vez en lugar de un combo colapsado.
+        // El orden de atributos puede variar (asp-for antepone name/id),
+        // así que validamos ambos atributos por separado en el
+        // <select name="Input.Roles">.
+        Assert.Matches(
+            @"<select\b[^>]*\bdata-choices=""""[^>]*>",
+            content);
+        Assert.Matches(
+            @"<select\b[^>]*name=""Input\.Roles""[^>]*>",
+            content);
+        Assert.DoesNotMatch(
+            @"<select\b[^>]*name=""Input\.Roles""[^>]*\bclass=""form-select""",
+            content);
+        Assert.Matches(
+            @"<select\b[^>]*name=""Input\.Roles""[^>]*\bclass=""form-control""",
+            content);
+
         // Debe existir el placeholder obligatorio.
         Assert.Contains("<option value=\"\">-- Seleccione un rol --</option>", content, StringComparison.Ordinal);
 
@@ -427,6 +448,52 @@ public sealed class CreatePageTests
         Assert.DoesNotMatch(
             @"<input\b[^>]*type=""checkbox""[^>]*name=""Input\.Roles""",
             content);
+    }
+
+    // ──────────────────────────────────────────────
+    // Issue #170 / Bug 2: pipeline integral web→gateway→error español.
+    // POST con contraseña que viola la política MUST mostrar el código
+    // IdentityError localizado al español en el campo Input.Password.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Create_WhenPasswordPolicyFails_RendersSpanishError()
+    {
+        var personaId = Guid.NewGuid();
+        var apiClient = new FakeUsuarioApiClient
+        {
+            CreateResult = UsuarioCommandResult.Failure(
+                new UsuarioError(
+                    UsuarioErrorType.Validation,
+                    "IdentityError",
+                    "La contraseña debe incluir al menos un dígito.",
+                    Categoria: ErrorCategoria.Validation))
+        };
+        await using var lease = await CreateUsuarioLeaseAsync(
+            apiClient,
+            adminRole: true,
+            BuildPersona("L-1", "Ana", "García"));
+
+        var getResponse = await lease.Client.GetAsync("/seguridad/usuarios/crear");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            "/seguridad/usuarios/crear",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Input.PersonaId"] = personaId.ToString(),
+                ["Input.UserName"] = "apwd",
+                ["Input.Email"] = "apwd@example.com",
+                ["Input.Password"] = "Password1!",
+                ["Input.Roles"] = "Consultor"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains("La contraseña debe incluir al menos un dígito", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────
