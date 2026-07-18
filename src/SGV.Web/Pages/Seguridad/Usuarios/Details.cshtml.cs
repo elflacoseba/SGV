@@ -2,8 +2,11 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Web.Integration.Common;
+using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Usuarios;
 using SGV.Web.Pages.Common;
 
@@ -38,6 +41,7 @@ namespace SGV.Web.Pages.Seguridad.Usuarios;
 [AutoValidateAntiforgeryToken]
 public sealed class DetailsModel(
     IUsuarioApiClient usuarioApiClient,
+    IPersonaApiClient personaApiClient,
     ILogger<DetailsModel> logger) : PageModel
 {
     private const string ActiveView = "activas";
@@ -46,6 +50,28 @@ public sealed class DetailsModel(
     public UsuarioDto? Usuario { get; private set; }
 
     public bool IsNotFound { get; private set; }
+
+    /// <summary>
+    /// Persona vinculada al usuario, proyectada como DTO para que la
+    /// vista renderice la card enriquecida read-only. <c>null</c> cuando
+    /// el usuario no tiene persona asignada, cuando el API devolvió 404,
+    /// o cuando el fetch sufrió un fallo de transporte: en esos casos la
+    /// UI cae al fallback <see cref="PersonaDisplay"/>.
+    /// </summary>
+    /// <remarks>
+    /// Espejo 1-a-1 de <c>EditModel.PersonaVinculada</c> introducido en
+    /// PR #168. La card enriquecida replica el árbol DOM de
+    /// <c>_Form.cshtml</c> sin los botones Quitar/Cambiar ni el modal —
+    /// Details es estrictamente read-only.
+    /// </remarks>
+    public PersonaDto? PersonaVinculada { get; private set; }
+
+    /// <summary>
+    /// Display plano "Apellidos, Nombres" derivado del
+    /// <see cref="UsuarioDto"/>. Se usa como fallback cuando
+    /// <see cref="PersonaVinculada"/> es <c>null</c>.
+    /// </summary>
+    public string? PersonaDisplay { get; private set; }
 
     public int CurrentPage { get; private set; } = 1;
 
@@ -123,6 +149,11 @@ public sealed class DetailsModel(
                 // CodeQL [SM02379]: structured logging placeholder, not interpolated.
                 logger.LogWarning("Usuario with Id {UsuarioId} was not found or is no longer available.", id);
             }
+            else
+            {
+                PersonaDisplay = FormatPersonaDisplay(Usuario.Apellidos, Usuario.Nombres);
+                await TryLoadPersonaVinculadaAsync(Usuario.PersonaId, cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -134,6 +165,52 @@ public sealed class DetailsModel(
             logger.LogError(ex, "Failed to load usuario with Id {UsuarioId}.", id);
             IsNotFound = true;
         }
+    }
+
+    /// <summary>
+    /// Enriquecimiento opcional de la card de Persona vinculada. 404 y
+    /// fallos de transporte son no-bloqueantes: la vista cae al fallback
+    /// <see cref="PersonaDisplay"/>. Un <c>Guid.Empty</c> en el id se
+    /// trata como "sin persona asignada" sin tocar el API.
+    /// </summary>
+    /// <remarks>
+    /// Espejo 1-a-1 de <c>EditModel.TryLoadPersonaVinculadaAsync</c>
+    /// (PR #168). El catch usa
+    /// <see cref="TransportFailureClassifier.IsTransportFailure"/> para
+    /// NO marcar <see cref="IsNotFound"/>: el usuario sí existe, sólo se
+    /// degrada la presentación de la card.
+    /// </remarks>
+    private async Task TryLoadPersonaVinculadaAsync(
+        Guid personaId,
+        CancellationToken cancellationToken)
+    {
+        if (personaId == Guid.Empty)
+        {
+            return;
+        }
+
+        try
+        {
+            PersonaVinculada = await personaApiClient
+                .GetByIdAsync(personaId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            // CodeQL [SM02379]: structured logging placeholder, not interpolated.
+            logger.LogWarning(
+                ex,
+                "Failed to enrich linked persona {PersonaId} for detail page; falling back to PersonaDisplay.",
+                personaId);
+            PersonaVinculada = null;
+        }
+    }
+
+    private static string FormatPersonaDisplay(string? apellidos, string? nombres)
+    {
+        var display = string.Join(", ", new[] { apellidos, nombres }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        return string.IsNullOrWhiteSpace(display) ? "Persona vinculada" : display;
     }
 
     public string BuildIndexUrl() => BuildContextUrl(

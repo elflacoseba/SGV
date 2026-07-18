@@ -103,6 +103,15 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
     public Exception? ReactivarException { get; set; }
 
     /// <summary>
+    /// Excepción opcional que <see cref="GetByIdAsync"/> lanza antes de
+    /// la lógica de lookup. Útil para tests que necesitan simular un
+    /// fallo de transporte (e.g. <see cref="HttpRequestException"/>) en
+    /// el enriquecimiento de la card de Persona. Cambio
+    /// <c>2026-07-17-detalles-usuario-persona-enriched-card</c>.
+    /// </summary>
+    public Exception? GetByIdException { get; set; }
+
+    /// <summary>
     /// Conjunto de identificadores de personas activas que ya tienen un
     /// usuario asociado. Cuando <see cref="QueryAsync"/> recibe un
     /// <see cref="SGV.Contracts.Personas.Consultas.Dtos.PersonaListQuery"/>
@@ -164,6 +173,11 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
 
     public Task<PersonaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        if (GetByIdException is not null)
+        {
+            throw GetByIdException;
+        }
+
         if (_getAllResult is null)
             return Task.FromResult<PersonaDto?>(null);
 

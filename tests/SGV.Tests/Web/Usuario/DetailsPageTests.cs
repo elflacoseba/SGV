@@ -1,7 +1,9 @@
 using System.Net;
 using System.Web;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Collections;
+using SGV.Tests.Web.Persona;
 using Xunit;
 
 namespace SGV.Tests.Web.Usuario;
@@ -323,4 +325,198 @@ public sealed class DetailsPageTests
         "Ana",
         "García",
         Bloqueado: bloqueado);
+
+    /// <summary>
+    /// Overload que fija el <see cref="UsuarioDto.PersonaId"/> para tests
+    /// que necesitan triangular la card enriquecida de Persona. Espejo de
+    /// <c>EditPageTests.BuildUsuario(string, Guid, string, string)</c>.
+    /// </summary>
+    private static UsuarioDto BuildUsuario(string id, Guid personaId, bool bloqueado = false) => new(
+        id,
+        personaId,
+        "agarcía",
+        "ana@example.com",
+        new[] { "Administrador", "Consultor" },
+        "Ana",
+        "García",
+        Bloqueado: bloqueado);
+
+    // ──────────────────────────────────────────────
+    // REQ-ULD-04 (MODIFIED): card enriquecida de Persona en el detalle
+    // readonly cuando el API de Personas devuelve DTO.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiReturnsDto_RendersEnrichedCard()
+    {
+        // El API de Personas devuelve DTO completo. El detalle debe
+        // mostrar la card enriquecida con Legajo/Documento/Email/Teléfono
+        // y badge de Estado, en lugar del Guid crudo. El <a> hacia
+        // /personas/detalle/{PersonaId} debe quedar como título.
+        var personaId = Guid.NewGuid();
+        var personaDto = new PersonaDto(
+            Id: personaId,
+            Legajo: "L-7777",
+            Nombres: "Ana",
+            Apellidos: "García",
+            Email: "ana.garcia@example.com",
+            TipoDocumento: "DNI",
+            NumeroDocumento: "30123456",
+            Telefono: "+54 11 5555-0000",
+            IsActive: true);
+        var usuario = BuildUsuario("u-detail-enriched", personaId);
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = FakePersonaApiClient.WithPersonaList(personaDto);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient, personaApiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/detalle/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("L-7777", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DNI 30123456", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ana.garcia@example.com", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("+54 11 5555-0000", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Activa", content, StringComparison.OrdinalIgnoreCase);
+        // El link al detalle de Persona se preserva como título.
+        Assert.Contains(
+            $"href=\"/personas/detalle/{personaId:D}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        // El Guid crudo ya NO debe aparecer como texto de la sección persona.
+        Assert.DoesNotContain($">{personaId:D}</a>", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // REQ-ULD-04: ausencia de controles de selección en Details (read-only).
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiReturnsDto_NoControlesSeleccionPersona()
+    {
+        // Rama enriquecida: la card existe (data-usuario-persona-card)
+        // pero NO debe inyectar los data-attributes ni el modal del
+        // buscador de Persona, que son exclusivos del flujo Edit.
+        var personaId = Guid.NewGuid();
+        var personaDto = new PersonaDto(
+            personaId, "L-7777", "Ana", "García",
+            "ana@example.com", "DNI", "30123456",
+            "+54 11 5555-0000", true);
+        var usuario = BuildUsuario("u-detail-no-controls-enriched", personaId);
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = FakePersonaApiClient.WithPersonaList(personaDto);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient, personaApiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/detalle/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("usuario-persona-buscador-modal", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiMissing_NoControlesSeleccionPersona()
+    {
+        // Rama fallback: el API no devuelve el DTO (404). Igual NO deben
+        // aparecer los controles de selección porque Details es read-only.
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario("u-detail-no-controls-fallback", personaId);
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = new FakePersonaApiClient(); // vacío → 404
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient, personaApiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/detalle/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("usuario-persona-buscador-modal", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // REQ-ULD-04: fallback plano cuando el API de Personas devuelve
+    // 404 o lanza excepción de transporte. IsNotFound debe permanecer
+    // en false (el usuario sí existe; sólo se degrada la card).
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiReturns404_FallsBackToPlainDisplay()
+    {
+        // El API no contiene el PersonaId del usuario → GetByIdAsync
+        // devuelve null. La vista debe caer al fallback plano con el
+        // display "Apellidos, Nombres" derivado del UsuarioDto, y el
+        // detalle del usuario debe renderizar completo (NO estado
+        // recuperable "no está disponible").
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario("u-detail-404", personaId);
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = new FakePersonaApiClient(); // sin DTOS → 404
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient, personaApiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/detalle/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Fallback plano: atributo neutral data-usuario-details-persona.
+        Assert.Contains("data-usuario-details-persona", content, StringComparison.OrdinalIgnoreCase);
+        // El display plano "García, Ana" derivado del UsuarioDto.
+        Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
+        // La card enriquecida NO debe renderizarse.
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        // El link al detalle de Persona se conserva como título.
+        Assert.Contains(
+            $"href=\"/personas/detalle/{personaId:D}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        // El Guid crudo ya NO debe aparecer como texto del fallback.
+        Assert.DoesNotContain($">{personaId:D}</a>", content, StringComparison.OrdinalIgnoreCase);
+        // El detalle del usuario debe renderizar completo, NO estado
+        // recuperable. El título "Detalle de usuario" sí está presente,
+        // y NO aparece el mensaje de "no está disponible".
+        Assert.Contains("Detalle de usuario", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiThrowsTransport_FallsBackWithoutIsNotFound()
+    {
+        // El API lanza HttpRequestException al consultar la persona.
+        // El catch clasificado por TransportFailureClassifier NO debe
+        // marcar IsNotFound: el usuario sí existe, sólo se degrada la
+        // card al fallback plano.
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario("u-detail-transport", personaId);
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = new FakePersonaApiClient
+        {
+            GetByIdException = new HttpRequestException("upstream persona unavailable")
+        };
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient, personaApiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/detalle/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Fallback plano, mismo shape que el caso 404.
+        Assert.Contains("data-usuario-details-persona", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        // El detalle del usuario debe renderizar completo. NO debe
+        // aparecer el mensaje de estado recuperable "no está disponible".
+        Assert.DoesNotContain("no está disponible", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Detalle de usuario", content, StringComparison.OrdinalIgnoreCase);
+    }
 }
