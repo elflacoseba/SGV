@@ -164,15 +164,14 @@ public sealed class EditPageTests
     // ──────────────────────────────────────────────
 
     [Fact]
-    public async Task Post_Edit_WhenSuccessful_RedirectsToEditWithSuccessFeedback()
+    public async Task Post_Edit_WhenSuccessful_RedirectsToIndexWithSuccessFeedback()
     {
         var personaId = Guid.NewGuid();
         var id = "u-update";
-        var apiClient = new FakeUsuarioApiClient
-        {
-            UpdateResult = UsuarioCommandResult.Success(
-                new UsuarioDto(id, personaId, "aeditado", "editado@example.com", new[] { "Administrador" }))
-        };
+        var apiClient = FakeUsuarioApiClient.WithUsuarioList(
+            new UsuarioDto(id, personaId, "aeditado", "editado@example.com", new[] { "Administrador" }));
+        apiClient.UpdateResult = UsuarioCommandResult.Success(
+            new UsuarioDto(id, personaId, "aeditado", "editado@example.com", new[] { "Administrador" }));
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(apiClient, adminRole: true);
 
         var getResponse = await lease.Client.GetAsync(
@@ -192,10 +191,18 @@ public sealed class EditPageTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location?.OriginalString ?? string.Empty;
-        Assert.Contains($"/seguridad/usuarios/editar/{id}", location, StringComparison.OrdinalIgnoreCase);
+
+        // Tras guardar correctamente, el POST redirige al listado de
+        // usuarios (Index) preservando los filtros y segmento del caller
+        // como query params (p/search/sort/status). El Edit NO redirige a
+        // sí mismo: eso permitía re-envío del form si el usuario
+        // recargaba la página.
+        Assert.Contains("/seguridad/usuarios", location, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/seguridad/usuarios/editar/", location, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("p=2", location, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("search=anuevo", location, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("sort=username_desc", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("status=activas", location, StringComparison.OrdinalIgnoreCase);
 
         var updated = Assert.Single(apiClient.UpdateCalls);
         Assert.Equal(id, updated.Id);
@@ -203,6 +210,8 @@ public sealed class EditPageTests
         Assert.Equal("editado@example.com", updated.Request.Email);
         Assert.Equal(new[] { "Administrador" }, updated.Request.Roles);
 
+        // El TempData de éxito viaja al Index, que lo renderea arriba
+        // del listado.
         var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
         Assert.Contains("se actualizó correctamente", refreshedContent, StringComparison.OrdinalIgnoreCase);

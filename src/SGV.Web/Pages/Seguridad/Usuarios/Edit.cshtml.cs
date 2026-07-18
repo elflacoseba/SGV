@@ -244,9 +244,10 @@ public sealed class EditModel(
     /// <summary>
     /// POST handler. Valida ModelState, llama <c>PUT /api/v1/usuarios/{id}</c>
     /// atómico (UserName+Email+Roles), y mapea el resultado a feedback del
-    /// usuario. Tras éxito, PRG a sí mismo con TempData. Tras fallo de
-    /// validación/conflicto, re-renderiza el formulario con los mensajes de
-    /// error preservando el input y el texto de la card seleccionado.
+    /// usuario. Tras éxito, PRG al listado preservando filtros y segmento
+    /// (p/search/sort/status). Tras fallo de validación/conflicto,
+    /// re-renderiza el formulario con los mensajes de error preservando el
+    /// input y el texto de la card seleccionado.
     /// <para>
     /// Defense-in-depth de AutoEdicionSelf: cuando el id de la ruta coincide
     /// con el del admin autenticado, este handler sobreescribe
@@ -351,15 +352,16 @@ public sealed class EditModel(
             var dto = result.Value;
             TempData["StatusMessage"] = $"El usuario \"{dto.UserName}\" se actualizó correctamente.";
             TempData["StatusKind"] = "success";
-            // PRG re-redirige al propio edit para que el usuario pueda
-            // continuar editando o volver al listado sin reenvío del form.
-            return RedirectToPage("/Seguridad/Usuarios/Edit", new
+            // PRG re-redirige al listado de usuarios (Index) preservando
+            // los filtros y el segmento del caller (p/search/sort/status)
+            // para que vea el cambio en contexto. El TempData con el
+            // feedback de éxito lo consume Index al renderizar.
+            return RedirectToPage("/Seguridad/Usuarios/Index", new
             {
-                id,
                 p = ReturnPage,
                 search = ReturnSearch,
                 sort = ReturnSort,
-                returnStatus = ReturnStatus
+                status = ReturnStatus
             });
         }
 
