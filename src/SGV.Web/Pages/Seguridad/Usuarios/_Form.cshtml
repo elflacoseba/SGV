@@ -170,8 +170,15 @@
         {
             @* Issue #170 / REQ-UCE-11: alta exige asignación 1:1 usuario↔rol.
                Select único con placeholder obligatorio; binder materializa
-               string[] de 1 elemento. Auto-edición desactiva el control. *@
-            <select asp-for="Input.Roles" class="form-select"
+               string[] de 1 elemento. Auto-edición desactiva el control.
+               NOTA: usamos name="Input.Roles" + id="Input_Roles" en vez de
+               asp-for="Input.Roles" porque el tag helper, al detectar
+               string[], agrega multiple="multiple" automáticamente y eso
+               muestra todas las opciones a la vez. data-choices="" delega
+               el render del dropdown a Choices.js (cargado vía
+               /js/pages/form-choice.js desde Create.cshtml) para que se vea
+               como dropdown colapsado estetizado Inspinia. *@
+            <select name="Input.Roles" id="Input_Roles" class="form-control" data-choices=""
                     disabled="@(Model.EsAccionSobreSiMismo ? "disabled" : null)">
                 <option value="">-- Seleccione un rol --</option>
                 @foreach (var rol in Model.Input.RolesCatalogo)

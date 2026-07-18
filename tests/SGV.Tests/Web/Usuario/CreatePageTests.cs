@@ -415,6 +415,27 @@ public sealed class CreatePageTests
             RegexOptions.IgnoreCase);
         Assert.Single(selectMatches);
 
+        // El <select> debe llevar data-choices="" para que Choices.js
+        // (cargado vía /js/pages/form-choice.js) lo estetice como
+        // dropdown colapsado Inspinia. Issue #170 follow-up visual:
+        // sin data-choices, el <select> nativo muestra todas las
+        // opciones a la vez en lugar de un combo colapsado.
+        // El orden de atributos puede variar (asp-for antepone name/id),
+        // así que validamos ambos atributos por separado en el
+        // <select name="Input.Roles">.
+        Assert.Matches(
+            @"<select\b[^>]*\bdata-choices=""""[^>]*>",
+            content);
+        Assert.Matches(
+            @"<select\b[^>]*name=""Input\.Roles""[^>]*>",
+            content);
+        Assert.DoesNotMatch(
+            @"<select\b[^>]*name=""Input\.Roles""[^>]*\bclass=""form-select""",
+            content);
+        Assert.Matches(
+            @"<select\b[^>]*name=""Input\.Roles""[^>]*\bclass=""form-control""",
+            content);
+
         // Debe existir el placeholder obligatorio.
         Assert.Contains("<option value=\"\">-- Seleccione un rol --</option>", content, StringComparison.Ordinal);
 
