@@ -1,4 +1,5 @@
 @page "/seguridad/usuarios/detalle/{id}"
+@using SGV.Contracts.Personas.Consultas.Dtos
 @model SGV.Web.Pages.Seguridad.Usuarios.DetailsModel
 
 @{
@@ -77,7 +78,70 @@ else
 
                         <dt class="col-sm-3 text-muted">Persona vinculada</dt>
                         <dd class="col-sm-9">
-                            <a href="/personas/detalle/@Model.Usuario.PersonaId">@Model.Usuario.PersonaId</a>
+                            @* Card enriquecida read-only espejo de la card
+                               preseleccionada de Edit (PR #168). Se replica
+                               el árbol DOM de _Form.cshtml sin los botones
+                               Quitar/Cambiar ni el modal — Details es
+                               estrictamente read-only. El <a> hacia el
+                               detalle de Persona se preserva como título
+                               en ambas ramas. *@
+                            @if (Model.PersonaVinculada is not null)
+                            {
+                                var persona = Model.PersonaVinculada;
+                                var documento = FormatDocumento(persona);
+                                <div class="card border mb-0" data-usuario-persona-card>
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-3" data-usuario-persona-display-text>
+                                            <a href="/personas/detalle/@Model.Usuario.PersonaId">@persona.Apellidos, @persona.Nombres</a>
+                                        </h6>
+                                        <dl class="row mb-0">
+                                            @if (!string.IsNullOrWhiteSpace(persona.Legajo))
+                                            {
+                                                <dt class="col-sm-3 text-muted">Legajo</dt>
+                                                <dd class="col-sm-9">@persona.Legajo</dd>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(documento))
+                                            {
+                                                <dt class="col-sm-3 text-muted">Documento</dt>
+                                                <dd class="col-sm-9">@documento</dd>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(persona.Email))
+                                            {
+                                                <dt class="col-sm-3 text-muted">Email</dt>
+                                                <dd class="col-sm-9">
+                                                    <a href="mailto:@persona.Email">@persona.Email</a>
+                                                </dd>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(persona.Telefono))
+                                            {
+                                                <dt class="col-sm-3 text-muted">Teléfono</dt>
+                                                <dd class="col-sm-9">@persona.Telefono</dd>
+                                            }
+                                            <dt class="col-sm-3 text-muted">Estado</dt>
+                                            <dd class="col-sm-9">
+                                                @if (persona.IsActive)
+                                                {
+                                                    <span class="badge badge-soft-success">Activa</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge badge-soft-secondary">Inactiva</span>
+                                                }
+                                            </dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                @* Fallback: 404 del API o error de transporte.
+                                   Mantiene el display plano "Apellidos,
+                                   Nombres" derivado del UsuarioDto, con el
+                                   link al detalle de Persona preservado. *@
+                                <div class="card-body py-2" data-usuario-details-persona>
+                                    <a href="/personas/detalle/@Model.Usuario.PersonaId">@Model.PersonaDisplay</a>
+                                </div>
+                            }
                         </dd>
 
                         <dt class="col-sm-3 text-muted">Roles</dt>
@@ -179,4 +243,43 @@ else
 @section scripts {
     <script src="/plugins/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="/js/pages/usuarios-index.js"></script>
+}
+
+@functions {
+    /// <summary>
+    /// Compone la etiqueta de Documento: <c>TipoDocumento NumeroDocumento</c>
+    /// o sólo uno de los dos cuando sólo uno está presente. Espejo de
+    /// <c>_Form.cshtml</c> L198-226 — misma regla para mantener paridad
+    /// visual entre la card preseleccionada de Edit y la card enriquecida
+    /// read-only de Details.
+    /// </summary>
+    private static string FormatDocumento(PersonaDto? persona)
+    {
+        if (persona is null)
+        {
+            return string.Empty;
+        }
+
+        var tipo = persona.TipoDocumento;
+        var numero = persona.NumeroDocumento;
+        var sinTipo = string.IsNullOrWhiteSpace(tipo);
+        var sinNumero = string.IsNullOrWhiteSpace(numero);
+
+        if (sinTipo && sinNumero)
+        {
+            return string.Empty;
+        }
+
+        if (sinTipo)
+        {
+            return numero!;
+        }
+
+        if (sinNumero)
+        {
+            return tipo!;
+        }
+
+        return $"{tipo} {numero}";
+    }
 }
