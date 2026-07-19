@@ -1,5 +1,9 @@
 # Decisiones de Implementación
 
+## Integración Continua
+
+No se utiliza GitHub CI. El repo es unipersonal en etapa de desarrollo activo; los tests que requieren MySQL (`[MySqlFact]`) no pueden ejecutarse en runners de GitHub sin una base de datos real y la suite completa tarda más de lo razonable para feedback iterativo. La validación se hace localmente con `dotnet test SGV.slnx`. Los tests `[MySqlFact]` se skipean automáticamente cuando no hay conexión MySQL disponible. El workflow `.github/workflows/ci.yml` existe como referencia pero está desactivado.
+
 ## SDK y Target Framework
 
 Los proyectos apuntan a `net10.0` (.NET 10). El archivo `global.json` fija el SDK en `10.0.300` con roll-forward `latestMajor` para permitir compatibilidad con versiones posteriores del SDK 10.x.
