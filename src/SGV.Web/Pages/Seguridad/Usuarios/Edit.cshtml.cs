@@ -174,7 +174,7 @@ public sealed class EditModel(
         ReturnPage = p ?? string.Empty;
         ReturnSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         ReturnSort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
-        ReturnStatus = RouteValuesPreserver.NormalizeDeletedStatus(returnStatus) ?? string.Empty;
+        ReturnStatus = string.IsNullOrWhiteSpace(returnStatus) ? string.Empty : returnStatus.Trim();
 
         try
         {
@@ -278,7 +278,7 @@ public sealed class EditModel(
         ReturnPage = p ?? string.Empty;
         ReturnSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         ReturnSort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
-        ReturnStatus = RouteValuesPreserver.NormalizeDeletedStatus(returnStatus) ?? string.Empty;
+        ReturnStatus = string.IsNullOrWhiteSpace(returnStatus) ? string.Empty : returnStatus.Trim();
 
         // Saneo defensivo: filtrar la lista bindeable contra el catálogo
         // fijo de roles. Roles no vigentes (e.g. defaults de Identity como

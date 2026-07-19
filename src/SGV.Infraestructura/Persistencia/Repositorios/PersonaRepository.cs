@@ -227,6 +227,8 @@ public sealed class PersonaRepository(SgvDbContext context)
             "nombres_desc" => query.OrderByDescending(p => p.Nombres),
             "email_asc" => query.OrderBy(p => p.Email),
             "email_desc" => query.OrderByDescending(p => p.Email),
+            "documento_asc" => query.OrderBy(p => p.NumeroDocumento),
+            "documento_desc" => query.OrderByDescending(p => p.NumeroDocumento),
             _ => query.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres)
         };
     }

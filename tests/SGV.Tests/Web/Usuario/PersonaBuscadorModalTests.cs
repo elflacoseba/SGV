@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using System.Web;
 using Microsoft.Extensions.Logging;
@@ -77,7 +78,7 @@ public sealed class PersonaBuscadorModalTests
     }
 
     [Fact]
-    public async Task BFF_BuscarConSearchDe200Caracteres_ReenviaAlClienteTipado()
+    public async Task BFF_BuscarConSearchDe200CaracteresASCII_ReenviaAlClienteTipado()
     {
         var personaApiClient = new FakePersonaApiClient();
         await using var lease = await CreateLeaseAsync(personaApiClient);
@@ -94,7 +95,7 @@ public sealed class PersonaBuscadorModalTests
     }
 
     [Fact]
-    public async Task BFF_BuscarConSearchDe201Caracteres_Responde400YNoLlamaCliente()
+    public async Task BFF_BuscarConSearchDe201CaracteresASCII_Responde400YNoLlamaCliente()
     {
         var personaApiClient = new FakePersonaApiClient();
         await using var lease = await CreateLeaseAsync(personaApiClient);
@@ -107,6 +108,39 @@ public sealed class PersonaBuscadorModalTests
         Assert.Empty(personaApiClient.QueryCalls);
         var detail = await response.Content.ReadAsStringAsync();
         Assert.Contains("200", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("bytes", detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSearch50Emojis_200Bytes_PasaElCap()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var emoji = "\U0001F600"; // 😀, 4 UTF-8 bytes
+        var search = string.Concat(Enumerable.Repeat(emoji, 50));
+        Assert.Equal(200, Encoding.UTF8.GetByteCount(search));
+        var response = await lease.Client.GetAsync(
+            $"/api/v1/personas/consulta?p=1&pageSize=10&search={Uri.EscapeDataString(search)}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(personaApiClient.QueryCalls);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSearch51Emojis_204Bytes_Responde400()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var emoji = "\U0001F600"; // 😀, 4 UTF-8 bytes
+        var search = string.Concat(Enumerable.Repeat(emoji, 51));
+        Assert.Equal(204, Encoding.UTF8.GetByteCount(search));
+        var response = await lease.Client.GetAsync(
+            $"/api/v1/personas/consulta?p=1&pageSize=10&search={Uri.EscapeDataString(search)}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(personaApiClient.QueryCalls);
     }
 
     [Fact]
@@ -127,7 +161,7 @@ public sealed class PersonaBuscadorModalTests
     }
 
     [Fact]
-    public async Task BFF_BuscarConSortDocumentoAsc_Responde400YNoLlamaCliente()
+    public async Task BFF_BuscarConSortDocumentoAsc_PropagaAlClienteTipado()
     {
         var personaApiClient = new FakePersonaApiClient();
         await using var lease = await CreateLeaseAsync(personaApiClient);
@@ -135,10 +169,23 @@ public sealed class PersonaBuscadorModalTests
         var response = await lease.Client.GetAsync(
             "/api/v1/personas/consulta?p=1&pageSize=10&sort=documento_asc");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Empty(personaApiClient.QueryCalls);
-        var detail = await response.Content.ReadAsStringAsync();
-        Assert.Contains("apellidos_asc", detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var query = Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal("documento_asc", query.Sort);
+    }
+
+    [Fact]
+    public async Task BFF_BuscarConSortDocumentoDesc_PropagaAlClienteTipado()
+    {
+        var personaApiClient = new FakePersonaApiClient();
+        await using var lease = await CreateLeaseAsync(personaApiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&sort=documento_desc");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var query = Assert.Single(personaApiClient.QueryCalls);
+        Assert.Equal("documento_desc", query.Sort);
     }
 
     [Fact]
@@ -231,8 +278,12 @@ public sealed class PersonaBuscadorModalTests
     [InlineData("legajo_desc")]
     [InlineData("email_asc")]
     [InlineData("email_desc")]
+    [InlineData("documento_asc")]
+    [InlineData("documento_desc")]
     [InlineData("APELLIDOS_ASC")]
     [InlineData("Email_Desc")]
+    [InlineData("DOCUMENTO_ASC")]
+    [InlineData("Documento_Desc")]
     public async Task BFF_BuscarConSortWhitelist_PropagaAlClienteTipado(string sort)
     {
         var personaApiClient = new FakePersonaApiClient();

@@ -212,13 +212,14 @@ app.UseAuthorization();
 // el navegador usa la cookie Web y el cliente tipado reenvía el bearer a API.
 const int SearchMaxLength = 200;
 
-// Mantener sincronizado con PersonaRepository.ApplySort:218-232.
+// Mantener sincronizado con PersonaRepository.ApplySort.
 HashSet<string> allowedSorts = new(StringComparer.OrdinalIgnoreCase)
 {
     "apellidos_asc", "apellidos_desc",
     "nombres_asc", "nombres_desc",
     "legajo_asc", "legajo_desc",
     "email_asc", "email_desc",
+    "documento_asc", "documento_desc",
 };
 
 HashSet<string> allowedSegmentos = new(StringComparer.OrdinalIgnoreCase)
@@ -240,11 +241,11 @@ app.MapGet("/api/v1/personas/consulta", async (
 {
     var logger = loggerFactory.CreateLogger("SGV.Web.Personas.BffUpstream");
 
-    if (!string.IsNullOrEmpty(search) && search.Length > SearchMaxLength)
+    if (!string.IsNullOrEmpty(search) && Encoding.UTF8.GetByteCount(search) > SearchMaxLength)
     {
         return Results.Problem(
             title: "Parámetro 'search' fuera de rango",
-            detail: $"El parámetro 'search' excede el límite de {SearchMaxLength} caracteres.",
+            detail: $"El parámetro 'search' excede el límite de {SearchMaxLength} bytes (UTF-8).",
             statusCode: StatusCodes.Status400BadRequest);
     }
 
