@@ -13,6 +13,7 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 5. Si tocás persistencia o integración, validá también contra MySQL.
 6. Antes de planificar o implementar, revisá `openspec/` y `docs/decisiones-implementacion.md`.
 7. Antes del primer `dotnet run` de `SGV.Api`, generá una clave JWT propia con `dotnet user-secrets set "Jwt:SigningKey" "<random ≥32 bytes>" --project src/SGV.Api`. Sin esto, el host **no arranca** (`OptionsValidationException`). El placeholder dev en `src/SGV.Api/appsettings.Development.json` también sirve para un primer arranque, pero **NO es apto para producción ni commits**. Ver sección "Gestión de secretos JWT" en `docs/decisiones-implementacion.md`.
+8. **No hay GitHub CI.** Los tests que requieren MySQL (`[MySqlFact]`) se skipean solos cuando no hay conexión. Corré toda la suite local con `dotnet test SGV.slnx`.
 
 ## Estructura del Proyecto y Organización
 
@@ -33,7 +34,7 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - `openspec/config.yaml`: configuración SDD/OpenSpec del repo.
 - `openspec/changes/<cambio>/`: artefactos de cambio (`proposal.md`, `design.md`, `tasks.md`, `exploration.md`, `apply-progress.md`, `verify-report.md`, `archive-report.md` y `specs/**/spec.md` según aplique).
 - `InspinaTemplate/`: template de referencia importado para la shell web y ejemplos visuales.
-- `.github/workflows/ci.yml`: pipeline de CI con build + tests sobre MySQL 8.
+- `.github/workflows/ci.yml`: pipeline de CI legacy (desactivado, no se usa).
 
 ## Comandos de Construcción, Prueba y Desarrollo
 
@@ -83,7 +84,6 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 - Los tests de API usan `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs`.
 - Los tests web usan `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs`.
 - La suite web/API ya cubre auth bridge web->API, listados segmentados `activas|eliminadas`, reactivación por PRG y fallos de transporte recuperables en clientes tipados.
-- La CI levanta MySQL 8 y ejecuta `dotnet test --no-build --configuration Release`.
 - Si cambiás persistencia, índices únicos, soft delete, Identity o migraciones, no alcanza con pruebas puramente unitarias.
 - Si tocás `SGV.Web` o assets frontend, validá al menos `bun run build` además de la suite .NET relevante.
 
