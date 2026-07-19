@@ -38,5 +38,8 @@ public sealed class PersonaConfiguracion : IEntityTypeConfiguration<PersonaEntit
         builder.HasIndex("ActiveDocumentoUnique").IsUnique();
 
         builder.HasIndex(e => new { e.Apellidos, e.Nombres });
+
+        builder.HasIndex(e => e.NumeroDocumento)
+            .HasDatabaseName("IX_Personas_NumeroDocumento");
     }
 }
