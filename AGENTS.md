@@ -217,3 +217,4 @@ Ante la duda, generar **menos** tests, pero que sean significativos, mantenibles
 - Antes de tocar estructura, dependencias, persistencia o reglas de negocio, revisá primero los artefactos OpenSpec y `docs/decisiones-implementacion.md`.
 - Si tocás algo que afecte build o test, corré la validación mínima relevante.
 - Si generás documentos en cualquier fase SDD, redactalos en español y alineados con el estado real del repo.
+- Skills del proyecto disponibles en `.agents/skills/` (database-designer, dotnet-best-practices, dotnet-csharp, dotnet-xunit, mysql, pr-review-dotnet, razor-pages-patterns, enriquecer-issue).
