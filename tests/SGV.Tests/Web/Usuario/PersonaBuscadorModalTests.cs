@@ -1,5 +1,8 @@
 using System.Net;
+using System.Text.Json;
 using System.Web;
+using Microsoft.Extensions.Logging;
+using SGV.Tests.Web._Shared;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Persona;
 using Xunit;
@@ -243,9 +246,89 @@ public sealed class PersonaBuscadorModalTests
         Assert.Equal(sort, query.Sort);
     }
 
+    [Fact]
+    public async Task BFF_UpstreamNetworkError_Responde502ConProblemDetailsYLogError()
+    {
+        var personaApiClient = new FakePersonaApiClient
+        {
+            QueryException = new HttpRequestException("Simulated upstream network failure")
+        };
+        var loggerProvider = new RecordingLoggerProvider();
+        await using var lease = await CreateLeaseWithLoggerAsync(personaApiClient, loggerProvider);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&search=garcia&sort=apellidos_asc&segmento=activas");
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var root = document.RootElement;
+        Assert.Equal("urn:sgv:errors:bff/upstream-unavailable", root.GetProperty("type").GetString());
+        Assert.Equal(502, root.GetProperty("status").GetInt32());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("title").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("detail").GetString()));
+        Assert.NotEqual("urn:sgv:errors:bff/upstream-timeout", root.GetProperty("type").GetString());
+        Assert.NotEqual("urn:sgv:errors:bff/client-cancelled", root.GetProperty("type").GetString());
+
+        var errorLog = Assert.Single(loggerProvider.Entries, e => e.Level == LogLevel.Error);
+        Assert.NotNull(errorLog.StateDictionary);
+        Assert.Equal("garcia", errorLog.StateDictionary!["Search"]);
+        Assert.Equal("apellidos_asc", errorLog.StateDictionary["Sort"]);
+        Assert.Equal("Activas", errorLog.StateDictionary["Segmento"]);
+        Assert.IsType<string>(errorLog.StateDictionary["CorrelationId"]);
+        Assert.False(string.IsNullOrWhiteSpace((string)errorLog.StateDictionary["CorrelationId"]!));
+        Assert.NotNull(errorLog.Exception);
+        Assert.IsType<HttpRequestException>(errorLog.Exception);
+    }
+
+    [Fact]
+    public async Task BFF_UpstreamTimeout_Responde502ConProblemDetailsDistinguible()
+    {
+        var personaApiClient = new FakePersonaApiClient
+        {
+            QueryException = new TaskCanceledException("Simulated upstream timeout")
+        };
+        var loggerProvider = new RecordingLoggerProvider();
+        await using var lease = await CreateLeaseWithLoggerAsync(personaApiClient, loggerProvider);
+
+        var response = await lease.Client.GetAsync(
+            "/api/v1/personas/consulta?p=1&pageSize=10&search=garcia&sort=apellidos_asc&segmento=activas");
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var root = document.RootElement;
+        Assert.Equal("urn:sgv:errors:bff/upstream-timeout", root.GetProperty("type").GetString());
+        Assert.Equal(502, root.GetProperty("status").GetInt32());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("title").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("detail").GetString()));
+        Assert.NotEqual("urn:sgv:errors:bff/upstream-unavailable", root.GetProperty("type").GetString());
+        Assert.NotEqual("urn:sgv:errors:bff/client-cancelled", root.GetProperty("type").GetString());
+
+        var errorLog = Assert.Single(loggerProvider.Entries, e => e.Level == LogLevel.Error);
+        Assert.NotNull(errorLog.StateDictionary);
+        Assert.Equal("garcia", errorLog.StateDictionary!["Search"]);
+        Assert.Equal("apellidos_asc", errorLog.StateDictionary["Sort"]);
+        Assert.Equal("Activas", errorLog.StateDictionary["Segmento"]);
+        Assert.IsType<string>(errorLog.StateDictionary["CorrelationId"]);
+        Assert.NotNull(errorLog.Exception);
+        Assert.IsType<TaskCanceledException>(errorLog.Exception);
+    }
+
     private Task<WebClientLease> CreateLeaseAsync(FakePersonaApiClient? personaApiClient = null)
         => _fixture.CreateUsuarioLeaseAsync(
             new FakeUsuarioApiClient(),
             personaApiClient ?? new FakePersonaApiClient(),
+            adminRole: true);
+
+    private Task<WebClientLease> CreateLeaseWithLoggerAsync(
+        FakePersonaApiClient personaApiClient,
+        RecordingLoggerProvider loggerProvider)
+        => _fixture.CreateUsuarioLeaseAsync(
+            new FakeUsuarioApiClient(),
+            personaApiClient,
+            loggerProvider,
             adminRole: true);
 }
