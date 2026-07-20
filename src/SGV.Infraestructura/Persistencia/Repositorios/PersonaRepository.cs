@@ -135,7 +135,7 @@ public sealed class PersonaRepository(SgvDbContext context)
     }
 
     public async Task<bool> ExistsActiveDocumentoAsync(
-        string tipoDocumento,
+        Guid tipoDocumentoId,
         string numeroDocumento,
         Guid? excludingId = null,
         CancellationToken cancellationToken = default)
@@ -143,7 +143,7 @@ public sealed class PersonaRepository(SgvDbContext context)
         return await Context
             .Set<PersonaEntity>()
             .AnyAsync(p =>
-                p.TipoDocumento == tipoDocumento &&
+                p.TipoDocumentoId == tipoDocumentoId &&
                 p.NumeroDocumento == numeroDocumento &&
                 p.IsActive &&
                 !p.IsDeleted &&

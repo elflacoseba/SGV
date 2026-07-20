@@ -198,7 +198,7 @@ internal static class DomainToPersistenceMapper
             Nombres = domain.Nombres,
             Apellidos = domain.Apellidos,
             Email = domain.Email,
-            TipoDocumento = domain.TipoDocumento,
+            TipoDocumentoId = domain.TipoDocumentoId,
             NumeroDocumento = domain.NumeroDocumento,
             Telefono = domain.Telefono,
             IsActive = domain.IsActive,
@@ -218,7 +218,7 @@ internal static class DomainToPersistenceMapper
         entity.Nombres = domain.Nombres;
         entity.Apellidos = domain.Apellidos;
         entity.Email = domain.Email;
-        entity.TipoDocumento = domain.TipoDocumento;
+        entity.TipoDocumentoId = domain.TipoDocumentoId;
         entity.NumeroDocumento = domain.NumeroDocumento;
         entity.Telefono = domain.Telefono;
         entity.IsActive = domain.IsActive;

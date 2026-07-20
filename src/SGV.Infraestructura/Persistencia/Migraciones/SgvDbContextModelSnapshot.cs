@@ -1058,8 +1058,9 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
 
                     b.Property<string>("ActiveDocumentoUnique")
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("varchar(255)")
-                        .HasComputedColumnSql("CASE WHEN `TipoDocumento` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumento`, ':', `NumeroDocumento`) ELSE NULL END");
+                        .HasColumnType("varchar(120)")
+                        .HasComputedColumnSql("CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END")
+                        .UseCollation("utf8mb4_0900_ai_ci");
 
                     b.Property<string>("ActiveEmailUnique")
                         .ValueGeneratedOnAddOrUpdate()
@@ -1117,9 +1118,9 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<string>("TipoDocumento")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                    b.Property<Guid?>("TipoDocumentoId")
+                        .HasColumnType("char(36)")
+                        .UseCollation("ascii_general_ci");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -1143,6 +1144,8 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
 
                     b.HasIndex("NumeroDocumento")
                         .HasDatabaseName("IX_Personas_NumeroDocumento");
+
+                    b.HasIndex("TipoDocumentoId");
 
                     b.HasIndex("Apellidos", "Nombres");
 
@@ -1407,6 +1410,84 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.ToTable("Puestos", null, t =>
                         {
                             t.HasCheckConstraint("CK_Puestos_PuestoSuperior", "`PuestoSuperiorId` IS NULL OR `PuestoSuperiorId` <> `Id`");
+                        });
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.TipoDocumentoEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .UseCollation("ascii_general_ci");
+
+                    b.Property<int?>("LongitudMaxima")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("LongitudMinima")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("PatronValidacion")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TiposDocumento_Codigo");
+
+                    b.ToTable("TiposDocumento", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TiposDocumento_Codigo", "`Codigo` <> ''");
+
+                            t.HasCheckConstraint("CK_TiposDocumento_Longitudes", "`LongitudMinima` IS NULL OR `LongitudMaxima` IS NULL OR `LongitudMinima` <= `LongitudMaxima`");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000001"),
+                            Codigo = "DNI",
+                            LongitudMaxima = 8,
+                            LongitudMinima = 7,
+                            Nombre = "Documento Nacional de Identidad",
+                            PatronValidacion = "^\\d{7,8}$"
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000002"),
+                            Codigo = "LE",
+                            LongitudMaxima = 8,
+                            LongitudMinima = 6,
+                            Nombre = "Libreta de Enrolamiento",
+                            PatronValidacion = "^\\d{6,8}$"
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000003"),
+                            Codigo = "LC",
+                            LongitudMaxima = 8,
+                            LongitudMinima = 6,
+                            Nombre = "Libreta Cívica",
+                            PatronValidacion = "^\\d{6,8}$"
+                        },
+                        new
+                        {
+                            Id = new Guid("71000000-0000-0000-0000-000000000004"),
+                            Codigo = "Pasaporte",
+                            LongitudMaxima = 9,
+                            LongitudMinima = 9,
+                            Nombre = "Pasaporte",
+                            PatronValidacion = "^[A-Za-z]{3}\\d{6}$"
                         });
                 });
 
@@ -1878,6 +1959,16 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Persona");
 
                     b.Navigation("Puesto");
+                });
+
+            modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PersonaEntity", b =>
+                {
+                    b.HasOne("SGV.Infraestructura.Persistencia.Entidades.TipoDocumentoEntity", "TipoDocumento")
+                        .WithMany()
+                        .HasForeignKey("TipoDocumentoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("TipoDocumento");
                 });
 
             modelBuilder.Entity("SGV.Infraestructura.Persistencia.Entidades.PersonaHabilidadEntity", b =>

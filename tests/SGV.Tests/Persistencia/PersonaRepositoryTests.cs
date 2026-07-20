@@ -122,7 +122,7 @@ public sealed class PersonaRepositoryTests
         {
             Id = Guid.NewGuid()
         };
-        persona.CambiarDocumento("DNI", "12345678-" + Guid.NewGuid().ToString("N")[..8]);
+        persona.CambiarDocumento(new Guid("71000000-0000-0000-0000-000000000001"), "12345678-" + Guid.NewGuid().ToString("N")[..8]);
 
         await repo.AddAsync(persona, default);
         await context.SaveChangesAsync();
@@ -135,7 +135,7 @@ public sealed class PersonaRepositoryTests
             Assert.Equal(persona.Nombres, obtenido.Nombres);
             Assert.Equal(persona.Apellidos, obtenido.Apellidos);
             Assert.Equal(persona.Email, obtenido.Email);
-            Assert.Equal(persona.TipoDocumento, obtenido.TipoDocumento);
+            Assert.Equal(persona.TipoDocumentoId, obtenido.TipoDocumentoId);
             Assert.Equal(persona.NumeroDocumento, obtenido.NumeroDocumento);
             Assert.True(obtenido.IsActive);
         }
@@ -266,7 +266,7 @@ public sealed class PersonaRepositoryTests
             Assert.NotNull(persona);
 
             persona!.CambiarDatos("Modificado", "ApellidoMod", "LEG-MOD", "mod@test.com", "555-9999");
-            persona.CambiarDocumento("Pasaporte", "AB123456");
+            persona.CambiarDocumento(new Guid("71000000-0000-0000-0000-000000000004"), "AB123456");
             await repo.UpdateAsync(persona, default);
             await context.SaveChangesAsync();
 
@@ -277,7 +277,7 @@ public sealed class PersonaRepositoryTests
             Assert.Equal("LEG-MOD", modificado.Legajo);
             Assert.Equal("mod@test.com", modificado.Email);
             Assert.Equal("555-9999", modificado.Telefono);
-            Assert.Equal("Pasaporte", modificado.TipoDocumento);
+            Assert.Equal(new Guid("71000000-0000-0000-0000-000000000004"), modificado.TipoDocumentoId);
             Assert.Equal("AB123456", modificado.NumeroDocumento);
         }
         finally

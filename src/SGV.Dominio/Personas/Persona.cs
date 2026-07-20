@@ -26,7 +26,7 @@ public sealed record class Persona : EntidadAuditable
 
     public string? Email { get; private set; }
 
-    public string? TipoDocumento { get; private set; }
+    public Guid? TipoDocumentoId { get; private set; }
 
     public string? NumeroDocumento { get; private set; }
 
@@ -47,9 +47,9 @@ public sealed record class Persona : EntidadAuditable
         Telefono = ValidacionesDominio.Opcional(telefono, nameof(Telefono), 50);
     }
 
-    public void CambiarDocumento(string? tipoDocumento, string? numeroDocumento)
+    public void CambiarDocumento(Guid? tipoDocumentoId, string? numeroDocumento)
     {
-        TipoDocumento = ValidacionesDominio.Opcional(tipoDocumento, nameof(TipoDocumento), 50);
+        TipoDocumentoId = tipoDocumentoId;
         NumeroDocumento = ValidacionesDominio.Opcional(numeroDocumento, nameof(NumeroDocumento), 50);
     }
 
@@ -98,7 +98,7 @@ public sealed record class Persona : EntidadAuditable
         string apellidos,
         string? legajo,
         string? email,
-        string? tipoDocumento,
+        Guid? tipoDocumentoId,
         string? numeroDocumento,
         string? telefono,
         bool isActive,
@@ -126,7 +126,7 @@ public sealed record class Persona : EntidadAuditable
         self.Apellidos = ValidacionesDominio.Requerido(apellidos, nameof(Apellidos), 100);
         self.Legajo = ValidacionesDominio.Opcional(legajo, nameof(Legajo), 50);
         self.Email = ValidacionesDominio.Opcional(email, nameof(Email), 320);
-        self.TipoDocumento = ValidacionesDominio.Opcional(tipoDocumento, nameof(TipoDocumento), 50);
+        self.TipoDocumentoId = tipoDocumentoId;
         self.NumeroDocumento = ValidacionesDominio.Opcional(numeroDocumento, nameof(NumeroDocumento), 50);
         self.Telefono = ValidacionesDominio.Opcional(telefono, nameof(Telefono), 50);
         self.IsActive = isActive;

@@ -47,9 +47,7 @@ public sealed class EditPageTests
     [Fact]
     public async Task Get_Edit_WhenPersonaExists_PrefillsFormWithCurrentValues()
     {
-        var persona = new PersonaDto(
-            Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com",
-            "DNI", "30123456", "+5491112345678", true);
+        var persona = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com", null, null, "DNI", "30123456", "+5491112345678", true);
         var apiClient = FakePersonaApiClient.WithPersonaList(persona);
 
         await using var lease = await _fixture.CreatePersonaLeaseAsync(apiClient, adminRole: true);
@@ -98,7 +96,7 @@ public sealed class EditPageTests
         var apiClient = new FakePersonaApiClient
         {
             UpdateResult = PersonaCommandResult.Success(
-                new PersonaDto(personaId, "L-001", "Ana Editada", "García", null, null, null, null, true))
+                new PersonaDto(personaId, "L-001", "Ana Editada", "García", null, null, null, null, null, null, true))
         };
 
         await using var lease = await _fixture.CreatePersonaLeaseAsync(apiClient, adminRole: true);

@@ -50,9 +50,10 @@ public interface IPersonaRepository : IReadOnlyRepository<Persona>
     Task<bool> ExistsActiveEmailAsync(string email, Guid? excludingId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks whether an active persona already uses the given document.
+    /// Checks whether an active persona already uses the given document
+    /// (issue #147: TipoDocumentoId FK + NumeroDocumento).
     /// </summary>
-    Task<bool> ExistsActiveDocumentoAsync(string tipoDocumento, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default);
+    Task<bool> ExistsActiveDocumentoAsync(Guid tipoDocumentoId, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns a filtered, paginated set of personas for the requested segment

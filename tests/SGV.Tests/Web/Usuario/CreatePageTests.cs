@@ -269,16 +269,7 @@ public sealed class CreatePageTests
     public async Task Post_Create_Con409_PreservaFormYMuestraErrorEnPersonaId()
     {
         var personaId = Guid.NewGuid();
-        var persona = new PersonaDto(
-            personaId,
-            "L-1",
-            "Ana",
-            "García",
-            "ana@example.com",
-            "DNI",
-            "12345678",
-            null,
-            true);
+        var persona = new PersonaDto(personaId, "L-1", "Ana", "García", "ana@example.com", null, null, "DNI", "12345678", null, true);
         var usuarioApiClient = new FakeUsuarioApiClient
         {
             CreateResult = UsuarioCommandResult.Failure(
@@ -548,5 +539,5 @@ public sealed class CreatePageTests
             adminRole);
 
     private static PersonaDto BuildPersona(string legajo, string nombres, string apellidos)
-        => new(Guid.NewGuid(), legajo, nombres, apellidos, null, null, null, null, true);
+        => new(Guid.NewGuid(), legajo, nombres, apellidos, null, null, null, null, null, null, true);
 }

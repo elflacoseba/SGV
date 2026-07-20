@@ -94,7 +94,7 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
     /// éxito con el DTO de la primera persona activa.
     /// </summary>
     public PersonaCommandResult ReactivarResult { get; set; } = PersonaCommandResult.Success(
-        new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true));
+        new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true));
 
     /// <summary>Identificadores enviados a <see cref="ReactivarAsync"/>.</summary>
     public List<Guid> ReactivarCalls { get; } = new();

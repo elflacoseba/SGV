@@ -45,7 +45,7 @@ public sealed class PersonaServicioComandos(
         }
 
         var conflictError = await CheckUniquenessAsync(
-            request.Legajo, request.Email, request.TipoDocumento, request.NumeroDocumento,
+            request.Legajo, request.Email, request.TipoDocumentoId, request.NumeroDocumento,
             null, cancellationToken).ConfigureAwait(false);
         if (conflictError is not null)
         {
@@ -64,9 +64,9 @@ public sealed class PersonaServicioComandos(
                 persona.CambiarDatos(request.Nombres, request.Apellidos, request.Legajo, request.Email, request.Telefono);
             }
 
-            if (request.TipoDocumento is not null || request.NumeroDocumento is not null)
+            if (request.TipoDocumentoId is not null || request.NumeroDocumento is not null)
             {
-                persona.CambiarDocumento(request.TipoDocumento, request.NumeroDocumento);
+                persona.CambiarDocumento(request.TipoDocumentoId, request.NumeroDocumento);
             }
 
             await repository.AddAsync(persona, cancellationToken).ConfigureAwait(false);
@@ -102,7 +102,7 @@ public sealed class PersonaServicioComandos(
         }
 
         var conflictError = await CheckUniquenessAsync(
-            request.Legajo, request.Email, request.TipoDocumento, request.NumeroDocumento,
+            request.Legajo, request.Email, request.TipoDocumentoId, request.NumeroDocumento,
             id, cancellationToken).ConfigureAwait(false);
         if (conflictError is not null)
         {
@@ -112,7 +112,7 @@ public sealed class PersonaServicioComandos(
         try
         {
             persona.CambiarDatos(request.Nombres, request.Apellidos, request.Legajo, request.Email, request.Telefono);
-            persona.CambiarDocumento(request.TipoDocumento, request.NumeroDocumento);
+            persona.CambiarDocumento(request.TipoDocumentoId, request.NumeroDocumento);
 
             await repository.UpdateAsync(persona, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -167,10 +167,10 @@ public sealed class PersonaServicioComandos(
         var legajo = persona.Legajo;
         var email = persona.Email;
         if (legajo is not null || email is not null ||
-            persona.TipoDocumento is not null || persona.NumeroDocumento is not null)
+            persona.TipoDocumentoId is not null || persona.NumeroDocumento is not null)
         {
             var conflictError = await CheckUniquenessAsync(
-                legajo, email, persona.TipoDocumento, persona.NumeroDocumento,
+                legajo, email, persona.TipoDocumentoId, persona.NumeroDocumento,
                 id, cancellationToken).ConfigureAwait(false);
             if (conflictError is not null)
             {
@@ -199,7 +199,7 @@ public sealed class PersonaServicioComandos(
     /// </summary>
     private async Task<PersonaError?> CheckUniquenessAsync(
         string? legajo, string? email,
-        string? tipoDocumento, string? numeroDocumento,
+        Guid? tipoDocumentoId, string? numeroDocumento,
         Guid? excludingId,
         CancellationToken cancellationToken)
     {
@@ -217,8 +217,8 @@ public sealed class PersonaServicioComandos(
                 "Ya existe una persona activa con el mismo email.");
         }
 
-        if (!string.IsNullOrEmpty(tipoDocumento) && !string.IsNullOrEmpty(numeroDocumento) &&
-            await repository.ExistsActiveDocumentoAsync(tipoDocumento, numeroDocumento, excludingId, cancellationToken)
+        if (tipoDocumentoId.HasValue && !string.IsNullOrEmpty(numeroDocumento) &&
+            await repository.ExistsActiveDocumentoAsync(tipoDocumentoId.Value, numeroDocumento, excludingId, cancellationToken)
                 .ConfigureAwait(false))
         {
             return new(PersonaErrorType.Conflict, "DocumentoDuplicado",
@@ -230,13 +230,19 @@ public sealed class PersonaServicioComandos(
 
     private static PersonaDto MapToDto(Persona persona)
     {
+        // Issue #147: TipoDocumentoCodigo/Nombre se proyectan en null en PR1.
+        // El JOIN contra TiposDocumento (denormalización) entra en PR2 (T16
+        // del tasks.md). Mantener los nombres para que el contrato del DTO
+        // no rompa los call sites.
         return new PersonaDto(
             persona.Id,
             persona.Legajo,
             persona.Nombres,
             persona.Apellidos,
             persona.Email,
-            persona.TipoDocumento,
+            persona.TipoDocumentoId,
+            TipoDocumentoCodigo: null,
+            TipoDocumentoNombre: null,
             persona.NumeroDocumento,
             persona.Telefono,
             persona.IsActive);

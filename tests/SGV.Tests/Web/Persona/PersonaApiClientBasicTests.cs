@@ -27,7 +27,7 @@ public class PersonaApiClientBasicTests
     public async Task GetAllAsync_Http200WithPayload_ReturnsParsedDtosAndHitsListRoute()
     {
         var id = Guid.NewGuid();
-        var payload = new[] { new PersonaDto(id, "L-001", "Ana", "García", null, null, null, null, true) };
+        var payload = new[] { new PersonaDto(id, "L-001", "Ana", "García", null, null, null, null, null, null, true) };
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new PersonaApiClient(NewHttpClient(handler));
 
@@ -44,7 +44,7 @@ public class PersonaApiClientBasicTests
     public async Task GetByIdAsync_Http200_ReturnsDtoAndHitsDetailRoute()
     {
         var id = Guid.NewGuid();
-        var payload = new PersonaDto(id, "L-002", "Juan", "Pérez", "juan@example.com", "DNI", "28999888", null, true);
+        var payload = new PersonaDto(id, "L-002", "Juan", "Pérez", "juan@example.com", null, null, "DNI", "28999888", null, true);
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new PersonaApiClient(NewHttpClient(handler));
 
@@ -117,7 +117,7 @@ public class PersonaApiClientBasicTests
     public async Task CreateAsync_Http201WithPayload_ReturnsDtoAndHitsPostRoute()
     {
         var newId = Guid.NewGuid();
-        var dto = new PersonaDto(newId, "L-NEW", "Nueva", "Persona", null, null, null, null, true);
+        var dto = new PersonaDto(newId, "L-NEW", "Nueva", "Persona", null, null, null, null, null, null, true);
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.Created, dto));
         var client = new PersonaApiClient(NewHttpClient(handler));
 
@@ -165,7 +165,7 @@ public class PersonaApiClientBasicTests
     public async Task UpdateAsync_Http200_ReturnsDtoAndHitsPutRoute()
     {
         var id = Guid.NewGuid();
-        var dto = new PersonaDto(id, "L-001", "Ana Editada", "García", "ana@example.com", "DNI", "30123456", null, true);
+        var dto = new PersonaDto(id, "L-001", "Ana Editada", "García", "ana@example.com", null, null, "DNI", "30123456", null, true);
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
         var client = new PersonaApiClient(NewHttpClient(handler));
 
@@ -187,7 +187,7 @@ public class PersonaApiClientBasicTests
         // en el query string; cualquier otro valor (incluido Activas y
         // default) omite el parámetro para que la API caiga a activas.
         var payload = new PersonaListadoDto(
-            [new PersonaDto(Guid.NewGuid(), "DEL-001", "Eliminada", "Persona", null, null, null, null, false)],
+            [new PersonaDto(Guid.NewGuid(), "DEL-001", "Eliminada", "Persona", null, null, null, null, null, null, false)],
             TotalCount: 1,
             Page: 1,
             PageSize: 20);
@@ -242,7 +242,7 @@ public class PersonaApiClientBasicTests
     public async Task ReactivarAsync_Http200_ReturnsDtoAndHitsReactivarRoute()
     {
         var id = Guid.NewGuid();
-        var dto = new PersonaDto(id, "L-001", "Ana", "García", null, null, null, null, true);
+        var dto = new PersonaDto(id, "L-001", "Ana", "García", null, null, null, null, null, null, true);
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
         var client = new PersonaApiClient(NewHttpClient(handler));
 

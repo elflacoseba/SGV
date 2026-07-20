@@ -27,9 +27,7 @@ public sealed class DetailsPageTests
     [Fact]
     public async Task Get_Details_WhenAuthenticatedAsRegularUser_RendersPersonaReadOnly()
     {
-        var persona = new PersonaDto(
-            Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com",
-            "DNI", "30123456", "+5491112345678", true);
+        var persona = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com", null, null, "DNI", "30123456", "+5491112345678", true);
         var apiClient = FakePersonaApiClient.WithPersonaList(persona);
 
         await using var lease = await _fixture.CreatePersonaLeaseAsync(apiClient);
@@ -140,5 +138,5 @@ public sealed class DetailsPageTests
     }
 
     internal static PersonaDto BuildPersonaDto(string legajo, string nombres, string apellidos, string? email)
-        => new(Guid.NewGuid(), legajo, nombres, apellidos, email, null, null, null, true);
+        => new(Guid.NewGuid(), legajo, nombres, apellidos, email, null, null, null, null, null, true);
 }

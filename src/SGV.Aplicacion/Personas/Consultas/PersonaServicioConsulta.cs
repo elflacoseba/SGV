@@ -40,13 +40,17 @@ public sealed class PersonaServicioConsulta(IPersonaRepository repository)
 
     private static PersonaDto MapToDto(Persona entity)
     {
+        // Issue #147: TipoDocumentoCodigo/Nombre se proyectan en null en PR1.
+        // El JOIN contra TiposDocumento (denormalización) entra en PR2.
         return new PersonaDto(
             entity.Id,
             entity.Legajo,
             entity.Nombres,
             entity.Apellidos,
             entity.Email,
-            entity.TipoDocumento,
+            entity.TipoDocumentoId,
+            TipoDocumentoCodigo: null,
+            TipoDocumentoNombre: null,
             entity.NumeroDocumento,
             entity.Telefono,
             entity.IsActive

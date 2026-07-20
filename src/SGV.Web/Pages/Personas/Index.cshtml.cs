@@ -367,7 +367,9 @@ public sealed class IndexModel(
             item.Nombres,
             item.Apellidos,
             item.Email,
-            item.TipoDocumento,
+            // Issue #147: TipoDocumentoCodigo se proyecta como null en PR1.
+            // El JOIN denormalizado entra en PR2 (T16 del tasks.md).
+            item.TipoDocumentoCodigo,
             item.NumeroDocumento,
             item.Telefono,
             item.IsActive);

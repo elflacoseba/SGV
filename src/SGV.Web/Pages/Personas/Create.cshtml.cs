@@ -94,7 +94,11 @@ public sealed class CreateModel(
             Input.Nombres.Trim(),
             Input.Apellidos.Trim(),
             string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),
-            string.IsNullOrWhiteSpace(Input.TipoDocumento) ? null : Input.TipoDocumento.Trim(),
+            // Issue #147: TipoDocumentoId reemplaza al string TipoDocumento.
+            // PR3 agregará el <select> con catálogo cargado vía
+            // GetTiposDocumentoAsync; por ahora el binding del <select> legacy
+            // (string TipoDocumento) sigue siendo el origen.
+            PersonaFormHelpers.ParseTipoDocumentoIdBackCompat(Input.TipoDocumentoId, Input.TipoDocumento),
             string.IsNullOrWhiteSpace(Input.NumeroDocumento) ? null : Input.NumeroDocumento.Trim(),
             string.IsNullOrWhiteSpace(Input.Telefono) ? null : Input.Telefono.Trim());
 

@@ -41,6 +41,20 @@ internal static class PersistenceToDomainMapper
         return nivel;
     }
 
+    public static TipoDocumento ToDomain(TipoDocumentoEntity entity)
+    {
+        var tipo = new TipoDocumento(
+            entity.Codigo,
+            entity.Nombre,
+            entity.PatronValidacion,
+            entity.LongitudMinima,
+            entity.LongitudMaxima)
+        {
+            Id = entity.Id
+        };
+        return tipo;
+    }
+
     public static Habilidad ToDomain(HabilidadEntity entity)
     {
         return Habilidad.Reconstitute(
@@ -153,7 +167,7 @@ internal static class PersistenceToDomainMapper
             entity.Apellidos,
             entity.Legajo,
             entity.Email,
-            entity.TipoDocumento,
+            entity.TipoDocumentoId,
             entity.NumeroDocumento,
             entity.Telefono,
             entity.IsActive,

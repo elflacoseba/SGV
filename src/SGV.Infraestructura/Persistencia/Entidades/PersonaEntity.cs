@@ -13,13 +13,15 @@ public sealed class PersonaEntity : AuditableEntityBase
 
     public string? Email { get; set; }
 
-    public string? TipoDocumento { get; set; }
+    public Guid? TipoDocumentoId { get; set; }
 
     public string? NumeroDocumento { get; set; }
 
     public string? Telefono { get; set; }
 
     public bool IsActive { get; set; }
+
+    public TipoDocumentoEntity? TipoDocumento { get; set; }
 
     public List<PersonaHabilidadEntity> Habilidades { get; set; } = [];
 

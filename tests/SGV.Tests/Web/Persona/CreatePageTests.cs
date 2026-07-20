@@ -74,7 +74,7 @@ public sealed class CreatePageTests
         var apiClient = new FakePersonaApiClient
         {
             CreateResult = PersonaCommandResult.Success(
-                new PersonaDto(newId, "L-NEW", "Nueva", "Persona", null, null, null, null, true))
+                new PersonaDto(newId, "L-NEW", "Nueva", "Persona", null, null, null, null, null, null, true))
         };
 
         await using var lease = await _fixture.CreatePersonaLeaseAsync(apiClient, adminRole: true);

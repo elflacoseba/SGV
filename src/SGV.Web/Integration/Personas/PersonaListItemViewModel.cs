@@ -15,4 +15,9 @@ public sealed record PersonaListItemViewModel(
     string? TipoDocumento,
     string? NumeroDocumento,
     string? Telefono,
-    bool Activa);
+    bool Activa)
+{
+    // Issue #147: el campo legacy `TipoDocumento` (string) se conserva
+    // por back-compat; el código canónico vive en este accessor.
+    public string? TipoDocumentoCodigo => TipoDocumento;
+}

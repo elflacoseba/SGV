@@ -128,10 +128,11 @@ public sealed class PersonaTests
     public void CambiarDocumento_AsignaTipoYNumero()
     {
         var persona = new Persona("Juan", "Pérez");
+        var dniId = Guid.NewGuid();
 
-        persona.CambiarDocumento("DNI", "12345678");
+        persona.CambiarDocumento(dniId, "12345678");
 
-        Assert.Equal("DNI", persona.TipoDocumento);
+        Assert.Equal(dniId, persona.TipoDocumentoId);
         Assert.Equal("12345678", persona.NumeroDocumento);
     }
 
@@ -139,24 +140,26 @@ public sealed class PersonaTests
     public void CambiarDocumento_PermiteValoresNulos()
     {
         var persona = new Persona("Juan", "Pérez");
-        persona.CambiarDocumento("DNI", "12345678");
+        persona.CambiarDocumento(Guid.NewGuid(), "12345678");
 
         persona.CambiarDocumento(null, null);
 
-        Assert.Null(persona.TipoDocumento);
+        Assert.Null(persona.TipoDocumentoId);
         Assert.Null(persona.NumeroDocumento);
     }
 
     [Fact]
-    public void CambiarDocumento_ConTipoMayorA50_ThrowsArgumentException()
+    public void CambiarDocumento_ConTipoGuidVacio_PermiteAsignarExplicitamente()
     {
+        // Guid.Empty en TipoDocumentoId NO se normaliza a null en el Dominio:
+        // el caller decide el contrato. La validación "Guid.Empty no
+        // permitido cuando se informa documento" se enforce en PR2 (T14).
         var persona = new Persona("Juan", "Pérez");
-        var tipoLargo = new string('A', 51);
 
-        var ex = Assert.Throws<ArgumentException>(
-            () => persona.CambiarDocumento(tipoLargo, "12345678"));
+        persona.CambiarDocumento(Guid.Empty, "12345678");
 
-        Assert.Contains("TipoDocumento", ex.Message);
+        Assert.Equal(Guid.Empty, persona.TipoDocumentoId);
+        Assert.Equal("12345678", persona.NumeroDocumento);
     }
 
     [Fact]
@@ -166,9 +169,46 @@ public sealed class PersonaTests
         var numeroLargo = new string('A', 51);
 
         var ex = Assert.Throws<ArgumentException>(
-            () => persona.CambiarDocumento("DNI", numeroLargo));
+            () => persona.CambiarDocumento(Guid.NewGuid(), numeroLargo));
 
         Assert.Contains("NumeroDocumento", ex.Message);
+    }
+
+    [Fact]
+    public void CambiarDocumento_TransicionDeUnTipoAOtro()
+    {
+        var persona = new Persona("Juan", "Pérez");
+        var dniId = Guid.NewGuid();
+        var pasaporteId = Guid.NewGuid();
+
+        persona.CambiarDocumento(dniId, "12345678");
+        Assert.Equal(dniId, persona.TipoDocumentoId);
+
+        persona.CambiarDocumento(pasaporteId, "ABC123456");
+        Assert.Equal(pasaporteId, persona.TipoDocumentoId);
+    }
+
+    [Fact]
+    public void CambiarDocumento_TransicionDeNullAGuid_AsignaGuid()
+    {
+        var persona = new Persona("Juan", "Pérez");
+        persona.CambiarDocumento(null, null);
+        Assert.Null(persona.TipoDocumentoId);
+
+        var dniId = Guid.NewGuid();
+        persona.CambiarDocumento(dniId, "12345678");
+        Assert.Equal(dniId, persona.TipoDocumentoId);
+    }
+
+    [Fact]
+    public void CambiarDocumento_TransicionDeGuidANull()
+    {
+        var persona = new Persona("Juan", "Pérez");
+        persona.CambiarDocumento(Guid.NewGuid(), "12345678");
+
+        persona.CambiarDocumento(null, null);
+        Assert.Null(persona.TipoDocumentoId);
+        Assert.Null(persona.NumeroDocumento);
     }
 
     // ── Desactivar ──────────────────────────────────────────────

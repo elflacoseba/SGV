@@ -78,7 +78,7 @@ public class PersonaWebSeamTests
     [Fact]
     public void PersonaCommandResult_Success_HasNoErrorAndNoFieldErrors()
     {
-        var dto = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
+        var dto = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true);
         var result = PersonaCommandResult.Success(dto);
 
         Assert.True(result.IsSuccess);

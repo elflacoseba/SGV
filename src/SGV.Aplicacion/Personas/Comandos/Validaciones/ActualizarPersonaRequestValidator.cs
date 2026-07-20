@@ -27,8 +27,9 @@ public class ActualizarPersonaRequestValidator : AbstractValidator<ActualizarPer
             .EmailAddress()
             .When(x => !string.IsNullOrEmpty(x.Email));
 
-        RuleFor(x => x.TipoDocumento)
-            .MaximumLength(50);
+        RuleFor(x => x.TipoDocumentoId)
+            .NotEqual(Guid.Empty)
+            .When(x => x.TipoDocumentoId.HasValue);
 
         RuleFor(x => x.NumeroDocumento)
             .MaximumLength(50);

@@ -254,7 +254,7 @@ internal sealed class FakePersonaReadRepository : IPersonaRepository
         => Task.FromResult(false);
     public Task<bool> ExistsActiveEmailAsync(string email, Guid? id = null, CancellationToken ct = default)
         => Task.FromResult(false);
-    public Task<bool> ExistsActiveDocumentoAsync(string tipo, string num, Guid? id = null, CancellationToken ct = default)
+    public Task<bool> ExistsActiveDocumentoAsync(Guid tipo, string num, Guid? id = null, CancellationToken ct = default)
         => Task.FromResult(false);
 
     public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(

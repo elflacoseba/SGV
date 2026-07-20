@@ -106,7 +106,11 @@ public sealed class EditModel(
             Input.Nombres = persona.Nombres;
             Input.Apellidos = persona.Apellidos;
             Input.Email = persona.Email;
-            Input.TipoDocumento = persona.TipoDocumento;
+            // Issue #147: TipoDocumentoId reemplaza al string TipoDocumento.
+            // El back-compat mantiene el binding legacy (string) hasta que
+            // PR3 reemplace el <select>.
+            Input.TipoDocumentoId = persona.TipoDocumentoId;
+            Input.TipoDocumento = persona.TipoDocumentoCodigo;
             Input.NumeroDocumento = persona.NumeroDocumento;
             Input.Telefono = persona.Telefono;
 
@@ -153,7 +157,7 @@ public sealed class EditModel(
             Input.Nombres.Trim(),
             Input.Apellidos.Trim(),
             string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),
-            string.IsNullOrWhiteSpace(Input.TipoDocumento) ? null : Input.TipoDocumento.Trim(),
+            PersonaFormHelpers.ParseTipoDocumentoIdBackCompat(Input.TipoDocumentoId, Input.TipoDocumento),
             string.IsNullOrWhiteSpace(Input.NumeroDocumento) ? null : Input.NumeroDocumento.Trim(),
             string.IsNullOrWhiteSpace(Input.Telefono) ? null : Input.Telefono.Trim());
 

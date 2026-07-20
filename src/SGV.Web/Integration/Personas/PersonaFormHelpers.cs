@@ -102,4 +102,28 @@ public static class PersonaFormHelpers
             ? baseUrl
             : $"{baseUrl}{QueryString.Create(query)}";
     }
+
+    /// <summary>
+    /// Bridge back-compat: prioriza el nuevo <c>TipoDocumentoId</c>
+    /// (issue #147) y, si está vacío, intenta parsear el legacy
+    /// <c>TipoDocumento</c> string. PR3 va a eliminar este helper
+    /// cuando el <c>&lt;select&gt;</c> se conecte directo a
+    /// <c>GetTiposDocumentoAsync</c>.
+    /// </summary>
+    public static Guid? ParseTipoDocumentoIdBackCompat(Guid? tipoDocumentoId, string? tipoDocumentoLegacy)
+    {
+        if (tipoDocumentoId.HasValue && tipoDocumentoId.Value != Guid.Empty)
+        {
+            return tipoDocumentoId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(tipoDocumentoLegacy)
+            && Guid.TryParse(tipoDocumentoLegacy.Trim(), out var parsed)
+            && parsed != Guid.Empty)
+        {
+            return parsed;
+        }
+
+        return null;
+    }
 }
