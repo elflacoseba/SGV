@@ -2896,164 +2896,82 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
 
-    SET @duplicatePersonas = (
-        SELECT COUNT(*) FROM (
-            SELECT `PersonaId`
-            FROM `AspNetUsers`
-            GROUP BY `PersonaId`
-            HAVING COUNT(*) > 1
-        ) AS dupes
-    );
-    SET @preflightMsg = CONCAT(
-        'Backfill fail-loud: ', @duplicatePersonas,
-        ' PersonaId duplicados entre AspNetUsers activas. ',
-        'Resolver duplicados manualmente antes de aplicar esta migración.'
-    );
-    SET @preflightSql = IF(@duplicatePersonas > 0,
-        CONCAT('SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT = \'', @preflightMsg, '\''),
-        'SELECT 1');
-    PREPARE stmt FROM @preflightSql;
-    EXECUTE stmt;
-    DEALLOCATE PREPARE stmt;
+    DROP PROCEDURE IF EXISTS __sgvApplyD7;
 
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
+    CREATE PROCEDURE __sgvApplyD7()
+    BEGIN
+        DECLARE _needsD7 INT DEFAULT (
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE table_schema = DATABASE()
+              AND table_name = 'AspNetUsers'
+              AND column_name = 'IsDeleted'
+        );
+        IF _needsD7 > 0 THEN
+            -- Paso 1: preflight fail-loud
+            SET @duplicatePersonas = (
+                SELECT COUNT(*) FROM (
+                    SELECT `PersonaId` FROM `AspNetUsers`
+                    GROUP BY `PersonaId` HAVING COUNT(*) > 1
+                ) AS dupes
+            );
+            SET @preflightMsg = CONCAT(
+                'Backfill fail-loud: ', @duplicatePersonas,
+                ' PersonaId duplicados entre AspNetUsers activas. ',
+                'Resolver duplicados manualmente antes de aplicar esta migración.'
+            );
+            IF @duplicatePersonas > 0 THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = @preflightMsg;
+            END IF;
 
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+            -- Paso 2: backfill
+            UPDATE `AspNetUsers`
+            SET `LockoutEnabled` = 1,
+                `LockoutEnd` = '9999-12-31 23:59:59.999999'
+            WHERE `IsDeleted` = 1;
 
-    UPDATE `AspNetUsers`
-    SET `LockoutEnabled` = 1,
-        `LockoutEnd` = '9999-12-31 23:59:59.999999'
-    WHERE `IsDeleted` = 1;
+            -- Paso 3: DROP FK
+            ALTER TABLE `AspNetUsers`
+              DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
+              ALGORITHM=INPLACE, LOCK=NONE;
 
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
+            -- Paso 4: DROP INDEX ActiveUserNameUnique
+            ALTER TABLE `AspNetUsers`
+              DROP INDEX `IX_AspNetUsers_ActiveUserNameUnique`,
+              ALGORITHM=INPLACE, LOCK=NONE;
 
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+            -- Paso 5: DROP INDEX ActivePersonaIdUnique
+            ALTER TABLE `AspNetUsers`
+              DROP INDEX `IX_AspNetUsers_ActivePersonaIdUnique`,
+              ALGORITHM=INPLACE, LOCK=NONE;
 
-    ALTER TABLE `AspNetUsers`
-      DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
-      ALGORITHM=INPLACE,
-      LOCK=NONE;
+            -- Paso 6: DROP COLUMNs
+            ALTER TABLE `AspNetUsers`
+              DROP COLUMN `ActiveUserNameUnique`,
+              DROP COLUMN `ActivePersonaIdUnique`,
+              DROP COLUMN `IsDeleted`,
+              ALGORITHM=INPLACE, LOCK=NONE;
 
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
+            -- Paso 7: DROP INDEX PersonaId
+            ALTER TABLE `AspNetUsers`
+              DROP INDEX `IX_AspNetUsers_PersonaId`,
+              ALGORITHM=INPLACE, LOCK=NONE;
 
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
+            -- Paso 8: ADD UNIQUE INDEX PersonaId
+            ALTER TABLE `AspNetUsers`
+              ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
+              ALGORITHM=INPLACE, LOCK=NONE;
 
-    ALTER TABLE `AspNetUsers`
-      DROP INDEX `IX_AspNetUsers_ActiveUserNameUnique`,
-      ALGORITHM=INPLACE,
-      LOCK=NONE;
+            -- Paso 9: ADD CONSTRAINT FK
+            ALTER TABLE `AspNetUsers`
+              ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
+              FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
+              ON DELETE RESTRICT,
+              ALGORITHM=COPY;
+        END IF;
+    END;
 
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
-
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
-
-    ALTER TABLE `AspNetUsers`
-      DROP INDEX `IX_AspNetUsers_ActivePersonaIdUnique`,
-      ALGORITHM=INPLACE,
-      LOCK=NONE;
-
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
-
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
-
-    ALTER TABLE `AspNetUsers`
-      DROP COLUMN `ActiveUserNameUnique`,
-      DROP COLUMN `ActivePersonaIdUnique`,
-      DROP COLUMN `IsDeleted`,
-      ALGORITHM=INPLACE,
-      LOCK=NONE;
-
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
-
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
-
-    ALTER TABLE `AspNetUsers`
-      DROP INDEX `IX_AspNetUsers_PersonaId`,
-      ALGORITHM=INPLACE,
-      LOCK=NONE;
-
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
-
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
-
-    ALTER TABLE `AspNetUsers`
-      ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
-      ALGORITHM=INPLACE,
-      LOCK=NONE;
-
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
-
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
-
-    ALTER TABLE `AspNetUsers`
-      ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
-      FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
-      ON DELETE RESTRICT,
-      ALGORITHM=COPY;
+    CALL __sgvApplyD7();
+    DROP PROCEDURE __sgvApplyD7;
 
     END IF;
 END //
@@ -3069,6 +2987,258 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260716120000_DropSoftDeleteFromAspNetUsers', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260719180541_AddPersonasNumeroDocumentoIndex') THEN
+
+    CREATE INDEX `IX_Personas_NumeroDocumento` ON `Personas` (`NumeroDocumento`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260719180541_AddPersonasNumeroDocumentoIndex') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260719180541_AddPersonasNumeroDocumentoIndex', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    CREATE TABLE `TiposDocumento` (
+        `Id` char(36) COLLATE ascii_general_ci NOT NULL,
+        `Codigo` varchar(50) COLLATE ascii_general_ci NOT NULL,
+        `Nombre` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+        `PatronValidacion` varchar(255) CHARACTER SET utf8mb4 NULL,
+        `LongitudMinima` int NULL,
+        `LongitudMaxima` int NULL,
+        CONSTRAINT `PK_TiposDocumento` PRIMARY KEY (`Id`),
+        CONSTRAINT `CK_TiposDocumento_Codigo` CHECK (`Codigo` <> ''),
+        CONSTRAINT `CK_TiposDocumento_Longitudes` CHECK (`LongitudMinima` IS NULL OR `LongitudMaxima` IS NULL OR `LongitudMinima` <= `LongitudMaxima`)
+    ) CHARACTER SET=utf8mb4;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    INSERT INTO `TiposDocumento` (`Id`, `Codigo`, `Nombre`, `PatronValidacion`, `LongitudMinima`, `LongitudMaxima`)
+    VALUES ('71000000-0000-0000-0000-000000000001', 'DNI', 'Documento Nacional de Identidad', '^\\d{7,8}$', 7, 8),
+    ('71000000-0000-0000-0000-000000000002', 'LE', 'Libreta de Enrolamiento', '^\\d{6,8}$', 6, 8),
+    ('71000000-0000-0000-0000-000000000003', 'LC', 'Libreta Cívica', '^\\d{6,8}$', 6, 8),
+    ('71000000-0000-0000-0000-000000000004', 'Pasaporte', 'Pasaporte', '^[A-Za-z]{3}\\d{6}$', 9, 9);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    CREATE UNIQUE INDEX `IX_TiposDocumento_Codigo` ON `TiposDocumento` (`Codigo`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+
+                    CREATE TEMPORARY TABLE IF NOT EXISTS _DirtyTipoDocumento AS
+                    SELECT DISTINCT p.TipoDocumento
+                    FROM Personas p
+                    WHERE p.TipoDocumento IS NOT NULL
+                      AND p.TipoDocumento NOT IN ('DNI', 'LE', 'LC', 'Pasaporte');
+
+                    SET @dirtyCount = (SELECT COUNT(*) FROM _DirtyTipoDocumento);
+                    SET @dirtyExamples = (
+                        SELECT COALESCE(GROUP_CONCAT(DISTINCT TipoDocumento SEPARATOR ', '), 'ninguno')
+                        FROM (SELECT TipoDocumento FROM _DirtyTipoDocumento LIMIT 5) AS d
+                    );
+
+                    -- Log diagnóstico (no aborta). Se puede inspeccionar vía
+                    -- SHOW ENGINE INNODB STATUS o capturando el output del
+                    -- EF migration.
+                    SELECT CONCAT('Backfill opt-in relajado: ', @dirtyCount,
+                                  ' valores de TipoDocumento sin catalogar. Ejemplos: ',
+                                  @dirtyExamples) AS _backfill_diagnostics;
+
+                    DROP TEMPORARY TABLE IF EXISTS _DirtyTipoDocumento;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    ALTER TABLE `Personas` ADD `TipoDocumentoId` char(36) COLLATE ascii_general_ci NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    CREATE INDEX `IX_Personas_TipoDocumentoId` ON `Personas` (`TipoDocumentoId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+
+                    UPDATE Personas p
+                    INNER JOIN TiposDocumento t ON t.Codigo = p.TipoDocumento
+                    SET p.TipoDocumentoId = t.Id
+                    WHERE p.TipoDocumento IS NOT NULL;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveDocumentoUnique`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    ALTER TABLE `Personas` MODIFY COLUMN `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci AS (CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END) NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    CREATE UNIQUE INDEX `IX_Personas_ActiveDocumentoUnique` ON `Personas` (`ActiveDocumentoUnique`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    ALTER TABLE `Personas` ADD CONSTRAINT `FK_Personas_TiposDocumento_TipoDocumentoId` FOREIGN KEY (`TipoDocumentoId`) REFERENCES `TiposDocumento` (`Id`) ON DELETE RESTRICT;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    ALTER TABLE `Personas` DROP COLUMN `TipoDocumento`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260720230343_TipoDocumentoCatalogoYPersonaFk') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260720230343_TipoDocumentoCatalogoYPersonaFk', '9.0.0');
 
     END IF;
 END //

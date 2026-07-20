@@ -1,6 +1,7 @@
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Personas;
@@ -220,6 +221,101 @@ public sealed class PersonaServicioConsultaTests
 
         Assert.Equal(new[] { "Alpha", "Zulu" },
             resultado.Items.Select(i => i.Apellidos).ToArray());
+    }
+
+    // ===================== PR2: JOIN denormalizado contra TipoDocumento =====================
+
+    [Fact]
+    public async Task ListAsync_PersonaConTipoDocumento_DevuelveCodigoYNombreDenormalizados()
+    {
+        // PR2: el servicio DEBE proyectar TipoDocumentoCodigo y TipoDocumentoNombre
+        // a partir del catálogo de TiposDocumento (no quedan en null como en PR1).
+        var personaConDni = new Persona("Juan", "Pérez", "LEG-001", "juan@test.com")
+        {
+            Id = Guid.Parse("60000000-0000-0000-0000-000000000001")
+        };
+        personaConDni.CambiarDocumento(TipoDocumentoConstantes.DniId, "12345678");
+
+        var repo = new FakePersonaRepository { Datos = [personaConDni] };
+        var servicio = new PersonaServicioConsulta(
+            repo,
+            new FakeTipoDocumentoCatalogoConsulta());
+
+        var resultado = await servicio.ListAsync(default);
+
+        var dto = Assert.Single(resultado);
+        Assert.Equal(TipoDocumentoConstantes.DniId, dto.TipoDocumentoId);
+        Assert.Equal("DNI", dto.TipoDocumentoCodigo);
+        Assert.Equal("Documento Nacional de Identidad", dto.TipoDocumentoNombre);
+    }
+
+    [Fact]
+    public async Task ListAsync_PersonaSinTipoDocumento_CodigoYNombreQuedanNull()
+    {
+        // Persona sin TipoDocumentoId: TipoDocumentoCodigo/Nombre deben ser null
+        // (no debe inventarse nada desde el catálogo).
+        var personaSinTipo = new Persona("Ana", "García", "LEG-002", "ana@test.com")
+        {
+            Id = Guid.Parse("60000000-0000-0000-0000-000000000002")
+        };
+
+        var repo = new FakePersonaRepository { Datos = [personaSinTipo] };
+        var servicio = new PersonaServicioConsulta(
+            repo,
+            new FakeTipoDocumentoCatalogoConsulta());
+
+        var resultado = await servicio.ListAsync(default);
+
+        var dto = Assert.Single(resultado);
+        Assert.Null(dto.TipoDocumentoId);
+        Assert.Null(dto.TipoDocumentoCodigo);
+        Assert.Null(dto.TipoDocumentoNombre);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_PersonaConTipoDocumento_DevuelveCodigoYNombreDenormalizados()
+    {
+        var personaConPasaporte = new Persona("Carla", "Xray", "LEG-PT", "c@x.com")
+        {
+            Id = Guid.Parse("60000000-0000-0000-0000-000000000099")
+        };
+        personaConPasaporte.CambiarDocumento(TipoDocumentoConstantes.PasaporteId, "AAA123456");
+
+        var repo = new FakePersonaRepository { Datos = [personaConPasaporte] };
+        var servicio = new PersonaServicioConsulta(
+            repo,
+            new FakeTipoDocumentoCatalogoConsulta());
+
+        var resultado = await servicio.GetByIdAsync(personaConPasaporte.Id, default);
+
+        Assert.NotNull(resultado);
+        Assert.Equal("Pasaporte", resultado!.TipoDocumentoCodigo);
+        Assert.Equal("Pasaporte", resultado.TipoDocumentoNombre);
+    }
+
+    [Fact]
+    public async Task ListarAsync_ConTipoDocumento_ProyectaCodigoYNombre()
+    {
+        // Listado paginado: la denormalización debe sobrevivir al filtro/paginación.
+        var p1 = new Persona("Ana", "Zulu", "LEG-1", "a@x.com") { Id = Guid.NewGuid() };
+        p1.CambiarDocumento(TipoDocumentoConstantes.DniId, "11111111");
+        var p2 = new Persona("Beto", "Yankee", "LEG-2", "b@x.com") { Id = Guid.NewGuid() };
+        p2.CambiarDocumento(TipoDocumentoConstantes.PasaporteId, "ABC123456");
+
+        var repo = new FakePersonaRepository { Datos = [p1, p2] };
+        var servicio = new PersonaServicioConsulta(
+            repo,
+            new FakeTipoDocumentoCatalogoConsulta());
+
+        var resultado = await servicio.ListarAsync(
+            new PersonaListQuery(1, 10, null, "apellidos_desc"),
+            default);
+
+        Assert.Equal(2, resultado.Items.Count);
+        var zulu = resultado.Items.First(i => i.Apellidos == "Zulu");
+        Assert.Equal("DNI", zulu.TipoDocumentoCodigo);
+        var yankee = resultado.Items.First(i => i.Apellidos == "Yankee");
+        Assert.Equal("Pasaporte", yankee.TipoDocumentoCodigo);
     }
 
     // ===================== ListarAsync soloSinUsuario propagation tests =====================

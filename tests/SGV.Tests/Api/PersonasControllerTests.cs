@@ -10,6 +10,7 @@ using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Personas.Consultas.Dtos;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
 using SGV.Tests.Api.Collections;
 
@@ -118,6 +119,25 @@ public sealed class PersonasControllerTests
         Assert.NotEmpty(dtos);
         Assert.Equal(FakePersonaServicioConsulta.PersonaId1, dtos[0].Id);
         Assert.Equal("LEG-001", dtos[0].Legajo);
+    }
+
+    [Fact]
+    public async Task GetAll_DtoExponeTipoDocumentoCodigoYNombreDenormalizados()
+    {
+        // PR2: el PersonaDto retornado por la API DEBE exponer TipoDocumentoId,
+        // TipoDocumentoCodigo y TipoDocumentoNombre (no la string legacy
+        // TipoDocumento). Si el JOIN no se hubiera implementado, estos campos
+        // quedarían null.
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas");
+        var dto = (await ReadAsAsync<List<PersonaDto>>(response))![0];
+
+        Assert.NotNull(dto.TipoDocumentoId);
+        Assert.Equal(TipoDocumentoConstantes.DniId, dto.TipoDocumentoId!.Value);
+        Assert.Equal("DNI", dto.TipoDocumentoCodigo);
+        Assert.Equal("Documento Nacional de Identidad", dto.TipoDocumentoNombre);
     }
 
     [Fact]

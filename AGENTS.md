@@ -195,6 +195,7 @@ Ante la duda, generar **menos** tests, pero que sean significativos, mantenibles
 - `SGV.Web` es una shell Razor Pages apoyada en Inspinia; preservar esa responsabilidad y no mezclarla con reglas de negocio.
 - La cookie de autenticación web y la política CORS de la API se endurecieron por ambiente en la issue #101. La cookie lleva `HttpOnly=true`, `SameSite=Lax`, `SecurePolicy={SameAsRequest en Development | Always en otros}`; la API exige `AllowedOrigins` poblado fuera de `Development` con fail-loud. Ver `docs/decisiones-implementacion.md` para la matriz completa ambiente ↔ seguridad.
 - Revisá `docs/decisiones-implementacion.md` antes de modificar persistencia, auditoría, ocupaciones o seguridad.
+- **Mapa de bloques GUID para catálogos inmutables** (issue #147): `70000000-…` reservado para `NivelCargo`, `71000000-…` reservado para `TipoDocumento`. Cualquier catálogo inmutable nuevo debe pedir un bloque contiguo y actualizar `docs/decisiones-implementacion.md` § "Mapa de bloques GUID reservados por catálogo".
 
 ## OpenSpec / SDD
 

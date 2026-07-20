@@ -577,6 +577,55 @@ internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos
     }
 }
 
+internal sealed class FakeTipoDocumentoCatalogoConsulta : ITipoDocumentoCatalogoConsulta
+{
+    public static readonly Guid DniId = TipoDocumentoConstantes.DniId;
+    public static readonly Guid LeId = TipoDocumentoConstantes.LeId;
+    public static readonly Guid LcId = TipoDocumentoConstantes.LcId;
+    public static readonly Guid PasaporteId = TipoDocumentoConstantes.PasaporteId;
+
+    private static readonly IReadOnlyList<TipoDocumentoDto> Seed =
+    [
+        new(TipoDocumentoConstantes.DniId,
+            TipoDocumentoConstantes.DniCodigo,
+            TipoDocumentoConstantes.DniNombre,
+            TipoDocumentoConstantes.DniPatron,
+            TipoDocumentoConstantes.DniLongitudMinima,
+            TipoDocumentoConstantes.DniLongitudMaxima),
+        new(TipoDocumentoConstantes.LeId,
+            TipoDocumentoConstantes.LeCodigo,
+            TipoDocumentoConstantes.LeNombre,
+            TipoDocumentoConstantes.LePatron,
+            TipoDocumentoConstantes.LeLongitudMinima,
+            TipoDocumentoConstantes.LeLongitudMaxima),
+        new(TipoDocumentoConstantes.LcId,
+            TipoDocumentoConstantes.LcCodigo,
+            TipoDocumentoConstantes.LcNombre,
+            TipoDocumentoConstantes.LcPatron,
+            TipoDocumentoConstantes.LcLongitudMinima,
+            TipoDocumentoConstantes.LcLongitudMaxima),
+        new(TipoDocumentoConstantes.PasaporteId,
+            TipoDocumentoConstantes.PasaporteCodigo,
+            TipoDocumentoConstantes.PasaporteNombre,
+            TipoDocumentoConstantes.PasaportePatron,
+            TipoDocumentoConstantes.PasaporteLongitudMinima,
+            TipoDocumentoConstantes.PasaporteLongitudMaxima)
+    ];
+
+    private readonly IReadOnlyList<TipoDocumentoDto> _data;
+
+    public FakeTipoDocumentoCatalogoConsulta(bool isEmpty = false)
+    {
+        _data = isEmpty ? [] : Seed;
+    }
+
+    public Task<IReadOnlyList<TipoDocumentoDto>> ListarAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(_data);
+
+    public Task<TipoDocumentoDto?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => Task.FromResult(_data.FirstOrDefault(t => t.Id == id));
+}
+
 internal sealed class FakePersonaServicioConsulta : IPersonaServicioConsulta
 {
     public static readonly Guid PersonaId1 = Guid.Parse("e0000000-0000-0000-0000-000000000001");
@@ -585,9 +634,12 @@ internal sealed class FakePersonaServicioConsulta : IPersonaServicioConsulta
 
     public FakePersonaServicioConsulta(bool isEmpty = false)
     {
+        // Issue #147 PR2: el fake usa TipoDocumentoConstantes.DniId para que la
+        // denormalización (TipoDocumentoCodigo/Nombre) pueda verificarse en
+        // tests de integración contra el FakeTipoDocumentoCatalogoConsulta.
         _data = isEmpty
             ? []
-            : [new(PersonaId1, "LEG-001", "Juan", "Perez", "juan@test.com", Guid.NewGuid(), "DNI", "Documento Nacional de Identidad", "12345678", "555-0001", true)];
+            : [new(PersonaId1, "LEG-001", "Juan", "Perez", "juan@test.com", TipoDocumentoConstantes.DniId, "DNI", "Documento Nacional de Identidad", "12345678", "555-0001", true)];
     }
 
     public Task<IReadOnlyList<PersonaDto>> ListAsync(CancellationToken ct = default)
@@ -995,6 +1047,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<INivelCargoServicioConsulta>();
             services.RemoveService<INivelHabilidadServicioConsulta>();
             services.RemoveService<IHabilidadServicioComandos>();
+            services.RemoveService<ITipoDocumentoCatalogoConsulta>();
             services.RemoveService<IPersonaServicioConsulta>();
             services.RemoveService<IPersonaServicioComandos>();
             services.RemoveService<IUsuarioServicioConsulta>();
@@ -1016,6 +1069,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<INivelCargoServicioConsulta>(new FakeNivelCargoServicioConsulta());
             services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio());
             services.AddSingleton<IHabilidadServicioComandos>(new FakeHabilidadServicioComandos());
+            services.AddSingleton<ITipoDocumentoCatalogoConsulta>(new FakeTipoDocumentoCatalogoConsulta());
             services.AddSingleton<IPersonaServicioConsulta>(new FakePersonaServicioConsulta());
             services.AddSingleton<IPersonaServicioComandos>(new FakePersonaServicioComandos());
             services.AddSingleton<IUsuarioServicioConsulta>(new FakeUsuarioServicioConsulta());
