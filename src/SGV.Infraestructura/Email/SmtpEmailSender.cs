@@ -100,11 +100,9 @@ public sealed class SmtpEmailSender : IEmailSender<SgvIdentityUser>
             "<p>Si no realizaste esta solicitud, podés ignorar este mensaje.</p>" +
             "<p>El enlace caduca en una hora.</p>";
 
-        var tokenPrefix = token[..Math.Min(8, token.Length)];
         _logger.LogInformation(
-            "SMTP password reset email composed for userId={UserId}; tokenPrefix={TokenPrefix}",
-            userId,
-            tokenPrefix);
+            "SMTP password reset email composed for userId={UserId}.",
+            userId);
 
         return SendAsync(
             email: email,
