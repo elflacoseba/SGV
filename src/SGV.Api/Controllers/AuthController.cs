@@ -29,6 +29,7 @@ public sealed class AuthController(
     }
 
     [HttpPost(AuthApiRoutes.ForgotPasswordRelative)]
+    [ValidateAntiForgeryToken]
     [AllowAnonymous]
     [EnableRateLimiting(AuthApiRoutes.ForgotPasswordPolicyName)]
     [ProducesResponseType(StatusCodes.Status200OK)]
