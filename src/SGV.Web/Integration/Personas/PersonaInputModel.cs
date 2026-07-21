@@ -40,6 +40,13 @@ public sealed class PersonaInputModel
     /// </summary>
     public Guid? TipoDocumentoId { get; set; }
 
+    /// <summary>
+    /// FK hacia <c>TipoDocumento</c> (issue #147). Reemplaza
+    /// <see cref="TipoDocumento"/> como la fuente de verdad wire; el campo
+    /// string legacy se preserva por back-compat.
+    /// </summary>
+    public Guid? TipoDocumentoId { get; set; }
+
     [StringLength(30, ErrorMessage = "El número de documento no puede superar los 30 caracteres.")]
     public string? NumeroDocumento { get; set; }
 
