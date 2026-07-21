@@ -81,4 +81,14 @@ public interface IPersonaApiClient
     /// respuesta a un <see cref="PersonaCommandResult"/>.
     /// </summary>
     Task<PersonaCommandResult> ReactivarAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Devuelve el catálogo de tipos de documento (issue #147)
+    /// disponibles para asociar al <c>NumeroDocumento</c> de una persona.
+    /// Consume <c>GET /api/v1/tipos-documento</c>. Se usa en los formularios
+    /// Create/Edit para popular el <c>&lt;select&gt;</c>; el fake de tests
+    /// modela la misma semántica sin emitir HTTP. Espejo de
+    /// <c>ICargoApiClient.GetNivelesAsync</c>.
+    /// </summary>
+    Task<IReadOnlyList<TipoDocumentoDto>> GetTiposDocumentoAsync(CancellationToken cancellationToken = default);
 }

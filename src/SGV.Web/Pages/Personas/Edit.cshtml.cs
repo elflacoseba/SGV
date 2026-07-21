@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Personas.Comandos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Personas;
@@ -19,6 +20,13 @@ namespace SGV.Web.Pages.Personas;
 /// edit tras 200; 400 mapea <c>FieldErrors</c>; 409 muestra el campo
 /// afectado. Persona inexistente muestra estado recuperable.
 /// <para>
+/// Issue #147 PR3: el catálogo de tipos de documento se carga en
+/// <see cref="OnGetAsync"/> y en cualquier <see cref="OnPostAsync"/> que
+/// retorne <c>Page()</c> (espejo del patrón Cargos). El binding de
+/// <c>TipoDocumentoId</c> es directo desde el <c>&lt;select&gt;</c>; el
+/// legacy <c>ParseTipoDocumentoIdBackCompat</c> se elimina.
+/// </para>
+/// <para>
 /// Issue #125 / Slice 3: switch exhaustivo sobre
 /// <see cref="ErrorCategoria"/> (sin <c>default</c>). <c>Unauthorized</c>
 /// redirige vía <see cref="IAuthSessionRedirector"/>.
@@ -32,6 +40,8 @@ public sealed class EditModel(
 {
     [BindProperty]
     public PersonaInputModel Input { get; set; } = new();
+
+    public IReadOnlyList<TipoDocumentoDto> TiposDocumento { get; private set; } = [];
 
     public string? ErrorMessage { get; private set; }
 
@@ -69,11 +79,13 @@ public sealed class EditModel(
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
 
     /// <summary>
-    /// GET handler. Carga la persona por id. Si no existe o la consulta
-    /// falla, marca <see cref="IsRecoverable"/> y muestra un mensaje
-    /// recuperable sin renderizar el formulario. Los parámetros
-    /// <c>p</c>, <c>search</c> y <c>sort</c> se preservan para los
-    /// enlaces de retorno al listado.
+    /// GET handler. Carga la persona por id y el catálogo de tipos de
+    /// documento. Si la persona no existe o la consulta falla, marca
+    /// <see cref="IsRecoverable"/> y muestra un mensaje recuperable sin
+    /// renderizar el formulario. Si la carga del catálogo falla, el form
+    /// sigue renderizándose (placeholder vacío + ErrorMessage visible).
+    /// Los parámetros <c>p</c>, <c>search</c> y <c>sort</c> se preservan
+    /// para los enlaces de retorno al listado.
     /// </summary>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
@@ -99,6 +111,7 @@ public sealed class EditModel(
                 IsRecoverable = true;
                 ErrorMessage = "La persona solicitada no está disponible.";
                 logger.LogWarning("Persona with Id {PersonaId} was not found or is no longer available.", id);
+                await LoadTiposDocumentoAsync(id, cancellationToken);
                 return Page();
             }
 
@@ -106,14 +119,13 @@ public sealed class EditModel(
             Input.Nombres = persona.Nombres;
             Input.Apellidos = persona.Apellidos;
             Input.Email = persona.Email;
-            // Issue #147: TipoDocumentoId reemplaza al string TipoDocumento.
-            // El back-compat mantiene el binding legacy (string) hasta que
-            // PR3 reemplace el <select>.
+            // Issue #147 PR3: el TipoDocumentoId llega denormalizado en el DTO.
+            // El <select> lo pre-selecciona automáticamente vía asp-for binding.
             Input.TipoDocumentoId = persona.TipoDocumentoId;
-            Input.TipoDocumento = persona.TipoDocumentoCodigo;
             Input.NumeroDocumento = persona.NumeroDocumento;
             Input.Telefono = persona.Telefono;
 
+            await LoadTiposDocumentoAsync(id, cancellationToken);
             return Page();
         }
         catch (Exception ex)
@@ -121,6 +133,7 @@ public sealed class EditModel(
             logger.LogError(ex, "Failed to load edit page for persona {Id}.", id);
             IsRecoverable = true;
             ErrorMessage = "No se pudo cargar la persona. Intentá nuevamente.";
+            await LoadTiposDocumentoAsync(id, cancellationToken);
             return Page();
         }
     }
@@ -128,8 +141,8 @@ public sealed class EditModel(
     /// <summary>
     /// POST handler. Valida ModelState, llama <c>PUT /api/v1/personas/{id}</c>,
     /// y mapea el resultado a feedback del usuario. Tras éxito, PRG a sí
-    /// mismo con TempData. Tras fallo de validación/conflicto, re-renderiza
-    /// el formulario con los mensajes de error preservando el input.
+    /// mismo con TempData. Tras fallo de validación/conflicto, recarga el
+    /// catálogo y re-renderiza el formulario con los mensajes de error.
     /// </summary>
     public async Task<IActionResult> OnPostAsync(
         Guid id,
@@ -149,15 +162,20 @@ public sealed class EditModel(
 
         if (!ModelState.IsValid)
         {
+            await LoadTiposDocumentoAsync(id, cancellationToken);
             return Page();
         }
 
+        // Issue #147 PR3: binding directo desde el <select>. El legacy
+        // ParseTipoDocumentoIdBackCompat se elimina porque el frontend ya no
+        // envía el string TipoDocumento.
+        var tipoDocumentoId = Input.TipoDocumentoId;
         var request = new ActualizarPersonaRequest(
             Input.Legajo.Trim(),
             Input.Nombres.Trim(),
             Input.Apellidos.Trim(),
             string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),
-            PersonaFormHelpers.ParseTipoDocumentoIdBackCompat(Input.TipoDocumentoId, Input.TipoDocumento),
+            tipoDocumentoId,
             string.IsNullOrWhiteSpace(Input.NumeroDocumento) ? null : Input.NumeroDocumento.Trim(),
             string.IsNullOrWhiteSpace(Input.Telefono) ? null : Input.Telefono.Trim());
 
@@ -169,11 +187,12 @@ public sealed class EditModel(
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             // Transport-level failure (network down, timeout, malformed body).
-            // Map to a recoverable error: keep user input, re-render the page
-            // so the user can retry.
+            // Map to a recoverable error: keep user input, reload the catalog,
+            // re-render the page so the user can retry.
             logger.LogError(ex, "Persona update transport failure.");
             ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
+            await LoadTiposDocumentoAsync(id, cancellationToken);
             return Page();
         }
 
@@ -199,6 +218,7 @@ public sealed class EditModel(
 
                 ErrorMessage = PageFeedback.UnauthorizedMessage;
                 ModelState.AddModelError(string.Empty, ErrorMessage);
+                await LoadTiposDocumentoAsync(id, cancellationToken);
                 return Page();
             }
 
@@ -217,6 +237,29 @@ public sealed class EditModel(
             }
         }
 
+        await LoadTiposDocumentoAsync(id, cancellationToken);
         return Page();
+    }
+
+    /// <summary>
+    /// Carga el catálogo de tipos de documento vía
+    /// <see cref="IPersonaApiClient.GetTiposDocumentoAsync"/>. El
+    /// <paramref name="personaId"/> se usa sólo para enriquecer el log
+    /// (mismo patrón que <c>LoadCatalogsAsync</c> en Cargos Edit). Si la
+    /// llamada falla, la lista queda vacía y <see cref="ErrorMessage"/>
+    /// toma un valor recuperable; el form sigue renderizándose con el
+    /// placeholder "Seleccionar tipo…".
+    /// </summary>
+    private async Task LoadTiposDocumentoAsync(Guid personaId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            TiposDocumento = await personaApiClient.GetTiposDocumentoAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to load tipos-documento catalog for persona edit page (personaId={PersonaId}).", personaId);
+            ErrorMessage = "No se pudo cargar el catálogo de tipos de documento. Intentá nuevamente.";
+        }
     }
 }

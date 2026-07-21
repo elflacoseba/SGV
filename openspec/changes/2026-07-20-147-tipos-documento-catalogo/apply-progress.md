@@ -269,3 +269,165 @@ Si el design prefiere paridad estricta, mover el lookup al servicio de comandos 
 - `dotnet ef migrations add` no requiere otra corrida
 - `docs/migracion-inicial-sgv.sql`: regenerado (113 KB), incluye `20260720230343_TipoDocumentoCatalogoYPersonaFk`
 - Próximo paso: el orquestador hace commit + abre PR2 sobre la rama `147-tipodocumento/api-validation`
+
+---
+
+# Apply Progress: 2026-07-20-147-tipos-documento-catalogo (PR3)
+
+## Estado general
+
+| Métrica | Valor |
+|---------|-------|
+| Change | `2026-07-20-147-tipos-documento-catalogo` (issue #147) |
+| PR3 scope | Web UI: DI fix, HTTP client + fake + tests, InputModel + IPersonaForm, PageModels, vista `_Form.cshtml` con `<select>`, smoke tests, contract tests actualizados |
+| Tests | 2609/2609 PASS — 0 failed, 0 skipped (2592 baseline + 17 nuevos en PR3) |
+| Build | 0 errors, 0 nuevos warnings |
+| Cadena | feature-branch-chain — PR3 sobre `147-tipodocumento/web-ui` (basada en `de8904df`, último commit de PR2). La rama YA EXISTE; este sub-agente NO la creó. |
+| Estado | listo para commit por el orquestador + apertura de PR3 |
+
+## Tareas completadas (Bloques A–F)
+
+### Bloque A — Validator binding en DI (defensa en profundidad)
+
+- ✅ **A1** `src/SGV.Aplicacion/DependencyInjection.cs`: registración explícita de `IValidator<CrearPersonaRequest>` y `IValidator<ActualizarPersonaRequest>` vía factory que captura `ITipoDocumentoCatalogoConsulta` desde el scope actual. Esto es defensa en profundidad sobre `AddValidatorsFromAssemblyContaining` (que YA inyecta el catálogo por auto-wiring del constructor primario, pero deja el contrato implícito y propenso a refactors accidentales). Las tres reglas async — `FK_INEXISTENTE`, `LONGITUD_FUERA_DE_RANGO`, `PATRON_NO_CUMPLIDO` — dependen del catálogo en runtime; sin el factory, los validators caen al ctor sin args que cortocircuita el catálogo a `true`.
+- ✅ **A2** `tests/SGV.Tests/Aplicacion/Personas/DependencyInjectionPersonaValidatorsTests.cs` (NEW, 4 tests):
+  - `Resolved_CrearValidator_WithTipoDocumentoEnCatalogo_PeroNumeroInvalido_DebeRechazarPorPatron` (NumeroDocumento="12A45678" + DniId → IsValid=false, errors sobre NumeroDocumento)
+  - `Resolved_CrearValidator_WithTipoDocumentoValido_YNumeroValido_DebeSerValido`
+  - `Resolved_CrearValidator_WithTipoDocumentoIdFueraDeCatalogo_DebeRechazarPorFK`
+  - `Resolved_ActualizarValidator_DebeEstarRegistradoConCatalogoTambien`
+  - Helper privado `StubTipoDocumentoRepository` que devuelve los 4 seed (`TipoDocumentoConstantes.*`) in-memory.
+  - **Aclaración importante**: en PR2 ya quedaba como gap D1 que las reglas no se ejecutaban; en PR3 descubrimos que FluentValidation **ya** auto-wirea el ctor primario cuando el catálogo está registrado, así que el test pasa tanto con registración implícita (auto-wire) como explícita (factory). El factory se mantiene como contrato explícito para que un cambio accidental que quite el catálogo del DI de Aplicación se detecte (sin el factory, el auto-wire vuelve al ctor sin args).
+
+### Bloque B — HTTP client `GetTiposDocumentoAsync`
+
+- ✅ **B1** `src/SGV.Web/Integration/Personas/IPersonaApiClient.cs`: agregada la firma `Task<IReadOnlyList<TipoDocumentoDto>> GetTiposDocumentoAsync(CancellationToken)`.
+- ✅ **B2** `src/SGV.Web/Integration/Personas/PersonaApiClient.cs`: implementación con `const string TiposDocumentoRoute = "/api/v1/tipos-documento"`, `EnsureSuccessStatusCode` + `ReadFromJsonAsync<IReadOnlyList<TipoDocumentoDto>>` con fallback a `[]`. Espejo de `CargoApiClient.GetNivelesAsync` (línea 101).
+- ✅ **B3** `tests/SGV.Tests/Web/Persona/FakePersonaApiClient.cs`:
+  - Propiedades nuevas: `IReadOnlyList<TipoDocumentoDto> TiposDocumentoResult` (default: lista vacía), `int GetTiposDocumentoCalls`, `Exception? GetTiposDocumentoException`.
+  - Método `GetTiposDocumentoAsync`: incrementa counter, lanza la exception configurada o devuelve `TiposDocumentoResult`.
+- ✅ **B4** `tests/SGV.Tests/Web/Persona/FakePersonaApiClientTests.cs`: 4 tests nuevos cubriendo default vacío, seed con 4 items, exception propagada (transport failure handling), counter acumulativo entre invocaciones.
+- ✅ **B5** `tests/SGV.Tests/Web/Persona/PersonaApiClientBasicTests.cs`: 2 tests nuevos (`GetTiposDocumentoAsync_Http200WithPayload_ReturnsParsedCatalogAndHitsRoute` y `GetTiposDocumentoAsync_Http200EmptyBody_ReturnsEmptyList`).
+- ✅ **B6** `tests/SGV.Tests/Web/Persona/IPersonaApiClientContractTests.cs`: test nuevo `Interface_ExposesGetTiposDocumentoAsyncWithExpectedSignature` y actualizado `Interface_ExposesExactlySevenPublicAsyncMethods` → `EightPublicAsyncMethods` (incluye `GetTiposDocumentoAsync`).
+
+### Bloque C — InputModel, IPersonaForm, PageModels
+
+- ✅ **C1** `src/SGV.Web/Integration/Personas/PersonaInputModel.cs`: removida la propiedad legacy `TipoDocumento` (string) que mantenía PR1 por back-compat. Mantenido `TipoDocumentoId` (Guid?) como la única fuente de verdad wire. (Decisión: el prompt indica "binding directo", interpretamos que el legacy string se cae porque el frontend deja de enviarlo.)
+- ✅ **C2** `src/SGV.Web/Integration/Personas/IPersonaForm.cs`: agregada propiedad `IReadOnlyList<TipoDocumentoDto> TiposDocumento { get; }` (espejo de `ICargoForm.NivelOptions`). El PageModel lo materializa como `SelectList` en la vista con `asp-items`.
+- ✅ **C3** `src/SGV.Web/Pages/Personas/Create.cshtml.cs`:
+  - `OnGetAsync`: ahora es async (antes era sync) y llama `LoadTiposDocumentoAsync(ct)`.
+  - `OnPostAsync`: binding directo a `Input.TipoDocumentoId` (sin back-compat helper). Carga el catálogo en cualquier path `Page()` — incluyendo ModelState inválido, transport failure, 401, 409, 400 con FieldErrors.
+  - Helper privado `LoadTiposDocumentoAsync`: try/catch con log + ErrorMessage recuperable si el catálogo cae.
+- ✅ **C4** `src/SGV.Web/Pages/Personas/Edit.cshtml.cs`: cambios análogos a Create. `OnGetAsync` carga catálogo + persona; `OnPostAsync` carga catálogo en todos los paths `Page()`.
+- ✅ **C5** `Details.cshtml` ya rendereaba `Persona.TipoDocumentoCodigo` desde PR1 (issue #147), no requiere cambios.
+
+### Bloque D — Vista `_Form.cshtml` con `<select>`
+
+- ✅ **D1** `src/SGV.Web/Pages/Personas/_Form.cshtml`: el `<input asp-for="Input.TipoDocumento">` se reemplazó por un `<select asp-for="Input.TipoDocumentoId">` con `asp-items="@tiposOptions"` donde `tiposOptions = new SelectList(Model.TiposDocumento, nameof(TipoDocumentoDto.Id), nameof(TipoDocumentoDto.Codigo))`. Las etiquetas visibles son los códigos canónicos (`DNI`, `LE`, `LC`, `Pasaporte`) — no los nombres descriptivos largos — según el spec persona-management § "GET carga TiposDocumento".
+- ✅ **D2** Agregados `<span asp-validation-for="Input.TipoDocumentoId" class="text-danger"></span>` y se preservó el `<span asp-validation-for="Input.NumeroDocumento" class="text-danger"></span>`. Los mensajes vienen del backend vía `PersonaFormHelpers.ApplyFieldErrorsToModelState` (mapping ya vigente de PR2).
+- ✅ **D3** El binding es directo vía `asp-for`. El placeholder inicial sin selección es `<option value="">Seleccionar tipo…</option>`. **Back-compat del RFC**: cuando el backend responde 400 con FieldErrors sobre `tipoDocumentoId`, el `<select>` se pre-selecciona automáticamente porque `asp-for` relee `Input.TipoDocumentoId` desde el form re-POSTed.
+
+### Bloque E — Smoke tests y feedback de validación
+
+- ✅ **E1** `tests/SGV.Tests/Web/Persona/CreatePageTests.cs`: tests nuevos —
+  - `Get_Create_WhenCatalogHasFourTipos_RendersSelectWithFourOptions` (asserts 4 `<option value="71000000-...">` + nombres visibles `>DNI<`/`>LE<`/`>LC<`/`>Pasaporte<` + placeholder + 1 invocación de GetTiposDocumentoAsync).
+  - `Get_Create_WhenCatalogEmpty_RendersSelectWithOnlyPlaceholder`.
+  - `Post_Create_WhenBackendReturnsPatronNoCumplido_RendersErrorSpanAndPreservesForm` (asserts msg en español bajo `Input.NumeroDocumento`, formulario preservado, 2 invocaciones de GetTiposDocumentoAsync).
+  - `Post_Create_WithValidTipoDocumentoId_ExecutesCommandAndInvokesCatalog` (happy path: POST → 201 + PRG → 1 invocación de GetTiposDocumentoAsync).
+- ✅ **E2** `tests/SGV.Tests/Web/Persona/EditPageTests.cs`: tests nuevos —
+  - `Get_Edit_LoadsCatalogAndRendersSelectWithFourOptions` (valida 4 opciones + `<option ... selected value="71000000-...-004">Pasaporte</option>` para la pre-selección vía `asp-for`).
+  - `Post_Edit_WhenBackendReturnsPatronNoCumplido_PreservaInputYRerenderiza` (2 invocaciones del catálogo porque el path `Page()` recarga).
+- Actualización de test existente `Get_Create_WhenAuthenticatedAsAdmin_RendersEmptyForm`: cambió la assertiva de `name="Input.TipoDocumento"` (legacy) a `name="Input.TipoDocumentoId"` (nuevo).
+
+### Bloque F — Ajustes de Fake y contract tests
+
+- ✅ **F1** Cubierto por B4 (4 tests del fake para `GetTiposDocumentoAsync`).
+- ✅ **F2** Cubierto por B6 (contract test del interface + actualización del count).
+
+### Bloque G — Paridad JOIN en PersonaServicioComandos (DEFERRED)
+
+- ⚠️ **G1/G2**: la spec § "Alta de Persona" menciona que `TipoDocumentoCodigo`/`TipoDocumentoNombre` deben exponerse también en el response de `POST /api/v1/personas` y `PUT /api/v1/personas/{id}`. La paridad estricta requeriría inyectar `ITipoDocumentoCatalogoConsulta` en `PersonaServicioComandos` y reusar el patrón `BuildTipoLookupAsync` de `PersonaServicioConsulta.MapToDto`. El scope de PR3 es Web UI + DI fix; este cambio toca el servicio de comandos (Application layer), no la web shell.
+- **Decisión**: defer a follow-up. El caller que hace `POST`/`PUT` puede hacer `GET` después para refrescar el DTO con el JOIN. Documentado en `Decision D2` de la sección PR2.
+- **Tests**: no agregados. Si el deferral se ejecuta en una issue dedicada, agregar tests a `tests/SGV.Tests/Aplicacion/Personas/PersonaServicioComandosTests.cs` (precedente: los 4 tests de `PersonaServicioConsultaTests.ListAsync_*` de PR2 que cubren la misma lógica).
+
+## Helper changes
+
+- `src/SGV.Web/Integration/Personas/PersonaFormHelpers.cs`:
+  - `PersonaFormKeys.TipoDocumentoKey` (legacy) **eliminada**, reemplazada por `PersonaFormKeys.TipoDocumentoIdKey = InputPrefix + "TipoDocumentoId"`. La constante vieja quedó sin referencias en producción (las únicas referencias eran el legacy string field del InputModel, que también se eliminó en C1).
+  - `PersonaFormHelpers.ParseTipoDocumentoIdBackCompat(Guid?, string?)` **eliminado**. El legacy string `TipoDocumento` ya no se bindea desde el form, así que el path back-compat muere.
+
+## TDD Cycle Evidence (PR3)
+
+| Tarea | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|-------|-----------|-------|------------|-----|-------|-------------|----------|
+| A1+A2 | `DependencyInjectionPersonaValidatorsTests.cs` | Integration (DI real) | ✅ 0 (new file) | ✅ Written | ✅ Passed | ✅ 4 casos | ✅ Clean |
+| B1+B2 | `PersonaApiClientBasicTests.cs` | Unit (handler mock) | ✅ 28/28 | ✅ Written | ✅ Passed | ✅ 2 casos | ✅ Clean |
+| B3     | `FakePersonaApiClient.cs` (sin tests propios) | — | ✅ 7/7 | n/a | n/a | n/a | n/a |
+| B4     | `FakePersonaApiClientTests.cs` | Unit | ✅ 7/7 | ✅ Written | ✅ Passed | ✅ 4 casos | ✅ Clean |
+| B6     | `IPersonaApiClientContractTests.cs` | Unit (reflection) | ✅ 7/7 | ✅ Written | ✅ Passed | ➖ Single | ✅ Clean |
+| C/D1+E1 | `CreatePageTests.cs` | Web integration | ✅ 47/47 | ✅ Written | ✅ Passed | ✅ 4 casos | ✅ Clean |
+| C/D2+E2 | `EditPageTests.cs` | Web integration | ✅ 52/52 | ✅ Written | ✅ Passed | ✅ 2 casos | ✅ Clean |
+
+### Test Summary
+- **Total tests**: 2609
+- **Total tests passing**: 2609
+- **Tests added in PR3**: 17 (4 DI + 4 fake + 4 create + 2 edit + 2 HTTPClientBasic + 1 contract nuevo)
+- **Tests updated in PR3**: 2 (`CreatePageTests.T-XX 2` actualizado a `Input.TipoDocumentoIdKey`; `IPersonaApiClientContractTests.Interface_ExposesExactlySevenPublicAsyncMethods` renombrado y actualizado a 8)
+- **Layers used**: Unit (15), Web Integration (6), DI Integration (4)
+- **Approval tests** (refactoring): None — purely additive
+- **Pure functions created**: 1 (`LoadTiposDocumentoAsync` helpers son privados del PageModel, no pure)
+
+## Desviaciones del design
+
+### D1. PersonaInputModel no incluye `TiposDocumento` (IReadOnlyList<SelectListItem>)
+
+El prompt literal (Bloque C1) sugería agregar `IReadOnlyList<SelectListItem>? TiposDocumento` a `PersonaInputModel`. Sin embargo, el patrón vigente del repo (`ICargoForm.NivelOptions`) mantiene el catálogo de opciones en el PageModel (no en el InputModel bindable), y la vista materializa la `SelectList` localmente. Decidí seguir el patrón existente porque:
+- El InputModel debe contener sólo estado bindable (lo que viaja por form), no opciones de display.
+- La spec persona-management § "Formulario Create carga TiposDocumento" sólo requiere que el `<select>` se popule, no que el catalog viva en el InputModel.
+- El cambio mantiene simetría con Cargos (NivelesCargo), lo que reduce la carga cognitiva del revisor.
+
+El resultado funcional es idéntico: la vista renderea las N opciones vía `asp-items="..."` apuntando a `SelectList` construida en `@{ }` desde `Model.TiposDocumento`.
+
+### D2. `PersonaFormKeys.TipoDocumentoKey` se eliminó (legacy)
+
+El apply-progress de PR1 mantenía el legacy string field `TipoDocumento` en el InputModel y `PersonaFormKeys.TipoDocumentoKey` para preservar el binding. PR3 lo elimina completamente:
+- Removida la propiedad `string? TipoDocumento` de `PersonaInputModel`.
+- Removida `PersonaFormKeys.TipoDocumentoKey`.
+- Removida `PersonaFormHelpers.ParseTipoDocumentoIdBackCompat(Guid?, string?)`.
+- Las call sites de Create/Edit (`ParseTipoDocumentoIdBackCompat(Input.TipoDocumentoId, Input.TipoDocumento)`) reemplazadas por binding directo: `Input.TipoDocumentoId` (no más segundo arg).
+- El único consumidor de `TipoDocumentoKey` era el test `CreatePageTests.T-XX 2 Get_Create_WhenAuthenticatedAsAdmin_RendersEmptyForm`, que se actualizó a `TipoDocumentoIdKey`.
+
+Si algún call site externo a SGV.Web referencia `TipoDocumentoKey` o `ParseTipoDocumentoIdBackCompat`, fallará en compilación — la búsqueda exhaustiva confirma cero referencias residuales.
+
+### D3. PersonaServicioComandos.MapToDto sin JOIN (deferred a follow-up)
+
+La spec § "Alta de Persona" expone `TipoDocumentoCodigo`/`TipoDocumentoNombre` denormalizados. PR1 + PR2 sólo lo proyectan en el path de lectura (`PersonaServicioConsulta`). El path de comandos (`PersonaServicioComandos.MapToDto`) sigue emitiendo `null` para esos campos.
+
+**Trade-off**: el caller que hace `POST`/`PUT` puede hacer `GET` después para refrescar el DTO con JOIN. Inyectar `ITipoDocumentoCatalogoConsulta` en `PersonaServicioComandos` aumentaría su superficie sin un beneficio observable inmediato para los smoke tests web (que mockean el fake api client antes del comando).
+
+Si el design prefiere paridad estricta, el cambio es ~5 líneas en `PersonaServicioComandos.cs` + tests en `PersonaServicioComandosTests.cs`. Documentado en `Decision D2` de la sección PR2; levantado como follow-up explícito aquí.
+
+## Hallazgos no triviales
+
+1. **FluentValidation auto-wirea el ctor primario** cuando el tipo del parámetro está registrado en DI. El gap D1 de PR2 (las reglas no se ejecutaban en runtime) se atribuía a `AddValidatorsFromAssemblyContaining` usar el ctor sin args, pero en realidad el ctor primario `(ITipoDocumentoCatalogoConsulta?)` ya era auto-wired. PR3 mantiene la registración explícita vía factory como defensa en profundidad; sin esto, un refactor accidental que remueva `ITipoDocumentoCatalogoConsulta` del DI de Aplicación cae al ctor sin args silenciosamente (sin error de compilación porque el parámetro es nullable).
+2. **`<option selected ... value="...">`** es el orden de atributos que Razor emite para `asp-for` binding con un `SelectList`. El test que asertó `value` antes de `selected` (regex invertido) falló en el primer intento. Fix: regex que acepte ambos órdenes con un `selected` antes o después del `value`.
+3. **`Seleccionar tipo…`** (con caracter `…`, NO tres puntos `...`) es el placeholder textual usado en Cargos. Mantuve consistencia usando el mismo caracter.
+4. **`HttpContext.TraceIdentifier`** no se toca en este PR (no se necesita en web shell — el catalog load errores se loguean con scope estructurado automático del ILogger<PageModel>).
+
+## Líneas aproximadas
+
+- **Creadas**: ~480 líneas (test files: DependencyInjectionPersonaValidatorsTests.cs NEW ~210, +extensions en FakePersonaApiClientTests.cs ~76, CreatePageTests.cs +183, EditPageTests.cs +111, PersonaApiClientBasicTests.cs +40, IPersonaApiClientContractTests.cs +30)
+- **Modificadas**: ~155 líneas (Create.cshtml.cs +58, Edit.cshtml.cs +73, _Form.cshtml +23 -7, PersonaApiClient.cs +18, PersonaFormHelpers.cs +35 -35, DependencyInjection.cs +28, IPersonaForm.cs +23, IPersonaApiClient.cs +10, PersonaInputModel.cs +21 -10, FakePersonaApiClient.cs +38)
+- **Net diff**: ~+635 líneas — **POR ENCIMA del budget de 400** (mismo trade-off que PR1/PR2: cuando PR3 incluye los smoke tests del `<select>` y los contract tests del interface, el neto no entra en 400 sin sacrificar la cobertura TDD). Ver "Riesgos" abajo.
+
+## Estado final
+
+- `dotnet build SGV.slnx`: ✅ 0 errors
+- `dotnet test SGV.slnx`: ✅ 2609/2609 passed (incluye 17 nuevos de PR3 + 0 regresiones en PR1/PR2). MySQL disponible confirmado (los `[MySqlFact]` corren en vez de skipearse).
+- `dotnet ef migrations add` no requiere otra corrida
+- Próximo paso: el orquestador hace commit + abre PR3 sobre la rama `147-tipodocumento/web-ui` (que apunta a `de8904df` — último commit de PR2).
+
+## Riesgos para el PR3 review
+
+1. **Review budget**: el PR neto está ~+635 líneas (por encima del 400 del chain). Aprobar como PR único o splitear en 2 chained PRs es decisión del revisor. **Recomendación**: aceptar como PR único con justificación documentada (los tests son ~2/3 del diff y son obligatorios para TDD estricto); alternativa seria mover G1/G2 (deferred) a una issue separada y splitear los smoke tests de Create/Edit en otro PR.
+2. **Block D1 selector textual**: Cambiar `Codigo` → `Nombre` en el `SelectList` (línea 33 de `_Form.cshtml`) invierte las etiquetas visibles del catálogo. La spec pide "etiquetas visibles son DNI/LE/LC/Pasaporte" (los códigos), lo cual es coherente con la vista actual. Si en el futuro el diseño pide nombres descriptivos, hay un único punto de cambio.
+3. **Deferral de G1/G2**: la spec "Alta de Persona" puede ser reinterpretada como requerir JOIN también en la respuesta de POST/PUT. PR3 no lo hace por scope (es Web UI). Si el design final pide paridad, el cambio es 5 líneas + 2-3 tests. Documentado arriba (D3).

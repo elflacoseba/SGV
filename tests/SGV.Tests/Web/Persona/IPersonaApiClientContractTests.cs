@@ -125,17 +125,35 @@ public class IPersonaApiClientContractTests
     }
 
     [Fact]
+    public void Interface_ExposesGetTiposDocumentoAsyncWithExpectedSignature()
+    {
+        // AC issue #147 PR3: el shell web expone el catálogo de tipos de
+        // documento al PageModel para popular el <select> en Create/Edit.
+        // Espejo de los demás tests de firma.
+        var method = typeof(IPersonaApiClient).GetMethod(nameof(IPersonaApiClient.GetTiposDocumentoAsync));
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(Task<IReadOnlyList<TipoDocumentoDto>>), method!.ReturnType);
+
+        var parameters = method.GetParameters();
+        Assert.Single(parameters);
+        Assert.Equal("cancellationToken", parameters[0].Name);
+        Assert.Equal(typeof(CancellationToken), parameters[0].ParameterType);
+        Assert.True(parameters[0].HasDefaultValue);
+    }
+
+    [Fact]
     public void Interface_ExposesExactlySevenPublicAsyncMethods()
     {
         // Defensa contra refactors "creativos" que sumen un nuevo método
         // (e.g. <c>BulkCreateAsync</c>) sin actualizar la suite de
-        // contract tests. La cantidad esperada es 7: GetAllAsync,
-        // GetByIdAsync, DesactivarAsync (más su alias DeleteAsync
-        // default-implemented), CreateAsync, UpdateAsync, QueryAsync y
-        // ReactivarAsync.
+        // contract tests. La cantidad esperada es 8 (issue #147 PR3):
+        // GetAllAsync, GetByIdAsync, GetTiposDocumentoAsync,
+        // DesactivarAsync (más su alias DeleteAsync default-implemented),
+        // CreateAsync, UpdateAsync, QueryAsync y ReactivarAsync.
         //
         // El alias <c>DeleteAsync</c> es un default interface method, así
-        // que aparece también en la lista: contamos 7 métodos "primary"
+        // que aparece también en la lista: contamos 8 métodos "primary"
         // (los que NO son alias) más el alias.
         var publicMethods = typeof(IPersonaApiClient)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
@@ -145,7 +163,7 @@ public class IPersonaApiClientContractTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "CreateAsync", "DeleteAsync", "DesactivarAsync", "GetAllAsync", "GetByIdAsync", "QueryAsync", "ReactivarAsync", "UpdateAsync" },
+            new[] { "CreateAsync", "DeleteAsync", "DesactivarAsync", "GetAllAsync", "GetByIdAsync", "GetTiposDocumentoAsync", "QueryAsync", "ReactivarAsync", "UpdateAsync" },
             publicMethods);
     }
 }

@@ -22,6 +22,7 @@ namespace SGV.Web.Integration.Personas;
 public sealed class PersonaApiClient(HttpClient httpClient) : IPersonaApiClient
 {
     private const string BaseRoute = "/api/v1/personas";
+    private const string TiposDocumentoRoute = "/api/v1/tipos-documento";
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<PersonaDto>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -138,6 +139,23 @@ public sealed class PersonaApiClient(HttpClient httpClient) : IPersonaApiClient
         }
 
         return await ToCommandResultAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TipoDocumentoDto>> GetTiposDocumentoAsync(CancellationToken cancellationToken = default)
+    {
+        // Issue #147 PR3: consumido por Create/Edit para popular el <select>.
+        // Espejo de CargoApiClient.GetNivelesAsync (devuelve lista vacía si el
+        // body viene vacío para preservar el contrato del fake/page model).
+        var response = await httpClient
+            .GetAsync(TiposDocumentoRoute, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content
+            .ReadFromJsonAsync<IReadOnlyList<TipoDocumentoDto>>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false)
+            ?? [];
     }
 
     /// <summary>
