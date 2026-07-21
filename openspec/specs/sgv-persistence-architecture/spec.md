@@ -54,19 +54,21 @@ The system MAY introduce a new table + FK + index + contract shape change when *
 
 1. **The new table is a read-only, immutable catalog.** It MUST NOT expose HTTP write endpoints (`POST`, `PUT`, `PATCH`, `DELETE`). It MUST NOT carry `IsActive` or `IsDeleted` columns. Its rows MUST be seeded exclusively by an EF Core migration.
 2. **The new FK uses `OnDelete(Restrict)`.** Deleting a catalog row referenced by any business entity MUST fail at the database with a foreign key constraint violation. The catalog row is then preserved.
-3. **The migration is deterministic and fail-loud.** If a pre-existing free-form string column contains any value that does not correspond to a row in the new catalog's seed, the migration MUST abort the SQL batch with a structured error (`SIGNAL SQLSTATE '45000'` or equivalent) that lists the offending values. The migration MUST NOT perform the `DROP COLUMN` of the free-form string until the backfill is complete and the FK is `NOT NULL`.
+3. **The migration is deterministic and safe.** Before the backfill the migration MUST run a pre-flight that lists every distinct value in the legacy free-form string column that does not match a `Codigo` of the new catalog's seed. The migration MUST NOT perform the `DROP COLUMN` of the free-form string until the backfill is complete and the FK is in place. By default the pre-flight MUST abort the SQL batch with a structured error (`SIGNAL SQLSTATE '45000'` or equivalent) listing the offending values. A change MAY explicitly opt in to a relaxed variant of this condition when the FK is **nullable** (`char(36) NULL`) and the application can survive `NumeroDocumento` orphan values: under that variant unknown legacy values are persisted with the FK column set to `NULL` and the original string column value (or equivalent identifier) preserved for post-deploy remediation, the migration MUST still complete the `DROP COLUMN`, and the audit interceptor MUST record the transition (`legacy string → NULL` or, when the legacy value is preserved in another column, `legacy string → NULL`) in `Auditorias`. Any change opting into the relaxed variant MUST name it explicitly in this spec and document the mitigation strategy.
 4. **The catalog seed uses static, shared `Guid` constants.** A single `internal static class` (located in `SGV.Infraestructura.Persistencia.Catalogos.*Constantes`) is the source of truth. Both the migration's `InsertData` and `DatosSemilla.HasData` MUST reference the same constants. A unit test asserts equality.
 
-The change `cambiar-campo-tipounidad-a-tabla-tipounidadorganizativa` is the first invocation of this exception. The change `implementar-modulo-cargos` is the second invocation. It introduces:
+The change `cambiar-campo-tipounidad-a-tabla-tipounidadorganizativa` is the first invocation of this exception. The change `implementar-modulo-cargos` is the second invocation. The change `2026-07-20-147-tipos-documento-catalogo` is the third invocation. It introduces:
 
-- The table `NivelesCargo` (Id char(36) PK, Codigo varchar(50) UNIQUE NOT NULL, Nombre varchar(100) NOT NULL, ValorNumerico tinyint NOT NULL, Orden int NOT NULL) with check constraint on `ValorNumerico`.
-- The column `Cargos.NivelId char(36) NOT NULL` with FK to `NivelesCargo.Id` and `OnDelete(Restrict)`.
-- The index `IX_Cargos_NivelId`.
-- The contract shape change: `Cargo.Nivel: string` is replaced by `Cargo.NivelId: Guid` (Domain) and `CargoEntity.NivelId: Guid` (Entity). The `CargoDto` exposes `NivelId: Guid` and `NivelNombre: string` (denormalized, joined in the same query).
-- The `DROP COLUMN` of the legacy free-form `Cargos.Nivel` string column after backfill.
+- The table `TiposDocumento` (Id char(36) PK, Codigo varchar(50) UNIQUE NOT NULL, Nombre varchar(100) NOT NULL, PatronValidacion varchar(255) NULL, LongitudMinima int NULL, LongitudMaxima int NULL).
+- The column `Personas.TipoDocumentoId char(36) NULL` (nullable on purpose) with FK to `TiposDocumento.Id` and `OnDelete(Restrict)`.
+- The index `IX_Personas_TipoDocumentoId`.
+- The reconstructed generated column `Personas.ActiveDocumentoUnique` with formula `CONCAT(TipoDocumentoId, ':', NumeroDocumento)` for active rows (`IsDeleted = 0`), preserving the active uniqueness contract.
+- The contract shape change: `Persona.TipoDocumento: string?` is replaced by `Persona.TipoDocumentoId: Guid?` (Domain) and `PersonaEntity.TipoDocumentoId: Guid?` (Entity). The `PersonaDto` exposes `TipoDocumentoId: Guid?` and `TipoDocumento: TipoDocumentoDto?` (denormalized, joined in the same query).
+- The `DROP COLUMN` of the legacy free-form `Personas.TipoDocumento` string column after the backfill completes.
+- **Relaxation of condition #3 (opt-in variant):** because the FK is nullable, unknown legacy values map to `TipoDocumentoId = NULL` with `NumeroDocumento` preserved. The audit interceptor records the transition in `Auditorias` so the orphan value can be remediated post-deploy.
 
-Any subsequent change that wants to invoke this exception MUST add a new delta to this spec, naming the change explicitly and confirming that all four conditions above are satisfied.
-(Previously: the exception listed only the first invocation for TiposUnidadOrganizativa.)
+Any subsequent change that wants to invoke this exception MUST add a new delta to this spec, naming the change explicitly and confirming which variant of condition #3 applies (default fail-loud or opt-in relaxed).
+(Previously: the exception listed only the first two invocations and condition #3 mandated fail-loud with no relaxation path.)
 
 #### Scenario: First invocation of the exception is approved
 
@@ -86,24 +88,48 @@ Any subsequent change that wants to invoke this exception MUST add a new delta t
 - **THEN** all four conditions of REQ-SPA-EVOLUTION-001 are satisfied
 - **AND** the change is an authorized exception to the `Observable Persistence Invariants` requirement.
 
+#### Scenario: Third invocation of the exception is approved with opt-in relaxed variant
+
+- **GIVEN** the change `2026-07-20-147-tipos-documento-catalogo` (issue #147) is being applied
+- **WHEN** the migration adds the `TiposDocumento` table, the `Personas.TipoDocumentoId` FK with `OnDelete(Restrict)`, the `IX_Personas_TipoDocumentoId` index, and the contract shape change from `Persona.TipoDocumento: string?` to `Persona.TipoDocumentoId: Guid?`
+- **AND** the FK is declared nullable (`char(36) NULL`) on purpose
+- **AND** the seed is loaded with 4 static Guids from `TipoDocumentoConstantes` (block `71000000-…`)
+- **AND** the `ActiveDocumentoUnique` generated column is recreated with the new formula
+- **AND** the free-form `Personas.TipoDocumento` string column is dropped after the backfill completes
+- **THEN** conditions #1, #2 and #4 of REQ-SPA-EVOLUTION-001 are satisfied
+- **AND** the change opts into the relaxed variant of condition #3 (nullable FK, orphan-tolerant)
+- **AND** the change is an authorized exception to the `Observable Persistence Invariants` requirement.
+
 #### Scenario: Future change invokes the exception correctly
 
 - **GIVEN** a future change `<nombre>` wants to promote a free-form string column to a catalog FK
 - **WHEN** the change is proposed
 - **THEN** it MUST add a delta to this spec that:
   - Names the change explicitly.
-  - Confirms all four conditions of REQ-SPA-EVOLUTION-001.
+  - Confirms conditions #1, #2 and #4 of REQ-SPA-EVOLUTION-001.
+  - Declares whether condition #3 follows the default fail-loud variant or the opt-in relaxed variant.
+  - If the relaxed variant is chosen, the FK MUST be declared nullable and the mitigation strategy MUST be documented.
   - Lists the new table, FK, and contract shape change introduced.
 - **AND** until that delta is added, the change violates the `Observable Persistence Invariants` requirement and is rejected.
 
-#### Scenario: Migration fail-loud for dirty data
+#### Scenario: Migration fail-loud for dirty data (default variant)
 
-- **GIVEN** a catalog-evolution migration is running
+- **GIVEN** a catalog-evolution migration running under the default variant of condition #3
 - **WHEN** any pre-existing free-form string value is not present in the new catalog's seed
 - **THEN** the migration MUST abort the SQL batch with `SIGNAL SQLSTATE '45000'`
 - **AND** the error message MUST list the offending values (up to 5 examples, comma-separated)
 - **AND** the migration MUST NOT proceed to the `DROP COLUMN` step
 - **AND** the legacy free-form column MUST remain in the database.
+
+#### Scenario: Opt-in relaxed variant maps unknown legacy values to NULL with preserved identifier
+
+- **GIVEN** a catalog-evolution migration running under the opt-in relaxed variant of condition #3 (e.g. `2026-07-20-147-tipos-documento-catalogo`)
+- **AND** the FK column is declared nullable
+- **WHEN** any pre-existing free-form string value is not present in the new catalog's seed
+- **THEN** the migration MUST persist the row with the FK column set to `NULL`
+- **AND** the original identifier (`NumeroDocumento`) MUST remain intact
+- **AND** the migration MUST NOT abort the SQL batch
+- **AND** the audit interceptor MUST record the transition (`legacy string → NULL`) in `Auditorias` so the orphan can be remediated post-deploy.
 
 #### Scenario: Seed Guid drift is impossible
 
