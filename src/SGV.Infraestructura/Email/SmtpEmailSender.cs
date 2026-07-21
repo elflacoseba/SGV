@@ -100,11 +100,9 @@ public sealed class SmtpEmailSender : IEmailSender<SgvIdentityUser>
             "<p>Si no realizaste esta solicitud, podés ignorar este mensaje.</p>" +
             "<p>El enlace caduca en una hora.</p>";
 
-        var tokenPrefix = token[..Math.Min(8, token.Length)];
         _logger.LogInformation(
-            "SMTP password reset email composed for userId={UserId}; tokenPrefix={TokenPrefix}",
-            userId,
-            tokenPrefix);
+            "SMTP password reset email composed for userId={UserId}.",
+            userId);
 
         return SendAsync(
             email: email,
@@ -131,11 +129,11 @@ public sealed class SmtpEmailSender : IEmailSender<SgvIdentityUser>
     private void LogToLogger(string email, string subject, string htmlMessage, SmtpOptions options)
     {
         _logger.LogInformation(
-            "SMTP (Logger mode) -> from={From} to={To} subject={Subject} body={Body}",
+            "SMTP (Logger mode) -> from={From} to={To} subject={Subject} bodyLength={BodyLength}",
             $"{options.FromName} <{options.FromAddress}>",
             email,
             subject,
-            htmlMessage);
+            htmlMessage.Length);
     }
 
     private async Task SendViaMailKitAsync(
