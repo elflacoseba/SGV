@@ -34,4 +34,16 @@ public interface IAuthApiClient
     Task<PasswordResetOutcome> ResetPasswordAsync(
         ResetPasswordRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates a password reset token without consuming it. Used on GET
+    /// to decide whether to show the reset form or an error.
+    /// </summary>
+    /// <param name="request">Token validation payload.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see cref="PasswordResetOutcome.Success"/> when the token is valid;
+    /// <see cref="PasswordResetOutcome.InvalidToken"/> otherwise.</returns>
+    Task<PasswordResetOutcome> ValidateResetTokenAsync(
+        ValidateResetTokenRequest request,
+        CancellationToken cancellationToken = default);
 }

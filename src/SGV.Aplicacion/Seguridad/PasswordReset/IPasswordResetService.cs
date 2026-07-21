@@ -36,6 +36,18 @@ public interface IPasswordResetService
     Task<PasswordResetOutcome> ResetPasswordAsync(
         ResetPasswordRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates a password reset token without consuming it or
+    /// changing the password. Used by the Web shell on GET to decide
+    /// whether to show the password form or an error page. Returns
+    /// <see cref="PasswordResetOutcome.InvalidToken"/> when the token
+    /// is invalid, expired, or the user no longer exists.
+    /// </summary>
+    Task<PasswordResetOutcome> ValidateResetTokenAsync(
+        string userId,
+        string token,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

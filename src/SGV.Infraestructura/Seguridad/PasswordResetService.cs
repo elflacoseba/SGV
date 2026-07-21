@@ -130,6 +130,37 @@ public sealed class PasswordResetService(
         return PasswordResetOutcome.Success;
     }
 
+    public async Task<PasswordResetOutcome> ValidateResetTokenAsync(
+        string userId,
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var user = await userManager
+            .FindByIdAsync(userId)
+            .ConfigureAwait(false);
+
+        if (user is null)
+        {
+            return PasswordResetOutcome.InvalidToken;
+        }
+
+        var isValid = await userManager
+            .VerifyUserTokenAsync(user, TokenOptions.DefaultProvider, "ResetPassword", token)
+            .ConfigureAwait(false);
+        // ^ Same provider and purpose as ResetPasswordAsync — no side effects.
+
+        logger.LogInformation(
+            "Password reset token validation for userId={UserId}: {Result}.",
+            user.Id,
+            isValid ? "valid" : "invalid");
+
+        return isValid
+            ? PasswordResetOutcome.Success
+            : PasswordResetOutcome.InvalidToken;
+    }
+
     private string BuildRecoveryLink(string userId, string token)
         => SmtpEmailSender.BuildPasswordResetLink(_smtpOptions.Value.WebBaseUrl, userId, token);
 

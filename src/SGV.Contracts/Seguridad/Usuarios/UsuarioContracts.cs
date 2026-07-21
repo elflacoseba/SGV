@@ -97,6 +97,14 @@ public sealed record ForgotPasswordRequest(string UserNameOrEmail);
 public sealed record ResetPasswordRequest(string UserId, string Token, string NewPassword);
 
 /// <summary>
+/// Lightweight token validation request for the password recovery flow.
+/// Used by the Web shell to verify a reset link is still valid before
+/// showing the password form to the user. The token MUST be
+/// URL-decoded before sending.
+/// </summary>
+public sealed record ValidateResetTokenRequest(string UserId, string Token);
+
+/// <summary>
 /// Projection of a SGV user exposed by the API. Carries the linked
 /// persona id, the identity username/email, the assigned role names
 /// and the lockout flag (<c>Bloqueado</c>) derived from

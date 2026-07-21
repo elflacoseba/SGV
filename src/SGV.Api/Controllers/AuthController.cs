@@ -16,7 +16,8 @@ public sealed class AuthController(
     IAuthServicio authServicio,
     IPasswordResetService passwordResetService,
     IValidator<ForgotPasswordRequest> forgotValidator,
-    IValidator<ResetPasswordRequest> resetValidator) : ControllerBase
+    IValidator<ResetPasswordRequest> resetValidator,
+    IValidator<ValidateResetTokenRequest> validateTokenValidator) : ControllerBase
 {
     [HttpPost(AuthApiRoutes.LoginRelative)]
     [AllowAnonymous]
@@ -92,5 +93,40 @@ public sealed class AuthController(
         }
 
         return Ok(new { mensaje = "Tu contraseña fue actualizada." });
+    }
+
+    [HttpPost(AuthApiRoutes.ValidateResetTokenRelative)]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ValidateResetToken(
+        ValidateResetTokenRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(new { mensaje = "El cuerpo de la solicitud es obligatorio." });
+        }
+
+        var validation = await validateTokenValidator
+            .ValidateAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!validation.IsValid)
+        {
+            foreach (var error in validation.Errors)
+            {
+                ModelState.AddModelError(error.PropertyName, error.ErrorMessage);
+            }
+            return ValidationProblem(ModelState);
+        }
+
+        var outcome = await passwordResetService
+            .ValidateResetTokenAsync(request.UserId, request.Token, cancellationToken)
+            .ConfigureAwait(false);
+
+        return outcome == PasswordResetOutcome.InvalidToken
+            ? BadRequest(new { mensaje = "El enlace de restablecimiento no es válido o ya expiró." })
+            : Ok(new { mensaje = "El token es válido." });
     }
 }

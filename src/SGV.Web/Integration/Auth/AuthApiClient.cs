@@ -68,6 +68,12 @@ public sealed class AuthApiClient : IAuthApiClient
         CancellationToken cancellationToken = default)
         => PostAnonymousAsync(AuthApiRoutes.ResetPassword, request, cancellationToken);
 
+    /// <inheritdoc />
+    public Task<PasswordResetOutcome> ValidateResetTokenAsync(
+        ValidateResetTokenRequest request,
+        CancellationToken cancellationToken = default)
+        => PostAnonymousAsync(AuthApiRoutes.ValidateResetToken, request, cancellationToken);
+
     private async Task<PasswordResetOutcome> PostAnonymousAsync<TRequest>(
         string route,
         TRequest request,

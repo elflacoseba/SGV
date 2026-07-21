@@ -23,4 +23,10 @@ internal sealed class FakePasswordResetService : IPasswordResetService
             string.Equals(request.Token, "valid", StringComparison.Ordinal)
                 ? PasswordResetOutcome.Success
                 : PasswordResetOutcome.InvalidToken);
+
+    public Task<PasswordResetOutcome> ValidateResetTokenAsync(
+        string userId,
+        string token,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(PasswordResetOutcome.Success);
 }

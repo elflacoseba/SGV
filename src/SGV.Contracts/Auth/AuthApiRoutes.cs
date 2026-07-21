@@ -45,6 +45,16 @@ public static class AuthApiRoutes
     public const string ResetPassword = "/" + Base + "/" + ResetPasswordRelative;
 
     /// <summary>
+    /// Relative route for lightweight token validation (no password change).
+    /// </summary>
+    public const string ValidateResetTokenRelative = "validate-reset-token";
+
+    /// <summary>
+    /// Absolute route for the token-validation endpoint.
+    /// </summary>
+    public const string ValidateResetToken = "/" + Base + "/" + ValidateResetTokenRelative;
+
+    /// <summary>
     /// Rate-limit policy name for the forgot-password endpoint.
     /// See <c>AuthController.ForgotPassword</c> in <c>SGV.Api</c>.
     /// </summary>

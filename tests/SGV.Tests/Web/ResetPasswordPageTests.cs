@@ -192,7 +192,12 @@ public sealed class ResetPasswordPageTests
     {
         public HttpRequestException? ResetException { get; init; }
 
+        /// <summary>When set, overrides the default valid-token response.</summary>
+        public PasswordResetOutcome? ValidateTokenOutcome { get; init; }
+
         public ResetPasswordRequest? LastResetRequest { get; private set; }
+
+        public ValidateResetTokenRequest? LastValidateRequest { get; private set; }
 
         public Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
             => Task.FromResult<LoginResponse?>(null);
@@ -213,6 +218,14 @@ public sealed class ResetPasswordPageTests
             }
 
             return Task.FromResult(PasswordResetOutcome.Success);
+        }
+
+        public Task<PasswordResetOutcome> ValidateResetTokenAsync(
+            ValidateResetTokenRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastValidateRequest = request;
+            return Task.FromResult(ValidateTokenOutcome ?? PasswordResetOutcome.Success);
         }
     }
 }

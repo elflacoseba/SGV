@@ -30,10 +30,27 @@ public sealed class ResetPasswordModel(
     [BindProperty(SupportsGet = true)]
     public string? Token { get; set; }
 
-    public void OnGet()
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         UserId = Decode(UserId);
         Token = Decode(Token);
+
+        if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Token))
+        {
+            ModelState.AddModelError(string.Empty, IncompleteLinkMessage);
+            return Page();
+        }
+
+        var outcome = await authApiClient.ValidateResetTokenAsync(
+            new ValidateResetTokenRequest(UserId, Token),
+            cancellationToken);
+
+        if (outcome == PasswordResetOutcome.InvalidToken)
+        {
+            ModelState.AddModelError(string.Empty, InvalidTokenMessage);
+        }
+
+        return Page();
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
