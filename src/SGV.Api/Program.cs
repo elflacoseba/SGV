@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
@@ -197,6 +199,49 @@ builder.Services.AddAplicacionServicios();
 // Infrastructure services (repositories, UoW, query services)
 builder.Services.AddInfraestructuraServicios();
 
+// Rate limiting (issue #181): two named fixed-window policies for the
+// password recovery endpoints. Both are applied BEFORE authentication
+// (see pipeline order below) so anonymous bursts are still subject to
+// quota. The OnRejected callback writes Retry-After so polite clients
+// can back off without polling.
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("ForgotPassword", policy =>
+    {
+        policy.PermitLimit = 3;
+        policy.Window = TimeSpan.FromMinutes(15);
+        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        policy.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("ResetPassword", policy =>
+    {
+        policy.PermitLimit = 5;
+        policy.Window = TimeSpan.FromMinutes(15);
+        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        policy.QueueLimit = 0;
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = static (context, _) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            // Fall back to the policy window length when ASP.NET does not
+            // surface explicit RetryAfter metadata (older middleware
+            // behaviour). The headers stay aligned with the policy.
+            context.HttpContext.Response.Headers.RetryAfter = "900";
+        }
+        return ValueTask.CompletedTask;
+    };
+});
+
 // CORS: allow web app origin in development; fail loud if unconfigured outside Development.
 // The AllowedOrigins read happens inside the AddDefaultPolicy callback so it observes the
 // post-Build configuration (including any ConfigureAppConfiguration overrides applied by
@@ -247,6 +292,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+// Issue #181: rate limiter MUST run before authentication so the
+// "ForgotPassword"/"ResetPassword" named policies can throttle
+// anonymous bursts before the auth pipeline short-circuits. See the
+// composition comments in AddRateLimiter for the per-policy limits.
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.Use(async (context, next) =>
