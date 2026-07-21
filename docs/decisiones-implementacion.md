@@ -106,6 +106,28 @@ Las migraciones EF Core **no se ejecutan al startup** de `SGV.Api`. Corren fuera
 
 Si `ConnectionStrings:SgvDatabase` falta, está whitespace, o no incluye `Server=` y `Database=`, `SGV.Api` aborta el `Build()` con `Microsoft.Extensions.Options.OptionsValidationException` citando la clave `ConnectionStrings:SgvDatabase` y la causa específica. El host **no** continúa con `ServerVersion.AutoDetect` ni con el registro del contexto. Esto coincide con el patrón fail-loud vigente para JWT (`Program.cs` de ambos proyectos) y para `SgvApi:BaseUrl` en `SGV.Web`. La validación es diferida (`IValidateOptions<DbContextOptions<SgvDbContext>>`) y se ejecuta en el primer resolve del contexto vía `ValidateOnStart`; además hay un throw temprano inline en `Program.cs` para cortar antes de cualquier override de `WebApplicationFactory.ConfigureAppConfiguration`.
 
+## Mapa de bloques GUID reservados por catálogo
+
+Para que los catálogos inmutables seedeados por migración tengan IDs estables y predecibles — y para evitar colisiones accidentales entre catálogos que crezcan a futuro — el proyecto reserva bloques contiguos de 16 bits del espacio de GUIDs. Cada bloque agrupa `2^16 = 65536` filas (suficiente para catálogos pequeños/medianos); el primer byte del `Guid` (little-endian byte 0) identifica el catálogo al que pertenece la fila. Todos los IDs son persistidos como `CHAR(36) COLLATE ascii_general_ci` en MySQL.
+
+| Bloque GUID     | Catálogo                        | Ejemplo de uso            | Constantes                       |
+|-----------------|---------------------------------|---------------------------|----------------------------------|
+| `70000000-…`    | `NivelCargo` (issue #141)       | `NivelCargoConstantes`    | `DirectivoId`, `OperativoId`     |
+| `71000000-…`    | `TipoDocumento` (issue #147)    | `TipoDocumentoConstantes` | `DniId`, `LeId`, `LcId`, `PasaporteId` |
+| (libre)         | Próximos catálogos              | reservado                 | —                                |
+
+**Por qué bloques y no IDs al azar.** Los seed values se persisten tanto en `DatosSemilla.HasData` (model snapshot path) como en `InsertData` dentro de la migración EF. Un test de paridad (`DatosSemilla_*_SeedIdsMatchConstantes`) asserta que ambos lugares usen la misma source-of-truth. Si los IDs se generaran con `Guid.NewGuid()`, ese test sería frágil: cualquier `add migration` accidental movería los IDs en el snapshot sin tocar la fila viva. Con bloques reservados por catálogo, los IDs quedan explícitos en el código de constantes y el bloque de 16 bits sirve como una "etiqueta" legible del catálogo dueño.
+
+**Por qué 16 bits y no otro tamaño.** Un bloque de 16 bits provee 65536 filas. `NivelCargo` usa 2 (Directivo, Operativo); `TipoDocumento` usa 4 (DNI, LE, LC, Pasaporte). El catálogo más grande previsto a futuro sigue quedando holgado. Si un catálogo crece más allá de 65536 filas (no previsto), se le asigna un nuevo bloque adyacente.
+
+**Regla operativa para próximos cambios.** Cualquier catálogo inmutable nuevo DEBE:
+
+1. Asignarse un bloque contiguo `XX000000-…` con `XX` aún no usado.
+2. Declarar sus IDs en `src/SGV.Infraestructura/Persistencia/Catalogos/<Nombre>Constantes.cs` siguiendo el patrón de `NivelCargoConstantes` y `TipoDocumentoConstantes`.
+3. Actualizar este mapa en `docs/decisiones-implementacion.md` y `AGENTS.md`.
+
+Los catálogos mutables (CRUD vía API) NO usan este mapa: generan IDs con `Guid.NewGuid()` como cualquier entidad de negocio.
+
 ## Gestión de secretos JWT
 
 `JwtOptions.SigningKey` cumple el mismo principio fail-loud que `SgvDbContextFactory`: no hay default embebido. Si la sección `Jwt:SigningKey` falta, está vacía, contiene solo whitespace o mide menos de 32 bytes UTF-8, el host **no arranca** y `Program.cs` propaga un `Microsoft.Extensions.Options.OptionsValidationException` con el mensaje `Jwt:SigningKey must be configured and ≥32 UTF-8 bytes`. Este contrato se valida en `WebApplicationFactory<TEntryPoint>.CreateClient()` vía `ValidateOnStart`, así que cualquier arranque — development, CI o producción — cae en el mismo fail-loud. Aplica tanto a `SGV.Api` como a `SGV.Web`: la API firma/valida bearer tokens y la Web valida firma, issuer, audience y lifetime antes de convertir el JWT en principal de cookie.
