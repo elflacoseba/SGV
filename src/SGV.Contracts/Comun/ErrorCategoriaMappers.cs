@@ -1,5 +1,6 @@
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Contracts.Comun;
@@ -221,6 +222,42 @@ public static class ErrorCategoriaMappers
         ErrorCategoria.Transport => CargoSkillErrorType.Transport,
         ErrorCategoria.Unexpected => throw new NotSupportedException(
             "CargoSkillErrorType no tiene variante Unexpected."),
+    };
+
+    // ============================================================
+    // PersonaSkillErrorType (slice 1 / REQ-TAXO-02)
+    // ============================================================
+
+    /// <summary>
+    /// Traduce <see cref="PersonaSkillErrorType"/> al <see cref="ErrorCategoria"/>
+    /// equivalente. La matriz canónica es 1-a-1 con la taxonomía común:
+    /// <c>NotFound → NotFound (404)</c>, <c>Validation → Validation (400)</c>.
+    /// Variantes que se agreguen en el futuro caen como
+    /// <see cref="ErrorCategoria.Unexpected"/>; este mapper rechaza
+    /// silenciosamente la reintroducción del enum paralelo si alguien
+    /// agrega una variante sin documentarla.
+    /// </summary>
+    public static ErrorCategoria ToCategoria(PersonaSkillErrorType type) => type switch
+    {
+        PersonaSkillErrorType.NotFound => ErrorCategoria.NotFound,
+        PersonaSkillErrorType.Validation => ErrorCategoria.Validation,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type,
+            $"PersonaSkillErrorType value '{type}' has no categoria mapping."),
+    };
+
+    /// <summary>
+    /// Traduce <see cref="ErrorCategoria"/> al <see cref="PersonaSkillErrorType"/>
+    /// equivalente. <c>Conflict</c>, <c>Unauthorized</c>, <c>Forbidden</c>,
+    /// <c>Transport</c> y <c>Unexpected</c> no tienen equivalente directo
+    /// (el subdominio no los emite) y lanzan <see cref="NotSupportedException"/>
+    /// para señalar regresiones.
+    /// </summary>
+    public static PersonaSkillErrorType ToTipoPersonaSkill(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => PersonaSkillErrorType.NotFound,
+        ErrorCategoria.Validation => PersonaSkillErrorType.Validation,
+        _ => throw new NotSupportedException(
+            $"PersonaSkillErrorType no tiene variante para ErrorCategoria.{categoria}."),
     };
 
     // ============================================================
