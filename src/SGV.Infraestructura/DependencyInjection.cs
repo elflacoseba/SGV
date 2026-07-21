@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
@@ -10,6 +11,7 @@ using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Infraestructura.Email;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Infraestructura.Seguridad;
@@ -81,6 +83,12 @@ public static class DependencyInjection
         services.AddScoped<IUsuarioIdentityGateway>(sp => sp.GetRequiredService<UsuarioIdentityGateway>());
         services.AddScoped<IUsuarioServicioConsulta>(sp => sp.GetRequiredService<UsuarioIdentityGateway>());
         services.AddScoped<IAuthServicio, AuthServicio>();
+
+        // Identity IEmailSender — backs the password reset flow. The
+        // sender is registered as Singleton so the underlying MailKit
+        // client lifetime is shared across requests. Logger mode in
+        // Development means no real SMTP connection is opened.
+        services.AddSingleton<IEmailSender<SgvIdentityUser>, SmtpEmailSender>();
 
         return services;
     }

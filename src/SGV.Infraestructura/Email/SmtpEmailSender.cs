@@ -55,15 +55,9 @@ public sealed class SmtpEmailSender : IEmailSender<SgvIdentityUser>
     public SmtpEmailSender(
         IOptions<SmtpOptions> options,
         ILogger<SmtpEmailSender> logger)
-        : this(OptionsMonitor(options), logger)
     {
-    }
-
-    public SmtpEmailSender(
-        IOptionsMonitor<SmtpOptions> options,
-        ILogger<SmtpEmailSender> logger)
-    {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
+        _options = new StaticOptionsMonitor<SmtpOptions>(options.Value);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -171,8 +165,4 @@ public sealed class SmtpEmailSender : IEmailSender<SgvIdentityUser>
             await client.DisconnectAsync(quit: true).ConfigureAwait(false);
         }
     }
-
-    private static IOptionsMonitor<SmtpOptions> OptionsMonitor(IOptions<SmtpOptions> options)
-        => new StaticOptionsMonitor<SmtpOptions>(options?.Value
-            ?? throw new ArgumentNullException(nameof(options)));
 }
