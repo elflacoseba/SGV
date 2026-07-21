@@ -131,12 +131,7 @@ public sealed class PasswordResetService(
     }
 
     private string BuildRecoveryLink(string userId, string token)
-    {
-        var baseUrl = _smtpOptions.Value.WebBaseUrl.TrimEnd('/');
-        var encodedUserId = Uri.EscapeDataString(userId);
-        var encodedToken = Uri.EscapeDataString(token);
-        return $"{baseUrl}/auth/reset-password?userId={encodedUserId}&token={encodedToken}";
-    }
+        => SmtpEmailSender.BuildPasswordResetLink(_smtpOptions.Value.WebBaseUrl, userId, token);
 
     private static string BuildRecoveryBody(string link) =>
         "<p>Recibimos un pedido para restablecer tu contraseña.</p>" +

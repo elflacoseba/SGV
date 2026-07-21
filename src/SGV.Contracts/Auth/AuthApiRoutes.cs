@@ -43,4 +43,16 @@ public static class AuthApiRoutes
     /// Absolute route for the password reset execution.
     /// </summary>
     public const string ResetPassword = "/" + Base + "/" + ResetPasswordRelative;
+
+    /// <summary>
+    /// Rate-limit policy name for the forgot-password endpoint.
+    /// See <c>AuthController.ForgotPassword</c> in <c>SGV.Api</c>.
+    /// </summary>
+    public const string ForgotPasswordPolicyName = "ForgotPassword";
+
+    /// <summary>
+    /// Rate-limit policy name for the reset-password endpoint.
+    /// See <c>AuthController.ResetPassword</c> in <c>SGV.Api</c>.
+    /// </summary>
+    public const string ResetPasswordPolicyName = "ResetPassword";
 }

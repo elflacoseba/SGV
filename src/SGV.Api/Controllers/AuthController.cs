@@ -18,12 +18,6 @@ public sealed class AuthController(
     IValidator<ForgotPasswordRequest> forgotValidator,
     IValidator<ResetPasswordRequest> resetValidator) : ControllerBase
 {
-    /// <summary>Canonical rate-limit policy name for the forgot endpoint.</summary>
-    internal const string ForgotPasswordPolicyName = "ForgotPassword";
-
-    /// <summary>Canonical rate-limit policy name for the reset endpoint.</summary>
-    internal const string ResetPasswordPolicyName = "ResetPassword";
-
     [HttpPost(AuthApiRoutes.LoginRelative)]
     [AllowAnonymous]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
@@ -36,7 +30,7 @@ public sealed class AuthController(
 
     [HttpPost(AuthApiRoutes.ForgotPasswordRelative)]
     [AllowAnonymous]
-    [EnableRateLimiting(ForgotPasswordPolicyName)]
+    [EnableRateLimiting(AuthApiRoutes.ForgotPasswordPolicyName)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
@@ -68,7 +62,7 @@ public sealed class AuthController(
 
     [HttpPost(AuthApiRoutes.ResetPasswordRelative)]
     [AllowAnonymous]
-    [EnableRateLimiting(ResetPasswordPolicyName)]
+    [EnableRateLimiting(AuthApiRoutes.ResetPasswordPolicyName)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]

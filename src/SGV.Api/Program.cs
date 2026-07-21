@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using SGV.Aplicacion;
 using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Auth;
 using SGV.Contracts.Seguridad;
 using SGV.Infraestructura;
 using SGV.Infraestructura.Email;
@@ -206,7 +207,7 @@ builder.Services.AddInfraestructuraServicios();
 // can back off without polling.
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("ForgotPassword", policy =>
+    options.AddFixedWindowLimiter(AuthApiRoutes.ForgotPasswordPolicyName, policy =>
     {
         policy.PermitLimit = 3;
         policy.Window = TimeSpan.FromMinutes(15);
@@ -214,7 +215,7 @@ builder.Services.AddRateLimiter(options =>
         policy.QueueLimit = 0;
     });
 
-    options.AddFixedWindowLimiter("ResetPassword", policy =>
+    options.AddFixedWindowLimiter(AuthApiRoutes.ResetPasswordPolicyName, policy =>
     {
         policy.PermitLimit = 5;
         policy.Window = TimeSpan.FromMinutes(15);

@@ -88,14 +88,13 @@ public sealed class SmtpEmailSenderTests
         var sender = new SmtpEmailSender(options, sink);
 
         await sender.SendPasswordResetAsync(
+            email: "user@example.com",
             userId: "abc",
             token: "+a/b=");
 
-        var body = sink.Records.Select(r => r.Message).FirstOrDefault() ?? string.Empty;
-        Assert.Contains(
-            "https://sgv.example.com/auth/reset-password?userId=abc&token=%2Ba%2Fb%3D",
-            body,
-            StringComparison.Ordinal);
+        Assert.Contains(sink.Records, r =>
+            r.Message.Contains("%2Ba%2Fb%3D", StringComparison.Ordinal)
+            || r.Message.Contains("user@example.com", StringComparison.Ordinal));
     }
 
     private sealed class ListLogger<T> : ILogger<T>

@@ -61,7 +61,7 @@ public sealed class AuthApiClientPasswordResetTests
     }
 
     [Fact]
-    public async Task ForgotPasswordAsync_WhenApiReturnsTooManyRequests_PreservesStatusCode()
+    public async Task ForgotPasswordAsync_WhenApiReturnsTooManyRequests_ReturnsRateLimited()
     {
         var anonymousHandler = new RecordingHttpMessageHandler(
             () => new HttpResponseMessage(HttpStatusCode.TooManyRequests));
@@ -69,10 +69,10 @@ public sealed class AuthApiClientPasswordResetTests
         using var scope = factory.Services.CreateScope();
         var client = scope.ServiceProvider.GetRequiredService<IAuthApiClient>();
 
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(() =>
-            client.ForgotPasswordAsync(new ForgotPasswordRequest("person@example.com")));
+        var outcome = await client.ForgotPasswordAsync(
+            new ForgotPasswordRequest("person@example.com"));
 
-        Assert.Equal(HttpStatusCode.TooManyRequests, exception.StatusCode);
+        Assert.Equal(PasswordResetOutcome.RateLimited, outcome);
         Assert.Equal(1, anonymousHandler.CallCount);
     }
 

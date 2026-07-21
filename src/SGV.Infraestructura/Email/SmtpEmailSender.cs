@@ -75,11 +75,17 @@ public sealed class SmtpEmailSender : IEmailSender<SgvIdentityUser>
     /// built via <see cref="BuildPasswordResetLink"/> so the token
     /// always travels URL-encoded.
     /// </summary>
+    /// <param name="email">The recipient's email address.</param>
+    /// <param name="userId">The user's unique identifier.</param>
+    /// <param name="token">The password reset token to URL-encode into the link.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public Task SendPasswordResetAsync(
+        string email,
         string userId,
         string token,
         CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(email);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
 
@@ -94,13 +100,14 @@ public sealed class SmtpEmailSender : IEmailSender<SgvIdentityUser>
             "<p>Si no realizaste esta solicitud, podés ignorar este mensaje.</p>" +
             "<p>El enlace caduca en una hora.</p>";
 
+        var tokenPrefix = token[..Math.Min(8, token.Length)];
         _logger.LogInformation(
-            "SMTP password reset email composed for userId={UserId}; link={Link}",
+            "SMTP password reset email composed for userId={UserId}; tokenPrefix={TokenPrefix}",
             userId,
-            link);
+            tokenPrefix);
 
         return SendAsync(
-            email: ResolveRecipientEmail(userId),
+            email: email,
             subject: subject,
             htmlMessage: body);
     }
@@ -120,8 +127,6 @@ public sealed class SmtpEmailSender : IEmailSender<SgvIdentityUser>
 
         return SendViaMailKitAsync(email, subject, htmlMessage, options);
     }
-
-    private static string ResolveRecipientEmail(string userId) => userId;
 
     private void LogToLogger(string email, string subject, string htmlMessage, SmtpOptions options)
     {

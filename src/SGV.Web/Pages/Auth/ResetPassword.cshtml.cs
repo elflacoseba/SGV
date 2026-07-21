@@ -108,6 +108,14 @@ public sealed class ResetPasswordModel(
     private static string? Decode(string? value)
         => value is null ? null : Uri.UnescapeDataString(value);
 
+    /// <summary>
+    /// Mirrors <c>IdentityOptions.Password</c> policy set in
+    /// <c>SGV.Api/Program.cs</c> and
+    /// <c>ResetPasswordRequestValidator</c>:
+    /// <c>RequiredLength=6</c>, requires lower, upper, digit, and
+    /// non-alphanumeric character. MUST be kept in sync with both
+    /// the server-side policy and the FluentValidation validator.
+    /// </summary>
     private static bool MeetsPasswordPolicy(string password)
         => password.Length >= 6
            && password.Any(char.IsLower)

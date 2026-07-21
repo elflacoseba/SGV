@@ -80,6 +80,11 @@ public sealed class AuthApiClient : IAuthApiClient
             request,
             cancellationToken);
 
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            return PasswordResetOutcome.RateLimited;
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+            return PasswordResetOutcome.InvalidToken;
+
         response.EnsureSuccessStatusCode();
         return PasswordResetOutcome.Success;
     }
