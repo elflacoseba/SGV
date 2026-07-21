@@ -10,6 +10,9 @@ namespace SGV.Web.Integration.Auth;
 /// </summary>
 public sealed class AuthApiClient : IAuthApiClient
 {
+    internal const string AuthenticatedHttpClientName = "AuthenticatedAuthApiClient";
+    internal const string AnonymousHttpClientName = "AnonymousAuthApiClient";
+
     private readonly HttpClient httpClient;
     private readonly HttpClient anonymousHttpClient;
 

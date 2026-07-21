@@ -103,7 +103,7 @@ builder.Services.AddHttpClient(CookiePrincipalRevalidator.HttpClientName, (servi
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
-builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>((serviceProvider, client) =>
+builder.Services.AddHttpClient(AuthApiClient.AuthenticatedHttpClientName, (serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
@@ -114,6 +114,23 @@ builder.Services.AddHttpClient<IAuthApiClient, AuthApiClient>((serviceProvider, 
     client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+builder.Services.AddHttpClient(AuthApiClient.AnonymousHttpClientName, (serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // Password recovery is explicitly anonymous. This client intentionally has
+    // no ApiBearerTokenHandler in its pipeline.
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+builder.Services.AddTransient<IAuthApiClient>(serviceProvider =>
+{
+    var factory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+    return new AuthApiClient(
+        factory.CreateClient(AuthApiClient.AuthenticatedHttpClientName),
+        factory.CreateClient(AuthApiClient.AnonymousHttpClientName));
+});
 
 builder.Services.AddHttpClient<IUnidadOrganizativaApiClient, UnidadOrganizativaApiClient>((serviceProvider, client) =>
 {
