@@ -23,4 +23,16 @@ public sealed class AuthApiClient(HttpClient httpClient) : IAuthApiClient
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc />
+    public Task<PasswordResetOutcome> ForgotPasswordAsync(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken = default)
+        => throw new NotImplementedException("Password recovery is implemented in WU-15.");
+
+    /// <inheritdoc />
+    public Task<PasswordResetOutcome> ResetPasswordAsync(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken = default)
+        => throw new NotImplementedException("Password recovery is implemented in WU-15.");
 }
