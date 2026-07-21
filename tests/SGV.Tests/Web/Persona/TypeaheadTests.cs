@@ -41,8 +41,8 @@ public sealed class TypeaheadTests
         // contenedor raíz y value="{id}" en el input hidden, junto con el
         // JSON embebido (script[type=application/json]) que el JS consume
         // para el filtrado client-side.
-        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com", "DNI", "30123456", null, true);
-        var juan = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, true);
+        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com", null, null, "DNI", "30123456", null, true);
+        var juan = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, null, null, true);
         var model = new PersonaTypeaheadViewModel(
             AllPersonas: [ana, juan],
             SelectedId: ana.Id,
@@ -86,7 +86,7 @@ public sealed class TypeaheadTests
         // inicial y filtrar sólo cuando el término >= minChars. Si el
         // atributo no aparece, el script cae a un default que puede no
         // coincidir con la expectativa del usuario.
-        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
+        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true);
         var model = new PersonaTypeaheadViewModel(
             AllPersonas: [ana],
             SelectedId: null,
@@ -136,7 +136,7 @@ public sealed class TypeaheadTests
         // AC: cuando SelectedId es null, el partial emite
         // data-persona-typeahead-selected-id="" para que el JS pueda
         // detectar "sin selección" sin parsear string.Empty contra null.
-        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
+        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true);
         var model = new PersonaTypeaheadViewModel(
             AllPersonas: [ana],
             SelectedId: null,
@@ -163,7 +163,7 @@ public sealed class TypeaheadTests
         // AC: el nombre del input hidden es configurable vía InputName para
         // evitar colisiones cuando el partial se embebe en hosts con field
         // names distintos (e.g. Usuario.PersonaId).
-        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
+        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true);
         var model = new PersonaTypeaheadViewModel(
             AllPersonas: [ana],
             SelectedId: ana.Id,

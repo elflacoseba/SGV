@@ -25,7 +25,8 @@ public sealed class PersonaMapperTests
             Apellidos = "Perez",
             Legajo = "LEG-001",
             Email = "juan@test.com",
-            TipoDocumento = "DNI",
+            // Issue #147: TipoDocumentoId reemplaza al string TipoDocumento.
+            TipoDocumentoId = new Guid("11111111-1111-1111-1111-111111111111"),
             NumeroDocumento = "12345678",
             Telefono = "+54911223344",
             IsActive = isActive,
@@ -100,7 +101,7 @@ public sealed class PersonaMapperTests
             entidad.Apellidos,
             entidad.Legajo,
             entidad.Email,
-            entidad.TipoDocumento,
+            entidad.TipoDocumentoId,
             entidad.NumeroDocumento,
             entidad.Telefono,
             entidad.IsActive,
@@ -117,6 +118,7 @@ public sealed class PersonaMapperTests
         Assert.Equal("Perez", dominio.Apellidos);
         Assert.Equal("LEG-001", dominio.Legajo);
         Assert.Equal("juan@test.com", dominio.Email);
+        Assert.Equal(entidad.TipoDocumentoId, dominio.TipoDocumentoId);
         Assert.True(dominio.IsActive);
     }
 
@@ -128,13 +130,13 @@ public sealed class PersonaMapperTests
         var dominio = Persona.Reconstitute(
             entidad.Id, entidad.Nombres, entidad.Apellidos,
             entidad.Legajo, entidad.Email,
-            entidad.TipoDocumento, entidad.NumeroDocumento, entidad.Telefono,
+            entidad.TipoDocumentoId, entidad.NumeroDocumento, entidad.Telefono,
             entidad.IsActive,
             entidad.CreatedAt, entidad.CreatedByUserId,
             entidad.UpdatedAt, entidad.UpdatedByUserId,
             entidad.IsDeleted, entidad.DeletedAt, entidad.DeletedByUserId);
 
-        Assert.Equal("DNI", dominio.TipoDocumento);
+        Assert.Equal(entidad.TipoDocumentoId, dominio.TipoDocumentoId);
         Assert.Equal("12345678", dominio.NumeroDocumento);
     }
 
@@ -146,7 +148,7 @@ public sealed class PersonaMapperTests
         var dominio = Persona.Reconstitute(
             entidad.Id, entidad.Nombres, entidad.Apellidos,
             entidad.Legajo, entidad.Email,
-            entidad.TipoDocumento, entidad.NumeroDocumento, entidad.Telefono,
+            entidad.TipoDocumentoId, entidad.NumeroDocumento, entidad.Telefono,
             entidad.IsActive,
             entidad.CreatedAt, entidad.CreatedByUserId,
             entidad.UpdatedAt, entidad.UpdatedByUserId,
@@ -163,7 +165,7 @@ public sealed class PersonaMapperTests
         var dominio = Persona.Reconstitute(
             entidad.Id, entidad.Nombres, entidad.Apellidos,
             entidad.Legajo, entidad.Email,
-            entidad.TipoDocumento, entidad.NumeroDocumento, entidad.Telefono,
+            entidad.TipoDocumentoId, entidad.NumeroDocumento, entidad.Telefono,
             entidad.IsActive,
             entidad.CreatedAt, entidad.CreatedByUserId,
             entidad.UpdatedAt, entidad.UpdatedByUserId,
@@ -182,7 +184,7 @@ public sealed class PersonaMapperTests
         var dominio = Persona.Reconstitute(
             entidad.Id, entidad.Nombres, entidad.Apellidos,
             entidad.Legajo, entidad.Email,
-            entidad.TipoDocumento, entidad.NumeroDocumento, entidad.Telefono,
+            entidad.TipoDocumentoId, entidad.NumeroDocumento, entidad.Telefono,
             entidad.IsActive,
             entidad.CreatedAt, entidad.CreatedByUserId,
             entidad.UpdatedAt, entidad.UpdatedByUserId,
@@ -204,7 +206,7 @@ public sealed class PersonaMapperTests
                 apellidos: "Perez",
                 legajo: null,
                 email: null,
-                tipoDocumento: null,
+                tipoDocumentoId: null,
                 numeroDocumento: null,
                 telefono: null,
                 isActive: true,

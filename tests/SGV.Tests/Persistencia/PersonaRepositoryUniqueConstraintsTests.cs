@@ -96,7 +96,7 @@ public sealed class PersonaRepositoryUniqueConstraintsTests
         var repo = new PersonaRepository(context);
         var legajo1 = "LEG-DOC1-" + Guid.NewGuid().ToString("N")[..8];
         var legajo2 = "LEG-DOC2-" + Guid.NewGuid().ToString("N")[..8];
-        var tipoDoc = "DNI";
+        var tipoDoc = new Guid("71000000-0000-0000-0000-000000000001");
         var numDoc = "UNIQ-DOC-" + Guid.NewGuid().ToString("N")[..8];
         var email1 = "doc-dup-a-" + Guid.NewGuid().ToString("N")[..8] + "@test.com";
         var email2 = "doc-dup-b-" + Guid.NewGuid().ToString("N")[..8] + "@test.com";

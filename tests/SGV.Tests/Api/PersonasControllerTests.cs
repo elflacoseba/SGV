@@ -64,7 +64,7 @@ public sealed class PersonasControllerTests
         Nombres: "Maria",
         Apellidos: "Garcia",
         Email: "maria@test.com",
-        TipoDocumento: "DNI",
+        TipoDocumentoId: Guid.NewGuid(),
         NumeroDocumento: "12345678",
         Telefono: "555-0001");
 
@@ -73,7 +73,7 @@ public sealed class PersonasControllerTests
         Nombres: "Juan Actualizado",
         Apellidos: "Perez",
         Email: "juan@test.com",
-        TipoDocumento: "DNI",
+        TipoDocumentoId: Guid.NewGuid(),
         NumeroDocumento: "12345678",
         Telefono: "555-0001");
 
@@ -745,8 +745,7 @@ public sealed class PersonasControllerTests
         var eliminadaId = Guid.NewGuid();
         capture.Eliminadas =
         [
-            new PersonaDto(eliminadaId, "LEG-DEL", "Ana", "García",
-                "ana@test.com", "DNI", "123", "555", true)
+            new PersonaDto(eliminadaId, "LEG-DEL", "Ana", "García", "ana@test.com", null, null, "DNI", "123", "555", true)
         ];
         await using var factory = _fixture.RootFactory.WithOverrides(services =>
         {
@@ -922,9 +921,7 @@ public sealed class PersonasControllerTests
             CapturedQueries.Add(query);
             var source = query.Segmento == PersonaSegmentoListado.Eliminadas
                 ? Eliminadas
-                : new[] { new PersonaDto(FakePersonaServicioConsulta.PersonaId1,
-                        "LEG-001", "Juan", "Perez", "juan@test.com", "DNI", "12345678",
-                        "555-0001", true) };
+                : new[] { new PersonaDto(FakePersonaServicioConsulta.PersonaId1, "LEG-001", "Juan", "Perez", "juan@test.com", null, null, "DNI", "12345678", "555-0001", true) };
             return Task.FromResult(new PersonaListadoDto(
                 source.ToList(), source.Count, query.Page, query.PageSize));
         }

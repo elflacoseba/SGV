@@ -413,16 +413,7 @@ public sealed class EditPageTests
         var personaId = Guid.NewGuid();
         var usuario = BuildUsuario(AdminSelfUserId, personaId, "Self", "Admin");
         var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
-        var personaDto = new PersonaDto(
-            Id: personaId,
-            Legajo: "LEG-7777",
-            Nombres: "Self",
-            Apellidos: "Admin",
-            Email: "self.admin@example.com",
-            TipoDocumento: "DNI",
-            NumeroDocumento: "30123456",
-            Telefono: "+54 11 5555-0000",
-            IsActive: true);
+        var personaDto = new PersonaDto(Id: personaId, Legajo: "LEG-7777", Nombres: "Self", Apellidos: "Admin", Email: "self.admin@example.com", null, "DNI", "Documento Nacional de Identidad", NumeroDocumento: "30123456", Telefono: "+54 11 5555-0000", IsActive: true);
         var personaApiClient = FakePersonaApiClient.WithPersonaList(personaDto);
 
         await using var lease = await _fixture.CreateUsuarioLeaseAsync(

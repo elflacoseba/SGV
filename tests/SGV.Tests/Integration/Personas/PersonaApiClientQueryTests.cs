@@ -23,8 +23,7 @@ public class PersonaApiClientQueryTests
     [Fact]
     public async Task QueryAsync_WithStatusEliminadas_SerializesStatusInUri()
     {
-        var persona = new PersonaDto(
-            Guid.NewGuid(), "L-DEL", "Ana", "García", null, null, null, null, IsActive: false);
+        var persona = new PersonaDto(Guid.NewGuid(), "L-DEL", "Ana", "García", null, null, null, null, null, null, IsActive: false);
         var payload = new PersonaListadoDto(
             Items: [persona], TotalCount: 1, Page: 1, PageSize: 10);
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
@@ -86,7 +85,7 @@ public class PersonaApiClientQueryTests
     public async Task ReactivateAsync_Http200_ReturnsSuccessDto()
     {
         var id = Guid.NewGuid();
-        var dto = new PersonaDto(id, "L-001", "Ana", "García", null, null, null, null, true);
+        var dto = new PersonaDto(id, "L-001", "Ana", "García", null, null, null, null, null, null, true);
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
         using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
 

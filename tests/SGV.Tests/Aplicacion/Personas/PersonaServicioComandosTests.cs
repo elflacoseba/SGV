@@ -21,7 +21,10 @@ public sealed class PersonaServicioComandosTests
         Nombres: nombres ?? "Juan",
         Apellidos: apellidos ?? "Pérez",
         Email: "juan@test.com",
-        TipoDocumento: "DNI",
+        // Issue #147: TipoDocumentoId reemplaza al string TipoDocumento.
+        // Tests existentes actualizados con un Guid fijo (no necesita
+        // matchear el seed real porque los fakes no enforcen FK).
+        TipoDocumentoId: new Guid("11111111-1111-1111-1111-111111111111"),
         NumeroDocumento: "12345678",
         Telefono: "555-0101");
 
@@ -82,13 +85,13 @@ public sealed class PersonaServicioComandosTests
     {
         var existente = CrearPersonaActiva("LEG-001", PersonaIdActiva,
             email: "existente@test.com",
-            tipoDocumento: "DNI", numeroDocumento: "87654321");
+            tipoDocumentoId: new Guid("22222222-2222-2222-2222-222222222222"), numeroDocumento: "87654321");
         var repo = new FakePersonaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(repo, uow);
 
         var resultado = await servicio.CrearAsync(CrearRequest(legajo: "LEG-003", nombres: "Ana", apellidos: "García")
-            with { Email = "nuevo@test.com", TipoDocumento = "DNI", NumeroDocumento = "87654321" }, default);
+            with { Email = "nuevo@test.com", TipoDocumentoId = new Guid("22222222-2222-2222-2222-222222222222"), NumeroDocumento = "87654321" }, default);
 
         Assert.False(resultado.IsSuccess);
         Assert.Equal(PersonaErrorType.Conflict, resultado.Error!.Type);
@@ -295,16 +298,16 @@ public sealed class PersonaServicioComandosTests
     private static Persona CrearPersonaActiva(
         string legajo, Guid? id = null,
         string? email = null,
-        string? tipoDocumento = null,
+        Guid? tipoDocumentoId = null,
         string? numeroDocumento = null)
     {
         var persona = new Persona("Juan", "Pérez", legajo, email ?? "juan@test.com")
         {
             Id = id ?? Guid.NewGuid()
         };
-        if (tipoDocumento is not null && numeroDocumento is not null)
+        if (tipoDocumentoId is not null && numeroDocumento is not null)
         {
-            persona.CambiarDocumento(tipoDocumento, numeroDocumento);
+            persona.CambiarDocumento(tipoDocumentoId, numeroDocumento);
         }
         return persona;
     }
@@ -384,11 +387,11 @@ internal sealed class FakePersonaWriteRepository : IPersonaRepository
         return Task.FromResult(exists);
     }
 
-    public Task<bool> ExistsActiveDocumentoAsync(string tipoDocumento, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsActiveDocumentoAsync(Guid tipoDocumentoId, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default)
     {
         ExistsActiveDocumentoCallCount++;
         var exists = Datos.Any(d =>
-            d.TipoDocumento == tipoDocumento &&
+            d.TipoDocumentoId == tipoDocumentoId &&
             d.NumeroDocumento == numeroDocumento &&
             d.IsActive &&
             d.Id != excludingId);

@@ -53,6 +53,8 @@ public sealed class SgvDbContext : IdentityDbContext<SgvIdentityUser, IdentityRo
 
     public DbSet<NivelCargoEntity> NivelesCargo => Set<NivelCargoEntity>();
 
+    public DbSet<TipoDocumentoEntity> TiposDocumento => Set<TipoDocumentoEntity>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

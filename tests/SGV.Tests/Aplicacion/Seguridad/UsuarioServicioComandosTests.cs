@@ -484,7 +484,7 @@ public sealed class UsuarioServicioComandosTests
         public Task ReactivateAsync(Guid id, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> ExistsActiveLegajoAsync(string legajo, Guid? excludingId = null, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task<bool> ExistsActiveEmailAsync(string email, Guid? excludingId = null, CancellationToken cancellationToken = default) => Task.FromResult(false);
-        public Task<bool> ExistsActiveDocumentoAsync(string tipoDocumento, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<bool> ExistsActiveDocumentoAsync(Guid tipoDocumentoId, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default) => Task.FromResult(false);
 
         public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(
             string? search,

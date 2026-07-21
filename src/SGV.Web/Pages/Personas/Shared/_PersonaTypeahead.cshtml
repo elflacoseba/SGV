@@ -14,7 +14,7 @@
             email = p.Email ?? string.Empty,
             documento = string.IsNullOrWhiteSpace(p.NumeroDocumento)
                 ? string.Empty
-                : (string.IsNullOrWhiteSpace(p.TipoDocumento) ? p.NumeroDocumento : $"{p.TipoDocumento}: {p.NumeroDocumento}")
+                : (string.IsNullOrWhiteSpace(p.TipoDocumentoCodigo) ? p.NumeroDocumento : $"{p.TipoDocumentoCodigo}: {p.NumeroDocumento}")
         }),
         new System.Text.Json.JsonSerializerOptions
         {

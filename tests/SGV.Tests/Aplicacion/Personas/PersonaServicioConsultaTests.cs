@@ -37,7 +37,8 @@ public sealed class PersonaServicioConsultaTests
         Assert.Equal(PersonaActiva.Nombres, dto.Nombres);
         Assert.Equal(PersonaActiva.Apellidos, dto.Apellidos);
         Assert.Equal(PersonaActiva.Email, dto.Email);
-        Assert.Equal(PersonaActiva.TipoDocumento, dto.TipoDocumento);
+        Assert.Equal(PersonaActiva.TipoDocumentoId, dto.TipoDocumentoId);
+        // PR1 proyecta TipoDocumentoCodigo/Nombre como null (JOIN entra en PR2).
         Assert.Equal(PersonaActiva.NumeroDocumento, dto.NumeroDocumento);
         Assert.Equal(PersonaActiva.Telefono, dto.Telefono);
         Assert.True(dto.IsActive);
@@ -398,7 +399,7 @@ internal sealed class FakePersonaRepository : IPersonaRepository
     public Task<bool> ExistsActiveEmailAsync(string email, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake does not support write operations.");
 
-    public Task<bool> ExistsActiveDocumentoAsync(string tipoDocumento, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsActiveDocumentoAsync(Guid tipoDocumentoId, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake does not support write operations.");
 
     public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(

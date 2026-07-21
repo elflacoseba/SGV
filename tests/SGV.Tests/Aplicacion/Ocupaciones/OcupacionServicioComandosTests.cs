@@ -856,7 +856,7 @@ internal sealed class FakePersonaWriteRepository : IPersonaRepository
     public Task<bool> ExistsActiveEmailAsync(string email, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake for reference checking.");
 
-    public Task<bool> ExistsActiveDocumentoAsync(string tipoDocumento, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsActiveDocumentoAsync(Guid tipoDocumentoId, string numeroDocumento, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake for reference checking.");
 
     public Task<(IReadOnlyList<Persona> Items, int TotalCount)> QueryAsync(

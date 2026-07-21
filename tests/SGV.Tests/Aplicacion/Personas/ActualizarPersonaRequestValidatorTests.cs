@@ -13,7 +13,8 @@ public sealed class ActualizarPersonaRequestValidatorTests
         Nombres: "Juan",
         Apellidos: "Pérez",
         Email: "juan@test.com",
-        TipoDocumento: "DNI",
+        // Issue #147: TipoDocumentoId reemplaza al string TipoDocumento.
+        TipoDocumentoId: new Guid("11111111-1111-1111-1111-111111111111"),
         NumeroDocumento: "12345678",
         Telefono: "555-0101");
 
@@ -182,13 +183,13 @@ public sealed class ActualizarPersonaRequestValidatorTests
     // ── Documento (opcional) ──────────────────────────────────
 
     [Fact]
-    public void Should_Not_Have_Error_When_TipoDocumento_Is_Null()
+    public void Should_Not_Have_Error_When_TipoDocumentoId_Is_Null()
     {
-        var request = RequestValido() with { TipoDocumento = null };
+        var request = RequestValido() with { TipoDocumentoId = null };
 
         var result = _validator.TestValidate(request);
 
-        result.ShouldNotHaveValidationErrorFor(r => r.TipoDocumento);
+        result.ShouldNotHaveValidationErrorFor(r => r.TipoDocumentoId);
     }
 
     [Fact]
@@ -202,13 +203,13 @@ public sealed class ActualizarPersonaRequestValidatorTests
     }
 
     [Fact]
-    public void Should_Have_Error_When_TipoDocumento_Exceeds_Max_Length()
+    public void Should_Have_Error_When_TipoDocumentoId_Is_Empty()
     {
-        var request = RequestValido() with { TipoDocumento = new string('X', 51) };
+        var request = RequestValido() with { TipoDocumentoId = Guid.Empty };
 
         var result = _validator.TestValidate(request);
 
-        result.ShouldHaveValidationErrorFor(r => r.TipoDocumento);
+        result.ShouldHaveValidationErrorFor(r => r.TipoDocumentoId);
     }
 
     [Fact]

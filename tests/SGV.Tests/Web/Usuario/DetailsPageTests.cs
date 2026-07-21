@@ -354,16 +354,7 @@ public sealed class DetailsPageTests
         // y badge de Estado, en lugar del Guid crudo. El <a> hacia
         // /personas/detalle/{PersonaId} debe quedar como título.
         var personaId = Guid.NewGuid();
-        var personaDto = new PersonaDto(
-            Id: personaId,
-            Legajo: "L-7777",
-            Nombres: "Ana",
-            Apellidos: "García",
-            Email: "ana.garcia@example.com",
-            TipoDocumento: "DNI",
-            NumeroDocumento: "30123456",
-            Telefono: "+54 11 5555-0000",
-            IsActive: true);
+        var personaDto = new PersonaDto(Id: personaId, Legajo: "L-7777", Nombres: "Ana", Apellidos: "García", Email: "ana.garcia@example.com", null, "DNI", "Documento Nacional de Identidad", NumeroDocumento: "30123456", Telefono: "+54 11 5555-0000", IsActive: true);
         var usuario = BuildUsuario("u-detail-enriched", personaId);
         var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
         var personaApiClient = FakePersonaApiClient.WithPersonaList(personaDto);
@@ -401,10 +392,7 @@ public sealed class DetailsPageTests
         // pero NO debe inyectar los data-attributes ni el modal del
         // buscador de Persona, que son exclusivos del flujo Edit.
         var personaId = Guid.NewGuid();
-        var personaDto = new PersonaDto(
-            personaId, "L-7777", "Ana", "García",
-            "ana@example.com", "DNI", "30123456",
-            "+54 11 5555-0000", true);
+        var personaDto = new PersonaDto(personaId, "L-7777", "Ana", "García", "ana@example.com", null, null, "DNI", "30123456", "+54 11 5555-0000", true);
         var usuario = BuildUsuario("u-detail-no-controls-enriched", personaId);
         var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
         var personaApiClient = FakePersonaApiClient.WithPersonaList(personaDto);

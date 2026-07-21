@@ -193,7 +193,7 @@ public sealed class IndexPageTests
         var reactivableId = Guid.NewGuid();
         var apiClient = FakePersonaApiClient.WithPersonaList();
         apiClient.ReactivarResult = PersonaCommandResult.Success(
-            new PersonaDto(reactivableId, "L-001", "Ana", "García", null, null, null, null, true));
+            new PersonaDto(reactivableId, "L-001", "Ana", "García", null, null, null, null, null, null, true));
 
         await using var lease = await _fixture.CreatePersonaLeaseAsync(apiClient, adminRole: true);
 
@@ -324,5 +324,5 @@ public sealed class IndexPageTests
     // ──────────────────────────────────────────────
 
     internal static PersonaDto BuildPersonaDto(string legajo, string nombres, string apellidos, string? email)
-        => new(Guid.NewGuid(), legajo, nombres, apellidos, email, null, null, null, true);
+        => new(Guid.NewGuid(), legajo, nombres, apellidos, email, null, null, null, null, null, true);
 }

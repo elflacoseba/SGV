@@ -32,9 +32,7 @@ public class PersonaPostResultMapperTests
         // REQ: un éxito no debe contaminar ModelState. Si lo hiciera,
         // el asp-validation-summary="ModelOnly" del Edit.cshtml podría
         // mostrar errores residuales cuando hay TempData success.
-        var dto = new PersonaDto(
-            Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com",
-            "DNI", "30123456", "+549111234", true);
+        var dto = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com", null, null, "DNI", "30123456", "+549111234", true);
         var success = PersonaCommandResult.Success(dto);
         var modelState = new ModelStateDictionary();
 

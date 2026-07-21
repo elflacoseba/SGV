@@ -587,7 +587,7 @@ internal sealed class FakePersonaServicioConsulta : IPersonaServicioConsulta
     {
         _data = isEmpty
             ? []
-            : [new(PersonaId1, "LEG-001", "Juan", "Perez", "juan@test.com", "DNI", "12345678", "555-0001", true)];
+            : [new(PersonaId1, "LEG-001", "Juan", "Perez", "juan@test.com", Guid.NewGuid(), "DNI", "Documento Nacional de Identidad", "12345678", "555-0001", true)];
     }
 
     public Task<IReadOnlyList<PersonaDto>> ListAsync(CancellationToken ct = default)
@@ -634,8 +634,7 @@ internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos
     {
         if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
         return Task.FromResult(PersonaCommandResult.Success(
-            new PersonaDto(DefaultPersonaId, request.Legajo, request.Nombres, request.Apellidos,
-                request.Email, request.TipoDocumento, request.NumeroDocumento, request.Telefono, true)));
+            new PersonaDto(DefaultPersonaId, request.Legajo, request.Nombres, request.Apellidos, request.Email, request.TipoDocumentoId, null, null, request.NumeroDocumento, request.Telefono, true)));
     }
 
     public Task<PersonaCommandResult> ActualizarAsync(
@@ -645,8 +644,7 @@ internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos
     {
         if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
         return Task.FromResult(PersonaCommandResult.Success(
-            new PersonaDto(id, request.Legajo, request.Nombres, request.Apellidos,
-                request.Email, request.TipoDocumento, request.NumeroDocumento, request.Telefono, true)));
+            new PersonaDto(id, request.Legajo, request.Nombres, request.Apellidos, request.Email, request.TipoDocumentoId, null, null, request.NumeroDocumento, request.Telefono, true)));
     }
 
     public Task<PersonaCommandResult> DesactivarAsync(
@@ -655,7 +653,7 @@ internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos
     {
         if (DesactivarHandler is not null) return DesactivarHandler(id, cancellationToken);
         return Task.FromResult(PersonaCommandResult.Success(
-            new PersonaDto(id, "LEG-001", "Juan", "Perez", "juan@test.com", "DNI", "12345678", "555-0001", false)));
+            new PersonaDto(id, "LEG-001", "Juan", "Perez", "juan@test.com", Guid.NewGuid(), "DNI", "Documento Nacional de Identidad", "12345678", "555-0001", false)));
     }
 
     public Task<PersonaCommandResult> ReactivarAsync(
@@ -664,7 +662,7 @@ internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos
     {
         if (ReactivarHandler is not null) return ReactivarHandler(id, cancellationToken);
         return Task.FromResult(PersonaCommandResult.Success(
-            new PersonaDto(id, "LEG-001", "Juan", "Perez", "juan@test.com", "DNI", "12345678", "555-0001", true)));
+            new PersonaDto(id, "LEG-001", "Juan", "Perez", "juan@test.com", Guid.NewGuid(), "DNI", "Documento Nacional de Identidad", "12345678", "555-0001", true)));
     }
 }
 

@@ -126,6 +126,19 @@ internal static class DatosSemilla
             new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.DepartamentoId, Codigo = "Departamento", Nombre = "Departamento" },
             new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.DivisionId, Codigo = "Division", Nombre = "División" },
             new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.AreaId, Codigo = "Area", Nombre = "Área" });
+
+        builder.Entity<TipoDocumentoEntity>().HasData(
+            TipoDocumentoConstantes.Semilla
+                .Select(s => new TipoDocumentoEntity
+                {
+                    Id = s.Id,
+                    Codigo = s.Codigo,
+                    Nombre = s.Nombre,
+                    PatronValidacion = s.PatronValidacion,
+                    LongitudMinima = s.LongitudMinima,
+                    LongitudMaxima = s.LongitudMaxima
+                })
+                .ToArray());
     }
 
     private static IdentityRole CrearRol(string nombre)

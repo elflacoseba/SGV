@@ -20,8 +20,8 @@ public class FakePersonaApiClientTests
         // AC: el segmento Activas/Eliminadas filtra exactamente sobre la
         // marca de baja lógica interna del fake; los ids no eliminados
         // aparecen sólo bajo Activas y viceversa.
-        var activa = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
-        var eliminada = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, false);
+        var activa = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true);
+        var eliminada = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, null, null, false);
         var apiClient = FakePersonaApiClient.WithPersonaList(activa, eliminada);
 
         await apiClient.DesactivarAsync(eliminada.Id);
@@ -43,7 +43,7 @@ public class FakePersonaApiClientTests
     [Fact]
     public async Task IsDeleted_AfterDesactivarAsync_ReturnsTrue()
     {
-        var persona = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
+        var persona = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true);
         var apiClient = FakePersonaApiClient.WithPersonaList(persona);
 
         Assert.False(apiClient.IsDeleted(persona.Id));
@@ -59,9 +59,9 @@ public class FakePersonaApiClientTests
         // REQ-CM-01 (spec §"Listado segmentado"): la búsqueda aplica a
         // Legajo|Nombres|Apellidos|Email|NumeroDocumento case-insensitive.
         // Triangulamos tres campos diferentes con el mismo término.
-        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com", "DNI", "30123456", null, true);
-        var juan = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", "juan@example.com", "DNI", "28999888", null, true);
-        var maria = new PersonaDto(Guid.NewGuid(), "L-003", "María", "García", null, null, null, null, true);
+        var ana = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com", null, null, "DNI", "30123456", null, true);
+        var juan = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", "juan@example.com", null, null, "DNI", "28999888", null, true);
+        var maria = new PersonaDto(Guid.NewGuid(), "L-003", "María", "García", null, null, null, null, null, null, true);
         var apiClient = FakePersonaApiClient.WithPersonaList(ana, juan, maria);
 
         // Búsqueda por legajo
@@ -84,8 +84,8 @@ public class FakePersonaApiClientTests
     {
         // AC: cuando no se especifica sort, el fake cae a apellidos_asc
         // (consistente con la convención del backend de Personas).
-        var ana = new PersonaDto(Guid.NewGuid(), null, "Ana", "Zapata", null, null, null, null, true);
-        var juan = new PersonaDto(Guid.NewGuid(), null, "Juan", "Acosta", null, null, null, null, true);
+        var ana = new PersonaDto(Guid.NewGuid(), null, "Ana", "Zapata", null, null, null, null, null, null, true);
+        var juan = new PersonaDto(Guid.NewGuid(), null, "Juan", "Acosta", null, null, null, null, null, null, true);
         var apiClient = FakePersonaApiClient.WithPersonaList(ana, juan);
 
         var result = await apiClient.QueryAsync(new PersonaListQuery(1, 20, null, null, PersonaSegmentoListado.Activas));
@@ -103,8 +103,8 @@ public class FakePersonaApiClientTests
         // Cuando el query pide `SoloSinUsuario == true`, el fake excluye
         // esos ids del resultado (espejo del anti-join que hace el repo
         // real contra `AspNetUsers.PersonaId`).
-        var conUsuario = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
-        var sinUsuario = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, true);
+        var conUsuario = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true);
+        var sinUsuario = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, null, null, true);
         var apiClient = FakePersonaApiClient
             .WithPersonaList(conUsuario, sinUsuario)
             .WithSoloSinUsuarioSet(new[] { conUsuario.Id });
@@ -125,8 +125,8 @@ public class FakePersonaApiClientTests
         // el fake debe devolver todas las personas activas (incluso las
         // que estén en el `_soloSinUsuarioSet`), preservando el contrato
         // vigente para los consumidores que no envían el flag.
-        var conUsuario = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, true);
-        var sinUsuario = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, true);
+        var conUsuario = new PersonaDto(Guid.NewGuid(), "L-001", "Ana", "García", null, null, null, null, null, null, true);
+        var sinUsuario = new PersonaDto(Guid.NewGuid(), "L-002", "Juan", "Pérez", null, null, null, null, null, null, true);
         var apiClient = FakePersonaApiClient
             .WithPersonaList(conUsuario, sinUsuario)
             .WithSoloSinUsuarioSet(new[] { conUsuario.Id });
