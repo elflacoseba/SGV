@@ -76,6 +76,27 @@ public sealed record LoginRequest(string UserNameOrEmail, string Password);
 public sealed record LoginResponse(string AccessToken, DateTimeOffset ExpiresAt);
 
 /// <summary>
+/// Request to initiate the password recovery flow. The supplied
+/// identifier is matched against both <c>UserName</c> and
+/// <c>Email</c> (case-insensitive) by
+/// <c>IPasswordResetService.ForgotPasswordAsync</c>; an unknown
+/// identifier yields the same response shape to prevent user
+/// enumeration.
+/// </summary>
+public sealed record ForgotPasswordRequest(string UserNameOrEmail);
+
+/// <summary>
+/// Request to finalize the password recovery flow. The token is the
+/// URL-encoded string delivered in the recovery email; the Web shell
+/// MUST <c>Uri.UnescapeDataString</c> it before sending the request.
+/// <see cref="NewPassword"/> is validated against the same policy that
+/// <c>IdentityOptions.Password</c> enforces at signup
+/// (<c>RequiredLength=6</c>, requires lowercase, uppercase, digit and
+/// non-alphanumeric).
+/// </summary>
+public sealed record ResetPasswordRequest(string UserId, string Token, string NewPassword);
+
+/// <summary>
 /// Projection of a SGV user exposed by the API. Carries the linked
 /// persona id, the identity username/email, the assigned role names
 /// and the lockout flag (<c>Bloqueado</c>) derived from

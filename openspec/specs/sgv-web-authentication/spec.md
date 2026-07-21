@@ -176,3 +176,39 @@ La cookie de autenticación web MUST NO considerarse válida mientras la cuenta 
 - **DADO** sesión cookie previamente rechazada por bloqueo
 - **CUANDO** `Administrador` ejecuta `POST /desbloquear` y el usuario navega con la cookie previa
 - **ENTONCES** MUST seguir redirigiendo a `/auth/sign-in`; el acceso MUST restaurarse solo tras un login fresco.
+
+## ADDED Requirements
+
+> Delta introducida por el change `2026-07-21-password-reset-181` (issue #181). Verificado en `openspec/changes/archive/2026-07-21-password-reset-181/verify-report.md`. Las pantallas de forgot/reset viven en la spec **`password-reset-web`**; este delta solo agrega el enlace de entrada en `SignIn`.
+
+### Requisito: SignIn expone enlace "¿Olvidaste tu contraseña?"
+
+`SGV.Web/Pages/Auth/SignIn.cshtml` DEBE incluir un enlace visible con el texto `¿Olvidaste tu contraseña?` que apunte a `/auth/forgot-password`. El enlace DEBE estar disponible para visitantes anónimos en la pantalla de inicio de sesión y DEBE coexistir con el submit de credenciales existente.
+
+#### Escenario: Enlace visible en la pantalla de SignIn
+
+- **DADO** un visitante anónimo que navega a `/auth/sign-in`
+- **CUANDO** la página se renderiza
+- **ENTONCES** el HTML DEBE contener un ancla accesible con `href="/auth/forgot-password"` y texto `¿Olvidaste tu contraseña?`
+- **Y** el enlace DEBE residir en la misma pantalla que el formulario de login (no en una página aparte).
+
+#### Escenario: Click en el enlace navega a la pantalla de recuperación
+
+- **DADO** un visitante anónimo en `/auth/sign-in`
+- **CUANDO** activa el enlace "¿Olvidaste tu contraseña?"
+- **ENTONCES** la aplicación DEBE responder `200 OK` con la pantalla de recuperación (`/auth/forgot-password`) sin requerir autenticación.
+
+### Requisito: El enlace de recuperación es la única acción de SignIn fuera del submit de credenciales
+
+La pantalla `/auth/sign-in` DEBE mantener su foco principal en el inicio de sesión (registro de nuevos usuarios MUST NO estar disponible), pero MUST exponer **únicamente** el enlace "¿Olvidaste tu contraseña?" como salida secundaria hacia la recuperación. Cualquier otra acción de self-service (cambio de password autenticado, registro, MFA setup) MUST NOT aparecer en este corte.
+
+#### Escenario: Registro sigue fuera de SignIn
+
+- **DADO** la pantalla `/auth/sign-in` renderizada
+- **CUANDO** el visitante revisa las acciones visibles
+- **ENTONCES** la página MUST NO exponer botones ni enlaces de registro de nuevos usuarios
+- **Y** MUST exponer el enlace "¿Olvidaste tu contraseña?" hacia `/auth/forgot-password`.
+
+### Notas de coherencia con requisitos previos
+
+> El requisito previo **"Pantalla de inicio de sesión web"** declara que "registro y recuperación de credenciales MUST NOT formar parte de este corte". Este delta **no contradice** esa intención (el registro sigue fuera) pero la **extiende**: la recuperación de credenciales, que antes no estaba direccionada, ahora tiene un camino de entrada explícito desde `SignIn`. La acción sigue residiendo en pantallas dedicadas (`/auth/forgot-password`, `/auth/reset-password`) cubiertas por **`password-reset-web`**; este requisito solo garantiza que el usuario pueda descubrirlas.

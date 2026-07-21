@@ -187,3 +187,56 @@ without being caught by this handler.
 - **WHEN** `AuthApiClient.LoginAsync` throws `TaskCanceledException`
 - **THEN** the page MUST render with a Spanish error message: "El servidor tardó demasiado en responder. Volvé a intentar en unos segundos."
 - **AND** the user MUST remain on the sign-in page (no redirect to `/Error`).
+
+## ADDED Requirements
+
+> Delta introducida por el change `2026-07-21-password-reset-181` (issue #181). Verificado en `openspec/changes/archive/2026-07-21-password-reset-181/verify-report.md`. Las pantallas de recuperación son anónimas y el cliente HTTP NO debe añadir el bearer header. Los flujos autenticados del resto del contrato (`*ApiClient` administrativos, `LoginAsync`) NO se modifican.
+
+### Requirement: `IAuthApiClient.ForgotPasswordAsync` y `ResetPasswordAsync` son anónimos
+
+`AuthApiClient.ForgotPasswordAsync` y `AuthApiClient.ResetPasswordAsync` MUST ser invocados **sin** atravesar `ApiBearerTokenHandler`. El cliente MUST NO añadir el header `Authorization: Bearer <jwt>` a estos request, y MUST NO lanzar `InvalidOperationException` cuando el ticket de cookie esté ausente o haya expirado.
+
+#### Scenario: ForgotPassword sin Authorization header
+
+- **GIVEN** `AuthApiClient.ForgotPasswordAsync` is configured to skip the bearer handler
+- **AND** the user has no active cookie or the cookie has expired
+- **WHEN** `ForgotPasswordModel.OnPostAsync` invokes the method
+- **THEN** the outbound HTTP request MUST NOT contain an `Authorization` header
+- **AND** the call MUST NOT throw `InvalidOperationException` due to a missing bearer token.
+
+#### Scenario: ResetPassword sin Authorization header
+
+- **GIVEN** `AuthApiClient.ResetPasswordAsync` is configured to skip the bearer handler
+- **AND** the user has no active cookie or the cookie has expired
+- **WHEN** `ResetPasswordModel.OnPostAsync` invokes the method
+- **THEN** the outbound HTTP request MUST NOT contain an `Authorization` header
+- **AND** the call MUST NOT throw `InvalidOperationException` due to a missing bearer token.
+
+### Requirement: ForgotPassword / ResetPassword mantienen propagación de fallos nativos de transporte
+
+Los métodos `ForgotPasswordAsync` y `ResetPasswordAsync` de `AuthApiClient` MUST propagar `TaskCanceledException` y `HttpRequestException` sin traducirlas a resultados funcionales, en línea con el requisito **"Propagar fallos nativos de transporte"** de esta misma spec. La excepción `HttpRequestException` MUST preservar el `StatusCode` cuando esté disponible (en particular `429`) para que los PageModels puedan discriminar el mensaje.
+
+#### Scenario: `429` se propaga como HttpRequestException con StatusCode
+
+- **GIVEN** the upstream API responds `429 Too Many Requests` to `forgot-password`
+- **WHEN** `AuthApiClient.ForgotPasswordAsync` returns from the HTTP call
+- **THEN** the page model MUST observe an `HttpRequestException` whose `StatusCode == 429`
+- **AND** the exception MUST NOT be swallowed by the client.
+
+#### Scenario: Cancelación previa del token
+
+- **GIVEN** the caller passes a pre-cancelled `CancellationToken` to `AuthApiClient.ForgotPasswordAsync` or `ResetPasswordAsync`
+- **WHEN** the client executes the call
+- **THEN** the operation MUST finalizar como cancelada
+- **AND** the HTTP send MUST NOT initiate.
+
+### Requirement: ForgotPassword / ResetPassword exceptuadas de `CommandResultMapper`
+
+`AuthApiClient.ForgotPasswordAsync` y `AuthApiClient.ResetPasswordAsync` MUST NO delegar la clasificación de respuestas en `CommandResultMapper.Map`, alineadas con la excepción vigente para `AuthApiClient.LoginAsync` (esta misma spec, requisito **"Clientes HTTP administrativos usan `CommandResultMapper`"** — escenario "`AuthApiClient` queda exceptuado"). Los PageModels discriminan el resultado por el `StatusCode` del `HttpRequestException` o por el código de retorno.
+
+#### Scenario: Mapper común no se invoca para recovery
+
+- **GIVEN** `ForgotPassword` o `ResetPassword` produce cualquier respuesta HTTP no exitosa (`4xx`, `5xx`)
+- **WHEN** el cliente procesa la respuesta
+- **THEN** MUST NO llamar a `CommandResultMapper.Map`
+- **AND** MUST devolver el control al PageModel mediante excepción nativa o respuesta cruda, según corresponda.

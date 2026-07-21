@@ -125,6 +125,27 @@ const styles = function () {
         .pipe(dest(out));
 };
 
+// Pages-level scripts that ship with the Inspinia template and are referenced
+// directly from Razor Pages (e.g. `/js/pages/auth-password.js` from
+// ResetPassword.cshtml). The template lives outside the Web project, so the
+// Gulp pipeline materialises the asset into `wwwroot/js/pages/` during build.
+// `allowEmpty` keeps the build green when running from a checkout that does
+// not include `InspinaTemplate/` (CI artifacts, slim clones).
+const inspiniaPages = function () {
+    const out = paths.baseDistAssets + "/js/pages/";
+    const inspiniaPagesSource = [
+        "../../InspinaTemplate/Inspinia/wwwroot/js/pages/auth-password.js",
+    ];
+
+    return src(inspiniaPagesSource, {allowEmpty: true})
+        .on('error', (err) => {
+            const shortMsg = err.message.split('\n')[0];
+            console.error(`\ninspiniaPages - ${shortMsg}`);
+            throw new Error('inspiniaPages failed');
+        })
+        .pipe(dest(out));
+};
+
 function watchFiles() {
     watch(paths.baseSrcAssets + "/scss/**/*.scss", series(styles));
 }
@@ -134,6 +155,7 @@ function watchFiles() {
 exports.default = series(
     plugins,
     parallel(styles),
+    parallel(inspiniaPages),
     parallel(watchFiles)
 );
 
@@ -141,4 +163,5 @@ exports.default = series(
 exports.build = series(
     plugins,
     parallel(styles),
+    parallel(inspiniaPages),
 );

@@ -1,21 +1,27 @@
 using System.Security.Claims;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using SGV.Aplicacion;
 using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Auth;
 using SGV.Contracts.Seguridad;
 using SGV.Infraestructura;
+using SGV.Infraestructura.Email;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Seguridad;
 using SGV.Api.Infrastructure.Health;
 using SGV.Api.Seguridad;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -108,6 +114,16 @@ builder.Services
         "Jwt:SigningKey must be configured and ≥32 UTF-8 bytes")
     .ValidateOnStart();
 
+// SmtpOptions is required for the password reset flow (issue #181).
+// Outside Development the host fails loud when WebBaseUrl is missing
+// or not an absolute URL; the integration tests rely on the in-memory
+// factory overriding ASPNETCORE_ENVIRONMENT.
+builder.Services
+    .AddOptions<SmtpOptions>()
+    .BindConfiguration(SmtpOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services
     .AddIdentityCore<SgvIdentityUser>(options =>
     {
@@ -118,7 +134,17 @@ builder.Services
         options.Password.RequiredLength = 6;
     })
     .AddRoles<Microsoft.AspNetCore.Identity.IdentityRole>()
-    .AddEntityFrameworkStores<SgvDbContext>();
+    .AddEntityFrameworkStores<SgvDbContext>()
+    .AddDefaultTokenProviders();
+
+// Password reset tokens must expire after one hour. Identity stores the
+// lifespan on DataProtectionTokenProviderOptions, not on
+// IdentityOptions.Tokens. The reset link in the email must reach the
+// user well before this window closes.
+builder.Services.Configure<Microsoft.AspNetCore.Identity.DataProtectionTokenProviderOptions>(options =>
+{
+    options.TokenLifespan = TimeSpan.FromHours(1);
+});
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -174,6 +200,49 @@ builder.Services.AddAplicacionServicios();
 // Infrastructure services (repositories, UoW, query services)
 builder.Services.AddInfraestructuraServicios();
 
+// Rate limiting (issue #181): two named fixed-window policies for the
+// password recovery endpoints. Both are applied BEFORE authentication
+// (see pipeline order below) so anonymous bursts are still subject to
+// quota. The OnRejected callback writes Retry-After so polite clients
+// can back off without polling.
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter(AuthApiRoutes.ForgotPasswordPolicyName, policy =>
+    {
+        policy.PermitLimit = 3;
+        policy.Window = TimeSpan.FromMinutes(15);
+        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        policy.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter(AuthApiRoutes.ResetPasswordPolicyName, policy =>
+    {
+        policy.PermitLimit = 5;
+        policy.Window = TimeSpan.FromMinutes(15);
+        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        policy.QueueLimit = 0;
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = static (context, _) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            // Fall back to the policy window length when ASP.NET does not
+            // surface explicit RetryAfter metadata (older middleware
+            // behaviour). The headers stay aligned with the policy.
+            context.HttpContext.Response.Headers.RetryAfter = "900";
+        }
+        return ValueTask.CompletedTask;
+    };
+});
+
 // CORS: allow web app origin in development; fail loud if unconfigured outside Development.
 // The AllowedOrigins read happens inside the AddDefaultPolicy callback so it observes the
 // post-Build configuration (including any ConfigureAppConfiguration overrides applied by
@@ -224,6 +293,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+// Issue #181: rate limiter MUST run before authentication so the
+// "ForgotPassword"/"ResetPassword" named policies can throttle
+// anonymous bursts before the auth pipeline short-circuits. See the
+// composition comments in AddRateLimiter for the per-policy limits.
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.Use(async (context, next) =>

@@ -19,4 +19,40 @@ public static class AuthApiRoutes
     /// Absolute login route path.
     /// </summary>
     public const string Login = "/" + Base + "/" + LoginRelative;
+
+    /// <summary>
+    /// Relative route for the password recovery request. Marked
+    /// <c>[AllowAnonymous]</c>; see <c>AuthController</c> in
+    /// <c>SGV.Api</c>.
+    /// </summary>
+    public const string ForgotPasswordRelative = "forgot-password";
+
+    /// <summary>
+    /// Absolute route for the password recovery request.
+    /// </summary>
+    public const string ForgotPassword = "/" + Base + "/" + ForgotPasswordRelative;
+
+    /// <summary>
+    /// Relative route for the password reset execution. Marked
+    /// <c>[AllowAnonymous]</c>; see <c>AuthController</c> in
+    /// <c>SGV.Api</c>.
+    /// </summary>
+    public const string ResetPasswordRelative = "reset-password";
+
+    /// <summary>
+    /// Absolute route for the password reset execution.
+    /// </summary>
+    public const string ResetPassword = "/" + Base + "/" + ResetPasswordRelative;
+
+    /// <summary>
+    /// Rate-limit policy name for the forgot-password endpoint.
+    /// See <c>AuthController.ForgotPassword</c> in <c>SGV.Api</c>.
+    /// </summary>
+    public const string ForgotPasswordPolicyName = "ForgotPassword";
+
+    /// <summary>
+    /// Rate-limit policy name for the reset-password endpoint.
+    /// See <c>AuthController.ResetPassword</c> in <c>SGV.Api</c>.
+    /// </summary>
+    public const string ResetPasswordPolicyName = "ResetPassword";
 }
