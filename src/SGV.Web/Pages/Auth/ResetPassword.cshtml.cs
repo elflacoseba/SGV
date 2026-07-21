@@ -48,7 +48,8 @@ public sealed class ResetPasswordModel(
             ModelState.AddModelError($"{nameof(Input)}.{nameof(InputModel.ConfirmPassword)}", MismatchMessage);
         }
 
-        if (!MeetsPasswordPolicy(Input.NewPassword))
+        // Solo validar política si hay contraseña (el [Required] ya rechaza vacíos)
+        if (!string.IsNullOrEmpty(Input.NewPassword) && !MeetsPasswordPolicy(Input.NewPassword))
         {
             ModelState.AddModelError(
                 $"{nameof(Input)}.{nameof(InputModel.NewPassword)}",
