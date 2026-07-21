@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Seguridad;
 using SGV.Api.Infrastructure.Health;
 using SGV.Api.Seguridad;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -129,7 +131,17 @@ builder.Services
         options.Password.RequiredLength = 6;
     })
     .AddRoles<Microsoft.AspNetCore.Identity.IdentityRole>()
-    .AddEntityFrameworkStores<SgvDbContext>();
+    .AddEntityFrameworkStores<SgvDbContext>()
+    .AddDefaultTokenProviders();
+
+// Password reset tokens must expire after one hour. Identity stores the
+// lifespan on DataProtectionTokenProviderOptions, not on
+// IdentityOptions.Tokens. The reset link in the email must reach the
+// user well before this window closes.
+builder.Services.Configure<Microsoft.AspNetCore.Identity.DataProtectionTokenProviderOptions>(options =>
+{
+    options.TokenLifespan = TimeSpan.FromHours(1);
+});
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
