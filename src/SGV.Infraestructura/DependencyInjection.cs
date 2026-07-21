@@ -10,6 +10,7 @@ using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad.PasswordReset;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Infraestructura.Email;
 using SGV.Infraestructura.Persistencia;
@@ -89,6 +90,11 @@ public static class DependencyInjection
         // client lifetime is shared across requests. Logger mode in
         // Development means no real SMTP connection is opened.
         services.AddSingleton<IEmailSender<SgvIdentityUser>, SmtpEmailSender>();
+
+        // Password reset (issue #181): scoped because the service holds
+        // scoped dependencies (UserManager<SgvIdentityUser>); a singleton
+        // here would capture a stale UserManager across requests.
+        services.AddScoped<IPasswordResetService, PasswordResetService>();
 
         return services;
     }
