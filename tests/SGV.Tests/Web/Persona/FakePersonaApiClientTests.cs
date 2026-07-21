@@ -1,3 +1,4 @@
+using System.Net;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using Xunit;
 
@@ -140,5 +141,80 @@ public class FakePersonaApiClientTests
         var falseResult = await apiClient.QueryAsync(new PersonaListQuery(
             1, 20, null, null, PersonaSegmentoListado.Activas, SoloSinUsuario: false));
         Assert.Equal(2, falseResult.Items.Count);
+    }
+
+    // ──────────────────────────────────────────────
+    // PR3 (issue #147): GetTiposDocumentoAsync
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetTiposDocumentoAsync_Default_ReturnsEmptyList()
+    {
+        // AC: por defecto (sin seed cableado), el fake devuelve lista vacía.
+        // Los tests que cargan catalogos sobreescriben TiposDocumentoResult.
+        var apiClient = new FakePersonaApiClient();
+
+        var result = await apiClient.GetTiposDocumentoAsync();
+
+        Assert.NotNull(result);
+        Assert.Empty(result);
+        Assert.Equal(1, apiClient.GetTiposDocumentoCalls);
+    }
+
+    [Fact]
+    public async Task GetTiposDocumentoAsync_WithFourSeeded_RetornaCuatro()
+    {
+        // AC: cuando el fake tiene 4 entradas configuradas (DNI/LE/LC/Pasaporte),
+        // la invocación devuelve los 4 elementos en el orden configurado.
+        var seed = new List<TipoDocumentoDto>
+        {
+            new(Guid.Parse("71000000-0000-0000-0000-000000000001"), "DNI", "Documento Nacional de Identidad", "^\\d{7,8}$", 7, 8),
+            new(Guid.Parse("71000000-0000-0000-0000-000000000002"), "LE", "Libreta de Enrolamiento", "^\\d{6,8}$", 6, 8),
+            new(Guid.Parse("71000000-0000-0000-0000-000000000003"), "LC", "Libreta Cívica", "^\\d{6,8}$", 6, 8),
+            new(Guid.Parse("71000000-0000-0000-0000-000000000004"), "Pasaporte", "Pasaporte", "^[A-Za-z]{3}\\d{6}$", 9, 9)
+        };
+
+        var apiClient = new FakePersonaApiClient
+        {
+            TiposDocumentoResult = seed
+        };
+
+        var result = await apiClient.GetTiposDocumentoAsync();
+
+        Assert.Equal(4, result.Count);
+        Assert.Equal("DNI", result[0].Codigo);
+        Assert.Equal("Pasaporte", result[3].Codigo);
+        Assert.Equal(1, apiClient.GetTiposDocumentoCalls);
+    }
+
+    [Fact]
+    public async Task GetTiposDocumentoAsync_WhenExceptionConfigured_PropagatesNativeException()
+    {
+        // AC: el fake respeta Exception configurado para que los smoke tests
+        // de Create/Edit puedan triangular el path de error recuperable
+        // (espejo de `CreateException`/`UpdateException`).
+        var apiClient = new FakePersonaApiClient
+        {
+            GetTiposDocumentoException = new HttpRequestException("network down")
+        };
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => apiClient.GetTiposDocumentoAsync());
+        Assert.Equal(1, apiClient.GetTiposDocumentoCalls);
+    }
+
+    [Fact]
+    public async Task GetTiposDocumentoAsync_RepeatedInvocations_IncrementCounter()
+    {
+        // AC: el PageModel puede llamar varias veces (GET inicial + POST
+        // que retorna Page); el counter permite asertar el comportamiento.
+        var apiClient = new FakePersonaApiClient
+        {
+            TiposDocumentoResult = new[] { new TipoDocumentoDto(Guid.NewGuid(), "DNI", "Doc", "^\\d{7,8}$", 7, 8) }
+        };
+
+        _ = await apiClient.GetTiposDocumentoAsync();
+        _ = await apiClient.GetTiposDocumentoAsync();
+
+        Assert.Equal(2, apiClient.GetTiposDocumentoCalls);
     }
 }

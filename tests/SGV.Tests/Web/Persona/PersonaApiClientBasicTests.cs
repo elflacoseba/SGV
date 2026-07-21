@@ -276,6 +276,46 @@ public class PersonaApiClientBasicTests
         Assert.Equal("LegajoDuplicado", result.Error.Code);
     }
 
+    [Fact]
+    public async Task GetTiposDocumentoAsync_Http200WithPayload_ReturnsParsedCatalogAndHitsRoute()
+    {
+        // AC: issue #147 PR3 — el cliente consume GET /api/v1/tipos-documento.
+        // Espejo de CargoApiClient.GetNivelesAsync (BasicTests): happy path,
+        // ruta absoluta, body deserializado a TipoDocumentoDto.
+        var dniId = Guid.Parse("71000000-0000-0000-0000-000000000001");
+        var payload = new[]
+        {
+            new TipoDocumentoDto(dniId, "DNI", "Documento Nacional de Identidad", "^\\d{7,8}$", 7, 8),
+            new TipoDocumentoDto(Guid.NewGuid(), "LE", "Libreta de Enrolamiento", "^\\d{6,8}$", 6, 8)
+        };
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
+        var client = new PersonaApiClient(NewHttpClient(handler));
+
+        var result = await client.GetTiposDocumentoAsync();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal("DNI", result[0].Codigo);
+        Assert.Equal(dniId, result[0].Id);
+        Assert.Equal(HttpMethod.Get, handler.LastRequest?.Method);
+        Assert.Equal("/api/v1/tipos-documento", handler.LastRequest?.RequestUri?.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task GetTiposDocumentoAsync_Http200EmptyBody_ReturnsEmptyList()
+    {
+        // AC: si el backend responde 200 con body vacío (null deserializado),
+        // el cliente devuelve una lista vacía en vez de propagar
+        // JsonException — analog al patrón de CargoApiClient.QueryAsync
+        // cuando la paginación viene vacía.
+        var handler = new RecordingHandler(_ => Json<object?>(HttpStatusCode.OK, null));
+        var client = new PersonaApiClient(NewHttpClient(handler));
+
+        var result = await client.GetTiposDocumentoAsync();
+
+        Assert.NotNull(result);
+        Assert.Empty(result);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, ErrorCategoria.Unauthorized)]
     [InlineData(HttpStatusCode.Forbidden, ErrorCategoria.Forbidden)]

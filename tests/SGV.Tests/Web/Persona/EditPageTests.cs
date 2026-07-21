@@ -252,4 +252,115 @@ public sealed class EditPageTests
         // El mensaje de transporte es visible.
         Assert.Contains("No se pudo contactar al servicio", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────
+    // T-XX 7: Edit carga catálogo y pre-selecciona el tipo actual
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Edit_LoadsCatalogAndRendersSelectWithFourOptions()
+    {
+        // AC: spec persona-management § "Formulario Edit pre-selecciona el
+        // TipoDocumento actual". El <select> renderea las 4 opciones del
+        // catálogo independientemente de si la persona existe; el binding
+        // asp-for="Input.TipoDocumentoId" pre-selecciona el Id actual
+        // cuando la persona existe.
+        var dniId = Guid.Parse("71000000-0000-0000-0000-000000000001");
+        var pasaporteId = Guid.Parse("71000000-0000-0000-0000-000000000004");
+        var persona = new PersonaDto(
+            Guid.NewGuid(), "L-001", "Ana", "García", "ana@example.com",
+            pasaporteId, "Pasaporte", "Pasaporte", "ABC123456", "+5491112345678", true);
+
+        var seeded = FakePersonaApiClient.WithPersonaList(persona);
+        seeded.TiposDocumentoResult = new[]
+        {
+            new TipoDocumentoDto(dniId, "DNI", "DNI", "^\\d{7,8}$", 7, 8),
+            new(Guid.Parse("71000000-0000-0000-0000-000000000002"), "LE", "LE", "^\\d{6,8}$", 6, 8),
+            new(Guid.Parse("71000000-0000-0000-0000-000000000003"), "LC", "LC", "^\\d{6,8}$", 6, 8),
+            new TipoDocumentoDto(pasaporteId, "Pasaporte", "Pasaporte", "^[A-Za-z]{3}\\d{6}$", 9, 9)
+        };
+
+        await using var lease = await _fixture.CreatePersonaLeaseAsync(seeded, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/personas/editar/{persona.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("name=\"Input.TipoDocumentoId\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // 4 opciones del catálogo + el placeholder "Seleccionar tipo…" → 5 <option>.
+        var optionCount = Regex.Matches(content, "<option[^>]*value=\"71000000", RegexOptions.IgnoreCase).Count;
+        Assert.Equal(4, optionCount);
+
+        // La opción Pasaporte aparece como `selected` (asp-for binding sobre Input.TipoDocumentoId).
+        // El helper tag puede emitir `<option selected value="...">` o
+        // `<option value="..." selected>` o `<option selected="selected" value="...">`
+        // según el orden de render; aceptamos cualquier orden con
+        // `selected\b` después de `<option`.
+        Assert.True(
+            Regex.IsMatch(content, $@"<option[^>]*\bselected\b[^>]*value=""{pasaporteId:D}""", RegexOptions.IgnoreCase)
+            || Regex.IsMatch(content, $@"<option[^>]*value=""{pasaporteId:D}""[^>]*\bselected\b", RegexOptions.IgnoreCase),
+            $"Expected the Pasaporte option (value={pasaporteId:D}) to carry the selected attribute via asp-for binding.");
+
+        // El catálogo se cargó exactamente una vez en el GET.
+        Assert.Equal(1, seeded.GetTiposDocumentoCalls);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenBackendReturnsPatronNoCumplido_PreservaInputYRerenderiza()
+    {
+        // AC: spec persona-management § "Feedback de validación server-side
+        // en Create/Edit". Cuando el backend responde 400 con FieldErrors
+        // (e.g. PATRON_NO_CUMPLIDO sobre NumeroDocumento), el Edit form
+        // se re-renderiza preservando los valores y el mensaje en español
+        // aparece bajo el campo NumeroDocumento. El catálogo se vuelve a
+        // cargar (porque LoadTiposDocumentoAsync se llama en el path Page()).
+        var personaId = Guid.NewGuid();
+        var dniId = Guid.Parse("71000000-0000-0000-0000-000000000001");
+        var apiClient = new FakePersonaApiClient
+        {
+            TiposDocumentoResult = new[]
+            {
+                new TipoDocumentoDto(dniId, "DNI", "DNI", "^\\d{7,8}$", 7, 8)
+            },
+            UpdateResult = PersonaCommandResult.Failure(
+                new PersonaError(PersonaErrorType.Validation, "PATRON_NO_CUMPLIDO",
+                    "El número de documento no cumple el patrón del tipo seleccionado.",
+                    Categoria: ErrorCategoria.Validation),
+                new Dictionary<string, string[]>
+                {
+                    ["numeroDocumento"] = new[] { "El número de documento no cumple el patrón del tipo seleccionado." }
+                })
+        };
+
+        await using var lease = await _fixture.CreatePersonaLeaseAsync(apiClient, adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync($"/personas/editar/{personaId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync($"/personas/editar/{personaId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Legajo"] = "L-EDIT",
+            ["Input.Nombres"] = "Ana",
+            ["Input.Apellidos"] = "García",
+            ["Input.TipoDocumentoId"] = dniId.ToString(),
+            ["Input.NumeroDocumento"] = "12A45678"
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        // Preserva input y muestra el mensaje bajo NumeroDocumento.
+        Assert.Contains("L-EDIT", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("12A45678", content, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(PersonaFormKeys.NumeroDocumentoKey)}""[^>]*>[\s\S]*?no cumple el patrón[\s\S]*?</span>", RegexOptions.IgnoreCase),
+            $"Expected the backend 'PATRON_NO_CUMPLIDO' message to be rendered inside the {PersonaFormKeys.NumeroDocumentoKey} field-validation span.");
+
+        // El catálogo se cargó 2 veces (GET inicial + POST que retorna Page()).
+        Assert.Equal(2, apiClient.GetTiposDocumentoCalls);
+    }
 }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Personas.Comandos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Personas;
@@ -19,6 +20,14 @@ namespace SGV.Web.Pages.Personas;
 /// correspondientes; 409 muestra el campo afectado sin perder el resto
 /// del formulario.
 /// <para>
+/// Issue #147 PR3: el catálogo de tipos de documento se carga en cada
+/// <see cref="OnGetAsync"/> y <see cref="OnPostAsync"/> que retorna
+/// <c>Page()</c> vía <c>LoadTiposDocumentoAsync</c> (espejo del patrón
+/// <c>LoadCatalogsAsync</c> de Cargos). El binding de
+/// <c>TipoDocumentoId</c> es directo desde el <c>&lt;select&gt;</c>; el
+/// legacy <c>ParseTipoDocumentoIdBackCompat</c> se elimina.
+/// </para>
+/// <para>
 /// Issue #125 / Slice 3: switch exhaustivo sobre
 /// <see cref="ErrorCategoria"/> (sin <c>default</c>). <c>Unauthorized</c>
 /// redirige vía <see cref="IAuthSessionRedirector"/>.
@@ -32,6 +41,8 @@ public sealed class CreateModel(
 {
     [BindProperty]
     public PersonaInputModel Input { get; set; } = new();
+
+    public IReadOnlyList<TipoDocumentoDto> TiposDocumento { get; private set; } = [];
 
     public string? ErrorMessage { get; private set; }
 
@@ -51,11 +62,12 @@ public sealed class CreateModel(
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
 
     /// <summary>
-    /// GET handler del formulario. Si el usuario no es Administrador, devuelve
-    /// <c>Forbid()</c> que delega al cookie scheme (redirige a AccessDeniedPath,
-    /// <c>/error/403</c>).
+    /// GET handler del formulario. Carga el catálogo de tipos de documento
+    /// para popular el <c>&lt;select&gt;</c> (issue #147 PR3). Si el usuario
+    /// no es Administrador, devuelve <c>Forbid()</c> que delega al cookie
+    /// scheme (redirige a AccessDeniedPath, <c>/error/403</c>).
     /// </summary>
-    public IActionResult OnGet(string? p = null, string? search = null, string? sort = null)
+    public async Task<IActionResult> OnGetAsync(string? p = null, string? search = null, string? sort = null, CancellationToken ct = default)
     {
         if (!EsAdministrador)
         {
@@ -66,6 +78,7 @@ public sealed class CreateModel(
         ReturnSearch = search ?? string.Empty;
         ReturnSort = sort ?? string.Empty;
 
+        await LoadTiposDocumentoAsync(ct);
         return Page();
     }
 
@@ -86,19 +99,20 @@ public sealed class CreateModel(
 
         if (!ModelState.IsValid)
         {
+            await LoadTiposDocumentoAsync(cancellationToken);
             return Page();
         }
 
+        // Issue #147 PR3: binding directo desde el <select>. El legacy
+        // ParseTipoDocumentoIdBackCompat se elimina porque el frontend ya no
+        // envía el string TipoDocumento.
+        var tipoDocumentoId = Input.TipoDocumentoId;
         var request = new CrearPersonaRequest(
             Input.Legajo.Trim(),
             Input.Nombres.Trim(),
             Input.Apellidos.Trim(),
             string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),
-            // Issue #147: TipoDocumentoId reemplaza al string TipoDocumento.
-            // PR3 agregará el <select> con catálogo cargado vía
-            // GetTiposDocumentoAsync; por ahora el binding del <select> legacy
-            // (string TipoDocumento) sigue siendo el origen.
-            PersonaFormHelpers.ParseTipoDocumentoIdBackCompat(Input.TipoDocumentoId, Input.TipoDocumento),
+            tipoDocumentoId,
             string.IsNullOrWhiteSpace(Input.NumeroDocumento) ? null : Input.NumeroDocumento.Trim(),
             string.IsNullOrWhiteSpace(Input.Telefono) ? null : Input.Telefono.Trim());
 
@@ -116,6 +130,7 @@ public sealed class CreateModel(
             logger.LogError(ex, "Persona create transport failure.");
             ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
+            await LoadTiposDocumentoAsync(cancellationToken);
             return Page();
         }
 
@@ -139,6 +154,7 @@ public sealed class CreateModel(
 
                 ErrorMessage = PageFeedback.UnauthorizedMessage;
                 ModelState.AddModelError(string.Empty, ErrorMessage);
+                await LoadTiposDocumentoAsync(cancellationToken);
                 return Page();
             }
 
@@ -159,6 +175,28 @@ public sealed class CreateModel(
             }
         }
 
+        await LoadTiposDocumentoAsync(cancellationToken);
         return Page();
+    }
+
+    /// <summary>
+    /// Carga el catálogo de tipos de documento vía
+    /// <see cref="IPersonaApiClient.GetTiposDocumentoAsync"/>. Si la
+    /// llamada falla (transport error, etc.), se loguea, se setea
+    /// <see cref="ErrorMessage"/> con un mensaje recuperable y la lista
+    /// queda vacía — el view aún renderiza el placeholder "Seleccionar
+    /// tipo…" sin propagar la excepción.
+    /// </summary>
+    private async Task LoadTiposDocumentoAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            TiposDocumento = await personaApiClient.GetTiposDocumentoAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to load tipos-documento catalog for persona create page.");
+            ErrorMessage = "No se pudo cargar el catálogo de tipos de documento. Intentá nuevamente.";
+        }
     }
 }

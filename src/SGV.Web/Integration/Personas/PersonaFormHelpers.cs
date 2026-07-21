@@ -6,8 +6,11 @@ namespace SGV.Web.Integration.Personas;
 /// <summary>
 /// Stable binding keys used by the Persona Create/Edit form contract.
 /// Centralized so the partial (<c>_Form.cshtml</c>), the page models
-/// (<c>Create.cshtml.cs</c>, <c>Edit.cshtml.cs</c> in PR3) and tests
-/// agree on the exact strings the model binder expects.
+/// (<c>Create.cshtml.cs</c>, <c>Edit.cshtml.cs</c> en PR3) y tests
+/// coinciden en los strings exactos que el model binder espera.
+/// Issue #147 PR3: el legacy <c>TipoDocumentoKey</c> se elimina porque
+/// el <c>&lt;input&gt;</c> string fue reemplazado por un
+/// <c>&lt;select name="Input.TipoDocumentoId"&gt;</c> bindable directo.
 /// </summary>
 public static class PersonaFormKeys
 {
@@ -29,8 +32,8 @@ public static class PersonaFormKeys
     /// <summary>Binding key for the <c>Email</c> field.</summary>
     public const string EmailKey = InputPrefix + "Email";
 
-    /// <summary>Binding key for the <c>TipoDocumento</c> field.</summary>
-    public const string TipoDocumentoKey = InputPrefix + "TipoDocumento";
+    /// <summary>Binding key for the <c>TipoDocumentoId</c> field (issue #147).</summary>
+    public const string TipoDocumentoIdKey = InputPrefix + "TipoDocumentoId";
 
     /// <summary>Binding key for the <c>NumeroDocumento</c> field.</summary>
     public const string NumeroDocumentoKey = InputPrefix + "NumeroDocumento";

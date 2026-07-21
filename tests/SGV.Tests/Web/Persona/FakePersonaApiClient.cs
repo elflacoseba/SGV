@@ -112,6 +112,25 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
     public Exception? GetByIdException { get; set; }
 
     /// <summary>
+    /// Resultado fijo que devuelve <see cref="GetTiposDocumentoAsync"/>.
+    /// Por defecto, lista vacía (los tests que cargan catalogos en Create/Edit
+    /// configuran su propio seed). Cambio issue #147 PR3.
+    /// </summary>
+    public IReadOnlyList<TipoDocumentoDto> TiposDocumentoResult { get; set; } = Array.Empty<TipoDocumentoDto>();
+
+    /// <summary>
+    /// Cantidad de invocaciones a <see cref="GetTiposDocumentoAsync"/>.
+    /// </summary>
+    public int GetTiposDocumentoCalls { get; private set; }
+
+    /// <summary>
+    /// Excepción opcional que <see cref="GetTiposDocumentoAsync"/> lanza.
+    /// Permite simular fallos de transporte del catálogo durante los
+    /// smoke tests de Create/Edit.
+    /// </summary>
+    public Exception? GetTiposDocumentoException { get; set; }
+
+    /// <summary>
     /// Conjunto de identificadores de personas activas que ya tienen un
     /// usuario asociado. Cuando <see cref="QueryAsync"/> recibe un
     /// <see cref="SGV.Contracts.Personas.Consultas.Dtos.PersonaListQuery"/>
@@ -293,6 +312,25 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
         }
 
         return Task.FromResult(ReactivarResult);
+    }
+
+    /// <summary>
+    /// Devuelve el seed configurado en <see cref="TiposDocumentoResult"/>
+    /// (vacío por defecto). Lanza <see cref="GetTiposDocumentoException"/>
+    /// si está configurada. Incrementa <see cref="GetTiposDocumentoCalls"/>
+    /// para que los smoke tests de Create/Edit puedan triangular la carga
+    /// de catálogo. Issue #147 PR3.
+    /// </summary>
+    public Task<IReadOnlyList<TipoDocumentoDto>> GetTiposDocumentoAsync(CancellationToken cancellationToken = default)
+    {
+        GetTiposDocumentoCalls++;
+
+        if (GetTiposDocumentoException is not null)
+        {
+            throw GetTiposDocumentoException;
+        }
+
+        return Task.FromResult(TiposDocumentoResult);
     }
 
     private List<PersonaDto> ApplyStatusFilter(List<PersonaDto> source, PersonaSegmentoListado segmento)

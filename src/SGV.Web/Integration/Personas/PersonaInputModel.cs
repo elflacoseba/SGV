@@ -30,15 +30,15 @@ public sealed class PersonaInputModel
     public string? Email { get; set; }
 
     /// <summary>
-    /// Legacy free-form tipo de documento (deprecated by issue #147).
-    /// Se mantiene en el input model para preservar el binding con el
-    /// <c>&lt;select&gt;</c> existente; el backend ahora consume
-    /// <see cref="TipoDocumentoId"/>. PR3 reemplazará el control con un
-    /// <c>&lt;select name="TipoDocumentoId"&gt;</c> poblado desde
-    /// <c>GetTiposDocumentoAsync</c>.
+    /// FK hacia <c>TipoDocumento</c> (issue #147). El backend consume
+    /// este Guid como la fuente de verdad wire; los validators de
+    /// aplicación validan que el Id exista en el catálogo seed y que
+    /// el <c>NumeroDocumento</c> matchee el patrón y rango del tipo.
+    /// El page model hace binding desde el <c>&lt;select&gt;</c> poblado
+    /// vía <see cref="SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto"/>
+    /// cargado con <c>GetTiposDocumentoAsync</c> en OnGet.
     /// </summary>
-    [StringLength(20, ErrorMessage = "El tipo de documento no puede superar los 20 caracteres.")]
-    public string? TipoDocumento { get; set; }
+    public Guid? TipoDocumentoId { get; set; }
 
     /// <summary>
     /// FK hacia <c>TipoDocumento</c> (issue #147). Reemplaza

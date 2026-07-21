@@ -1,6 +1,8 @@
-@* This is a field partial, not a complete form. The consumer must provide: <form>, antiforgery token, hidden return, submit/cancel actions. *@
+@* This is a field partial, not a complete form. The consumer must provide: <form>, antiforgery token, hidden return, submit/cancel actions, and loaded TiposDocumento. *@
 @* Shared form partial for create/edit of Personas. *@
 @* Expects a model that implements IPersonaForm. *@
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using SGV.Contracts.Personas.Consultas.Dtos
 @model SGV.Web.Integration.Personas.IPersonaForm
 
 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
@@ -35,10 +37,21 @@
         </div>
     </div>
     <div class="col-md-6">
+        @* Issue #147 PR3: <select> poblado desde IPersonaForm.TiposDocumento. *@
+        @* Materializamos la SelectList acá para mantener el binding por nombre de campo simple. *@
+        @{
+            // Texto = Codigo (DNI/LE/LC/Pasaporte) según spec persona-management
+            // § "Formulario Create carga TiposDocumento": las etiquetas
+            // visibles tienen que ser las códigos canónicos, no los nombres
+            // descriptivos.
+            var tiposOptions = new SelectList(Model.TiposDocumento, nameof(TipoDocumentoDto.Id), nameof(TipoDocumentoDto.Codigo));
+        }
         <div class="form-floating">
-            <input asp-for="Input.TipoDocumento" class="form-control" placeholder="Tipo de documento" />
-            <label asp-for="Input.TipoDocumento">Tipo de documento</label>
-            <span asp-validation-for="Input.TipoDocumento" class="text-danger"></span>
+            <select asp-for="Input.TipoDocumentoId" class="form-select" asp-items="tiposOptions">
+                <option value="">Seleccionar tipo…</option>
+            </select>
+            <label asp-for="Input.TipoDocumentoId">Tipo de documento</label>
+            <span asp-validation-for="Input.TipoDocumentoId" class="text-danger"></span>
         </div>
     </div>
     <div class="col-md-6">
