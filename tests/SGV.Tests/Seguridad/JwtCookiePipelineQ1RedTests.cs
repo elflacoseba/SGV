@@ -101,6 +101,9 @@ public sealed class JwtCookiePipelineQ1RedTests
             builder.UseSetting("Jwt:Audience", "sgv-clients");
             builder.UseSetting("Jwt:TokenLifetimeMinutes", "60");
             builder.UseSetting("AllowedOrigins:0", "http://localhost");
+            builder.UseSetting("Smtp:FromAddress", "no-reply@sgv.local");
+            builder.UseSetting("Smtp:FromName", "SGV");
+            builder.UseSetting("Smtp:WebBaseUrl", "https://sgv.example.com");
         }
     }
 

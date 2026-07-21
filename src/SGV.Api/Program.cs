@@ -12,6 +12,7 @@ using SGV.Aplicacion;
 using SGV.Aplicacion.Seguridad;
 using SGV.Contracts.Seguridad;
 using SGV.Infraestructura;
+using SGV.Infraestructura.Email;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Seguridad;
 using SGV.Api.Infrastructure.Health;
@@ -106,6 +107,16 @@ builder.Services
     .Validate(o => !string.IsNullOrWhiteSpace(o.SigningKey)
                    && Encoding.UTF8.GetByteCount(o.SigningKey) >= 32,
         "Jwt:SigningKey must be configured and ≥32 UTF-8 bytes")
+    .ValidateOnStart();
+
+// SmtpOptions is required for the password reset flow (issue #181).
+// Outside Development the host fails loud when WebBaseUrl is missing
+// or not an absolute URL; the integration tests rely on the in-memory
+// factory overriding ASPNETCORE_ENVIRONMENT.
+builder.Services
+    .AddOptions<SmtpOptions>()
+    .BindConfiguration(SmtpOptions.SectionName)
+    .ValidateDataAnnotations()
     .ValidateOnStart();
 
 builder.Services

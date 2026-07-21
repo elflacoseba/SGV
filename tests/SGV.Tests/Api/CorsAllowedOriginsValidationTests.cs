@@ -41,7 +41,10 @@ public sealed class CorsAllowedOriginsValidationTests
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Production")
                 .UseSetting(JwtSigningKeyConfigKey, DevValidSigningKey)
-                .UseSetting(ConnectionStringConfigKey, DevValidConnectionString));
+                .UseSetting(ConnectionStringConfigKey, DevValidConnectionString)
+                .UseSetting("Smtp:FromAddress", "no-reply@sgv.local")
+                .UseSetting("Smtp:FromName", "SGV")
+                .UseSetting("Smtp:WebBaseUrl", "https://sgv.example.com"));
 
         // Act + Assert — CreateClient triggers host build; the validator must throw before
         // the host is fully constructed.
@@ -58,6 +61,9 @@ public sealed class CorsAllowedOriginsValidationTests
                 .UseEnvironment("Production")
                 .UseSetting(JwtSigningKeyConfigKey, DevValidSigningKey)
                 .UseSetting(ConnectionStringConfigKey, DevValidConnectionString)
+                .UseSetting("Smtp:FromAddress", "no-reply@sgv.local")
+                .UseSetting("Smtp:FromName", "SGV")
+                .UseSetting("Smtp:WebBaseUrl", "https://sgv.example.com")
                 .UseSetting("AllowedOrigins:0", "https://app.example.com"));
 
         // Act — host build must succeed; CreateClient must not throw.
