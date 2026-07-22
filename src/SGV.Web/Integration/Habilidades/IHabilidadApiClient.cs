@@ -69,4 +69,19 @@ public interface IHabilidadApiClient
         Guid skillId,
         HabilidadCargosListQuery query,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lista paginada y segmentada de personas asociadas a una habilidad
+    /// consumiendo <c>GET /api/v1/skills/{skillId}/personas</c>. El segmento
+    /// de persona (<c>activas|eliminadas</c>) viaja dentro del query
+    /// (<c>status</c>) y se normaliza del lado del backend. La respuesta
+    /// <c>404</c>/<c>5xx</c> se traduce a <see cref="HttpRequestException"/>
+    /// (paridad con <see cref="GetCargosAsync"/>); los call sites que
+    /// necesitan distinguir 404 de "colección vacía" deben llamar primero a
+    /// <see cref="GetByIdAsync"/>.
+    /// </summary>
+    Task<PersonaHabilidadesPageResult> GetPersonasAsync(
+        Guid skillId,
+        HabilidadPersonasListQuery query,
+        CancellationToken cancellationToken = default);
 }

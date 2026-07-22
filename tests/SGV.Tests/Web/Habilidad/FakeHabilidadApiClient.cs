@@ -2,6 +2,7 @@ using System.Net;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Web.Integration.Habilidades;
 using HabilidadListQuery = SGV.Web.Integration.Habilidades.HabilidadListQuery;
 
@@ -91,6 +92,63 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
 
     public PagedResult<SkillCargoDetailDto> GetCargosResult { get; set; } =
         new(Array.Empty<SkillCargoDetailDto>(), 0, 1, 20);
+
+    // PR agrega-navegacion-personas-habilidades / PR C — frontend subreverso.
+    // Seed determinista del subrecurso /api/v1/skills/{skillId}/personas.
+    // Paridad con el patrón de GetCargosHandler/GetCargosResult.
+    private readonly Dictionary<Guid, IReadOnlyList<SkillPersonaDetailDto>> _personasActivasSeed = new();
+    private readonly Dictionary<Guid, IReadOnlyList<SkillPersonaDetailDto>> _personasEliminadasSeed = new();
+
+    public Func<Guid, HabilidadPersonasListQuery, PersonaHabilidadesPageResult>? GetPersonasHandler { get; set; }
+
+    public List<(Guid SkillId, HabilidadPersonasListQuery Query)> GetPersonasCalls { get; } = new();
+
+    public Exception? GetPersonasException { get; set; }
+
+    public PersonaHabilidadesPageResult GetPersonasResult { get; set; } =
+        new(Array.Empty<SkillPersonaDetailDto>(), Page: 1, PageSize: 20, Total: 0, Sort: null, Segmento: PersonaSegmentoListado.Activas);
+
+    /// <summary>
+    /// Registra el seed determinista de personas activas asociadas a
+    /// <paramref name="skillId"/>. Cada <see cref="PersonaDto"/> se mapea
+    /// a un <see cref="SkillPersonaDetailDto"/> compartiendo
+    /// <paramref name="nivel"/> como nivel de la asociación. Para sembrar
+    /// el segmento "eliminadas" usar <see cref="SeedPersonasEliminadas"/>.
+    /// </summary>
+    public void GetPersonasSeed(Guid skillId, IEnumerable<PersonaDto> personas, NivelHabilidadDto nivel)
+    {
+        ArgumentNullException.ThrowIfNull(personas);
+        ArgumentNullException.ThrowIfNull(nivel);
+
+        _personasActivasSeed[skillId] = personas
+            .Select(p => new SkillPersonaDetailDto(p, nivel)
+            {
+                PersonaId = p.Id,
+                HabilidadId = skillId,
+                NivelHabilidadId = nivel.Id,
+            })
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Registra el seed determinista de personas soft-deleted asociadas a
+    /// <paramref name="skillId"/> para el segmento Eliminadas. Complementa
+    /// <see cref="GetPersonasSeed"/> y respeta la separación del segmento.
+    /// </summary>
+    public void SeedPersonasEliminadas(Guid skillId, IEnumerable<PersonaDto> personas, NivelHabilidadDto nivel)
+    {
+        ArgumentNullException.ThrowIfNull(personas);
+        ArgumentNullException.ThrowIfNull(nivel);
+
+        _personasEliminadasSeed[skillId] = personas
+            .Select(p => new SkillPersonaDetailDto(p, nivel)
+            {
+                PersonaId = p.Id,
+                HabilidadId = skillId,
+                NivelHabilidadId = nivel.Id,
+            })
+            .ToArray();
+    }
 
     public static FakeHabilidadApiClient WithHabilidadList(params HabilidadDto[] habilidades)
         => new(habilidades.Length == 0 ? null : habilidades);
@@ -280,5 +338,60 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
         }
 
         return Task.FromResult(GetCargosResult);
+    }
+
+    // PR agrega-navegacion-personas-habilidades / PR C — stub mínimo para
+    // satisfacer el contrato IHabilidadApiClient.GetPersonasAsync. C.4 lo
+    // reemplaza por la implementación con seed determinista + handlers.
+    public Task<PersonaHabilidadesPageResult> GetPersonasAsync(
+        Guid skillId,
+        HabilidadPersonasListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        GetPersonasCalls.Add((skillId, query));
+
+        if (GetPersonasException is not null)
+        {
+            throw GetPersonasException;
+        }
+
+        if (GetPersonasHandler is not null)
+        {
+            return Task.FromResult(GetPersonasHandler(skillId, query));
+        }
+
+        // Comportamiento server-side simulado: lookup por segmento
+        // (activas|eliminadas), búsqueda case-insensitive sobre
+        // legajo/apellidos/nombres, paginación Skip/Take.
+        var source = (query.Segmento == PersonaSegmentoListado.Eliminadas
+            ? _personasEliminadasSeed
+            : _personasActivasSeed).TryGetValue(skillId, out var seed)
+                ? seed.ToArray()
+                : Array.Empty<SkillPersonaDetailDto>();
+
+        var lowered = query.Search?.ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(lowered))
+        {
+            source = source
+                .Where(item =>
+                    (item.Persona.Legajo?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || item.Persona.Nombres.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                    || item.Persona.Apellidos.Contains(lowered, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
+
+        var total = source.Length;
+        var pageItems = source
+            .Skip(Math.Max(0, (query.Page - 1) * query.PageSize))
+            .Take(query.PageSize)
+            .ToArray();
+
+        return Task.FromResult(new PersonaHabilidadesPageResult(
+            pageItems,
+            Page: query.Page,
+            PageSize: query.PageSize,
+            Total: total,
+            Sort: query.Sort,
+            Segmento: query.Segmento));
     }
 }
