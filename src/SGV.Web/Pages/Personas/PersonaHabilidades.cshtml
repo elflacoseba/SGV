@@ -8,6 +8,11 @@
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
 
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
 @if (Model.ViewModel.IsRecoverable)
 {
     <div class="row">

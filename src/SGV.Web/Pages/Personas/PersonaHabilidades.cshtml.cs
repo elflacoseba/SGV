@@ -23,6 +23,12 @@ public sealed class PersonaHabilidadesModel(
     /// <summary>Indica si el usuario actual tiene el rol administrador.</summary>
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
 
+    /// <summary>Mensaje de feedback preparado para el flujo PRG del próximo slice.</summary>
+    public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
+
+    /// <summary>Tipo de feedback preparado para el flujo PRG del próximo slice.</summary>
+    public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
+
     /// <summary>Handler GET de la página de habilidades de una persona.</summary>
     public async Task<IActionResult> OnGetAsync(
         Guid id,

@@ -141,7 +141,7 @@ Chain strategy: stacked-to-main
 
 ### 3a.3 — GREEN: crear PersonaHabilidades.cshtml.cs (PageModel GET)
 - **Files**: `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml.cs` (nuevo)
-- **Comportamiento**: `[Authorize(Roles = RolesSgv.Administrador)]`, gate admin manual en `OnGetAsync`, carga `IPersonaApiClient.GetSkillsAsync`, persona inactiva → `IsRecoverable` + estado recuperable. Sin handlers POST. Sin Ponderacion/EsObligatoria. Antiforgery configurado (formulario con `@Html.AntiForgeryToken()`). (REQ-WEB-01, REQ-WEB-02, REQ-WEB-03)
+- **Comportamiento**: `[Authorize(Roles = RolesSgv.Administrador)]`, gate admin manual en `OnGetAsync`, carga `IPersonaApiClient.GetSkillsAsync`, persona inactiva → redirect `/error/404` antes de cargar skills. Sin handlers POST. Sin Ponderacion/EsObligatoria. Antiforgery configurado (formulario con `@Html.AntiForgeryToken()`). (REQ-WEB-01, REQ-WEB-02, REQ-WEB-03)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 2.4 (ApiClient), 3a.2 (tests en rojo)
 - **Estado**: ✅ Completada — `feat` commit de Slice 3a.
