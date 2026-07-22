@@ -1,4 +1,5 @@
 using System.Net;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 
@@ -373,4 +374,116 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
             "email_asc" => source.OrderBy(static p => p.Email ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToList(),
             _ => source.OrderBy(static p => p.Apellidos, StringComparer.OrdinalIgnoreCase).ToList()
         };
+
+    // ──────────────────────────────────────────────
+    // Subrecurso persona-skill (Slice 2 / REQ-WEB-04 del change
+    // implementa-persona-habilidades). Espejo del bloque equivalente en
+    // FakeCargoApiClient (PR3a): seed configurable + contadores + cohorte
+    // de exceptions, sin emitir HTTP. El PageModel de Slice 3a consume
+    // estos stubs vía dependency injection.
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="GetSkillsAsync"/>. Por
+    /// defecto, lista vacía (la grilla editable parte del estado vacío).
+    /// </summary>
+    public IReadOnlyList<PersonaSkillDetailDto> GetSkillsResult { get; set; } = Array.Empty<PersonaSkillDetailDto>();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="GetSkillsAsync"/> debe lanzar
+    /// antes de devolver el resultado. Útil para tests que simulan caídas
+    /// de transporte del subrecurso durante la carga inicial de la
+    /// página.
+    /// </summary>
+    public Exception? GetSkillsException { get; set; }
+
+    /// <summary>
+    /// Identificadores de las personas consultadas vía
+    /// <see cref="GetSkillsAsync"/>.
+    /// </summary>
+    public List<Guid> GetSkillsCalls { get; } = new();
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="UpsertSkillAsync"/>. Por
+    /// defecto, un Failure de Validation con código
+    /// <c>FakeNotConfigured</c> para que cualquier test que olvide
+    /// cablear explícitamente el resultado falle de forma ruidosa en vez
+    /// de devolver silenciosamente un Success vacío.
+    /// </summary>
+    public PersonaSkillCommandResult SkillUpsertResult { get; set; } = PersonaSkillCommandResult.Failure(
+        new PersonaSkillError(
+            PersonaSkillErrorType.Validation,
+            "FakeNotConfigured",
+            "SkillUpsertResult no fue cableado en el fake.",
+            Categoria: ErrorCategoria.Validation));
+
+    /// <summary>
+    /// Solicitudes recibidas por <see cref="UpsertSkillAsync"/>. Permite
+    /// inspeccionar el <c>personaId</c>, <c>skillId</c> y el payload
+    /// enviado por la página a la API en cada test.
+    /// </summary>
+    public List<(Guid PersonaId, Guid SkillId, AsignarPersonaSkillRequest Request)> SkillUpsertCalls { get; } = new();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="UpsertSkillAsync"/> debe lanzar
+    /// antes de devolver el resultado.
+    /// </summary>
+    public Exception? SkillUpsertException { get; set; }
+
+    /// <summary>
+    /// Resultado fijo que devolverá <see cref="DeleteSkillAsync"/>. Por
+    /// defecto, éxito con <c>204 No Content</c>.
+    /// </summary>
+    public PersonaSkillDeleteResult SkillDeleteResult { get; set; } = new(true, HttpStatusCode.NoContent, null, null);
+
+    /// <summary>
+    /// Pares <c>(personaId, skillId)</c> enviados a
+    /// <see cref="DeleteSkillAsync"/>.
+    /// </summary>
+    public List<(Guid PersonaId, Guid SkillId)> SkillDeleteCalls { get; } = new();
+
+    /// <summary>
+    /// Excepción opcional que <see cref="DeleteSkillAsync"/> debe lanzar
+    /// antes de devolver el resultado.
+    /// </summary>
+    public Exception? SkillDeleteException { get; set; }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<PersonaSkillDetailDto>> GetSkillsAsync(Guid personaId, CancellationToken cancellationToken = default)
+    {
+        GetSkillsCalls.Add(personaId);
+
+        if (GetSkillsException is not null)
+        {
+            throw GetSkillsException;
+        }
+
+        return Task.FromResult(GetSkillsResult);
+    }
+
+    /// <inheritdoc />
+    public Task<PersonaSkillCommandResult> UpsertSkillAsync(Guid personaId, Guid skillId, AsignarPersonaSkillRequest request, CancellationToken cancellationToken = default)
+    {
+        SkillUpsertCalls.Add((personaId, skillId, request));
+
+        if (SkillUpsertException is not null)
+        {
+            throw SkillUpsertException;
+        }
+
+        return Task.FromResult(SkillUpsertResult);
+    }
+
+    /// <inheritdoc />
+    public Task<PersonaSkillDeleteResult> DeleteSkillAsync(Guid personaId, Guid skillId, CancellationToken cancellationToken = default)
+    {
+        SkillDeleteCalls.Add((personaId, skillId));
+
+        if (SkillDeleteException is not null)
+        {
+            throw SkillDeleteException;
+        }
+
+        return Task.FromResult(SkillDeleteResult);
+    }
 }

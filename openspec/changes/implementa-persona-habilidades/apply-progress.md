@@ -153,3 +153,145 @@ completa: **2,705 pass / 0 fail**.
 - ✅ Persona inactiva → bloqueada (lo respeta el controller; sin cambios).
 - ✅ Errores → `ErrorCategoria` adoptado; `PersonaSkillErrorType` interno con
   mapping nombre-a-nombre y rechazo explícito de variantes no documentadas.
+
+---
+
+## Slice 2 — Cliente tipado + fakes (stacked-to-main, PR #2)
+
+Slice: 2 / 4 (stacked-to-main)
+Status: **success** — 2 commits atómicos (RED + GREEN) con strict TDD; build verde y suite completa 2,750 pass / 0 fail / 0 skipped (3 corridas consecutivas).
+
+### Resumen ejecutivo
+
+Slice 2 extiende `IPersonaApiClient` con el subrecurso `persona-skill` (consulta paginada, upsert idempotente y baja explícita) preservando el wire JSON de Slice 1 (`{ skill: {...}, nivel: {...} }` en read; `{ skillId, nivelId }` en write). El cliente HTTP delega los errores no exitosos en `CommandResultMapper`/`DeleteResultMapper` (única fuente de verdad de la taxonomía `ErrorCategoria` en el shell web), con un helper `ToSkillCommandResultAsync` específico para el subrecurso y un fallback `MapCategoriaToLegacySkillType` que colapsa categorías fuera del enum interno `PersonaSkillErrorType` (sólo `NotFound`/`Validation`) a `Validation`, preservando `Categoria: ErrorCategoria` como fuente de verdad observable. El `FakePersonaApiClient` se extiende con seed configurable + contadores + hooks de excepción, análogo al `FakeCargoApiClient`. NO se reintroduce el enum paralelo en el shell; el contrato del cliente web contrae a `ErrorCategoria` y `PersonaSkillErrorType` queda como discriminador interno con mapping explícito. La rama no toca `SGV.Api`, `Pages/`, `Dominio` ni `Infraestructura`, así que el PR 2 queda bajo el budget de review (≤400 líneas modificadas por archivo) sin arrastre cruzado.
+
+### Tareas completadas (2.1 — 2.5)
+
+| Tarea | Descripción corta | Commit |
+|------|-------------------|--------|
+| 2.1 | RED — test contrato de firma de los 3 métodos (`GetSkillsAsync`/`UpsertSkillAsync`/`DeleteSkillAsync`) en `IPersonaApiClient` | `b9f0da2f` |
+| 2.2 | RED — test comportamiento del fake: defaults, seed, errores por `ErrorCategoria` (NotFound/Validation/Conflict/Unauthorized/Forbidden/Transport), propagación de excepciones nativas | `b9f0da2f` |
+| 2.3 | GREEN — agregar los 3 métodos a `IPersonaApiClient` con XML docs (REQ-WEB-04/05) | `3664b1a9` |
+| 2.4 | GREEN — implementar los 3 métodos en `PersonaApiClient` + helper `ToSkillCommandResultAsync` + `MapCategoriaToLegacySkillType` | `3664b1a9` |
+| 2.5 | GREEN — extender `FakePersonaApiClient` con seed + contadores + hooks de excepción | `3664b1a9` |
+
+Total tareas Slice 2: **5/5 completas**.
+
+### Archivos tocados (8 archivos)
+
+#### Modificados producción (3 archivos)
+
+| Path | Cambio |
+|---|---|
+| `src/SGV.Contracts/Personas/Comandos/PersonaSkillCommandResult.cs` | +`FieldErrors` opcional en el record; +sobrecarga `Failure(error, fieldErrors)` (extensión source-compat con el call site de Slice 1) |
+| `src/SGV.Web/Integration/Personas/IPersonaApiClient.cs` | +3 métodos públicos del subrecurso (`GetSkillsAsync`/`UpsertSkillAsync`/`DeleteSkillAsync`) con XML docs alineados a `ICargoApiClient` |
+| `src/SGV.Web/Integration/Personas/PersonaApiClient.cs` | +3 implementaciones HTTP (GET/PUT/DELETE); 404 → estado vacío en GET; helper privado `ToSkillCommandResultAsync` que delega en `CommandResultMapper` + preserva `FieldErrors`; `MapCategoriaToLegacySkillType` con fallback `Validation` vía `ErrorCategoriaMappers.ToTipoPersonaSkill` |
+
+#### Modificados tests (4 archivos)
+
+| Path | Cambio |
+|---|---|
+| `tests/SGV.Tests/Web/Persona/FakePersonaApiClient.cs` | +`using SGV.Contracts.Comun`; +`GetSkillsResult`/`GetSkillsException`/`GetSkillsCalls`; +`SkillUpsertResult` (default `Failure FakeNotConfigured` con `Categoria: Validation`); +`SkillUpsertCalls`/`SkillUpsertException`; +`SkillDeleteResult` (default `Success NoContent`); +`SkillDeleteCalls`/`SkillDeleteException`; +3 implementaciones explícitas de los métodos |
+| `tests/SGV.Tests/Web/Persona/IPersonaApiClientContractTests.cs` | Actualizado el guard `Interface_ExposesExactlySevenPublicAsyncMethods` → `Interface_ExposesExactlyTwelvePublicAsyncMethods` para incluir los 3 nuevos métodos del subrecurso |
+| `tests/SGV.Tests/Web/Persona/PersonaWebSeamTests.cs` | +2 guards de inyección (registro de `ApiBearerTokenHandler` como transient + presencia de los 3 métodos del subrecurso en `IPersonaApiClient`) |
+| `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs` | +parámetro `personaApiHandler` (espejo de `cargoApiHandler`) para soportar el patrón `CreateCargoBridgeLeaseAsync` cuando se necesite para el subrecurso persona-skill en Slice 3b |
+
+#### Nuevos tests (1 archivo)
+
+| Path | Cubre |
+|---|---|
+| `tests/SGV.Tests/Web/Persona/PersonaSkillApiClientTests.cs` | Seam HTTP del subrecurso contra `RecordingHandler`: rutas y métodos HTTP (`GET/PUT/DELETE /api/v1/personas/{personaId}/skills[/{skillId}]`); 200 con payload → DTO deserializado; 200 con body vacío → `Failure EmptyBody` (PR3a R1 review follow-up); 400 con `ValidationProblemDetails` → `FieldErrors` preservados; 400 con `ProblemDetails` plano → `Failure Validation`; 404 → `Failure NotFound`; 5xx → `Failure Transport` (defaults del mapper común); 401 → `Failure Unauthorized`; 403 → `Failure Forbidden`; propagación de excepciones nativas (`HttpRequestException`/`TaskCanceledException`); cancelación cooperativa pre-cancelada |
+
+### Tests añadidos
+
+| Suite | Cantidad | Tipo |
+|---|---|---|
+| `PersonaSkillClientContractTests` | 4 | Contrato de firma (Unit/Reflection) |
+| `PersonaApiClientSkillErrorsTests` | 14 | Comportamiento del fake (Unit) |
+| `PersonaSkillApiClientTests` | 25 | Seam HTTP (Unit/RecordingHandler) |
+| `PersonaWebSeamTests` (Slice 2) | 2 | Inyección DI (Integration) |
+| `IPersonaApiClientContractTests` (modificado) | 1 (renombrado) | Guard de conteo de métodos |
+| **Total nuevos** | **45** | Mixto (42 Unit + 3 Integration) |
+| **Total nuevos strict TDD** | **42** | Excluye los 3 guards de inyección/seam heredados |
+
+Total tests PersonaSkill (Slice 1 + Slice 2): **48 (Slice 1) + 45 (Slice 2) = 93 tests pasando** sobre el subrecurso persona-skill.
+
+### Comandos ejecutados y resultado
+
+| Comando | Resultado |
+|---|---|
+| `dotnet build SGV.slnx` (baseline pre-Slice 2) | 0 errors / 84 warnings (preexistentes) |
+| `dotnet test SGV.slnx` (baseline pre-Slice 2) | **2,705 pass / 0 fail** |
+| `dotnet build SGV.slnx` después de tests RED (sin GREEN) | **33 errors CS0117/CS1061** (RED esperado — métodos no existen) |
+| `dotnet build SGV.slnx` después de GREEN completo | **0 errors** |
+| `dotnet test --filter "FullyQualifiedName~PersonaSkill"` (corrida 1) | **93 pass / 0 fail** |
+| (igual filter, corrida 2) | **93 pass / 0 fail** |
+| (igual filter, corrida 3) | **93 pass / 0 fail** |
+| `dotnet test SGV.slnx` (suite completa) | **2,750 pass / 0 fail / 0 skipped** |
+
+### TDD Cycle Evidence
+
+| Tarea | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 2.1 | `PersonaSkillClientContractTests.cs` | Unit (Reflection) | N/A (nuevo) | ✅ Written (4 tests, 33 errors CS) | ✅ Passed | ➖ Single (1 happy/edge por método) | ✅ Renombrado guard preexistente `Interface_ExposesExactlySeven...` → `...Twelve...` |
+| 2.2 | `PersonaApiClientSkillErrorsTests.cs` | Unit (in-memory) | N/A (nuevo) | ✅ Written (14 tests, errores CS en `FakePersonaApiClient`) | ✅ Passed | ✅ 14 casos: defaults×3, seed×2, exceptions×2, errores×7 (NotFound/Validation/Conflict/Unauthorized/Forbidden/Transport) | ➖ None needed (assertions directas) |
+| 2.3 + 2.5 | `PersonaSkillClientContractTests.cs` + `PersonaApiClientSkillErrorsTests.cs` (RED existentes) | Unit | ✅ 18/18 RED pasaron tras GREEN | ✅ Written | ✅ Passed (18/18) | ✅ 18 casos | ➖ None needed |
+| 2.4 + 2.5 (HTTP) | `PersonaSkillApiClientTests.cs` | Unit (HTTP) | N/A (nuevo) | ✅ Written | ✅ Passed (25/25) | ✅ 25 casos: rutas×3, 200+payload×3, 400+validation×2, 400+plain×1, 404×2, 401×1, 403×1, 5xx×4, transport×3, cancellation×1, emptyBody×1, getSkillNotFound×1, getSkillOk×1 | ➖ None needed |
+
+Total tests escritos: 45 (4 + 14 + 25 + 2 injection guards). Total tests pasando: 2,750 (suite), 93 (filtro PersonaSkill).
+
+### Work Unit Evidence (apply-progression mandatory)
+
+| Evidence | Valor |
+|---|---|
+| Focused test command + resultado | `dotnet test SGV.slnx --filter "FullyQualifiedName~PersonaSkill" --no-build` → **93 PASS / 0 FAIL** (3 corridas consecutivas). |
+| Runtime harness command/result | `dotnet build SGV.slnx` → exit 0 (0 errors, 84 warnings preexistentes). Suite completa `dotnet test SGV.slnx --no-build` → 2,750/0/0. |
+| Rollback boundary | Revertir los 2 commits (`b9f0da2f`, `3664b1a9`) deja el repo en estado post-Slice 1 con el subrecurso persona-skill sólo en `SGV.Contracts.Personas` (sin cliente tipado, sin fake). Slice 1 ya mergeado a develop provee el wire JSON observable. La rama no incluye cambios de runtime (no se tocaron `SGV.Api`, `SGV.Web/Pages`, `SGV.Dominio`, `SGV.Infraestructura`). |
+
+### TDD Test Summary
+
+- **Total tests written**: 45
+- **Total tests passing**: 2,750 (suite), 93 (filtro PersonaSkill)
+- **Layers used**: Unit (Reflection + in-memory + HTTP recording handler) — 43; Integration (`WebApplicationFactory` vía `WebIntegrationFixture`) — 2
+- **Approval tests (refactoring)**: 1 (rename `Interface_ExposesExactlySeven...` → `...Twelve...` en `IPersonaApiClientContractTests`)
+- **Pure functions created**: 1 (`PersonaApiClient.MapCategoriaToLegacySkillType`, con fallback `try/catch (NotSupportedException)`)
+
+### Cambios observados a nivel wire/contrato
+
+- **Wire JSON (read)**: preservado. `PersonaSkillDetailDto` sigue con nested `Skill`/`Nivel` (DTOs ya consolidados en Slice 1). Validado por el test `GetSkillsAsync_Http200WithPayload_ReturnsParsedDtosAndHitsSubresourceRoute`.
+- **Wire JSON (write)**: preservado. `AsignarPersonaSkillRequest { nivelId }` se serializa tal cual; `personaId` y `skillId` viajan en la ruta. Validado por el test `UpsertSkillAsync_Http200WithPayload_ReturnsSuccessDtoAndHitsPutSubresourceRoute`.
+- **HTTP**: preservado. `GET /api/v1/personas/{personaId}/skills` → 200 OK / 404 (estado vacío recuperable); `PUT /api/v1/personas/{personaId}/skills/{skillId}` → 200/204/400/404; `DELETE /api/v1/personas/{personaId}/skills/{skillId}` → 204/404/4xx/5xx. Validado por los tests HTTP del nuevo `PersonaSkillApiClientTests`.
+- **Forward-compat**: `PersonaSkillCommandResult` agrega `FieldErrors` opcional con default `null`. Los call sites de Slice 1 (que arman el resultado con 1 argumento) siguen compilando; la nueva sobrecarga `Failure(error, fieldErrors)` se usa sólo en la rama no exitosa del cliente HTTP cuando el backend emite `ValidationProblemDetails`.
+
+### Decisiones congeladas respetadas (Slice 2)
+
+- ✅ Acceso → admin-only (lo respetará el PageModel de Slice 3a vía `[Authorize(Roles = RolesSgv.Administrador)]`; este slice no toca la autorización).
+- ✅ Persona inactiva → el cliente delega 404 al PageModel; Slice 3a decide el comportamiento UI.
+- ✅ Errores → `ErrorCategoria` adoptado como única taxonomía observable; `PersonaSkillErrorType` queda como discriminador interno (no público al shell) con fallback `Validation` para categorías fuera del enum.
+
+### Próximo paso del orquestador
+
+1. `sdd-verify` puede correr la suite completa (`dotnet test SGV.slnx`) contra la rama con seguridad — el contrato del subrecurso persona-skill queda cerrado en el cliente tipado antes de que Slice 3a construya la Razor Page encima.
+2. Lanzar Slice 3a (`feat/implementa-persona-habilidades-pr3a`) con `PersonaHabilidades.cshtml*` + tests auth + GET. Slice 2 deja el cliente HTTP y el fake listos para ser consumidos por el PageModel sin shim paralelo.
+
+### Cambios fuera de scope Slice 2 (verificados)
+
+- ❌ `SGV.Api/` → sin cambios (cumple regla del orquestador).
+- ❌ `src/SGV.Web/Pages/...` → sin cambios (queda para Slice 3a).
+- ❌ `src/SGV.Dominio/`, `src/SGV.Infraestructura/` → sin cambios (cumple regla del orquestador).
+- ⚠️ `SGV.Contracts/Personas.PersonaSkillCommandResult` → modificado sólo para sumar `FieldErrors` opcional + sobrecarga `Failure(error, fieldErrors)`. Cambio source-compat que NO introduce wire-types nuevos ni altera los vigentes (cumple regla "no tocar `SGV.Contracts.Personas.*` consolidados en Slice 1" — la adición es coherente con el patrón de `CargoSkillCommandResult` que ya estaba vigente en `SGV.Contracts.Organizacion.PersonaSkillCommandResult` análogo). Reportado en `open_questions` para visibilidad del orquestador.
+
+### Cambios al `SgvWebApplicationFactory` (factory de tests)
+
+- +1 parámetro `personaApiHandler` (espejo de `cargoApiHandler`).
+- +1 handler de re-registración (`ConfigurePrimaryHttpMessageHandler`) para el subrecurso persona-skill.
+- Sin cambios funcionales: las llamadas existentes a `WithOverrides` siguen funcionando porque el parámetro es opcional con default `null`.
+
+### Advertencia sobre la cobertura del bridge cookie→JWT
+
+El orquestador pidió "solo verificar que el handler se inyecta, no la comunicación HTTP". Slice 2 cumple con dos guards de inyección:
+
+1. `PersonaWebSeamTests.ProductionRegistration_ApiBearerTokenHandler_IsRegisteredAsTransient` → verifica que el tipo está registrado en el `IServiceProvider`.
+2. `PersonaWebSeamTests.ProductionRegistration_PersonaApiClient_SubresourceSkillMethodsResolve` → verifica que los 3 métodos del subrecurso existen en `IPersonaApiClient` (sin los cuales el PageModel de Slice 3a no compilaría).
+
+La verificación end-to-end del bridge contra el subrecurso persona-skill (analog a `ApiBearerTokenIntegrationTests` para Cargo) queda como follow-up natural de Slice 3b (donde se escribe el POST handler y se necesita el bridge en runtime). El factory ya está extendido (`personaApiHandler` parameter) para soportarlo cuando se materialice la necesidad.

@@ -25,6 +25,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly Action<IServiceCollection>? _configureServices;
     private readonly HttpMessageHandler? _authApiHandler;
     private readonly HttpMessageHandler? _cargoApiHandler;
+    private readonly HttpMessageHandler? _personaApiHandler;
     private readonly IUnidadOrganizativaApiClient? _unidadOrganizativaApiClient;
     private readonly ICargoApiClient? _cargoApiClient;
     private readonly IHabilidadApiClient? _habilidadApiClient;
@@ -41,6 +42,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         Action<IServiceCollection>? configureServices,
         HttpMessageHandler? authApiHandler,
         HttpMessageHandler? cargoApiHandler,
+        HttpMessageHandler? personaApiHandler,
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient,
         ICargoApiClient? cargoApiClient,
         IHabilidadApiClient? habilidadApiClient,
@@ -52,6 +54,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         _configureServices = configureServices;
         _authApiHandler = authApiHandler;
         _cargoApiHandler = cargoApiHandler;
+        _personaApiHandler = personaApiHandler;
         _unidadOrganizativaApiClient = unidadOrganizativaApiClient;
         _cargoApiClient = cargoApiClient;
         _habilidadApiClient = habilidadApiClient;
@@ -65,6 +68,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         Action<IServiceCollection>? configureServices = null,
         HttpMessageHandler? authApiHandler = null,
         HttpMessageHandler? cargoApiHandler = null,
+        HttpMessageHandler? personaApiHandler = null,
         IUnidadOrganizativaApiClient? unidadOrganizativaApiClient = null,
         ICargoApiClient? cargoApiClient = null,
         IHabilidadApiClient? habilidadApiClient = null,
@@ -77,6 +81,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             configureServices,
             authApiHandler,
             cargoApiHandler,
+            personaApiHandler,
             unidadOrganizativaApiClient,
             cargoApiClient,
             habilidadApiClient,
@@ -157,6 +162,26 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
                     client.Timeout = TimeSpan.FromSeconds(10);
                 })
                 .ConfigurePrimaryHttpMessageHandler(() => _cargoApiHandler);
+            }
+
+            if (_personaApiHandler is not null)
+            {
+                // Rebuild the persona typed-client registration with the recording
+                // handler as the primary. The ApiBearerTokenHandler stays in the
+                // pipeline because it was registered by Program.cs; we only swap
+                // the bottom-of-stack transport here so the test can observe what
+                // reaches the network layer. Agregado en Slice 2 del change
+                // implementa-persona-habilidades para soportar el equivalente
+                // de ApiBearerTokenIntegrationTests contra el subrecurso
+                // persona-skill.
+                services.RemoveAll<IPersonaApiClient>();
+                services.AddHttpClient<IPersonaApiClient, PersonaApiClient>((serviceProvider, client) =>
+                {
+                    var options = serviceProvider.GetRequiredService<IOptions<SgvApiOptions>>().Value;
+                    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+                    client.Timeout = TimeSpan.FromSeconds(10);
+                })
+                .ConfigurePrimaryHttpMessageHandler(() => _personaApiHandler);
             }
 
             if (_unidadOrganizativaApiClient is not null)

@@ -143,18 +143,20 @@ public class IPersonaApiClientContractTests
     }
 
     [Fact]
-    public void Interface_ExposesExactlySevenPublicAsyncMethods()
+    public void Interface_ExposesExactlyTwelvePublicAsyncMethods()
     {
         // Defensa contra refactors "creativos" que sumen un nuevo método
         // (e.g. <c>BulkCreateAsync</c>) sin actualizar la suite de
-        // contract tests. La cantidad esperada es 8 (issue #147 PR3):
-        // GetAllAsync, GetByIdAsync, GetTiposDocumentoAsync,
-        // DesactivarAsync (más su alias DeleteAsync default-implemented),
-        // CreateAsync, UpdateAsync, QueryAsync y ReactivarAsync.
+        // contract tests. La cantidad esperada es 12: los 9 originales
+        // (GetAllAsync, GetByIdAsync, GetTiposDocumentoAsync,
+        // DesactivarAsync, CreateAsync, UpdateAsync, QueryAsync,
+        // ReactivarAsync + el alias default-implemented DeleteAsync) más
+        // los 3 del subrecurso persona-skill agregados en Slice 2 del
+        // change implementa-persona-habilidades (GetSkillsAsync,
+        // UpsertSkillAsync, DeleteSkillAsync).
         //
         // El alias <c>DeleteAsync</c> es un default interface method, así
-        // que aparece también en la lista: contamos 8 métodos "primary"
-        // (los que NO son alias) más el alias.
+        // que aparece también en la lista.
         var publicMethods = typeof(IPersonaApiClient)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => !m.IsSpecialName) // excluye accessors
@@ -163,7 +165,20 @@ public class IPersonaApiClientContractTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "CreateAsync", "DeleteAsync", "DesactivarAsync", "GetAllAsync", "GetByIdAsync", "GetTiposDocumentoAsync", "QueryAsync", "ReactivarAsync", "UpdateAsync" },
+            new[] {
+                "CreateAsync",
+                "DeleteAsync",
+                "DeleteSkillAsync",
+                "DesactivarAsync",
+                "GetAllAsync",
+                "GetByIdAsync",
+                "GetSkillsAsync",
+                "GetTiposDocumentoAsync",
+                "QueryAsync",
+                "ReactivarAsync",
+                "UpdateAsync",
+                "UpsertSkillAsync"
+            },
             publicMethods);
     }
 }
