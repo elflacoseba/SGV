@@ -169,36 +169,42 @@ Chain strategy: stacked-to-main
 - **Comportamiento**: `OnPostAsignar` y `OnPostQuitar` invocan cliente, redirigen con PRG, `TempData` refleja éxito. Fallan antes de implementar handlers. (REQ-WEB-02, SCENARIO-02/03)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage_Post_Init"`
 - **Dependencias**: 3a.5 (page model scaffold existente)
+- **Estado**: ✅ Completada — `c2f9a798` (RED), 17 tests RED → GREEN con handlers.
 
 ### 3b.2 — RED: test POST persona inactiva bloquea mutación
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs`
 - **Comportamiento**: POST con persona inactiva no invoca cliente; redirige sin mutar. (REQ-WEB-05, SCENARIO-02/03)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage_Post_Inactive"`
 - **Dependencias**: 3b.1
+- **Estado**: ✅ Completada — `c2f9a798` (incluida en el commit RED), 2 tests RED → GREEN.
 
 ### 3b.3 — GREEN: agregar handlers POST al PageModel
 - **Files**: `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml.cs`
 - **Comportamiento**: `OnPostAsignarAsync` y `OnPostQuitarAsync` con PRG, `TempData` feedback (`StatusMessage`/`StatusKind` via `PageFeedback`), gateo admin. Sin Ponderacion/EsObligatoria. (REQ-WEB-02, REQ-WEB-05)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 3b.2 (tests en rojo)
+- **Estado**: ✅ Completada — `3e49e80c` (GREEN commit), 23/23 tests PersonaHabilidadesPage pasan. Helpers extraídos: `PersonaSkillFormHelpers.ReadAsignarInput` + `ResolveFailureMessage`. `EnsurePersonaActivaAsync` gatea la mutación.
 
 ### 3b.4 — GREEN: tests integración web con WebApplicationFactory
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesIntegrationTests.cs` (nuevo)
 - **Comportamiento**: Tests integración vía `PersonaWebTestFixture`/`WebIntegrationFixture`: handlers POST con antiforgery real, redirección PRG, gateo admin, persona inactiva bloquea, feedback `TempData` legible. (REQ-WEB-01..05, SCENARIO-01/02/03)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesIntegration"`
 - **Dependencias**: 3b.3
+- **Estado**: ✅ Completada — `7ff90f24`, 11/11 tests integración pasan (incluido `Get_PersonaHabilidades_ForwardsBearerTokenToPersonaApi` que verifica el bridge JWT end-to-end contra el subrecurso). Helper `CreatePersonaBridgeLeaseAsync` agregado a `WebIntegrationFixture`.
 
 ### 3b.5 — GREEN: enlace Habilidades desde Details.cshtml
 - **Files**: `src/SGV.Web/Pages/Personas/Details.cshtml`, `src/SGV.Web/Pages/Personas/Details.cshtml.cs` (si requiere exponer `EsAdministrador`)
 - **Comportamiento**: Botón "Habilidades" con `ti-stars` en barra inferior de Details, solo para persona activa y admin. Enlace a `/Personas/PersonaHabilidades?id=...`. Oculto si `IsNotFound`. (REQ-WEB-06, REQ-PM-01, SCENARIO-01/02)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 3b.3
+- **Estado**: ✅ Completada — `7ff90f24`, 3/3 tests DetailsHabilidadesButton pasan. Botón renderiza solo con `!IsNotFound && Persona.IsActive && User.IsInRole(Administrador)`.
 
 ### 3b.6 — Verify final slice 3b
 - **Files**: todos los del cambio
 - **Comportamiento**: Suite completa pasa 3 veces consecutivas con `--no-build`. `bun run build` en `src/SGV.Web` pasa. (REQ-WEB-01..06)
 - **Verify**: `dotnet build SGV.slnx && dotnet test SGV.slnx && bun run build` (en `src/SGV.Web`)
 - **Dependencias**: 3b.4, 3b.5
+- **Estado**: ✅ Completada — `dotnet build SGV.slnx` → 0 errors. `dotnet test SGV.slnx --no-build` → **2,787 PASS / 0 FAIL** (3 corridas consecutivas consistentes). `bun run build` en `src/SGV.Web` → exit 0.
 
 ---
 
