@@ -184,6 +184,21 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             authApiHandler,
             cargoApiHandler: cargoApiHandler));
 
+    /// <summary>
+    /// Espejo de <see cref="CreateCargoBridgeLeaseAsync"/> para el módulo
+    /// Personas. Agregado en Slice 3b del change
+    /// <c>implementa-persona-habilidades</c> para soportar el test
+    /// end-to-end del bridge JWT contra el subrecurso
+    /// <c>persona-skill</c> (<c>PersonaHabilidadesIntegrationTests.Get_PersonaHabilidades_ForwardsBearerTokenToPersonaApi</c>).
+    /// </summary>
+    public Task<WebClientLease> CreatePersonaBridgeLeaseAsync(
+        HttpMessageHandler authApiHandler,
+        HttpMessageHandler personaApiHandler)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl,
+            authApiHandler,
+            personaApiHandler: personaApiHandler));
+
     private static void ConfigureBaseUrl(IServiceCollection services)
     {
         services.Configure<SgvApiOptions>(o => o.BaseUrl = "https://api.test");

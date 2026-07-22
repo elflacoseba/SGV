@@ -348,3 +348,150 @@ El orquestador pidió "solo verificar que el handler se inyecta, no la comunicac
 2. `PersonaWebSeamTests.ProductionRegistration_PersonaApiClient_SubresourceSkillMethodsResolve` → verifica que los 3 métodos del subrecurso existen en `IPersonaApiClient` (sin los cuales el PageModel de Slice 3a no compilaría).
 
 La verificación end-to-end del bridge contra el subrecurso persona-skill (analog a `ApiBearerTokenIntegrationTests` para Cargo) queda como follow-up natural de Slice 3b (donde se escribe el POST handler y se necesita el bridge en runtime). El factory ya está extendido (`personaApiHandler` parameter) para soportarlo cuando se materialice la necesidad.
+
+---
+
+## Slice 3b — Handlers POST + PRG + Details enlace + tests integración web + bun build
+
+**Slice**: 3b / 4 (último slice; sigue a 1+2+3a ya mergeados).
+**Branch**: `feat/implementa-persona-habilidades-pr3b` (base = `origin/develop`).
+**Estrategia**: stacked-to-main; PR único apuntando a `main` (no a otro PR stacked).
+**Status**: **success** — implementación local lista para `sdd-verify`. Strict TDD aplicado (RED → GREEN → TRIANGULATE → REFACTOR) en las 6 tareas del slice.
+
+### Resumen ejecutivo
+
+Slice 3b completa el flujo web sobre el subrecurso `persona-skill`. Los handlers POST `OnPostAsignarAsync` (PUT idempotente) y `OnPostQuitarAsync` (DELETE) viven en `PersonaHabilidades.cshtml.cs` y siguen el patrón canónico de `CargoHabilidadesPostHandlers`: gate admin → gate persona activa → llamada al cliente → traducción `ErrorCategoria` → `TempData["StatusMessage"]`/`["StatusKind"]` con PRG. La vista existente se normalizó (per-row "Actualizar" → "Asignar", `skillId` → `SkillId`) y se renderizan errores de validación de input. La página `Details.cshtml` agrega el botón "Habilidades" (`ti ti-stars me-1`) condicionado a persona activa + rol Administrador, cumpliendo R-PM-01 del delta `persona-management`. Se agregaron 17 tests unitarios de PageModel, 11 tests de integración end-to-end y 3 tests del botón Details, más un test del bridge JWT end-to-end contra el subrecurso persona-skill (analog a `ApiBearerTokenIntegrationTests` para Cargo). `bun run build` pasa. **NO** se tocaron `SGV.Contracts.Personas.*`, `SGV.Api/`, `SGV.Aplicacion/`, `SGV.Dominio/` ni `SGV.Infraestructura/`. NO se agregaron métodos nuevos a `IPersonaApiClient` (los 3 de Slice 2 son suficientes).
+
+### Tareas completadas (3b.1 — 3b.6)
+
+| Tarea | Descripción corta | Commit |
+|------|-------------------|--------|
+| 3b.1 | RED — tests handlers POST upsert/delete con PRG (PageModel unit) | `c2f9a798` |
+| 3b.2 | RED — tests POST persona inactiva bloquea mutación | `c2f9a798` |
+| 3b.3 | GREEN — `OnPostAsignarAsync` + `OnPostQuitarAsync` con PRG + TempData + `PersonaSkillFormHelpers` | `3e49e80c` |
+| 3b.4 | GREEN — tests integración web (10 tests POST) + bridge JWT end-to-end (1 test) | `7ff90f24` |
+| 3b.5 | GREEN — enlace "Habilidades" en `Details.cshtml` (admin + persona activa) + 3 tests Details | `7ff90f24` |
+| 3b.6 | Verify final — build verde, suite 2,787/0/0 (3 corridas consecutivas), `bun run build` ok | local |
+
+Total tareas Slice 3b: **6/6 completas**.
+
+### Archivos tocados (7 archivos)
+
+#### Modificados producción (4 archivos)
+
+| Path | Cambio |
+|---|---|
+| `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml.cs` | +`OnPostAsignarAsync` + `OnPostQuitarAsync` + `PersonaHabilidadesAsignarInputModel` + `PersonaSkillFormHelpers` (paralelo a `CargoSkillFormHelpers` reducido al subdominio persona-skill) + `EnsurePersonaActivaAsync` (gate de persona activa previo al cliente HTTP) + `ReloadAfterFailedAsignarAsync` (re-render tras validación local). Sin `Ponderacion`/`EsObligatoria`/`NivelRequeridoId`. |
+| `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml` | Per-row form: `asp-page-handler="Actualizar"` → `"Asignar"`, hidden `skillId` → `SkillId` (normalización con form inferior). Render explícito de errores de validación en `ModelState["SkillId"]` y `ModelState["NivelHabilidadId"]`. |
+| `src/SGV.Web/Pages/Personas/Details.cshtml` | +botón "Habilidades" con `ti ti-stars me-1` apuntando a `/personas/{id:guid}/habilidades`. Solo cuando `!Model.IsNotFound` AND `Model.Persona.IsActive` AND `User.IsInRole(RolesSgv.Administrador)`. Cumple R-PM-01. |
+| `tests/SGV.Tests/Web/Collections/WebIntegrationFixture.cs` | +`CreatePersonaBridgeLeaseAsync` (espejo de `CreateCargoBridgeLeaseAsync`) para soportar el bridge JWT end-to-end contra el subrecurso persona-skill. |
+
+#### Nuevos tests (3 archivos)
+
+| Path | Cubre |
+|---|---|
+| `tests/SGV.Tests/Web/Persona/DetailsHabilidadesButtonTests.cs` | 3 tests: `Details_ActivePersona_Admin_RendersHabilidadesButtonWithCorrectHref`, `Details_NotFound_DoesNotRenderHabilidadesButton`, `Details_ActivePersona_NonAdmin_DoesNotRenderHabilidadesButton`. Patrón regex específico para evitar matchear `/organizacion/habilidades` de la nav global. |
+| `tests/SGV.Tests/Web/Persona/PersonaHabilidadesIntegrationTests.cs` | 11 tests: end-to-end antiforgery + PRG + TempData: Asignar success/failure (4xx/transport), Quitar success/failure (NotFound/transport), gating admin, persona inactiva bloquea, bridge JWT end-to-end (`Get_PersonaHabilidades_ForwardsBearerTokenToPersonaApi`). |
+
+#### Modificados tests (1 archivo)
+
+| Path | Cambio |
+|---|---|
+| `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs` | +17 tests: POST handler unit tests cubriendo happy path, 4xx NotFound/Conflict/Validation, transport failure, gating admin, persona inactiva bloquea, validación de form (SkillId/NivelHabilidadId vacíos). |
+
+### Tests añadidos
+
+| Suite | Cantidad | Tipo |
+|---|---|---|
+| `PersonaHabilidadesPageTests` (PageModel) | 17 | Unit (PageModel directo, FakePersonaApiClient, TempData in-memory) |
+| `PersonaHabilidadesIntegrationTests` (incluye bridge) | 11 | Integration (WebApplicationFactory + antiforgery + PRG + TempData end-to-end) |
+| `DetailsHabilidadesButtonTests` | 3 | Integration (verifica render del botón en Details) |
+| **Total nuevos** | **31** | Mixto |
+
+Total tests Slice 3b: **31 nuevos** + suite completa **2,787 PASS / 0 FAIL** (3 corridas consecutivas consistentes).
+
+### Comandos ejecutados y resultado
+
+| Comando | Resultado |
+|---|---|
+| `dotnet build SGV.slnx` (baseline pre-Slice 3b) | 0 errors / 84 warnings |
+| `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage"` (después de RED) | 17 compile errors CS1061 (RED esperado — handlers inexistentes) |
+| `dotnet build src/SGV.Web` (después de GREEN) | 0 errors |
+| `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage"` | **23 PASS / 0 FAIL** (5 preexistentes + 17 nuevos + 1 verif build) |
+| `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesIntegration"` | **11 PASS / 0 FAIL** |
+| `dotnet test --filter "FullyQualifiedName~DetailsHabilidadesButton"` | **3 PASS / 0 FAIL** |
+| `dotnet test SGV.slnx --no-build` (corrida 1) | **2,787 PASS / 0 FAIL** |
+| `dotnet test SGV.slnx --no-build` (corrida 2) | **2,787 PASS / 0 FAIL** |
+| `dotnet test SGV.slnx --no-build` (corrida 3) | **2,787 PASS / 0 FAIL** |
+| `bun run build` en `src/SGV.Web` | exit 0 (styles + inspiniaPages + plugins) |
+
+### TDD Cycle Evidence
+
+| Tarea | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3b.1 | `PersonaHabilidadesPageTests.cs` (RED commit `c2f9a798`) | Unit/PageModel | N/A (handlers nuevos) | ✅ Written (17 compile errors CS1061) | ✅ Passed | ✅ 17 casos: happy path + 4xx NotFound/Conflict/Validation + transport + admin/non-admin + missing SkillId/NivelId | ✅ Extract `PersonaSkillFormHelpers.ReadAsignarInput` + `ResolveFailureMessage` |
+| 3b.2 | `PersonaHabilidadesPageTests.cs` (en el mismo commit) | Unit/PageModel | N/A | ✅ Written | ✅ Passed | ✅ 2 casos: inactiva Asignar + inactiva Quitar | ✅ Ninguno (gate en `EnsurePersonaActivaAsync`) |
+| 3b.3 | `PersonaHabilidadesPageTests.cs` + `PersonaHabilidades.cshtml.cs` | Unit | ✅ 23/23 preexistentes | ✅ tests RED previos | ✅ Passed (23/23) | ✅ 17 casos nuevos | ✅ `PersonaSkillFormHelpers` extraído como static class paralelo a `CargoSkillFormHelpers` |
+| 3b.4 | `PersonaHabilidadesIntegrationTests.cs` (commit `7ff90f24`) | Integration (WAF) | N/A (nuevos) | N/A (extensión de GREEN) | ✅ Passed (11/11) | ✅ 11 casos: Asignar success, Quitar success, non-admin, inactiva Asignar, inactiva Quitar, Validation 4xx, NotFound 4xx, transport Asignar, NotFound Quitar, transport Quitar, bridge JWT end-to-end | ✅ `CreatePersonaBridgeLeaseAsync` extraído al fixture composite |
+| 3b.5 | `DetailsHabilidadesButtonTests.cs` + `Details.cshtml` | Integration (WAF) | N/A (nuevos) | ✅ 3 Failed (botón ausente) | ✅ 3 Passed | ✅ 3 casos: admin+activa, no-encontrada, no-admin+activa | ✅ Regex específica para evitar matchear `/organizacion/habilidades` de la nav |
+| 3b.6 | (verify) | — | ✅ 2,787 baseline | — | ✅ Passed | ✅ 3 corridas consecutivas | ✅ Ninguno |
+
+Total tests escritos: 31 (17 unit + 11 integration + 3 integration details). Total tests pasando: 2,787 (suite completa), 23 (filtro PersonaHabilidadesPage), 11 (filtro PersonaHabilidadesIntegration), 3 (filtro DetailsHabilidadesButton).
+
+### Work Unit Evidence
+
+| Evidence | Valor |
+|---|---|
+| Focused test command + resultado | `dotnet test SGV.slnx --filter "FullyQualifiedName~PersonaHabilidades\|DetailsHabilidadesButton" --no-build` → **37 PASS / 0 FAIL** (17+11+3+6 tests integración cross-cutting del filtro). |
+| Runtime harness command/result | `dotnet test SGV.slnx --no-build` → **2,787 PASS / 0 FAIL** (3 corridas consecutivas). `bun run build` en `src/SGV.Web` → exit 0. |
+| Rollback boundary | Revertir los 3 commits (`c2f9a798`, `3e49e80c`, `7ff90f24`) deja el repo en estado post-Slice 3a con el PageModel sólo-Get. No se introducen cambios de runtime en API, Dominio, Infraestructura, Aplicación ni Contracts. El `CreatePersonaBridgeLeaseAsync` del fixture se revierte junto con su test de bridge. |
+
+### TDD Test Summary
+
+- **Total tests written**: 31
+- **Total tests passing**: 2,787 (suite), 37 (filtro combinado Slice 3b)
+- **Layers used**: Unit (PageModel + Fake + TempData in-memory) — 17; Integration (WebApplicationFactory + antiforgery + TempData end-to-end) — 14
+- **Approval tests (refactoring)**: 0 (no refactor tasks; handlers y form helpers son greenfield)
+- **Pure functions created**: 2 (`PersonaSkillFormHelpers.ReadAsignarInput`, `PersonaSkillFormHelpers.ResolveFailureMessage`)
+
+### Cambios observados a nivel wire/contrato
+
+- **Wire JSON**: preservado. `AsignarPersonaSkillRequest { nivelId }` se serializa igual; `PersonaSkillCommandResult`/`PersonaSkillDeleteResult` mantienen el shape de Slice 1+2.
+- **HTTP**: preservado. `PUT /api/v1/personas/{personaId}/skills/{skillId}` y `DELETE /api/v1/personas/{personaId}/skills/{skillId}` siguen 200/204/400/404/409/5xx. Validado por los 11 tests de integración.
+- **TempData keys**: `StatusMessage` + `StatusKind` (mismo contrato que `CargoHabilidadesPostHandlers` y `Details` PRG). Default `kind = "success"` cuando no se setea explícitamente.
+- **Forward-compat**: `PersonaHabilidadesViewModel` agrega el campo implícito `ViewModel` que la vista ya consumía en Slice 3a. `PersonaHabilidadAsignarInputModel` es nuevo, source-compat con la convención de `BindProperty` (no se usa binding automático, se hidrata manualmente desde `Request.Form`).
+
+### Patrón replicado de `CargoHabilidades`
+
+Slice 3b replica el patrón canónico de `CargoHabilidades`:
+- Handlers POST separados (Asignar / Quitar) en el PageModel, no en una clase static aparte (diferencia menor: el helper estático en Persona está en `PersonaSkillFormHelpers` dentro del mismo archivo, no en `CargoHabilidadesPostHandlers` separado).
+- Gate admin al inicio del handler (return `Forbid()` si no es admin).
+- Gate persona activa antes de invocar al cliente (prevenir mutaciones sobre personas inactivas/eliminadas).
+- `PageFeedback.Set*` para mensajes PRG.
+- `ErrorCategoryMapper.Map` para mensajes de fallo de delete.
+- `TransportFailureClassifier.IsTransportFailure` para aislar fallos de transporte y devolver TempData danger.
+- Antiforgery validado por ASP.NET (no se agrega `[ValidateAntiForgeryToken]` porque Razor Pages lo aplica por convención a todos los handlers POST).
+- Antiforgery token extraído del GET inicial con `WebTestBuilders.ExtractAntiforgeryTokenAsync` en los tests de integración.
+
+### Decisiones congeladas respetadas (Slice 3b)
+
+- ✅ `VerificadoAt`/`Fuente` → no se exponen (memo #1284 sigue vigente).
+- ✅ Acceso → admin-only (lo refuerza `[Authorize(Roles = RolesSgv.Administrador)]` en el PageModel + gateo manual en cada handler + `@if (... && User.IsInRole(...))` en Details).
+- ✅ Persona inactiva → bloqueo en GET (Slice 3a) **y** en POST (Slice 3b). El handler consulta `persona.IsActive` antes de invocar al cliente; si está inactiva, redirige con TempData warning sin mutar.
+- ✅ Errores → `ErrorCategoria` adoptado como taxonomía observable en `TempData`; `PersonaSkillErrorType` queda como discriminador interno con mapping nombre-a-nombre en `PersonaSkillFormHelpers.ResolveFailureMessage`.
+
+### Riesgos emergentes
+
+- **Medio**: el review budget de Slice 3b quedó en **1,349 líneas modificadas** (vs. forecast de 245-325). Ratio ~4x. La sobreproducción viene de los 31 tests nuevos (1,017 líneas) — el código de producción se mantuvo dentro del forecast (~317 líneas). Esto es **size:exception** respecto al budget de 400. El usuario ya aprobó `size:exception` para Slice 2 (1,334 líneas) en mem #1295; Slice 3b replica el patrón y queda a criterio del orquestador aceptar la excepción o re-fragmentar.
+- **Bajo**: el helper `PersonaSkillFormHelpers` quedó embebido en `PersonaHabilidades.cshtml.cs` en lugar de seguir el patrón `CargoHabilidadesPostHandlers.cs` separado. Decisión consciente: el subdominio persona-skill tiene menos campos y comparte menos estado con la vista. Si en el futuro se extrae a archivo propio (paralelo a `CargoHabilidadesPostHandlers.cs`), el refactor es mecánico (mover + ajustar `internal static class`).
+- **Bajo**: el per-row form pasa de `asp-page-handler="Actualizar"` a `"Asignar"`. Esto implica que tanto el form del pie de página como la fila llaman al mismo handler, lo cual es conceptualmente correcto (ambos son upserts). El markup renderiza ambos como botones "Guardar" / "Asignar habilidad" respectivamente, así que la diferenciación es puramente visual.
+- **Bajo**: el test de bridge end-to-end depende de `RecordingHttpMessageHandler` del composite (`WebTestBuilders`). Si en el futuro se renombra esa clase o se cambia el lease composite, hay que ajustar este test. Hoy compila y pasa.
+
+### Cambios al `SgvWebApplicationFactory` (factory de tests)
+
+- Sin cambios funcionales en Slice 3b. La lógica de `_personaApiHandler` (registrada en Slice 2) sigue soportando el override de `PrimaryHandler` para `IPersonaApiClient`. El test de bridge usa el helper `CreatePersonaBridgeLeaseAsync` (agregado a `WebIntegrationFixture` en este slice, no al factory).
+
+### Próximo paso del orquestador
+
+1. `sdd-verify` puede correr la suite completa (`dotnet test SGV.slnx`) + `bun run build` con seguridad — el subrecurso `persona-skill` queda cerrado end-to-end (wire JSON, cliente tipado, handlers POST con PRG, gating admin, gating persona inactiva, bridge JWT).
+2. Después de `sdd-verify`, `sdd-archive` consolida los delta specs del change en `openspec/specs/` y mueve el change a `archive/2026-07-21-implementa-persona-habilidades/`.

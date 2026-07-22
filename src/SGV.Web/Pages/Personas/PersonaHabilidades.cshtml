@@ -74,9 +74,9 @@ else
                                                 <div class="text-muted small">@skill.SkillCodigo</div>
                                             </td>
                                             <td>
-                                                <form method="post" asp-page-handler="Actualizar" class="d-flex gap-2">
+                                                <form method="post" asp-page-handler="Asignar" class="d-flex gap-2">
                                                     @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="skillId" value="@skill.SkillId" />
+                                                    <input type="hidden" name="SkillId" value="@skill.SkillId" />
                                                     <select name="NivelHabilidadId" class="form-select form-select-sm">
                                                         <option value="@skill.NivelHabilidadId" selected="selected">@skill.NivelNombre</option>
                                                     </select>
@@ -86,7 +86,7 @@ else
                                             <td>
                                                 <form method="post" asp-page-handler="Quitar">
                                                     @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="skillId" value="@skill.SkillId" />
+                                                    <input type="hidden" name="SkillId" value="@skill.SkillId" />
                                                     <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
                                                 </form>
                                             </td>
@@ -116,12 +116,14 @@ else
                                 <select id="SkillId" name="SkillId" class="form-select">
                                     <option value="">Seleccionar habilidad...</option>
                                 </select>
+                                <span class="text-danger">@ViewData.ModelState["SkillId"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
                             </div>
                             <div class="col-md-6">
                                 <label for="NivelHabilidadId" class="form-label">Nivel</label>
                                 <select id="NivelHabilidadId" name="NivelHabilidadId" class="form-select">
                                     <option value="">Seleccionar nivel...</option>
                                 </select>
+                                <span class="text-danger">@ViewData.ModelState["NivelHabilidadId"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
                             </div>
                         </div>
                         <div class="d-flex gap-2 mt-4">

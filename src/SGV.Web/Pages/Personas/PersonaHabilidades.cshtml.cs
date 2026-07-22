@@ -1,16 +1,24 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Comun;
+using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Personas;
 
 /// <summary>
 /// PageModel de la gestión administrativa de habilidades asociadas a una
-/// persona. Este slice expone únicamente la carga inicial; las mutaciones se
-/// incorporarán en el slice siguiente.
+/// persona. Este slice expone la carga inicial (Slice 3a) y los handlers
+/// POST con PRG + TempData feedback (Slice 3b). El acceso está restringido
+/// al rol <see cref="RolesSgv.Administrador"/> y las mutaciones sobre
+/// personas inactivas se rechazan en el handler antes de invocar al
+/// cliente HTTP.
 /// </summary>
 [Authorize(Roles = RolesSgv.Administrador)]
 public sealed class PersonaHabilidadesModel(
@@ -23,11 +31,22 @@ public sealed class PersonaHabilidadesModel(
     /// <summary>Indica si el usuario actual tiene el rol administrador.</summary>
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
 
-    /// <summary>Mensaje de feedback preparado para el flujo PRG del próximo slice.</summary>
+    /// <summary>Mensaje de feedback entregado vía TempData tras un PRG.</summary>
     public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
 
-    /// <summary>Tipo de feedback preparado para el flujo PRG del próximo slice.</summary>
+    /// <summary>Tipo de feedback (success/warning/danger).</summary>
     public string StatusKind => TempData[nameof(StatusKind)] as string ?? "success";
+
+    /// <summary>
+    /// Input ligado al form "Asignar" — hidratado manualmente desde
+    /// <c>Request.Form</c> por el handler para evitar binding implícito de
+    /// <c>Guid</c> cuando el usuario todavía no eligió un valor.
+    /// </summary>
+    public PersonaHabilidadAsignarInputModel AsignarInput { get; set; } = new();
+
+    // ──────────────────────────────────────────────
+    // GET
+    // ──────────────────────────────────────────────
 
     /// <summary>Handler GET de la página de habilidades de una persona.</summary>
     public async Task<IActionResult> OnGetAsync(
@@ -69,9 +88,191 @@ public sealed class PersonaHabilidadesModel(
             return Page();
         }
     }
+
+    // ──────────────────────────────────────────────
+    // POST handlers — patrón análogo a CargoHabilidadesPostHandlers.
+    // Cada handler:
+    // 1. Gatea admin.
+    // 2. Gatea persona activa (no invoca el cliente si la persona está
+    //    inactiva/eliminada — incluso si el antiforgery pasó).
+    // 3. Ejecuta la operación o devuelve feedback legible por PRG.
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Handler POST que recibe un upsert (PUT idempotente) del nivel de
+    /// habilidad para una persona. Cubre tanto el formulario "Asignar"
+    /// del pie de página como la fila "Actualizar" de la grilla.
+    /// </summary>
+    public async Task<IActionResult> OnPostAsignarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
+        AsignarInput = PersonaSkillFormHelpers.ReadAsignarInput(Request.Form, ModelState);
+        if (!ModelState.IsValid)
+        {
+            await ReloadAfterFailedAsignarAsync(id, cancellationToken);
+            return Page();
+        }
+
+        if (!await EnsurePersonaActivaAsync(id, cancellationToken))
+        {
+            return RedirectToPage(new { id });
+        }
+
+        var request = new AsignarPersonaSkillRequest(AsignarInput.NivelHabilidadId!.Value);
+
+        PersonaSkillCommandResult result;
+        try
+        {
+            result = await personaApiClient.UpsertSkillAsync(
+                id, AsignarInput.SkillId!.Value, request, cancellationToken);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            logger.LogError(ex, "Persona skill upsert transport failure for persona {PersonaId}.", id);
+            PageFeedback.SetDanger(TempData, PageFeedback.TransportMessage);
+            return RedirectToPage(new { id });
+        }
+
+        if (result.IsSuccess)
+        {
+            PageFeedback.SetSuccess(TempData,
+                "La habilidad se asignó correctamente a la persona.");
+            return RedirectToPage(new { id });
+        }
+
+        PageFeedback.SetDanger(TempData,
+            PersonaSkillFormHelpers.ResolveFailureMessage(result));
+        return RedirectToPage(new { id });
+    }
+
+    /// <summary>
+    /// Handler POST que recibe la baja (DELETE) de una habilidad asociada
+    /// a una persona. Maneja NotFound con feedback warning para reflejar
+    /// la race condition natural (otra pestaña quitó la asociación).
+    /// </summary>
+    public async Task<IActionResult> OnPostQuitarAsync(
+        Guid id,
+        Guid skillId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!EsAdministrador)
+        {
+            return Forbid();
+        }
+
+        if (!await EnsurePersonaActivaAsync(id, cancellationToken))
+        {
+            return RedirectToPage(new { id });
+        }
+
+        PersonaSkillDeleteResult result;
+        try
+        {
+            result = await personaApiClient.DeleteSkillAsync(id, skillId, cancellationToken);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            logger.LogError(ex, "Persona skill delete transport failure for persona {PersonaId}.", id);
+            PageFeedback.SetDanger(TempData, PageFeedback.TransportMessage);
+            return RedirectToPage(new { id });
+        }
+
+        if (result.Succeeded)
+        {
+            PageFeedback.SetSuccess(TempData,
+                "La habilidad se quitó de la persona correctamente.");
+            return RedirectToPage(new { id });
+        }
+
+        // 404 = ya no existe: race condition natural, feedback warning para
+        // que el siguiente GET refresque la grilla sin asustar al usuario.
+        if (result.Categoria == ErrorCategoria.NotFound)
+        {
+            PageFeedback.SetWarning(TempData,
+                "La asociación ya no existe. La grilla fue actualizada.");
+            return RedirectToPage(new { id });
+        }
+
+        var failureMessage = !string.IsNullOrWhiteSpace(result.Message)
+            ? result.Message!
+            : ErrorCategoryMapper.Map(result.Categoria);
+        PageFeedback.SetDanger(TempData, failureMessage);
+        return RedirectToPage(new { id });
+    }
+
+    // ──────────────────────────────────────────────
+    // Internal helpers
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Verifica que la persona esté activa y consultable antes de invocar
+    /// el cliente HTTP. Si la API responde null o <c>IsActive == false</c>,
+    /// devuelve <c>false</c>, registra warning y setea TempData con un
+    /// feedback legible; el caller debe emitir PRG sin invocar al cliente.
+    /// </summary>
+    private async Task<bool> EnsurePersonaActivaAsync(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var persona = await personaApiClient.GetByIdAsync(id, ct);
+            if (persona is null || !persona.IsActive)
+            {
+                logger.LogWarning(
+                    "Persona with Id {PersonaId} is inactive; mutation blocked.",
+                    id);
+                PageFeedback.SetWarning(TempData,
+                    "La persona está inactiva. No se puede modificar su lista de habilidades.");
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            logger.LogError(ex,
+                "Failed to load persona {PersonaId} during POST gate; blocking mutation conservatively.",
+                id);
+            PageFeedback.SetDanger(TempData, PageFeedback.TransportMessage);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Recarga la grilla y datos de la vista para que la página re-renderizada
+    /// tras un fallo de validación del form Asignar muestre la persona y
+    /// el catálogo de skills disponibles.
+    /// </summary>
+    private async Task ReloadAfterFailedAsignarAsync(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var persona = await personaApiClient.GetByIdAsync(id, ct);
+            if (persona is null || !persona.IsActive)
+            {
+                return;
+            }
+
+            var skills = await personaApiClient.GetSkillsAsync(id, ct);
+            ViewModel = PersonaHabilidadesViewModel.From(persona, skills);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            logger.LogWarning(ex,
+                "Failed to reload PersonaHabilidades data after failed Asignar POST for {PersonaId}.",
+                id);
+        }
+    }
 }
 
-/// <summary>Estado de presentación de la página de habilidades.</summary>
+/// <summary>
+/// Estado de presentación de la página de habilidades.
+/// </summary>
 public sealed record PersonaHabilidadesViewModel
 {
     /// <summary>Identificador de la persona.</summary>
@@ -119,4 +320,91 @@ public sealed record PersonaHabilidadRowViewModel(
             skill.Skill.Nombre,
             skill.Nivel.Id,
             skill.Nivel.Nombre);
+}
+
+/// <summary>
+/// Input del formulario "Asignar" — SkillId y NivelHabilidadId se
+/// hidratan manualmente desde <c>Request.Form</c> para evitar binding
+/// implícito de <see cref="Guid"/> cuando el usuario todavía no eligió
+/// un valor.
+/// </summary>
+public sealed class PersonaHabilidadAsignarInputModel
+{
+    public Guid? SkillId { get; set; }
+
+    public Guid? NivelHabilidadId { get; set; }
+}
+
+/// <summary>
+/// Helpers de parseo de form para la página PersonaHabilidades. Réplica
+/// estructural de <c>CargoSkillFormHelpers</c> reducida al subdominio
+/// Persona-Skill (sin Ponderacion/EsObligatoria/NivelRequeridoId).
+/// </summary>
+public static class PersonaSkillFormHelpers
+{
+    /// <summary>
+    /// Lee <c>SkillId</c> y <c>NivelHabilidadId</c> del form, marca
+    /// ModelState si faltan y devuelve un input model con los valores
+    /// (o null) listos para enviar al cliente HTTP.
+    /// </summary>
+    public static PersonaHabilidadAsignarInputModel ReadAsignarInput(
+        IFormCollection form,
+        ModelStateDictionary modelState)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+        ArgumentNullException.ThrowIfNull(modelState);
+
+        var skillIdRaw = form["SkillId"].ToString();
+        var nivelRaw = form["NivelHabilidadId"].ToString();
+
+        Guid? skillId = Guid.TryParse(skillIdRaw, out var parsedSkill) && parsedSkill != Guid.Empty
+            ? parsedSkill
+            : null;
+        Guid? nivelId = Guid.TryParse(nivelRaw, out var parsedNivel) && parsedNivel != Guid.Empty
+            ? parsedNivel
+            : null;
+
+        if (skillId is null)
+        {
+            modelState.AddModelError("SkillId", "Debe seleccionar una habilidad.");
+        }
+
+        if (nivelId is null)
+        {
+            modelState.AddModelError("NivelHabilidadId", "Debe seleccionar un nivel.");
+        }
+
+        return new PersonaHabilidadAsignarInputModel
+        {
+            SkillId = skillId,
+            NivelHabilidadId = nivelId
+        };
+    }
+
+    /// <summary>
+    /// Resuelve el mensaje de feedback para un Failure de upsert. La
+    /// fuente de verdad es <see cref="ErrorCategoria"/>; cuando el
+    /// subdominio aporta un <c>Message</c> con texto accionable, se
+    /// preserva.
+    /// </summary>
+    public static string ResolveFailureMessage(PersonaSkillCommandResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        if (result.Error is null)
+        {
+            return ErrorCategoryMapper.Map(ErrorCategoria.Unexpected);
+        }
+
+        return result.Error.Categoria switch
+        {
+            ErrorCategoria.NotFound => "La persona o la habilidad solicitada no existe.",
+            ErrorCategoria.Conflict => result.Error.Message,
+            ErrorCategoria.Validation => result.Error.Message,
+            ErrorCategoria.Unauthorized => PageFeedback.UnauthorizedMessage,
+            ErrorCategoria.Forbidden => PageFeedback.ForbiddenMessage,
+            ErrorCategoria.Transport => PageFeedback.TransportMessage,
+            _ => result.Error.Message
+        };
+    }
 }
