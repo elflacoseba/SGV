@@ -1,0 +1,115 @@
+@page "/organizacion/habilidades/{id:guid}/personas"
+@model SGV.Web.Pages.Organizacion.Habilidades.PersonasModel
+
+@{
+    ViewBag.title = "Personas con la habilidad";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+@if (Model.IsRecoverable)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">La habilidad solicitada no está disponible.</h5>
+                    <p class="text-muted mb-3">Es posible que la habilidad haya sido eliminada o que haya ocurrido un error al consultarla.</p>
+                    <a class="btn btn-primary" href="@Model.BuildVolverAlListadoUrl()">
+                        <i class="ti ti-arrow-left me-1"></i>Volver al listado
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card" data-table>
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                        <h4 class="card-title mb-1">
+                            @(Model.IsDeletedView ? "Personas eliminadas de la habilidad" : "Personas asociadas a la habilidad")
+                        </h4>
+                        <p class="text-muted mb-0">
+                            Habilidad: <strong>@Model.HabilidadNombre</strong>
+                        </p>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+                        <div class="btn-group" role="group" aria-label="Filtrar por estado">
+                            <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")" href="@Url.Page("/Organizacion/Habilidades/Personas", Model.BuildToggleSegmentoRouteValues(null))">Activas</a>
+                            <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/Habilidades/Personas", Model.BuildToggleSegmentoRouteValues("eliminadas"))">Eliminadas</a>
+                        </div>
+                        <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
+                        <a class="btn btn-outline-secondary btn-sm" href="@Model.BuildVolverAlListadoUrl()">
+                            <i class="ti ti-arrow-left me-1"></i>Volver al listado
+                        </a>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-custom table-centered table-hover w-100 mb-0">
+                        <thead class="bg-light align-middle bg-opacity-25 thead-sm">
+                            <tr class="text-uppercase fs-xxs">
+                                <th>Legajo</th>
+                                <th>Apellidos</th>
+                                <th>Nombres</th>
+                                <th>Email</th>
+                                <th>Nivel</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Items.Count == 0)
+                            {
+                                <tr>
+                                    <td class="text-center text-muted py-4" colspan="5">
+                                        @(Model.IsDeletedView
+                                            ? "No hay personas eliminadas asociadas a esta habilidad."
+                                            : "No hay personas asociadas a esta habilidad.")
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                foreach (var item in Model.Items)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@(string.IsNullOrWhiteSpace(item.Legajo) ? "—" : item.Legajo)</td>
+                                        <td>
+                                            @* REQ-HM-NEW-LINK: cada fila linkea al detalle de la persona. *@
+                                            <a class="link-reset" href="@Url.Page("/Personas/Details", new { id = item.PersonaId })">
+                                                @item.Apellidos
+                                            </a>
+                                        </td>
+                                        <td>@item.Nombres</td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(item.Email))
+                                            {
+                                                <span class="text-muted">@item.Email</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-soft-secondary fs-xs">@item.NivelNombre</span>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
