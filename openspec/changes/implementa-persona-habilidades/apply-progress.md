@@ -327,6 +327,7 @@ Se respeta `design.md`: una persona inactiva se considera no consultable y `OnGe
 
 - `ce0091a` — `test(slice3a): add PersonaHabilidades authorization and GET tests`
 - `a22ede2` — `feat(slice3a): add PersonaHabilidades Razor Page GET`
+- `63555f5` — `fix(slice3a): prepare PRG feedback on skills page`
 
 ### Riesgos conocidos
 
