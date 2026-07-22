@@ -386,3 +386,43 @@ Al submitir Create o Edit con un `NumeroDocumento` que no matchea el patrón del
 - **CUANDO** la página se renderiza
 - **ENTONCES** la acción hacia habilidades MUST NOT renderizarse
 - **Y** el acceso al subrecurso MUST seguir bloqueado por la frontera de autorización vigente.
+
+### Requirement: REQ-PM-NEW — Botón Habilidades por Persona activa
+
+Cada fila activa de `Pages/Personas/Index.cshtml` MUST exponer un botón `Habilidades`, con icono `ti ti-stars` y clases `btn-primary btn-icon btn-sm rounded-circle`, que navegue a `Pages/Personas/PersonaHabilidades` con el id de la persona.
+
+#### Scenario: Administrador navega desde una fila activa
+
+- **DADO** un Administrador en el listado de Personas y una fila activa
+- **CUANDO** selecciona `Habilidades`
+- **ENTONCES** el enlace MUST incluir el id correcto y apuntar a `PersonaHabilidades`.
+
+### Requirement: REQ-PM-NEW-ADMIN — Gating por rol y segmento
+
+El botón MUST renderizarse solo si `Model.EsAdministrador` y la vista no es `IsDeletedView`.
+
+#### Scenario: Gating de visibilidad
+
+- **DADO** una fila activa o eliminada y un usuario administrador o no administrador
+- **CUANDO** se renderiza el listado
+- **ENTONCES** solo la combinación activa + administrador MUST mostrar el botón.
+
+### Requirement: REQ-PM-NEW-POSITION — Orden de acciones
+
+El botón `Habilidades` MUST ubicarse en la columna `Acciones`, entre `Detalle` y `Editar`.
+
+#### Scenario: Orden visual del listado
+
+- **DADO** una fila activa visible para un administrador
+- **CUANDO** se renderiza la columna `Acciones`
+- **ENTONCES** `Habilidades` MUST aparecer después de `Detalle` y antes de `Editar`.
+
+### Requirement: REQ-PM-NEW-CONTEXT — Preservación del contexto de listado
+
+`BuildHabilidadesRouteValues` MUST conservar `page`, `search`, `sort` y `status` del listado actual al construir la ruta hacia `PersonaHabilidades`.
+
+#### Scenario: Regreso sin perder filtros
+
+- **DADO** un listado con `page`, `search`, `sort` y `status` definidos
+- **CUANDO** se construye el enlace `Habilidades`
+- **ENTONCES** la ruta MUST transportar los cuatro valores para permitir volver al contexto original.
