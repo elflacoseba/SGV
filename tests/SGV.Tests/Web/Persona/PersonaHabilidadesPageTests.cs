@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging.Abstractions;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
@@ -137,10 +136,7 @@ public sealed class PersonaHabilidadesPageTests
         var pageContext = new PageContext(new ActionContext(
             httpContext,
             new Microsoft.AspNetCore.Routing.RouteData(),
-            new Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor()))
-        {
-            ModelState = new ModelStateDictionary()
-        };
+            new Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor()));
 
         return new PersonaHabilidadesModel(apiClient, NullLogger<PersonaHabilidadesModel>.Instance)
         {

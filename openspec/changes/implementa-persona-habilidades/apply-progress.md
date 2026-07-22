@@ -279,7 +279,59 @@ Total tests escritos: 45 (4 + 14 + 25 + 2 injection guards). Total tests pasando
 - ❌ `SGV.Api/` → sin cambios (cumple regla del orquestador).
 - ❌ `src/SGV.Web/Pages/...` → sin cambios (queda para Slice 3a).
 - ❌ `src/SGV.Dominio/`, `src/SGV.Infraestructura/` → sin cambios (cumple regla del orquestador).
-- ⚠️ `SGV.Contracts/Personas.PersonaSkillCommandResult` → modificado sólo para sumar `FieldErrors` opcional + sobrecarga `Failure(error, fieldErrors)`. Cambio source-compat que NO introduce wire-types nuevos ni altera los vigentes (cumple regla "no tocar `SGV.Contracts.Personas.*` consolidados en Slice 1" — la adición es coherente con el patrón de `CargoSkillCommandResult` que ya estaba vigente en `SGV.Contracts.Organizacion.PersonaSkillCommandResult` análogo). Reportado en `open_questions` para visibilidad del orquestador.
+- ⚠️ `SGV.Contracts/Personas.PersonaSkillCommandResult` → modificado sólo para sumar `FieldErrors` opcional + sobrecarga `Failure(error, fieldErrors)`. Cambio source-compat que NO introduce wire-types nuevos ni altera los vigentes.
+
+## Slice 3a — PageModel GET + autorización + vista (stacked-to-main, PR 3)
+
+**Estado**: success — implementación local lista para `sdd-verify`.
+
+### Tareas completadas (3a.1 — 3a.5)
+
+| Tarea | Descripción | Evidencia |
+|---|---|---|
+| 3a.1 | RED/GREEN — autorización admin-only | `PersonaHabilidadesPageTests` verifica `[Authorize(Roles = Administrador)]`, anónimo y usuario autenticado sin rol reciben `ForbidResult` en el PageModel; el pipeline web convierte esto al flujo de acceso correspondiente. |
+| 3a.2 | RED/GREEN — carga inicial y persona inactiva | El test con fake verifica nombre + filas mapeadas y el test de inactiva verifica redirect `/error/404` sin invocar `GetSkillsAsync`. |
+| 3a.3 | GREEN — PageModel GET y ViewModel | `PersonaHabilidadesModel.OnGetAsync` carga primero persona y luego `IPersonaApiClient.GetSkillsAsync`; mapea a `PersonaHabilidadesViewModel`/`PersonaHabilidadRowViewModel`; no agrega handlers POST. |
+| 3a.4 | GREEN — vista Razor Inspinia y antiforgery | `PersonaHabilidades.cshtml` renderiza encabezado, grilla, estado vacío/recuperable, formularios preparados y `@Html.AntiForgeryToken()` sin depender de handlers POST implementados en este slice. |
+| 3a.5 | Verify slice | `dotnet build SGV.slnx` y `dotnet test SGV.slnx --filter "FullyQualifiedName~PersonaHabilidadesPage"` verdes. |
+
+### Archivos tocados en Slice 3a
+
+- `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs` — 5 tests unitarios del PageModel, escritos antes de la implementación.
+- `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml.cs` — PageModel, autorización, GET, mapeo y gate de persona activa.
+- `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml` — vista inicial con grilla Inspinia y tokens antiforgery.
+- `openspec/changes/implementa-persona-habilidades/tasks.md` — tareas 3a marcadas como completadas.
+
+### Decisión UX de persona inactiva
+
+Se respeta `design.md`: una persona inactiva se considera no consultable y `OnGetAsync` redirige a `/error/404` antes de llamar a `GetSkillsAsync`. Esto evita renderizar controles de gestión y mantiene la autoridad del backend sobre el estado activo. Slice 3b deberá repetir el gate antes de cualquier escritura.
+
+### TDD Cycle Evidence
+
+| Tarea | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| 3a.1 | `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs` | Unit/PageModel | N/A (nuevo) | ✅ Written; build falló porque faltaba `PersonaHabilidadesModel` | ✅ 5/5 tests pasan | ✅ anónimo + autenticado sin rol + admin | ✅ gate manual y atributo explícito |
+| 3a.2 | `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs` | Unit/PageModel | N/A (nuevo) | ✅ Written; build falló porque faltaba `PersonaHabilidadesModel` | ✅ 5/5 tests pasan | ✅ datos con fila + persona inactiva sin llamada de skills | ✅ mapeo separado a ViewModel |
+| 3a.3 | `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs` | Unit/PageModel | N/A (nuevo) | ✅ tests RED previos | ✅ 5/5 tests pasan | ✅ persona activa/inactiva/fallo de acceso | ✅ excepciones recuperables y cancelación |
+| 3a.4 | `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs` | Unit + compilación Razor | N/A (nuevo) | ✅ tests RED previos | ✅ `dotnet build SGV.slnx` | ➖ vista estructural, validada por build | ✅ sin Ponderacion/EsObligatoria/NivelRequeridoId |
+
+### Work Unit Evidence
+
+| Evidence | Valor |
+|---|---|
+| Focused test command + resultado | `dotnet test SGV.slnx --filter "FullyQualifiedName~PersonaHabilidadesPage"` → **5 PASS / 0 FAIL**. |
+| Runtime harness command/result | `dotnet build SGV.slnx` → **exit 0**, 0 errors; no se ejecutó `bun run build` por ser scope exclusivo de Slice 3b. No se agregaron tests HTTP web reales. |
+| Rollback boundary | Revertir los commits de Slice 3a elimina `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml*` y `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs`; revertir la actualización de artifacts restaura el estado post-Slice 2. No se tocan API, Contracts, Dominio, Infraestructura ni Details. |
+
+### Commits locales
+
+- `ce0091a` — `test(slice3a): add PersonaHabilidades authorization and GET tests`
+- commit GREEN de Slice 3a — se creará tras la verificación final de build/tests.
+
+### Riesgos conocidos
+
+- Bajo: la vista deja los selectores de habilidad/nivel preparados, pero el catálogo y los handlers POST son responsabilidad de Slice 3b.
+- Bajo: el acceso HTTP anónimo se valida por el atributo y el pipeline existente; este slice usa únicamente tests unitarios del PageModel, conforme al alcance sin integración web.
 
 ### Cambios al `SgvWebApplicationFactory` (factory de tests)
 
