@@ -274,6 +274,25 @@ public sealed class IndexModel(
     };
 
     /// <summary>
+    /// Construye los route values del enlace "Habilidades" preservando el
+    /// contexto del listado (página, búsqueda, orden y segmento). Espejo
+    /// de <see cref="BuildEditRouteValues"/> y <see cref="BuildDetailsRouteValues"/>.
+    /// Usado por PR A del change <c>agrega-navegacion-personas-habilidades</c>
+    /// para anclar el botón admin-only hacia
+    /// <c>Pages/Personas/PersonaHabilidades</c>. La gating por rol se aplica
+    /// en el markup (REJ-PM-NEW-ADMIN); este helper sólo se invoca cuando
+    /// <see cref="EsAdministrador"/> es <c>true</c> y la fila es activa.
+    /// </summary>
+    public object BuildHabilidadesRouteValues(Guid id) => new
+    {
+        id,
+        p = CurrentPage,
+        search = Search,
+        sort = Sort,
+        returnStatus = Segmento
+    };
+
+    /// <summary>
     /// Construye los route values del toggle Activas/Eliminadas con reset
     /// de página y preservación de búsqueda y orden.
     /// </summary>
