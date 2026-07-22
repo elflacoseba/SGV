@@ -184,6 +184,9 @@
                                                 </a>
                                                 @if (Model.EsAdministrador)
                                                 {
+                                                    <a class="btn btn-primary btn-icon btn-sm rounded-circle" href="@Url.Page("/Personas/PersonaHabilidades", Model.BuildHabilidadesRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Habilidades" aria-label="Gestionar habilidades de @item.Apellidos, @item.Nombres">
+                                                        <i class="ti ti-stars fs-lg"></i>
+                                                    </a>
                                                     <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Personas/Edit", Model.BuildEditRouteValues(item.Id))" data-bs-toggle="tooltip" data-bs-title="Editar" aria-label="Editar @item.Apellidos, @item.Nombres">
                                                         <i class="ti ti-edit fs-lg"></i>
                                                     </a>
