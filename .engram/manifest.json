@@ -120,6 +120,14 @@
       "sessions": 21,
       "memories": 59,
       "prompts": 36
+    },
+    {
+      "id": "68273a21",
+      "created_by": "elflacoseba",
+      "created_at": "2026-07-22T02:37:36Z",
+      "sessions": 11,
+      "memories": 49,
+      "prompts": 17
     }
   ]
 }
