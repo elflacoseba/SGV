@@ -1,5 +1,6 @@
 @page "/personas/detalle/{id:guid}"
 @model SGV.Web.Pages.Personas.DetailsModel
+@using SGV.Contracts.Seguridad
 @{
     ViewBag.title = "Detalle de persona";
     ViewBag.subtitle = "Personas";
@@ -74,6 +75,16 @@ else
             <a class="btn btn-warning" href="@Url.Page("/Personas/Edit", new { id = Model.Persona!.Id, p = Model.CurrentPage, search = Model.Search, sort = Model.Sort, returnStatus = Model.Status })">
                 <i class="ti ti-pencil me-1"></i>Editar
             </a>
+            @* Slice 3b (REQ-PM-01): botón "Habilidades" sólo visible para
+               personas consultables como activas + administrador. El
+               subrecurso sigue protegido por [Authorize] en la Razor Page
+               destino como defensa redundante (ver PersonaHabilidadesModel). *@
+            @if (Model.Persona!.IsActive && User.IsInRole(RolesSgv.Administrador))
+            {
+                <a class="btn btn-info" href="@Url.Page("/Personas/PersonaHabilidades", new { id = Model.Persona!.Id })">
+                    <i class="ti ti-stars me-1"></i>Habilidades
+                </a>
+            }
         }
         <a class="btn btn-outline-secondary" href="@Url.Page("/Personas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.Sort, status = Model.Status })">
             <i class="ti ti-arrow-left me-1"></i>Volver al listado
