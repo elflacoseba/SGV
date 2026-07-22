@@ -7,6 +7,7 @@ using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Web.Integration.Common;
 
 namespace SGV.Web.Integration.Habilidades;
@@ -157,6 +158,58 @@ public sealed class HabilidadApiClient(
         string? status)
     {
         var builder = new StringBuilder($"{BaseRoute}/{skillId}/cargos?page={page}&pageSize={pageSize}");
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            builder.Append("&search=");
+            builder.Append(Uri.EscapeDataString(search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort))
+        {
+            builder.Append("&sort=");
+            builder.Append(Uri.EscapeDataString(sort));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            builder.Append("&status=");
+            builder.Append(Uri.EscapeDataString(status));
+        }
+
+        return builder.ToString();
+    }
+
+    /// <inheritdoc />
+    public async Task<PersonaHabilidadesPageResult> GetPersonasAsync(
+        Guid skillId,
+        HabilidadPersonasListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var segmentoText = query.Segmento == PersonaSegmentoListado.Eliminadas ? "eliminadas" : null;
+        var requestUri = BuildPersonasUri(skillId, query.Page, query.PageSize, query.Search, query.Sort, segmentoText);
+        var response = await httpClient.GetAsync(requestUri, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<PersonaHabilidadesPageResult>(cancellationToken: cancellationToken)
+            ?? new PersonaHabilidadesPageResult(
+                [],
+                Page: query.Page,
+                PageSize: query.PageSize,
+                Total: 0,
+                Sort: query.Sort,
+                Segmento: query.Segmento);
+    }
+
+    private static string BuildPersonasUri(
+        Guid skillId,
+        int page,
+        int pageSize,
+        string? search,
+        string? sort,
+        string? status)
+    {
+        var builder = new StringBuilder($"{BaseRoute}/{skillId}/personas?page={page}&pageSize={pageSize}");
 
         if (!string.IsNullOrWhiteSpace(search))
         {

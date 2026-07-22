@@ -313,6 +313,33 @@ public sealed class IndexModel(
         ["status"] = Segmento,
     };
 
+    /// <summary>
+    /// Construye los route values para el botón "Personas" que navega a
+    /// <c>Pages/Organizacion/Habilidades/Personas.cshtml</c>. Preserva
+    /// <c>p</c>, <c>search</c>, <c>sort</c> y <c>status</c> para que el
+    /// usuario pueda volver al listado con el mismo contexto que tenía al
+    /// hacer click. El botón solo se renderiza en filas activas (ver
+    /// <see cref="IsDeletedView"/>), así que la "vista eliminadas" MUST
+    /// NOT exponer este enlace (REQ-HLD-NEW-VISIBILITY). Espejo estructural
+    /// de <see cref="BuildCargosRouteValues"/>: misma forma de route values
+    /// para que la página destino reciba el contexto vigente.
+    /// </summary>
+    /// <remarks>
+    /// PR agrega-navegacion-personas-habilidades / PR C: helper introducido
+    /// junto con el botón "Personas" en <c>Habilidades/Index</c>. Sigue la
+    /// convención de retornar <see cref="RouteValueDictionary"/> para que
+    /// <c>Segmento</c> nulo no se serialice como <c>?status=</c> en vista
+    /// activas (issue documentado en <see cref="BuildCargosRouteValues"/>).
+    /// </remarks>
+    public RouteValueDictionary BuildPersonasRouteValues(Guid id) => new()
+    {
+        ["id"] = id,
+        ["p"] = CurrentPage,
+        ["search"] = Search,
+        ["sort"] = Sort,
+        ["status"] = Segmento,
+    };
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         LoadErrorMessage = null;
