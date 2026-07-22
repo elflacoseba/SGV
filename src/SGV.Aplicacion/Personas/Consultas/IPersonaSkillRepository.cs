@@ -1,5 +1,5 @@
 using SGV.Contracts.Habilidades.Consultas.Dtos;
-using SGV.Aplicacion.Personas.Consultas.Dtos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Dominio.Personas;
 

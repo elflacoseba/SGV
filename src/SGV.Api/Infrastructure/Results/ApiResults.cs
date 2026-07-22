@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
-using SGV.Aplicacion.Personas.Comandos;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
@@ -158,8 +157,16 @@ public static class ApiResults
         => BuildValidationProblem(error.Code, error.Message, fieldErrors, httpContext);
 
     /// <summary>Builds a <see cref="ProblemDetails"/> for a <see cref="PersonaSkillError"/>.</summary>
+    /// <remarks>
+    /// Slice 1 (REQ-TAXO-02): cuando el constructor fija <see cref="PersonaSkillError.Categoria"/>
+    /// y/o <see cref="PersonaSkillError.StatusCode"/>, se usa la matriz
+    /// <see cref="ErrorCategoria"/> como fuente de verdad. Sólo cuando llega
+    /// un error legacy (sin Categoria ni StatusCode) se ramifica por el
+    /// enum <see cref="PersonaSkillErrorType"/>, preservando el wire shape
+    /// actual.
+    /// </remarks>
     public static ActionResult ToProblemResult(PersonaSkillError error, HttpContext? httpContext = null)
-        => BuildProblem(MapPersonaSkillStatus(error.Type), error.Code, error.Message, httpContext);
+        => BuildProblem(MapPersonaSkillStatus(error), error.Code, error.Message, httpContext);
 
     /// <summary>Builds a <see cref="ProblemDetails"/> for a <see cref="UsuarioError"/>.</summary>
     public static ActionResult ToProblemResult(UsuarioError error, HttpContext? httpContext = null)
@@ -300,8 +307,13 @@ public static class ApiResults
     private static int MapPersonaStatus(PersonaErrorType type)
         => MapCategoria(ToCategoria(type));
 
+    private static int MapPersonaSkillStatus(PersonaSkillError error)
+        => error.Categoria is ErrorCategoria.Unexpected && error.StatusCode is null
+            ? MapPersonaSkillStatus(error.Type)
+            : MapCategoria(error.Categoria);
+
     private static int MapPersonaSkillStatus(PersonaSkillErrorType type)
-        => MapCategoria(ToCategoria(type));
+        => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
 
     private static int MapUsuarioStatus(UsuarioError error)
         => error.Categoria is ErrorCategoria.Unexpected && error.StatusCode is null
@@ -325,12 +337,5 @@ public static class ApiResults
         PersonaErrorType.Conflict => ErrorCategoria.Conflict,
         PersonaErrorType.Validation => ErrorCategoria.Validation,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown PersonaErrorType value.")
-    };
-
-    private static ErrorCategoria ToCategoria(PersonaSkillErrorType type) => type switch
-    {
-        PersonaSkillErrorType.NotFound => ErrorCategoria.NotFound,
-        PersonaSkillErrorType.Validation => ErrorCategoria.Validation,
-        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown PersonaSkillErrorType value.")
     };
 }
