@@ -326,7 +326,7 @@ Se respeta `design.md`: una persona inactiva se considera no consultable y `OnGe
 ### Commits locales
 
 - `ce0091a` — `test(slice3a): add PersonaHabilidades authorization and GET tests`
-- commit GREEN de Slice 3a — se creará tras la verificación final de build/tests.
+- `a22ede2` — `feat(slice3a): add PersonaHabilidades Razor Page GET`
 
 ### Riesgos conocidos
 

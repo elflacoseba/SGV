@@ -134,7 +134,7 @@ Chain strategy: stacked-to-main
 
 ### 3a.2 — RED: test GET carga persona y grilla
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs`
-- **Comportamiento**: GET carga nombre de persona + lista de skills desde fake. Persona inactiva redirige a estado recoverable (no 404). (REQ-WEB-02, REQ-WEB-03, SCENARIO-02/03)
+- **Comportamiento**: GET carga nombre de persona + lista de skills desde fake. Persona inactiva redirige a `/error/404` antes de consultar skills, según la decisión UX de `design.md`. (REQ-WEB-02, REQ-WEB-03, SCENARIO-02/03)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage_Get"`
 - **Dependencias**: 3a.1
 - **Estado**: ✅ Completada — `ce0091a` (RED), `5` tests focalizados pasan tras GREEN.
