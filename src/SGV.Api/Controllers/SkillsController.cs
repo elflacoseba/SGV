@@ -6,6 +6,7 @@ using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 
 namespace SGV.Api.Controllers;
@@ -22,15 +23,18 @@ public class SkillsController : ControllerBase
     private readonly IHabilidadServicioConsulta _servicio;
     private readonly IHabilidadServicioComandos _comandos;
     private readonly ISkillCargoServicioConsulta _skillCargoServicio;
+    private readonly ISkillPersonaServicioConsulta _skillPersonaServicio;
 
     public SkillsController(
         IHabilidadServicioConsulta servicio,
         IHabilidadServicioComandos comandos,
-        ISkillCargoServicioConsulta skillCargoServicio)
+        ISkillCargoServicioConsulta skillCargoServicio,
+        ISkillPersonaServicioConsulta skillPersonaServicio)
     {
         _servicio = servicio;
         _comandos = comandos;
         _skillCargoServicio = skillCargoServicio;
+        _skillPersonaServicio = skillPersonaServicio;
     }
 
     /// <summary>
@@ -166,6 +170,39 @@ public class SkillsController : ControllerBase
         var query = new HabilidadCargosListQuery(normalizedPage, normalizedPageSize, search, sort, segmento);
         var result = await _skillCargoServicio.ListarCargosAsync(skillId, query, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>Lists personas associated with a skill.</summary>
+    [HttpGet("{skillId:guid}/personas")]
+    [ProducesResponseType(typeof(PersonaHabilidadesPageResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PersonaHabilidadesPageResult>> GetPersonas(
+        Guid skillId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedSort = sort?.ToLowerInvariant() switch
+        {
+            "legajo_asc" or "legajo_desc" or "apellidos_asc" or "apellidos_desc" or "nombres_asc" or "nombres_desc" => sort.ToLowerInvariant(),
+            _ => "apellidos_asc"
+        };
+        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? PersonaSegmentoListado.Eliminadas
+            : PersonaSegmentoListado.Activas;
+        var query = new HabilidadPersonasListQuery(
+            page < 1 ? 1 : page,
+            pageSize < 1 ? 20 : Math.Min(100, pageSize),
+            search,
+            normalizedSort,
+            segmento);
+
+        var result = await _skillPersonaServicio.ListarPersonasAsync(skillId, query, cancellationToken);
+        return result is null ? NotFound() : Ok(result);
     }
 
     /// <summary>
