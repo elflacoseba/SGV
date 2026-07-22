@@ -64,13 +64,14 @@ else
                                 <th>Nombres</th>
                                 <th>Email</th>
                                 <th>Nivel</th>
+                                <th class="text-center" style="width: 1%">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             @if (Model.Items.Count == 0)
                             {
                                 <tr>
-                                    <td class="text-center text-muted py-4" colspan="5">
+                                    <td class="text-center text-muted py-4" colspan="6">
                                         @(Model.IsDeletedView
                                             ? "No hay personas eliminadas asociadas a esta habilidad."
                                             : "No hay personas asociadas a esta habilidad.")
@@ -102,6 +103,19 @@ else
                                         </td>
                                         <td>
                                             <span class="badge badge-soft-secondary fs-xs">@item.NivelNombre</span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex justify-content-center gap-1">
+                                                <a class="btn btn-info btn-icon btn-sm rounded-circle" href="@Url.Page("/Personas/Details", Model.BuildPersonaDetailsRouteValues(item.PersonaId))" data-bs-toggle="tooltip" data-bs-title="Ver detalle de la persona" aria-label="Detalle de @item.Apellidos, @item.Nombres">
+                                                    <i class="ti ti-eye fs-lg"></i>
+                                                </a>
+                                                @if (Model.EsAdministrador)
+                                                {
+                                                    <a class="btn btn-warning btn-icon btn-sm rounded-circle" href="@Url.Page("/Personas/PersonaHabilidades", Model.BuildGestionarHabilidadesRouteValues(item.PersonaId))" data-bs-toggle="tooltip" data-bs-title="Gestionar habilidades de la persona" aria-label="Gestionar habilidades de @item.Apellidos, @item.Nombres">
+                                                        <i class="ti ti-edit fs-lg"></i>
+                                                    </a>
+                                                }
+                                            </div>
                                         </td>
                                     </tr>
                                 }

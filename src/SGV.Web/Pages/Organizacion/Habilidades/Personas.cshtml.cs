@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Personas.Consultas.Dtos;
+using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Habilidades;
 
 namespace SGV.Web.Pages.Organizacion.Habilidades;
@@ -107,6 +108,14 @@ public sealed class PersonasModel(
         string.Equals(Status, DeletedView, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// <c>true</c> cuando el usuario autenticado pertenece al rol
+    /// <see cref="RolesSgv.Administrador"/>. El botón "Gestionar
+    /// habilidades" sólo se renderiza en ese caso para evitar el 403 que
+    /// produciría la página admin-only destino.
+    /// </summary>
+    public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
+    /// <summary>
     /// Carga el subrecurso de personas para la habilidad vigente. Si la
     /// habilidad no existe (404 devuelto por <c>GetByIdAsync</c>) entra en
     /// estado recuperable. Las fallas de transporte se traducen en un
@@ -196,6 +205,28 @@ public sealed class PersonasModel(
         search = Search,
         sort = Sort,
         status = string.Equals(targetSegmento, DeletedView, StringComparison.OrdinalIgnoreCase) ? DeletedView : null,
+    };
+
+    /// <summary>
+    /// Construye los route values para el botón "Detalle de la persona" de
+    /// cada fila. Sólo necesita el <c>id</c> de la persona destino; la
+    /// página de detalle de Personas no acepta el contexto del listado
+    /// de habilidades.
+    /// </summary>
+    public object BuildPersonaDetailsRouteValues(Guid id) => new
+    {
+        id,
+    };
+
+    /// <summary>
+    /// Construye los route values para el botón admin-only "Gestionar
+    /// habilidades" de cada fila. Sólo se renderiza cuando
+    /// <see cref="EsAdministrador"/> es <c>true</c> porque la página
+    /// destino es admin-only.
+    /// </summary>
+    public object BuildGestionarHabilidadesRouteValues(Guid id) => new
+    {
+        id,
     };
 
     /// <summary>
