@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Comun;
+using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
+using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Personas;
 using SGV.Web.Pages.Common;
 
@@ -23,6 +25,7 @@ namespace SGV.Web.Pages.Personas;
 [Authorize(Roles = RolesSgv.Administrador)]
 public sealed class PersonaHabilidadesModel(
     IPersonaApiClient personaApiClient,
+    IHabilidadApiClient habilidadApiClient,
     ILogger<PersonaHabilidadesModel> logger) : PageModel
 {
     /// <summary>Datos que consume la vista de habilidades.</summary>
@@ -30,6 +33,9 @@ public sealed class PersonaHabilidadesModel(
 
     /// <summary>Indica si el usuario actual tiene el rol administrador.</summary>
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
+    /// <summary>Cliente de catálogo de habilidades (expuesto para los tests de PageModel).</summary>
+    internal IHabilidadApiClient HabilidadApiClient => habilidadApiClient;
 
     /// <summary>Mensaje de feedback entregado vía TempData tras un PRG.</summary>
     public string? StatusMessage => TempData[nameof(StatusMessage)] as string;
@@ -70,7 +76,16 @@ public sealed class PersonaHabilidadesModel(
             }
 
             var skills = await personaApiClient.GetSkillsAsync(id, cancellationToken);
-            ViewModel = PersonaHabilidadesViewModel.From(persona, skills);
+            var (habilidades, niveles, catalogsFailed) = await LoadCatalogsAsync(id, cancellationToken);
+            ViewModel = PersonaHabilidadesViewModel.From(persona, skills, habilidades, niveles);
+            if (catalogsFailed)
+            {
+                ViewModel = ViewModel with
+                {
+                    IsRecoverable = true,
+                    ErrorMessage = "No se pudo cargar el catálogo de habilidades o niveles."
+                };
+            }
             return Page();
         }
         catch (Exception ex) when (ex is HttpRequestException
@@ -259,13 +274,58 @@ public sealed class PersonaHabilidadesModel(
             }
 
             var skills = await personaApiClient.GetSkillsAsync(id, ct);
-            ViewModel = PersonaHabilidadesViewModel.From(persona, skills);
+            var (habilidades, niveles, catalogsFailed) = await LoadCatalogsAsync(id, ct);
+            ViewModel = PersonaHabilidadesViewModel.From(persona, skills, habilidades, niveles);
+            if (catalogsFailed)
+            {
+                ViewModel = ViewModel with
+                {
+                    IsRecoverable = true,
+                    ErrorMessage = "No se pudo cargar el catálogo de habilidades o niveles."
+                };
+            }
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
             logger.LogWarning(ex,
                 "Failed to reload PersonaHabilidades data after failed Asignar POST for {PersonaId}.",
                 id);
+        }
+    }
+
+    /// <summary>
+    /// Carga en paralelo los catálogos de habilidades activas y de niveles
+    /// de habilidad. Réplica estructural de
+    /// <c>Habilidades.cshtml.cs::LoadSkillsAndCatalogsAsync</c> reducida a
+    /// los dos clientes de catálogo (las asociaciones de la persona ya
+    /// vienen del GET handler). Si la consulta falla por transporte, deja
+    /// ambas colecciones vacías para que la vista muestre sólo el
+    /// placeholder y devuelve <c>HasFailure = true</c> para que el caller
+    /// marque el ViewModel como recuperable.
+    /// </summary>
+    internal async Task<(IReadOnlyList<HabilidadListItemViewModel> Habilidades,
+        IReadOnlyList<NivelHabilidadDto> Niveles, bool HasFailure)>
+        LoadCatalogsAsync(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var habilidadesTask = habilidadApiClient.GetAllAsync(ct);
+            var nivelesTask = habilidadApiClient.GetNivelesHabilidadAsync(ct);
+            await Task.WhenAll(habilidadesTask, nivelesTask);
+
+            var habilidades = habilidadesTask.Result
+                .Select(h => new HabilidadListItemViewModel(
+                    h.Id, h.Codigo, h.Nombre, h.Descripcion, h.Categoria))
+                .ToArray();
+            var niveles = (IReadOnlyList<NivelHabilidadDto>)nivelesTask.Result;
+
+            return (habilidades, niveles, false);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            logger.LogError(ex,
+                "Failed to load catalogs for PersonaHabilidades page (personaId={PersonaId}).", id);
+            return ([], [], true);
         }
     }
 }
@@ -284,6 +344,16 @@ public sealed record PersonaHabilidadesViewModel
     /// <summary>Filas de asociaciones cargadas desde el backend.</summary>
     public IReadOnlyList<PersonaHabilidadRowViewModel> Skills { get; init; } = [];
 
+    /// <summary>
+    /// Catálogo de habilidades activas para los <c>&lt;select&gt;</c> del
+    /// form "Asignar". Se popula en el GET handler reutilizando el
+    /// <c>HabilidadListItemViewModel</c> del módulo Cargo.
+    /// </summary>
+    public IReadOnlyList<HabilidadListItemViewModel> HabilidadesDisponibles { get; init; } = [];
+
+    /// <summary>Catálogo de niveles para los <c>&lt;select&gt;</c> del form "Asignar".</summary>
+    public IReadOnlyList<NivelHabilidadDto> NivelOptions { get; init; } = [];
+
     /// <summary>Indica que la carga falló de forma recuperable.</summary>
     public bool IsRecoverable { get; init; }
 
@@ -301,6 +371,27 @@ public sealed record PersonaHabilidadesViewModel
             Skills = skills
                 .Select(skill => PersonaHabilidadRowViewModel.From(skill))
                 .ToArray()
+        };
+
+    /// <summary>
+    /// Overload que además popula los catálogos para los
+    /// <c>&lt;select&gt;</c> del form "Asignar". Lo consume el GET handler
+    /// y el reload tras un POST inválido.
+    /// </summary>
+    public static PersonaHabilidadesViewModel From(
+        PersonaDto persona,
+        IReadOnlyList<PersonaSkillDetailDto> skills,
+        IReadOnlyList<HabilidadListItemViewModel> habilidades,
+        IReadOnlyList<NivelHabilidadDto> niveles)
+        => new()
+        {
+            PersonaId = persona.Id,
+            PersonaNombre = $"{persona.Nombres} {persona.Apellidos}",
+            Skills = skills
+                .Select(skill => PersonaHabilidadRowViewModel.From(skill))
+                .ToArray(),
+            HabilidadesDisponibles = habilidades,
+            NivelOptions = niveles
         };
 }
 

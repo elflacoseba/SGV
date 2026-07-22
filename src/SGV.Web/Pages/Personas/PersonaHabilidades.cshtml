@@ -115,6 +115,10 @@ else
                                 <label for="SkillId" class="form-label">Habilidad</label>
                                 <select id="SkillId" name="SkillId" class="form-select">
                                     <option value="">Seleccionar habilidad...</option>
+                                    @foreach (var item in Model.ViewModel.HabilidadesDisponibles)
+                                    {
+                                        <option value="@item.Id">@item.Nombre</option>
+                                    }
                                 </select>
                                 <span class="text-danger">@ViewData.ModelState["SkillId"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
                             </div>
@@ -122,6 +126,10 @@ else
                                 <label for="NivelHabilidadId" class="form-label">Nivel</label>
                                 <select id="NivelHabilidadId" name="NivelHabilidadId" class="form-select">
                                     <option value="">Seleccionar nivel...</option>
+                                    @foreach (var nivel in Model.ViewModel.NivelOptions)
+                                    {
+                                        <option value="@nivel.Id">@nivel.Nombre</option>
+                                    }
                                 </select>
                                 <span class="text-danger">@ViewData.ModelState["NivelHabilidadId"]?.Errors.FirstOrDefault()?.ErrorMessage</span>
                             </div>
