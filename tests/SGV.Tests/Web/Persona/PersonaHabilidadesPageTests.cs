@@ -12,6 +12,7 @@ using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
+using SGV.Tests.Web.Habilidad;
 using SGV.Tests.Web.Persona;
 using SGV.Web.Pages.Personas;
 using Xunit;
@@ -124,7 +125,8 @@ public sealed class PersonaHabilidadesPageTests
     private static PersonaHabilidadesModel CreatePage(
         FakePersonaApiClient apiClient,
         bool authenticated,
-        bool administrator = false)
+        bool administrator = false,
+        FakeHabilidadApiClient? habilidad = null)
     {
         var claims = authenticated
             ? new List<Claim> { new(ClaimTypes.Name, "test-user") }
@@ -146,7 +148,10 @@ public sealed class PersonaHabilidadesPageTests
             ViewData = new ViewDataDictionary(new Microsoft.AspNetCore.Mvc.ModelBinding.EmptyModelMetadataProvider(), new ModelStateDictionary())
         };
 
-        return new PersonaHabilidadesModel(apiClient, NullLogger<PersonaHabilidadesModel>.Instance)
+        return new PersonaHabilidadesModel(
+            apiClient,
+            habilidad ?? new FakeHabilidadApiClient(),
+            NullLogger<PersonaHabilidadesModel>.Instance)
         {
             PageContext = pageContext
         };
@@ -155,9 +160,10 @@ public sealed class PersonaHabilidadesPageTests
     private static PersonaHabilidadesModel CreatePostPage(
         FakePersonaApiClient apiClient,
         bool administrator,
-        IFormCollection form)
+        IFormCollection form,
+        FakeHabilidadApiClient? habilidad = null)
     {
-        var page = CreatePage(apiClient, authenticated: true, administrator: administrator);
+        var page = CreatePage(apiClient, authenticated: true, administrator: administrator, habilidad: habilidad);
         page.PageContext.HttpContext.Request.Form = form;
         page.TempData = new TempDataDictionary(
             page.PageContext.HttpContext,
@@ -524,6 +530,94 @@ public sealed class PersonaHabilidadesPageTests
         var message = Assert.IsType<string>(page.TempData["StatusMessage"]);
         Assert.DoesNotContain("HttpRequestException", message);
         Assert.DoesNotContain("network down", message);
+    }
+
+    // ──────────────────────────────────────────────
+    // corrige-formulario-habilidades-persona — T6
+    // Tests de carga de catálogos en el form "Asignar".
+    // Cubre REQ-01 (GET invoca los 3 clientes en paralelo),
+    // REQ-04 (POST inválido recarga catálogos) y REQ-05
+    // (degradación aceptable cuando la API de catálogo cae).
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task OnGet_PopulatesCatalogsFromHabilidadApiClient()
+    {
+        var personaId = Guid.NewGuid();
+        var persona = new PersonaDto(
+            personaId, "L-001", "Ana", "García", null, null, null, null, null, null, true);
+        var habilidad1 = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", "Desc 1", "Conductual");
+        var habilidad2 = new HabilidadDto(Guid.NewGuid(), "H-002", "Programación", "Desc 2", "Técnica");
+        var nivel1 = new NivelHabilidadDto(Guid.NewGuid(), "BAS", "Básico", 1, 1);
+        var nivel2 = new NivelHabilidadDto(Guid.NewGuid(), "INT", "Intermedio", 2, 2);
+        var apiClient = FakePersonaApiClient.WithPersonaList(persona);
+        var habilidadApiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad1, habilidad2);
+        habilidadApiClient.NivelesResult = [nivel1, nivel2];
+        var page = CreatePage(apiClient, authenticated: true, administrator: true,
+            habilidad: habilidadApiClient);
+
+        var result = await page.OnGetAsync(personaId);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(2, page.ViewModel.HabilidadesDisponibles.Count);
+        Assert.Equal("Liderazgo", page.ViewModel.HabilidadesDisponibles[0].Nombre);
+        Assert.Equal("Programación", page.ViewModel.HabilidadesDisponibles[1].Nombre);
+        Assert.Equal(2, page.ViewModel.NivelOptions.Count);
+        Assert.Equal("Básico", page.ViewModel.NivelOptions[0].Nombre);
+        Assert.Equal("Intermedio", page.ViewModel.NivelOptions[1].Nombre);
+        Assert.Equal(1, habilidadApiClient.GetAllCalls.Count);
+        Assert.Equal(1, habilidadApiClient.NivelesCalls);
+    }
+
+    [Fact]
+    public async Task OnGet_HabilidadApiClientTransportFailure_LeavesCatalogsEmpty()
+    {
+        var personaId = Guid.NewGuid();
+        var persona = new PersonaDto(
+            personaId, "L-001", "Ana", "García", null, null, null, null, null, null, true);
+        var apiClient = FakePersonaApiClient.WithPersonaList(persona);
+        var habilidadApiClient = new FakeHabilidadApiClient
+        {
+            NivelesException = new HttpRequestException("network down")
+        };
+        var page = CreatePage(apiClient, authenticated: true, administrator: true,
+            habilidad: habilidadApiClient);
+
+        var result = await page.OnGetAsync(personaId);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Empty(page.ViewModel.HabilidadesDisponibles);
+        Assert.Empty(page.ViewModel.NivelOptions);
+        Assert.True(page.ViewModel.IsRecoverable);
+        Assert.False(string.IsNullOrWhiteSpace(page.ViewModel.ErrorMessage));
+        // La grilla de asociaciones existentes debe seguir renderizándose.
+        Assert.NotNull(page.ViewModel.Skills);
+    }
+
+    [Fact]
+    public async Task OnPostAsignar_ModelStateInvalid_AlsoReloadsCatalogs()
+    {
+        var personaId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var persona = new PersonaDto(
+            personaId, "L-001", "Ana", "García", null, null, null, null, null, null, true);
+        var apiClient = FakePersonaApiClient.WithPersonaList(persona);
+        var nivel1 = new NivelHabilidadDto(nivelId, "BAS", "Básico", 1, 1);
+        var habilidadSeed = FakeHabilidadApiClient.WithHabilidadList(
+            new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", "Desc", "Conductual"));
+        habilidadSeed.NivelesResult = [nivel1];
+        var page = CreatePostPage(apiClient, administrator: true,
+            BuildAsignarForm(skillId: null, nivelId),
+            habilidad: habilidadSeed);
+
+        var result = await page.OnPostAsignarAsync(personaId);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.ModelState.IsValid);
+        Assert.Single(page.ViewModel.HabilidadesDisponibles);
+        Assert.Equal("Liderazgo", page.ViewModel.HabilidadesDisponibles[0].Nombre);
+        Assert.Single(page.ViewModel.NivelOptions);
+        Assert.Equal("Básico", page.ViewModel.NivelOptions[0].Nombre);
     }
 
     // ──────────────────────────────────────────────

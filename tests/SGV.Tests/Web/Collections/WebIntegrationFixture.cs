@@ -99,10 +99,13 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
     /// los otros módulos (<see cref="CreateCargoLeaseAsync"/>, etc.).
     /// </summary>
     public Task<WebClientLease> CreatePersonaLeaseAsync(
-        IPersonaApiClient persona, bool adminRole = false)
+        IPersonaApiClient persona,
+        IHabilidadApiClient? habilidad = null,
+        bool adminRole = false)
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
-            personaApiClient: persona));
+            personaApiClient: persona,
+            habilidadApiClient: habilidad ?? new FakeHabilidadApiClient()));
 
     /// <summary>
     /// Lease autenticado contra el módulo Usuarios. Toma un

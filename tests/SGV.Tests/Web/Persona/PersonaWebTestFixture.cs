@@ -52,7 +52,7 @@ public sealed class PersonaWebTestFixture : IAsyncDisposable
     /// </summary>
     public async Task<HttpClient> CreateAuthenticatedClientAsync(IPersonaApiClient apiClient, bool adminRole)
     {
-        var lease = await _root.CreatePersonaLeaseAsync(apiClient, adminRole);
+        var lease = await _root.CreatePersonaLeaseAsync(apiClient, adminRole: adminRole);
         _leases.Add(lease);
         return lease.Client;
     }
