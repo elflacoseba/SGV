@@ -117,3 +117,33 @@ Estimado: 400–500 líneas. Tareas C.1–C.7 según `tasks.md`.
 
 PR B — Backend subreverso. El orquestador decidirá cuándo lanzar el
 siguiente batch de apply.
+
+## PR B — Backend subreverso
+
+- **Branch**: `feat/agrega-navegacion-personas-habilidades-pr-b-backend`
+- **Base SHA**: `ebbcb97aca7501d6198de3d349e37668cc8ed56e`
+- **Merge target**: `develop` (stacked-to-main; independiente de PR A)
+- **Commits**: `3079958` contracts, `2453943` aplicación, `069709c` infraestructura, `7604ae4` API.
+- **Archivos creados**: tres wire contracts, interfaces y servicio de aplicación, repositorio EF Core, y tres suites focalizadas de contratos/servicio/API.
+- **Archivos modificados**: `SkillsController.cs`, `DependencyInjection.cs`, `SwaggerConfigurationTests.cs`.
+- **Verificación**: `dotnet build SGV.slnx` PASS (0 errores); `dotnet test SGV.slnx` **2803/2803 PASS** (baseline PR A: 2790; +13 tests).
+- **Specs cubiertas**: REQ-SPQC-01, REQ-SPQC-02, REQ-SPQC-03, REQ-SPQC-04, REQ-SPQC-05, REQ-SPQC-06 y REQ-SPQC-07.
+- **Desviaciones**: el repositorio devuelve directamente `PersonaHabilidadesPageResult` conforme a la delegación PR B; los tests de endpoint usan `WebApplicationFactory` con servicio fake y no `[MySqlFact]`. No se extendió `IHabilidadApiClient` ni su fake porque la delegación delimitó PR B al backend y prohibió tocar territorio Web/PR C.
+- **Próximo paso**: PR C — frontend subreverso.
+
+### TDD Cycle Evidence — PR B
+
+| Unidad | Test | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|
+| Contracts | `SkillPersonaContractsCompatibilityTests.cs` | Compilación falló por tipos inexistentes | 2/2 PASS | Shape JSON + metadata | Sin refactor adicional |
+| Aplicación | `SkillPersonaServicioConsultaTests.cs` | Compilación falló por interfaz inexistente | 3/3 PASS | Guid vacío, padre ausente y delegación válida | Guard clauses |
+| API | `HabilidadesPersonasControllerTests.cs` | 6/8 FAIL antes del endpoint | 8/8 PASS | Auth, 200, 404, paging, search, sort, segmento y límites | Normalización centralizada |
+| Swagger | `SwaggerConfigurationTests.cs` | Suite completa detectó 2 regresiones documentales | Suite completa 2803/2803 PASS | Allowlist + inspección exclusiva de paths | Assertion desacoplada de nombres de schemas |
+
+### Work Unit Evidence — PR B
+
+| Evidence | Result |
+|---|---|
+| Focused tests | Contracts 2/2; aplicación 3/3; endpoint 8/8 PASS |
+| Runtime harness | `dotnet build SGV.slnx` PASS; API ejercitada con `WebApplicationFactory` |
+| Rollback boundary | Revertir `3079958`, `2453943`, `069709c` y `7604ae4`; no hay migraciones ni cambios de dominio/UI |

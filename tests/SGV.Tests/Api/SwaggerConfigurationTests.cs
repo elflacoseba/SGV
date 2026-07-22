@@ -490,7 +490,8 @@ public sealed class SwaggerConfigurationTests
                         or "/api/v1/skills/{id}"
                         or "/api/v1/skills/{id}/reactivar"
                         or "/api/v1/skills/consulta"
-                        or "/api/v1/skills/{skillId}/cargos",
+                        or "/api/v1/skills/{skillId}/cargos"
+                        or "/api/v1/skills/{skillId}/personas",
                     $"Unexpected skill catalog sub-path documented: {path.Name}");
 
                 if (string.Equals(path.Name, "/api/v1/skills/{skillId}/cargos", StringComparison.OrdinalIgnoreCase))
@@ -661,9 +662,12 @@ public sealed class SwaggerConfigurationTests
         var response = await client.GetAsync("/swagger/v1/swagger.json");
         var content = await response.Content.ReadAsStringAsync();
 
-        // Must NOT document CargoHabilidad or PersonaHabilidad endpoints
-        Assert.DoesNotContain("CargoHabilidad", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("PersonaHabilidad", content, StringComparison.OrdinalIgnoreCase);
+        using var doc = JsonDocument.Parse(content);
+        var pathNames = string.Join('\n', doc.RootElement.GetProperty("paths").EnumerateObject().Select(path => path.Name));
+
+        // Must NOT document direct CargoHabilidad or PersonaHabilidad aggregate endpoints.
+        Assert.DoesNotContain("CargoHabilidad", pathNames, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PersonaHabilidad", pathNames, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
