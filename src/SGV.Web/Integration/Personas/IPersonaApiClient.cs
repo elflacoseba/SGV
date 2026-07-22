@@ -91,4 +91,46 @@ public interface IPersonaApiClient
     /// <c>ICargoApiClient.GetNivelesAsync</c>.
     /// </summary>
     Task<IReadOnlyList<TipoDocumentoDto>> GetTiposDocumentoAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lista las habilidades asociadas a una persona vía
+    /// <c>GET /api/v1/personas/{personaId}/skills</c>. Devuelve una lista
+    /// vacía cuando el endpoint responde <c>404 Not Found</c> para que la
+    /// grilla editable pueda mostrar un estado vacío sin tratar la falta
+    /// de la persona como un error fatal. Cualquier otro fallo de
+    /// transporte se propaga al llamador para que la página muestre un
+    /// error recuperable. Subrecurso del change
+    /// <c>implementa-persona-habilidades</c> (Slice 2, REQ-WEB-04).
+    /// </summary>
+    Task<IReadOnlyList<PersonaSkillDetailDto>> GetSkillsAsync(Guid personaId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asigna o actualiza una habilidad en una persona vía
+    /// <c>PUT /api/v1/personas/{personaId}/skills/{skillId}</c> con el
+    /// payload <c>{ "nivelId": "&lt;guid&gt;" }</c>. Devuelve éxito con el
+    /// DTO persistido o un fallo tipado
+    /// (<see cref="PersonaSkillErrorType.Validation"/> con
+    /// <c>FieldErrors</c> cuando el backend emite
+    /// <c>ValidationProblemDetails</c>,
+    /// <see cref="PersonaSkillErrorType.NotFound"/> cuando la persona o
+    /// la habilidad referenciada no existen). El mapeo no exitoso delega
+    /// en <see cref="SGV.Web.Integration.Common.CommandResultMapper"/>
+    /// preservando la taxonomía <see cref="SGV.Contracts.Comun.ErrorCategoria"/>
+    /// que consume el PageModel de Slice 3a. Subrecurso del change
+    /// <c>implementa-persona-habilidades</c> (Slice 2, REQ-WEB-04).
+    /// </summary>
+    Task<PersonaSkillCommandResult> UpsertSkillAsync(Guid personaId, Guid skillId, AsignarPersonaSkillRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Quita una habilidad de una persona vía
+    /// <c>DELETE /api/v1/personas/{personaId}/skills/{skillId}</c>.
+    /// Devuelve un <see cref="PersonaSkillDeleteResult"/> con la respuesta
+    /// traducida: éxito con <c>204 No Content</c>, o un fallo con el
+    /// status code, el <c>Categoria</c> y el <c>ProblemDetails</c>
+    /// recibido para que la página muestre un mensaje legible sin filtrar
+    /// stack traces. El mapeo no exitoso delega en
+    /// <see cref="SGV.Web.Integration.Common.DeleteResultMapper"/>. Subrecurso
+    /// del change <c>implementa-persona-habilidades</c> (Slice 2, REQ-WEB-04).
+    /// </summary>
+    Task<PersonaSkillDeleteResult> DeleteSkillAsync(Guid personaId, Guid skillId, CancellationToken cancellationToken = default);
 }

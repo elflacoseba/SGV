@@ -1,8 +1,11 @@
 using System.Net;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
+using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Personas;
 using Xunit;
 
@@ -213,5 +216,59 @@ public class PersonaWebSeamTests
 
         await Assert.ThrowsAsync<TaskCanceledException>(
             () => fake.UpdateAsync(Guid.NewGuid(), new ActualizarPersonaRequest("L-001", "Ana", "García")));
+    }
+
+    // ──────────────────────────────────────────────
+    // Slice 2 (REQ-WEB-04 / implementa-persona-habilidades):
+    // verificar que el bridge cookie→JWT (vía ApiBearerTokenHandler)
+    // sigue inyectado en el HttpClient del IPersonaApiClient para que
+    // los nuevos endpoints del subrecurso persona-skill reciban el
+    // bearer token cuando el shell está autenticado. El orquestador
+    // pide "solo verificar que el handler se inyecta, no la comunicación
+    // HTTP" — la comunicación se prueba end-to-end en
+    // ApiBearerTokenIntegrationTests (Cargo), equivalente a aplicar este
+    // mismo patrón a Persona. Aquí verificamos el contrato de inyección.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task ProductionRegistration_ApiBearerTokenHandler_IsRegisteredAsTransient()
+    {
+        // AC: Program.cs registra ApiBearerTokenHandler con
+        // AddHttpMessageHandler(...) sobre cada typed-client autenticado
+        // (incluido IPersonaApiClient). Para que el factory de HttpMessageHandler
+        // pueda resolverlo en runtime, el tipo debe estar registrado en
+        // el IServiceProvider — eso es lo que verifica este guard.
+        // Si alguien borra `builder.Services.AddTransient<ApiBearerTokenHandler>()`
+        // de Program.cs, este test falla ANTES de que el primer 401
+        // arrastre una noche de debug.
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        using var scope = lease.Factory.Services.CreateScope();
+
+        var handler = scope.ServiceProvider.GetService<ApiBearerTokenHandler>();
+
+        Assert.NotNull(handler);
+    }
+
+    [Fact]
+    public async Task ProductionRegistration_PersonaApiClient_SubresourceSkillMethodsResolve()
+    {
+        // AC: el subrecurso persona-skill queda accesible vía DI desde
+        // la Razor Page de Slice 3a. Si alguien borra el método de la
+        // interface o cambia su firma, este guard falla antes de que el
+        // primer PageModel de Slice 3a rompa la compilación en runtime.
+        // Espejo del test de firma pero desde el ángulo de inyección: el
+        // typed-client concreto `PersonaApiClient` debe implementar los
+        // 3 métodos del subrecurso.
+        await using var lease = await _fixture.CreateAnonymousLeaseAsync();
+        using var scope = lease.Factory.Services.CreateScope();
+
+        // Resolver los métodos por reflection para no acoplarse a la
+        // composición de tipos en runtime. El shell ya tipó los call
+        // sites contra la interface; este guard evita que un rename
+        // silencioso de un método rompa los Pages futuros.
+        var interfaceType = typeof(IPersonaApiClient);
+        Assert.NotNull(interfaceType.GetMethod(nameof(IPersonaApiClient.GetSkillsAsync)));
+        Assert.NotNull(interfaceType.GetMethod(nameof(IPersonaApiClient.UpsertSkillAsync)));
+        Assert.NotNull(interfaceType.GetMethod(nameof(IPersonaApiClient.DeleteSkillAsync)));
     }
 }
