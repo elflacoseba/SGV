@@ -130,30 +130,35 @@ Chain strategy: stacked-to-main
 - **Comportamiento**: `GET /personas/{id}/habilidades` exige rol Administrador; anónimo redirect a sign-in; autenticado sin rol recibe 403. (REQ-WEB-01, SCENARIO-01)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage_Anon"`
 - **Dependencias**: 2.5 (Fake con skills)
+- **Estado**: ✅ Completada — `ce0091a` (RED), `5` tests focalizados pasan tras GREEN.
 
 ### 3a.2 — RED: test GET carga persona y grilla
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs`
-- **Comportamiento**: GET carga nombre de persona + lista de skills desde fake. Persona inactiva redirige a estado recoverable (no 404). (REQ-WEB-02, REQ-WEB-03, SCENARIO-02/03)
+- **Comportamiento**: GET carga nombre de persona + lista de skills desde fake. Persona inactiva redirige a `/error/404` antes de consultar skills, según la decisión UX de `design.md`. (REQ-WEB-02, REQ-WEB-03, SCENARIO-02/03)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage_Get"`
 - **Dependencias**: 3a.1
+- **Estado**: ✅ Completada — `ce0091a` (RED), `5` tests focalizados pasan tras GREEN.
 
 ### 3a.3 — GREEN: crear PersonaHabilidades.cshtml.cs (PageModel GET)
 - **Files**: `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml.cs` (nuevo)
-- **Comportamiento**: `[Authorize(Roles = RolesSgv.Administrador)]`, gate admin manual en `OnGetAsync`, carga `IPersonaApiClient.GetSkillsAsync`, persona inactiva → `IsRecoverable` + estado recuperable. Sin handlers POST. Sin Ponderacion/EsObligatoria. Antiforgery configurado (formulario con `@Html.AntiForgeryToken()`). (REQ-WEB-01, REQ-WEB-02, REQ-WEB-03)
+- **Comportamiento**: `[Authorize(Roles = RolesSgv.Administrador)]`, gate admin manual en `OnGetAsync`, carga `IPersonaApiClient.GetSkillsAsync`, persona inactiva → redirect `/error/404` antes de cargar skills. Sin handlers POST. Sin Ponderacion/EsObligatoria. Antiforgery configurado (formulario con `@Html.AntiForgeryToken()`). (REQ-WEB-01, REQ-WEB-02, REQ-WEB-03)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 2.4 (ApiClient), 3a.2 (tests en rojo)
+- **Estado**: ✅ Completada — `feat` commit de Slice 3a.
 
 ### 3a.4 — GREEN: crear PersonaHabilidades.cshtml (View)
 - **Files**: `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml` (nuevo)
 - **Comportamiento**: Vista Razor con grilla de skills (inspiración `CargoHabilidades.cshtml` pero más simple: sin Ponderacion/Obligatoria), estado vacío, estado recuperable, acceso denegado, `TempData` feedback section, look Inspinia. Formulario "Asignar" preparado (solo `NivelHabilidadId` selector). Sin handlers POST aún. (REQ-WEB-02)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 3a.3
+- **Estado**: ✅ Completada — `feat` commit de Slice 3a.
 
 ### 3a.5 — Verify slice 3a
 - **Files**: todos los del slice
 - **Comportamiento**: Tests auth + GET pasan. Build completo. (REQ-WEB-01..03)
 - **Verify**: `dotnet build SGV.slnx && dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage_Anon|PersonaHabilidadesPage_Get"`
 - **Dependencias**: 3a.4
+- **Estado**: ✅ Completada — build verde y 5 tests focalizados pasan.
 
 ---
 
