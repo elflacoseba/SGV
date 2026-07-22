@@ -91,30 +91,35 @@ Chain strategy: stacked-to-main
 - **Comportamiento**: `FakePersonaApiClient.GetSkillsAsync`/`UpsertSkillAsync`/`DeleteSkillAsync` incrementan contadores sin HTTP. (REQ-WEB-04, SCENARIO-01)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaSkillClientContract"`
 - **Dependencias**: 1.7
+- **Estado**: ✅ `b9f0da2f` (RED commit) — 4 tests de contrato de firma + 1 guard de conteo de métodos.
 
 ### 2.2 — RED: test errores NotFound/Validation/Transport en cliente
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaApiClientSkillErrorsTests.cs`
 - **Comportamiento**: `FakePersonaApiClient` con errores → `Categoria` via `CommandResultMapper`/`DeleteResultMapper`. (REQ-WEB-05, SCENARIO-01/02, REQ-TAXO-02)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaApiClientSkillErrors"`
 - **Dependencias**: 2.1
+- **Estado**: ✅ `b9f0da2f` (RED commit) — 14 tests de comportamiento del fake cubriendo defaults, seed, errores por `ErrorCategoria` (NotFound/Validation/Conflict/Unauthorized/Forbidden/Transport) y propagación de excepciones nativas.
 
 ### 2.3 — GREEN: agregar métodos a IPersonaApiClient
 - **Files**: `src/SGV.Web/Integration/Personas/IPersonaApiClient.cs`
 - **Comportamiento**: `GetSkillsAsync`, `UpsertSkillAsync`, `DeleteSkillAsync`. (REQ-WEB-04, REQ-WEB-05)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 1.4
+- **Estado**: ✅ `3664b1a9` (GREEN commit) — 3 métodos públicos agregados con XML docs; heredan la misma forma wire que el subrecurso CargoSkill.
 
 ### 2.4 — GREEN: implementar métodos en PersonaApiClient
 - **Files**: `src/SGV.Web/Integration/Personas/PersonaApiClient.cs`
 - **Comportamiento**: `GET/PUT/DELETE /api/v1/personas/{personaId}/skills/{skillId}`. Delegar errores en `CommandResultMapper`/`DeleteResultMapper`. (Patrón CargoApiClient)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 2.3
+- **Estado**: ✅ `3664b1a9` (GREEN commit) — 3 métodos HTTP implementados + helper `ToSkillCommandResultAsync` + `MapCategoriaToLegacySkillType` con fallback `Validation` para categorías fuera de `PersonaSkillErrorType` (espejo de CargoSkill).
 
 ### 2.5 — GREEN: extender FakePersonaApiClient con skill methods
 - **Files**: `tests/SGV.Tests/Web/Persona/FakePersonaApiClient.cs`
 - **Comportamiento**: Propiedades `GetSkillsResult`, `UpsertSkillResult`, `DeleteSkillResult` + contadores. Seed configurable. Sin HTTP. (REQ-WEB-04, SCENARIO-01)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~FakePersonaApiClient"`
 - **Dependencias**: 2.3, 2.4
+- **Estado**: ✅ `3664b1a9` (GREEN commit) — 6 propiedades seed + 3 listas de invocaciones + 3 hooks de excepción, todos con defaults seguros (`Failure FakeNotConfigured` para Upsert; `Success NoContent` para Delete).
 
 ---
 
