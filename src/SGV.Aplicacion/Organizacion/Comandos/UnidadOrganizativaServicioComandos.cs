@@ -237,7 +237,7 @@ public sealed class UnidadOrganizativaServicioComandos(
 
     public async Task<UnidadOrganizativaCommandResult> ReactivarAsync(Guid id, CancellationToken cancellationToken = default)
     {
-         var unidad = await repository.GetByIdIncludingDeletedAsync(id, cancellationToken).ConfigureAwait(false);
+        var unidad = await repository.GetByIdIncludingDeletedAsync(id, cancellationToken).ConfigureAwait(false);
         if (unidad is null)
         {
             return UnidadOrganizativaCommandResult.Failure(
