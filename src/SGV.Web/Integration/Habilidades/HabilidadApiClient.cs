@@ -276,7 +276,20 @@ public sealed class HabilidadApiClient(
                 response.RequestMessage?.RequestUri);
         }
 
-        var errorType = MapCategoriaToType(categoria);
+        // El backend usa el código CategoriaHabilidadNoExiste cuando el
+        // CategoriaId informado no está en el catálogo seed. Lo traducimos
+        // a CategoriaInexistente para que el PageModel pueda ramificar por
+        // HabilidadErrorType.
+        HabilidadErrorType errorType;
+        if (string.Equals(code, "CategoriaHabilidadNoExiste", StringComparison.OrdinalIgnoreCase))
+        {
+            errorType = HabilidadErrorType.CategoriaInexistente;
+        }
+        else
+        {
+            errorType = MapCategoriaToType(categoria);
+        }
+
         var error = new HabilidadError(errorType, code, message, statusCode, categoria);
 
         if (parsed.FieldErrors is { Count: > 0 })
@@ -308,6 +321,6 @@ public sealed class HabilidadApiClient(
         ErrorCategoria.Transport => HabilidadErrorType.Infrastructure,
         ErrorCategoria.Unauthorized => HabilidadErrorType.Validation,
         ErrorCategoria.Forbidden => HabilidadErrorType.Validation,
-        ErrorCategoria.Unexpected => HabilidadErrorType.Validation
+        _ => HabilidadErrorType.Validation
     };
 }

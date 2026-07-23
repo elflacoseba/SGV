@@ -1,3 +1,5 @@
+using SGV.Contracts.Habilidades.Categorias.Consultas;
+
 namespace SGV.Web.Integration.Habilidades;
 
 /// <summary>
@@ -27,4 +29,10 @@ public interface IHabilidadForm
     /// URL de retorno al listado preservando filtros.
     /// </summary>
     string ReturnToListUrl { get; }
+
+    /// <summary>
+    /// Catálogo de categorías de habilidad disponible para poblar el &lt;select&gt;
+    /// de categoría en el formulario.
+    /// </summary>
+    IReadOnlyList<CategoriaHabilidadDto> CategoriasDisponibles { get; }
 }

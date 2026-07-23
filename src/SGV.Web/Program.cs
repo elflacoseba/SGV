@@ -193,6 +193,17 @@ builder.Services.AddHttpClient<IHabilidadApiClient, HabilidadApiClient>((service
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
 
+builder.Services.AddHttpClient<ICategoriaHabilidadApiClient, CategoriaHabilidadApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // Mismo budget que el resto de los clientes tipados: 10s para que
+    // los dropdowns poblados por este catálogo fallen rápido y la UI
+    // muestre feedback antes de que el usuario confirme el form.
+    client.Timeout = TimeSpan.FromSeconds(10);
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
 builder.Services.AddHttpClient<IPersonaApiClient, PersonaApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
