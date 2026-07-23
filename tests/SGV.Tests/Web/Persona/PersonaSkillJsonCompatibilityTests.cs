@@ -51,7 +51,7 @@ public sealed class PersonaSkillJsonCompatibilityTests
     [Fact]
     public void PersonaSkillDetailDto_SerializesWithNestedSkillAndNivel()
     {
-        var skill = new HabilidadDto(SkillId, "PROG", "Programación", null, "Técnica");
+        var skill = new HabilidadDto(SkillId, "PROG", "Programación", null, null, "Técnica");
         var nivel = new NivelHabilidadDto(NivelId, "N1", "Nivel 1", 1, 1);
         var detail = new PersonaSkillDetailDto(skill, nivel);
 

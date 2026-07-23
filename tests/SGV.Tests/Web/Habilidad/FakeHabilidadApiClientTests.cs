@@ -27,8 +27,8 @@ public class FakeHabilidadApiClientTests
         // AC #1 + #4 + #6: el segmento Status se respeta case-insensitively
         // para "activas"/"eliminadas" y, si está ausente (null), cae al
         // snapshot activo por paridad con GetAllAsync.
-        var activa = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", null, "Conductual");
-        var eliminada = new HabilidadDto(Guid.NewGuid(), "H-DEL", "Habilidad Eliminada", null, "Técnica");
+        var activa = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", null, null, "Conductual");
+        var eliminada = new HabilidadDto(Guid.NewGuid(), "H-DEL", "Habilidad Eliminada", null, null, "Técnica");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(activa, eliminada);
 
         await apiClient.DeleteAsync(eliminada.Id);
@@ -47,8 +47,8 @@ public class FakeHabilidadApiClientTests
         // must respect the Status segment (activas → only the active,
         // eliminadas → only the deleted). Verifica además que el contador
         // total refleje sólo el segmento consultado.
-        var activa = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", "Desc", "Conductual");
-        var eliminada = new HabilidadDto(Guid.NewGuid(), "H-DEL", "Habilidad Eliminada", null, "Técnica");
+        var activa = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", "Desc", null, "Conductual");
+        var eliminada = new HabilidadDto(Guid.NewGuid(), "H-DEL", "Habilidad Eliminada", null, null, "Técnica");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(activa, eliminada);
 
         await apiClient.DeleteAsync(eliminada.Id);
@@ -70,7 +70,7 @@ public class FakeHabilidadApiClientTests
         // AC #7: expose IsDeleted(Guid) so tests can seed soft-deleted
         // state without going through DeleteAsync (useful for Reactivate
         // tests where the entry was already deleted server-side).
-        var activa = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", null, "Conductual");
+        var activa = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", null, null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(activa);
 
         Assert.False(apiClient.IsDeleted(activa.Id));

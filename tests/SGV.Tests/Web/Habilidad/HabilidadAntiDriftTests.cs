@@ -45,7 +45,7 @@ public sealed class HabilidadAntiDriftTests
     public async Task EditPage_NoExponeSelectDeNivel()
     {
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
@@ -80,7 +80,7 @@ public sealed class HabilidadAntiDriftTests
     public async Task EditPage_PartialForm_NoExponeNivelEnMarkup()
     {
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
         var client = lease.Client;
@@ -95,7 +95,8 @@ public sealed class HabilidadAntiDriftTests
     private static void AssertNoNivelForm(string content)
     {
         // Anti-drift: el catálogo maestro de Habilidad NO debe capturar un nivel.
-        Assert.DoesNotContain("<select", content, StringComparison.OrdinalIgnoreCase);
+        // El <select> de CategoriaId es legítimo (issue migrar-campo-categoria-habilidades-a-tabla).
+        // Solo verificamos ausencia de elementos específicos de nivel.
         Assert.DoesNotContain("name=\"Input.NivelId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("name=\"nivelId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("name=\"nivel\"", content, StringComparison.OrdinalIgnoreCase);

@@ -26,7 +26,7 @@ public static class WebTestBuilders
         => new(Guid.NewGuid(), codigo, nombre, descripcion, SampleUnidadOrganizativaId, "Ventas", SampleCargoId, "Vendedor", puestoSuperiorId);
 
     public static HabilidadDto BuildHabilidadDto(string codigo, string nombre, string? descripcion, string? categoria)
-        => new(Guid.NewGuid(), codigo, nombre, descripcion, categoria);
+        => new(Guid.NewGuid(), codigo, nombre, descripcion, null, categoria);
 
     /// <summary>Handler mínimo que devuelve una respuesta preconfigurada. Antes había 7 copias.</summary>
     public sealed class RecordingHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler

@@ -38,7 +38,7 @@ public sealed class HabilidadDetailsPageTests
     public async Task Get_Details_WhenAuthenticated_ShowsHabilidadReadOnly()
     {
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Descripción completa", "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Descripción completa", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);

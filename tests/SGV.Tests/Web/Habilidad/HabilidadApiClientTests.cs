@@ -24,7 +24,7 @@ public class HabilidadApiClientTests
     public async Task GetAllAsync_Http200WithPayload_ReturnsParsedDtosAndHitsListRoute()
     {
         var id = Guid.NewGuid();
-        var payload = new[] { new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual") };
+        var payload = new[] { new HabilidadDto(id, "H-001", "Liderazgo", "Desc", null, "Conductual") };
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
@@ -41,7 +41,7 @@ public class HabilidadApiClientTests
     public async Task GetByIdAsync_Http200_ReturnsDtoAndHitsDetailRoute()
     {
         var id = Guid.NewGuid();
-        var payload = new HabilidadDto(id, "H-002", "Programación", null, "Técnica");
+        var payload = new HabilidadDto(id, "H-002", "Programación", null, null, "Técnica");
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
         var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
@@ -204,7 +204,7 @@ public class HabilidadApiClientTests
     public async Task ReactivarAsync_Http200_ReturnsDtoAndHitsReactivarRoute()
     {
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo", null, "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", null, null, "Conductual");
         var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
         var client = new HabilidadApiClient(NewHttpClient(handler), NullLogger());
 
@@ -222,7 +222,7 @@ public class HabilidadApiClientTests
     {
         var id = Guid.NewGuid();
         var payload = new PagedResult<HabilidadDto>(
-            [new HabilidadDto(id, "H-001", "Liderazgo", null, "Conductual")],
+            [new HabilidadDto(id, "H-001", "Liderazgo", null, null, "Conductual")],
             TotalCount: 1,
             Page: 1,
             PageSize: 20);

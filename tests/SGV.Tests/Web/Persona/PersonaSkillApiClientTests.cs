@@ -36,7 +36,7 @@ public class PersonaSkillApiClientTests
         var personaId = Guid.NewGuid();
         var skillId = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "C-001", "Habilidad", null, "Cat");
+        var habilidad = new HabilidadDto(skillId, "C-001", "Habilidad", null, null, "Cat");
         var nivel = new NivelHabilidadDto(nivelId, "JR", "Junior", 1, 1);
         var payload = new[]
         {

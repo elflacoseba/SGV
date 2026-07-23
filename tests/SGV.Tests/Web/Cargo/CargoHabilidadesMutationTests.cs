@@ -70,7 +70,7 @@ public sealed partial class CargoHabilidadesPageTests
         var skillId = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
         var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", null, null, "Conductual");
         var nivel = new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3);
 
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
@@ -147,7 +147,7 @@ public sealed partial class CargoHabilidadesPageTests
         var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
         var nivel = new NivelHabilidadDto(Guid.NewGuid(), "BAS", "Básico", 1, 1);
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.GetSkillsResult =
         [

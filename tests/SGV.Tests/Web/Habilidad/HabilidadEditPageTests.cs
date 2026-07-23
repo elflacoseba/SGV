@@ -40,7 +40,7 @@ public sealed class HabilidadEditPageTests
     public async Task Get_Edit_WhenAuthenticated_PrepopulatesForm()
     {
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
@@ -53,11 +53,9 @@ public sealed class HabilidadEditPageTests
         Assert.Contains("Editar habilidad", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"H-001\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"Liderazgo\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("value=\"Conductual\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Desc", content, StringComparison.OrdinalIgnoreCase);
 
-        // Anti-drift: no hay select de nivel.
-        Assert.DoesNotContain("<select", content, StringComparison.OrdinalIgnoreCase);
+        // Anti-drift: no hay select de nivel. El <select> de CategoriaId es legítimo.
         Assert.DoesNotContain("name=\"Input.NivelId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(">Nivel<", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -87,7 +85,7 @@ public sealed class HabilidadEditPageTests
         // evalúa contra otras Habilidades al guardar. El selector sigue
         // siendo puntual sobre el mismo tag <input>.
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
@@ -113,7 +111,7 @@ public sealed class HabilidadEditPageTests
     public async Task Post_Edit_WhenSuccessful_RedirectsToDetailsWithConfirmation()
     {
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo Senior", "Desc actualizada", "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo Senior", "Desc actualizada", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
         apiClient.UpdateResult = HabilidadCommandResult.Success(dto);
 
@@ -137,8 +135,8 @@ public sealed class HabilidadEditPageTests
         // request que llega al backend lo refleja exactamente. El redirect
         // apunta a Details de la misma habilidad (el id no cambia).
         var id = Guid.NewGuid();
-        var originalDto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
-        var dtoActualizado = new HabilidadDto(id, "H-002", "Liderazgo Senior", "Desc", "Conductual");
+        var originalDto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", null, "Conductual");
+        var dtoActualizado = new HabilidadDto(id, "H-002", "Liderazgo Senior", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(originalDto);
         apiClient.UpdateResult = HabilidadCommandResult.Success(dtoActualizado);
 
@@ -187,7 +185,7 @@ public sealed class HabilidadEditPageTests
         // whitespace (no es vacío pero tampoco válido) y exactamente 51
         // caracteres (boundary + 1 sobre el máximo).
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
@@ -210,10 +208,8 @@ public sealed class HabilidadEditPageTests
             Assert.Equal(HttpStatusCode.OK, formPost.StatusCode);
             var content = HttpUtility.HtmlDecode(await formPost.Content.ReadAsStringAsync());
             Assert.Contains("El código", content, StringComparison.OrdinalIgnoreCase);
-            // El form debe conservar el resto de los datos para corregir
-            // (Nombre y Categoria son <input>; Descripcion es <textarea>).
+            // El form debe conservar el resto de los datos para corregir.
             Assert.Contains("value=\"Liderazgo\"", content, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("value=\"Conductual\"", content, StringComparison.OrdinalIgnoreCase);
         }
 
         // Validación cliente/servidor corta antes de invocar al cliente API.
@@ -228,7 +224,7 @@ public sealed class HabilidadEditPageTests
         // el guardado MUST mostrar un error visible con acción de reintento
         // y preservar los valores del form.
         var id = Guid.NewGuid();
-        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", "Conductual");
+        var dto = new HabilidadDto(id, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dto);
         apiClient.UpdateException = new HttpRequestException("API caída");
 
@@ -260,8 +256,8 @@ public sealed class HabilidadEditPageTests
         var idEliminada = Guid.NewGuid();
         var codigoReusado = "H-LEGACY";
 
-        var dtoActiva = new HabilidadDto(idActiva, "H-OLD", "Liderazgo", "Desc", "Conductual");
-        var dtoEliminada = new HabilidadDto(idEliminada, codigoReusado, "Trabajo en equipo", "Desc legacy", "Conductual");
+        var dtoActiva = new HabilidadDto(idActiva, "H-OLD", "Liderazgo", "Desc", null, "Conductual");
+        var dtoEliminada = new HabilidadDto(idEliminada, codigoReusado, "Trabajo en equipo", "Desc legacy", null, "Conductual");
 
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(dtoActiva, dtoEliminada);
         // Sembrar la baja lógica de la habilidad previa que tiene el Codigo
@@ -270,7 +266,7 @@ public sealed class HabilidadEditPageTests
         Assert.True(apiClient.IsDeleted(idEliminada),
             "Setup: la habilidad previa debe estar marcada como eliminada en el fake.");
 
-        var dtoActualizado = new HabilidadDto(idActiva, codigoReusado, "Liderazgo", "Desc", "Conductual");
+        var dtoActualizado = new HabilidadDto(idActiva, codigoReusado, "Liderazgo", "Desc", null, "Conductual");
         apiClient.UpdateResult = HabilidadCommandResult.Success(dtoActualizado);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);

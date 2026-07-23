@@ -47,8 +47,8 @@ public sealed partial class CargoHabilidadesPageTests
         var nivelBasico = new NivelHabilidadDto(Guid.NewGuid(), "BAS", "Básico", 1, 1);
         var nivelAvanzado = new NivelHabilidadDto(Guid.NewGuid(), "AVZ", "Avanzado", 3, 3);
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
-        var availableSkill = new HabilidadDto(Guid.NewGuid(), "H-002", "Comunicación", null, "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
+        var availableSkill = new HabilidadDto(Guid.NewGuid(), "H-002", "Comunicación", null, null, "Conductual");
 
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.GetSkillsResult = new[]
