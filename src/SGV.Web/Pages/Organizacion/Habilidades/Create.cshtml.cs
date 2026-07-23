@@ -41,8 +41,12 @@ public sealed class CreateModel(
 
     /// <summary>
     /// Catálogo de categorías de habilidad para el &lt;select&gt; del formulario.
+    /// Usa <c>null</c> como sentinel de "no cargado aún" — el helper compartido
+    /// <see cref="CategoriaHabilidadCatalogLoader"/> distingue así un catálogo
+    /// legítimamente vacío de uno que nunca se cargó.
     /// </summary>
-    public IReadOnlyList<CategoriaHabilidadDto> CategoriasDisponibles { get; private set; } = [];
+    private IReadOnlyList<CategoriaHabilidadDto>? _categoriasDisponibles;
+    public IReadOnlyList<CategoriaHabilidadDto> CategoriasDisponibles => _categoriasDisponibles ?? [];
 
     [BindProperty]
     public int ReturnPage { get; set; } = 1;
@@ -152,18 +156,12 @@ public sealed class CreateModel(
 
     private async Task LoadCategoriasAsync(CancellationToken ct)
     {
-        if (CategoriasDisponibles.Count > 0) return;
-
-        try
+        var (categorias, transportFailed) = await CategoriaHabilidadCatalogLoader.LoadAsync(
+            categoriaHabilidadApiClient, logger, _categoriasDisponibles, ct);
+        _categoriasDisponibles = categorias;
+        if (transportFailed && string.IsNullOrWhiteSpace(ErrorMessage))
         {
-            CategoriasDisponibles = await categoriaHabilidadApiClient.GetAllAsync(ct);
-        }
-        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
-        {
-            logger.LogError(ex, "Failed to load categorias de habilidad for create page.");
-            CategoriasDisponibles = [];
-            if (string.IsNullOrWhiteSpace(ErrorMessage))
-                ErrorMessage = "No se pudo cargar el catálogo de categorías.";
+            ErrorMessage = "No se pudo cargar el catálogo de categorías.";
         }
     }
 }

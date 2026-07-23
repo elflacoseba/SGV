@@ -281,7 +281,7 @@ public sealed class HabilidadApiClient(
         // a CategoriaInexistente para que el PageModel pueda ramificar por
         // HabilidadErrorType.
         HabilidadErrorType errorType;
-        if (string.Equals(code, "CategoriaHabilidadNoExiste", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(code, HabilidadErrorCodes.CategoriaHabilidadNoExiste, StringComparison.OrdinalIgnoreCase))
         {
             errorType = HabilidadErrorType.CategoriaInexistente;
         }

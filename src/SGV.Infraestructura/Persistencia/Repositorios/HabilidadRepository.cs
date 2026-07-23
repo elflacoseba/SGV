@@ -59,7 +59,6 @@ public sealed class HabilidadRepository(SgvDbContext context)
     {
         var entity = await Context
             .Set<HabilidadEntity>()
-            .Include(h => h.Categoria)
             .FirstOrDefaultAsync(h => h.Id == id && h.IsActive && !h.IsDeleted, cancellationToken)
             .ConfigureAwait(false);
 
@@ -70,7 +69,6 @@ public sealed class HabilidadRepository(SgvDbContext context)
     {
         var entity = await Context
             .Set<HabilidadEntity>()
-            .Include(h => h.Categoria)
             .FirstOrDefaultAsync(h => h.Id == id, cancellationToken)
             .ConfigureAwait(false);
 
@@ -206,8 +204,8 @@ public sealed class HabilidadRepository(SgvDbContext context)
             "codigo_asc" => query.OrderBy(h => h.Codigo),
             "nombre_desc" => query.OrderByDescending(h => h.Nombre),
             "nombre_asc" => query.OrderBy(h => h.Nombre),
-            "categoria_desc" => query.OrderByDescending(h => h.Categoria!.Nombre ?? string.Empty),
-            "categoria_asc" => query.OrderBy(h => h.Categoria!.Nombre ?? string.Empty),
+            "categoria_desc" => query.OrderByDescending(h => h.Categoria != null ? h.Categoria.Nombre : string.Empty),
+            "categoria_asc" => query.OrderBy(h => h.Categoria != null ? h.Categoria.Nombre : string.Empty),
             _ => query.OrderBy(h => h.Codigo)
         };
     }
