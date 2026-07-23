@@ -13,11 +13,12 @@ public sealed class HabilidadServicioComandosTests
 {
     private static readonly Guid HabilidadIdActiva = Guid.Parse("50000000-0000-0000-0000-000000000001");
     private static readonly Guid HabilidadIdConflicto = Guid.Parse("50000000-0000-0000-0000-000000000002");
+    private static readonly Guid ConduccionId = Guid.Parse("72000000-0000-0000-0000-000000000000");
 
-    private static CrearHabilidadRequest CrearRequest(string? codigo = null) => new(
+    private static CrearHabilidadRequest CrearRequest(string? codigo = null, Guid? categoriaId = null) => new(
         codigo ?? "COM01",
         "Comunicación",
-        "Blandas",
+        categoriaId,
         "Capacidad de comunicar");
 
     // ── CrearAsync ─────────────────────────────────────────────
@@ -35,7 +36,6 @@ public sealed class HabilidadServicioComandosTests
         Assert.NotNull(resultado.Value);
         Assert.Equal("COM01", resultado.Value!.Codigo);
         Assert.Equal("Comunicación", resultado.Value.Nombre);
-        Assert.Equal("Blandas", resultado.Value.Categoria);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -58,8 +58,6 @@ public sealed class HabilidadServicioComandosTests
     [Fact]
     public async Task CrearAsync_CodigoDuplicadoEnHabilidadInactiva_RetornaExito()
     {
-        // Una habilidad inactiva con el mismo código NO bloquea la creación
-        // porque la unicidad es solo entre habilidades activas.
         var inactiva = CrearHabilidadInactiva("COM01", HabilidadIdActiva);
         var repo = new FakeHabilidadWriteRepository { Datos = [inactiva] };
         var uow = new FakeUnitOfWork();
@@ -112,6 +110,53 @@ public sealed class HabilidadServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    [Fact]
+    public async Task CrearAsync_ConCategoriaIdExistente_PersisteYDevuelveDtoConCategoriaId()
+    {
+        var repo = new FakeHabilidadWriteRepository();
+        repo.CategoriasExistentes.Add(ConduccionId);
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(categoriaId: ConduccionId), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(ConduccionId, resultado.Value!.CategoriaId);
+        Assert.Equal(1, repo.ExistsCategoriaCallCount);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConCategoriaIdInexistente_RetornaCategoriaInexistente()
+    {
+        var repo = new FakeHabilidadWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequest(categoriaId: Guid.Parse("72000000-0000-0000-0000-000000000099")), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(HabilidadErrorType.CategoriaInexistente, resultado.Error!.Type);
+        Assert.Equal("CategoriaHabilidadNoExiste", resultado.Error.Code);
+        Assert.Equal(0, repo.AddCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_SinCategoriaId_NoConsultaCatalogo()
+    {
+        var repo = new FakeHabilidadWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(categoriaId: null), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(0, repo.ExistsCategoriaCallCount);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
     // ── ActualizarAsync ─────────────────────────────────────────
 
     [Fact]
@@ -119,15 +164,17 @@ public sealed class HabilidadServicioComandosTests
     {
         var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva);
         var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
+        repo.CategoriasExistentes.Add(ConduccionId);
         var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(repo, uow);
 
         var resultado = await servicio.ActualizarAsync(existente.Id,
-            new ActualizarHabilidadRequest("COM01", "Comunicación Efectiva", "Blandas/Avanzadas", "Nueva descripción"), default);
+            new ActualizarHabilidadRequest("COM01", "Comunicación Efectiva", ConduccionId, "Nueva descripción"), default);
 
         Assert.True(resultado.IsSuccess);
         Assert.Equal("Comunicación Efectiva", resultado.Value!.Nombre);
         Assert.Equal("COM01", resultado.Value.Codigo);
+        Assert.Equal(ConduccionId, resultado.Value.CategoriaId);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -167,8 +214,6 @@ public sealed class HabilidadServicioComandosTests
     [Fact]
     public async Task ActualizarAsync_MismoCodigo_NoSeTrataComoDuplicado()
     {
-        // El pre-check debe excluir el id de la habilidad que se está editando,
-        // de modo que reenviar el mismo Codigo no dispare conflicto.
         var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva);
         var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
@@ -203,7 +248,6 @@ public sealed class HabilidadServicioComandosTests
     [Fact]
     public async Task ActualizarAsync_CodigoDeEliminada_PermiteReutilizar()
     {
-        // Una habilidad con soft-delete no bloquea la unicidad activa.
         var objetivo = CrearHabilidadActiva("COM01", HabilidadIdActiva);
         var eliminada = CrearHabilidadInactiva("COM02", HabilidadIdConflicto);
         var repo = new FakeHabilidadWriteRepository { Datos = [objetivo, eliminada] };
@@ -240,17 +284,8 @@ public sealed class HabilidadServicioComandosTests
     [Fact]
     public async Task ActualizarAsync_DbUpdateExceptionPorIndiceUnicoEnSaveChanges_TraduceACodigoDuplicado()
     {
-        // Safety-net: el pre-check de ExistsActiveCodeAsync cubre el camino
-        // feliz, pero existe una ventana de carrera entre el check y
-        // SaveChangesAsync. Si el índice IX_Habilidades_ActiveCodigoUnique
-        // se dispara en SaveChanges (otra transacción escribió el mismo
-        // Codigo activo entre medio), el catch con
-        // IsActiveCodigoUniqueViolation debe mapear a CodigoDuplicado /
-        // Conflict para no exponer un 500 genérico al cliente.
         var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva);
         var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
-        // El pre-check NO detecta duplicado (otra habilidad entra en carrera
-        // después del check), pero SaveChangesAsync sí lo detecta.
         var innerDup = new Exception(
             "Duplicate entry 'COM02' for key 'habilidades.IX_Habilidades_ActiveCodigoUnique'");
         var uow = new FakeThrowingDbUpdateUnitOfWork(
@@ -283,6 +318,41 @@ public sealed class HabilidadServicioComandosTests
         Assert.Contains("nombre", resultado.FieldErrors!.Keys);
         Assert.Equal(0, repo.GetByIdForUpdateCallCount);
         Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_ConCategoriaIdInexistente_RetornaCategoriaInexistente()
+    {
+        var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva);
+        var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id,
+            new ActualizarHabilidadRequest("COM01", "Comunicación",
+                Guid.Parse("72000000-0000-0000-0000-000000000099"), null), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(HabilidadErrorType.CategoriaInexistente, resultado.Error!.Type);
+        Assert.Equal("CategoriaHabilidadNoExiste", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_QuitandoCategoria_ConNullAceptaYGuarda()
+    {
+        var existente = CrearHabilidadActiva("COM01", HabilidadIdActiva, categoriaId: ConduccionId);
+        var repo = new FakeHabilidadWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id,
+            new ActualizarHabilidadRequest("COM01", "Comunicación", null, null), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Null(resultado.Value!.CategoriaId);
+        Assert.Null(existente.CategoriaId);
+        Assert.Equal(1, uow.SaveChangesCount);
     }
 
     // ── DesactivarAsync ─────────────────────────────────────────
@@ -371,9 +441,9 @@ public sealed class HabilidadServicioComandosTests
         return new HabilidadServicioComandos(repo, uow);
     }
 
-    private static Habilidad CrearHabilidadActiva(string codigo, Guid? id = null)
+    private static Habilidad CrearHabilidadActiva(string codigo, Guid? id = null, Guid? categoriaId = null)
     {
-        var habilidad = new Habilidad(codigo, $"Nombre {codigo}")
+        var habilidad = new Habilidad(codigo, $"Nombre {codigo}", categoriaId)
         {
             Id = id ?? Guid.NewGuid()
         };
@@ -400,10 +470,12 @@ public sealed class HabilidadServicioComandosTests
 internal sealed class FakeHabilidadWriteRepository : IHabilidadRepository
 {
     public List<Habilidad> Datos { get; set; } = [];
+    public HashSet<Guid> CategoriasExistentes { get; } = [];
 
     public int AddCallCount { get; private set; }
     public int DeleteCallCount { get; private set; }
     public int ExistsActiveCodeCallCount { get; private set; }
+    public int ExistsCategoriaCallCount { get; private set; }
     public int GetByIdCallCount { get; private set; }
     public int GetByIdForUpdateCallCount { get; private set; }
     public int GetByIdIncludingDeletedCallCount { get; private set; }
@@ -439,6 +511,12 @@ internal sealed class FakeHabilidadWriteRepository : IHabilidadRepository
             !d.IsDeleted &&
             d.Id != excludingId);
         return Task.FromResult(duplicado);
+    }
+
+    public Task<bool> ExistsCategoriaAsync(Guid categoriaId, CancellationToken cancellationToken = default)
+    {
+        ExistsCategoriaCallCount++;
+        return Task.FromResult(CategoriasExistentes.Contains(categoriaId));
     }
 
     public Task<Habilidad?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

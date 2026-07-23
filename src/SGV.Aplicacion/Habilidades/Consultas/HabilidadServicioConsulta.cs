@@ -40,12 +40,15 @@ public sealed class HabilidadServicioConsulta(IHabilidadRepository repository)
 
     private static HabilidadDto MapToDto(Habilidad entity)
     {
+        // El repo carga la navegación Categoria (LEFT JOIN CategoriasHabilidad
+        // via Projection). Si la FK es NULL, Categoria queda en null y el
+        // nombre proyectado es null también — wire consistente.
         return new HabilidadDto(
             entity.Id,
             entity.Codigo,
             entity.Nombre,
             entity.Descripcion,
-            entity.Categoria
-        );
+            entity.CategoriaId,
+            entity.Categoria?.Nombre);
     }
 }

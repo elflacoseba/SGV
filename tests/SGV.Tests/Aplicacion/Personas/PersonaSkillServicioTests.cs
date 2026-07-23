@@ -296,7 +296,7 @@ internal sealed class FakePersonaSkillRepository : IPersonaSkillRepository
         var items = Datos.Where(d => d.PersonaId == personaId).ToList();
         return Task.FromResult<IReadOnlyList<PersonaSkillDetailDto>>(
             items.Select(a => new PersonaSkillDetailDto(
-                new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
+                new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null, null),
                 new NivelHabilidadDto(a.NivelHabilidadId, "N1", "Nivel", 1, 1)))
             .ToList());
     }

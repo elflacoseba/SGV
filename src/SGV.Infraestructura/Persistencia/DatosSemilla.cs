@@ -110,13 +110,13 @@ internal static class DatosSemilla
             new CargoEntity { Id = CargoProfesorId, Codigo = "PROFESOR", Nombre = "Profesor", NivelId = NivelCargoConstantes.AcademicoId, IsActive = true });
 
         builder.Entity<HabilidadEntity>().HasData(
-            new HabilidadEntity { Id = HabilidadLiderazgoId, Codigo = "LIDERAZGO", Nombre = "Liderazgo", Categoria = "Conducción", IsActive = true },
-            new HabilidadEntity { Id = HabilidadGestionPersonalId, Codigo = "GESTION_PERSONAL", Nombre = "Gestión de Personal", Categoria = "Conducción", IsActive = true },
-            new HabilidadEntity { Id = HabilidadSqlServerId, Codigo = "SQL_SERVER", Nombre = "SQL Server", Categoria = "Técnica", IsActive = true },
-            new HabilidadEntity { Id = HabilidadEfCoreId, Codigo = "EF_CORE", Nombre = "Entity Framework Core", Categoria = "Técnica", IsActive = true },
-            new HabilidadEntity { Id = HabilidadDotNetId, Codigo = "DOTNET", Nombre = "Programación .NET", Categoria = "Técnica", IsActive = true },
-            new HabilidadEntity { Id = HabilidadAdministracionPublicaId, Codigo = "ADMINISTRACION_PUBLICA", Nombre = "Administración Pública", Categoria = "Dominio", IsActive = true },
-            new HabilidadEntity { Id = HabilidadDocenciaUniversitariaId, Codigo = "DOCENCIA_UNIVERSITARIA", Nombre = "Docencia Universitaria", Categoria = "Académica", IsActive = true });
+            new HabilidadEntity { Id = HabilidadLiderazgoId, Codigo = "LIDERAZGO", Nombre = "Liderazgo", CategoriaId = CategoriaHabilidadConstantes.ConduccionId, IsActive = true },
+            new HabilidadEntity { Id = HabilidadGestionPersonalId, Codigo = "GESTION_PERSONAL", Nombre = "Gestión de Personal", CategoriaId = CategoriaHabilidadConstantes.ConduccionId, IsActive = true },
+            new HabilidadEntity { Id = HabilidadSqlServerId, Codigo = "SQL_SERVER", Nombre = "SQL Server", CategoriaId = CategoriaHabilidadConstantes.TecnicaId, IsActive = true },
+            new HabilidadEntity { Id = HabilidadEfCoreId, Codigo = "EF_CORE", Nombre = "Entity Framework Core", CategoriaId = CategoriaHabilidadConstantes.TecnicaId, IsActive = true },
+            new HabilidadEntity { Id = HabilidadDotNetId, Codigo = "DOTNET", Nombre = "Programación .NET", CategoriaId = CategoriaHabilidadConstantes.TecnicaId, IsActive = true },
+            new HabilidadEntity { Id = HabilidadAdministracionPublicaId, Codigo = "ADMINISTRACION_PUBLICA", Nombre = "Administración Pública", CategoriaId = CategoriaHabilidadConstantes.DominioId, IsActive = true },
+            new HabilidadEntity { Id = HabilidadDocenciaUniversitariaId, Codigo = "DOCENCIA_UNIVERSITARIA", Nombre = "Docencia Universitaria", CategoriaId = CategoriaHabilidadConstantes.AcademicaId, IsActive = true });
 
         builder.Entity<TipoUnidadOrganizativaEntity>().HasData(
             new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.InstitucionId, Codigo = "Institucion", Nombre = "Institución" },
@@ -137,6 +137,16 @@ internal static class DatosSemilla
                     PatronValidacion = s.PatronValidacion,
                     LongitudMinima = s.LongitudMinima,
                     LongitudMaxima = s.LongitudMaxima
+                })
+                .ToArray());
+
+        builder.Entity<CategoriaHabilidadEntity>().HasData(
+            CategoriaHabilidadConstantes.Semilla
+                .Select(s => new CategoriaHabilidadEntity
+                {
+                    Id = s.Id,
+                    Codigo = s.Codigo,
+                    Nombre = s.Nombre
                 })
                 .ToArray());
     }

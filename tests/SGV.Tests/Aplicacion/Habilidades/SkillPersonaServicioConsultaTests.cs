@@ -55,7 +55,7 @@ public sealed class SkillPersonaServicioConsultaTests
     private sealed class FakeHabilidadServicio(bool exists) : IHabilidadServicioConsulta
     {
         public Task<HabilidadDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult(exists ? new HabilidadDto(id, "SK", "Skill", null, null) : null);
+            Task.FromResult(exists ? new HabilidadDto(id, "SK", "Skill", null, null, null) : null);
 
         public Task<IReadOnlyList<HabilidadDto>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<HabilidadDto>>([]);

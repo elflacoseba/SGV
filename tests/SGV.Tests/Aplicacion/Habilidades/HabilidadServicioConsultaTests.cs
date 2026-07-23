@@ -7,7 +7,13 @@ namespace SGV.Tests.Aplicacion.Habilidades;
 
 public sealed class HabilidadServicioConsultaTests
 {
-    private static readonly Habilidad HabilidadActiva = new("LIDERAZGO", "Liderazgo", "Conducción", "Capacidad de liderar equipos")
+    private static readonly Guid ConduccionId = Guid.Parse("72000000-0000-0000-0000-000000000000");
+
+    private static readonly Habilidad HabilidadActiva = new(
+        "LIDERAZGO",
+        "Liderazgo",
+        ConduccionId,
+        "Capacidad de liderar equipos")
     {
         Id = Guid.Parse("50000000-0000-0000-0000-000000000001")
     };
@@ -25,7 +31,9 @@ public sealed class HabilidadServicioConsultaTests
         Assert.Equal(HabilidadActiva.Id, dto.Id);
         Assert.Equal(HabilidadActiva.Codigo, dto.Codigo);
         Assert.Equal(HabilidadActiva.Nombre, dto.Nombre);
-        Assert.Equal(HabilidadActiva.Categoria, dto.Categoria);
+        Assert.Equal(ConduccionId, dto.CategoriaId);
+        // CategoriaNombre se hidrata via Include en el repo real; el fake no setea navegación.
+        Assert.Null(dto.CategoriaNombre);
         Assert.Equal(HabilidadActiva.Descripcion, dto.Descripcion);
     }
 
@@ -101,11 +109,11 @@ public sealed class HabilidadServicioConsultaTests
     [Fact]
     public async Task QueryAsync_SegmentosNoSeMezclan()
     {
-        var activa = new Habilidad("HAB-ACT", "Activa", "Cat", "Desc activa")
+        var activa = new Habilidad("HAB-ACT", "Activa", categoriaId: null, "Desc activa")
         {
             Id = Guid.Parse("51000000-0000-0000-0000-000000000001")
         };
-        var eliminada = new Habilidad("HAB-ELIM", "Eliminada", "Cat", "Desc eliminada")
+        var eliminada = new Habilidad("HAB-ELIM", "Eliminada", categoriaId: null, "Desc eliminada")
         {
             Id = Guid.Parse("51000000-0000-0000-0000-000000000002")
         };
@@ -130,7 +138,7 @@ public sealed class HabilidadServicioConsultaTests
     public async Task QueryAsync_TotalCountProvieneDelRepositorio()
     {
         var habilidades = Enumerable.Range(0, 25)
-            .Select(i => new Habilidad($"HAB-{i:000}", $"Habilidad {i}", "Cat", $"Desc {i}")
+            .Select(i => new Habilidad($"HAB-{i:000}", $"Habilidad {i}", categoriaId: null, $"Desc {i}")
             {
                 Id = Guid.Parse($"52000000-0000-0000-0000-{i:D12}")
             })
@@ -155,10 +163,10 @@ public sealed class HabilidadServicioConsultaTests
         // tras paginar, traería los nombres A, B, C, D que NO coincide con
         // sort=nombre_desc.
         var repo = new FakeHabilidadRepository();
-        var h1 = new Habilidad("A-001", "Zeta", "Cat", null) { Id = Guid.NewGuid() };
-        var h2 = new Habilidad("A-002", "Yankee", "Cat", null) { Id = Guid.NewGuid() };
-        var h3 = new Habilidad("A-003", "Xray", "Cat", null) { Id = Guid.NewGuid() };
-        var h4 = new Habilidad("A-004", "Whisky", "Cat", null) { Id = Guid.NewGuid() };
+        var h1 = new Habilidad("A-001", "Zeta", categoriaId: null, null) { Id = Guid.NewGuid() };
+        var h2 = new Habilidad("A-002", "Yankee", categoriaId: null, null) { Id = Guid.NewGuid() };
+        var h3 = new Habilidad("A-003", "Xray", categoriaId: null, null) { Id = Guid.NewGuid() };
+        var h4 = new Habilidad("A-004", "Whisky", categoriaId: null, null) { Id = Guid.NewGuid() };
         repo.Datos.AddRange(new[] { h1, h2, h3, h4 });
         var servicio = new HabilidadServicioConsulta(repo);
 
@@ -177,8 +185,8 @@ public sealed class HabilidadServicioConsultaTests
         // debe caer al orden por defecto (Codigo asc) para mantener el
         // contrato de paginación consistente.
         var repo = new FakeHabilidadRepository();
-        var h1 = new Habilidad("B-001", "Zeta", "Cat", null) { Id = Guid.NewGuid() };
-        var h2 = new Habilidad("A-002", "Yankee", "Cat", null) { Id = Guid.NewGuid() };
+        var h1 = new Habilidad("B-001", "Zeta", categoriaId: null, null) { Id = Guid.NewGuid() };
+        var h2 = new Habilidad("A-002", "Yankee", categoriaId: null, null) { Id = Guid.NewGuid() };
         repo.Datos.AddRange(new[] { h1, h2 });
         var servicio = new HabilidadServicioConsulta(repo);
 
@@ -198,7 +206,7 @@ public sealed class HabilidadServicioConsultaTests
         var repo = new FakeHabilidadRepository();
         for (var i = 0; i < 5; i++)
         {
-            repo.Datos.Add(new Habilidad($"HAB-{i:000}", $"Nombre {i}", "Cat", null)
+            repo.Datos.Add(new Habilidad($"HAB-{i:000}", $"Nombre {i}", categoriaId: null, null)
             {
                 Id = Guid.NewGuid()
             });
@@ -258,6 +266,9 @@ internal sealed class FakeHabilidadRepository : IHabilidadRepository
     public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake does not support write operations.");
 
+    public Task<bool> ExistsCategoriaAsync(Guid categoriaId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake does not support write operations.");
+
     public Task<(IReadOnlyList<Habilidad> Items, int TotalCount)> QueryAsync(
         string? search,
         int page,
@@ -282,7 +293,7 @@ internal sealed class FakeHabilidadRepository : IHabilidadRepository
             filtered = filtered.Where(h =>
                 h.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase)
                 || h.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase)
-                || (h.Categoria?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (h.Categoria?.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
                 || (h.Descripcion?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
@@ -300,8 +311,8 @@ internal sealed class FakeHabilidadRepository : IHabilidadRepository
             "codigo_asc" => source.OrderBy(static h => h.Codigo, StringComparer.OrdinalIgnoreCase),
             "nombre_desc" => source.OrderByDescending(static h => h.Nombre, StringComparer.OrdinalIgnoreCase),
             "nombre_asc" => source.OrderBy(static h => h.Nombre, StringComparer.OrdinalIgnoreCase),
-            "categoria_desc" => source.OrderByDescending(static h => h.Categoria ?? string.Empty, StringComparer.OrdinalIgnoreCase),
-            "categoria_asc" => source.OrderBy(static h => h.Categoria ?? string.Empty, StringComparer.OrdinalIgnoreCase),
+            "categoria_desc" => source.OrderByDescending(static h => h.Categoria?.Nombre ?? string.Empty, StringComparer.OrdinalIgnoreCase),
+            "categoria_asc" => source.OrderBy(static h => h.Categoria?.Nombre ?? string.Empty, StringComparer.OrdinalIgnoreCase),
             _ => source.OrderBy(static h => h.Codigo, StringComparer.OrdinalIgnoreCase)
         };
 }

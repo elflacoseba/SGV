@@ -12,6 +12,13 @@ namespace SGV.Aplicacion.Habilidades.Comandos;
 
 /// <summary>
 /// Implements create, update, soft-delete, and reactivate use cases for Habilidad.
+///
+/// <b>Breaking change (issue migrar-campo-categoria-habilidades-a-tabla):</b>
+/// el campo legacy <c>string? Categoria</c> se reemplaza por
+/// <c>Guid? CategoriaId</c>. La validación contra el catálogo se hace vía
+/// <see cref="IHabilidadRepository.ExistsCategoriaAsync"/>; un id no
+/// presente en el catálogo devuelve <c>HabilidadError.CategoriaInexistente</c>
+/// con <c>Categoria = Validation</c> y HTTP <c>400 Bad Request</c>.
 /// </summary>
 public sealed class HabilidadServicioComandos(
     IHabilidadRepository repository,
@@ -23,6 +30,11 @@ public sealed class HabilidadServicioComandos(
     /// Mensaje único para resultados de conflicto por <c>CodigoDuplicado</c>.
     /// </summary>
     private const string CodigoDuplicadoMessage = "Ya existe una habilidad activa con el mismo código.";
+
+    /// <summary>
+    /// Mensaje único para <c>CategoriaInexistente</c>.
+    /// </summary>
+    private const string CategoriaInexistenteMessage = "La categoría indicada no existe.";
 
     /// <summary>
     /// Nombre del índice activo de <c>Codigo</c> detectado en la
@@ -64,9 +76,18 @@ public sealed class HabilidadServicioComandos(
         var duplicate = await EnsureCodigoNoDuplicadoAsync(request.Codigo, excludingId: null, cancellationToken).ConfigureAwait(false);
         if (duplicate is not null) return duplicate;
 
+        if (request.CategoriaId.HasValue)
+        {
+            var existeCategoria = await repository.ExistsCategoriaAsync(request.CategoriaId.Value, cancellationToken).ConfigureAwait(false);
+            if (!existeCategoria)
+            {
+                return FailureCategoriaInexistente();
+            }
+        }
+
         try
         {
-            var habilidad = new Habilidad(request.Codigo, request.Nombre, request.Categoria, request.Descripcion)
+            var habilidad = new Habilidad(request.Codigo, request.Nombre, request.CategoriaId, request.Descripcion)
             {
                 Id = Guid.NewGuid()
             };
@@ -110,9 +131,18 @@ public sealed class HabilidadServicioComandos(
         var duplicate = await EnsureCodigoNoDuplicadoAsync(request.Codigo, excludingId: id, cancellationToken).ConfigureAwait(false);
         if (duplicate is not null) return duplicate;
 
+        if (request.CategoriaId.HasValue)
+        {
+            var existeCategoria = await repository.ExistsCategoriaAsync(request.CategoriaId.Value, cancellationToken).ConfigureAwait(false);
+            if (!existeCategoria)
+            {
+                return FailureCategoriaInexistente();
+            }
+        }
+
         try
         {
-            habilidad.Actualizar(request.Codigo, request.Nombre, request.Categoria, request.Descripcion);
+            habilidad.Actualizar(request.Codigo, request.Nombre, request.CategoriaId, request.Descripcion);
 
             await repository.UpdateAsync(habilidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -194,7 +224,8 @@ public sealed class HabilidadServicioComandos(
             habilidad.Codigo,
             habilidad.Nombre,
             habilidad.Descripcion,
-            habilidad.Categoria);
+            habilidad.CategoriaId,
+            habilidad.Categoria?.Nombre);
     }
 
     /// <summary>
@@ -225,6 +256,18 @@ public sealed class HabilidadServicioComandos(
     private static HabilidadCommandResult FailureCodigoDuplicado()
         => HabilidadCommandResult.Failure(
             new(HabilidadErrorType.Conflict, "CodigoDuplicado", CodigoDuplicadoMessage));
+
+    /// <summary>
+    /// Factoría única del resultado de fallo <c>CategoriaInexistente</c>
+    /// (issue migrar-campo-categoria-habilidades-a-tabla). El código HTTP es
+    /// <c>400 Bad Request</c> vía <see cref="ApiResults.ToProblemResult"/>
+    /// porque <see cref="ErrorCategoriaMappers.ToCategoria"/> mapea
+    /// <see cref="HabilidadErrorType.CategoriaInexistente"/> a
+    /// <see cref="SGV.Contracts.Comun.ErrorCategoria.Validation"/>.
+    /// </summary>
+    private static HabilidadCommandResult FailureCategoriaInexistente()
+        => HabilidadCommandResult.Failure(
+            new(HabilidadErrorType.CategoriaInexistente, "CategoriaHabilidadNoExiste", CategoriaInexistenteMessage));
 
     /// <summary>
     /// Detects whether a <see cref="DbUpdateException"/> corresponds to a

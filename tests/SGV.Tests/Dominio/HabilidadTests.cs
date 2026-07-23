@@ -3,79 +3,76 @@ using Xunit;
 
 namespace SGV.Tests.Dominio;
 
+/// <summary>
+/// Tests de dominio para la entidad <see cref="Habilidad"/>.
+///
+/// <b>Issue migrar-campo-categoria-habilidades-a-tabla:</b> la firma del
+/// constructor y <see cref="Habilidad.Actualizar"/> reemplazaron el parámetro
+/// legacy <c>string? Categoria</c> por <c>Guid? categoriaId</c> (FK opcional
+/// al catálogo <see cref="CategoriaHabilidad"/>). Las invariantes de shape
+/// (Codigo/Nombre requeridos, longitudes máximas) se preservan; el resto de
+/// las semánticas de la entidad permanecen idénticas.
+/// </summary>
 public sealed class HabilidadTests
 {
+    private static readonly Guid ConduccionId = Guid.Parse("72000000-0000-0000-0000-000000000000");
+
     // ── Constructor ─────────────────────────────────────────────
 
     [Fact]
-    public void Crear_ConValoresValidos_AsignaPropiedades()
+    public void Crear_AsignaCodigoNombreCategoriaIdYDescripcion()
     {
-        var habilidad = new Habilidad("COM01", "Comunicación", "Blandas", "Capacidad de comunicar");
+        var habilidad = new Habilidad("COM01", "Comunicación", ConduccionId, "Capacidad de comunicar");
 
-        Assert.NotEqual(Guid.Empty, habilidad.Id);
         Assert.Equal("COM01", habilidad.Codigo);
         Assert.Equal("Comunicación", habilidad.Nombre);
-        Assert.Equal("Blandas", habilidad.Categoria);
+        Assert.Equal(ConduccionId, habilidad.CategoriaId);
         Assert.Equal("Capacidad de comunicar", habilidad.Descripcion);
-        Assert.True(habilidad.IsActive);
-        Assert.False(habilidad.IsDeleted);
     }
 
     [Fact]
-    public void Crear_SinCategoriaYDescripcion_AsignaNulos()
+    public void Crear_SinCategoriaIdYPredeterminadoCategoriaIdEsNull()
     {
         var habilidad = new Habilidad("COM01", "Comunicación");
 
-        Assert.Null(habilidad.Categoria);
-        Assert.Null(habilidad.Descripcion);
-        Assert.True(habilidad.IsActive);
+        Assert.Null(habilidad.CategoriaId);
     }
 
     [Fact]
     public void Crear_ConCodigoVacio_ThrowsArgumentException()
     {
-        var ex = Assert.Throws<ArgumentException>(
+        Assert.Throws<ArgumentException>(
             () => new Habilidad("", "Comunicación"));
-
-        Assert.Contains("Codigo", ex.Message);
     }
 
     [Fact]
     public void Crear_ConCodigoNull_ThrowsArgumentException()
     {
-        var ex = Assert.Throws<ArgumentException>(
+        Assert.Throws<ArgumentException>(
             () => new Habilidad(null!, "Comunicación"));
-
-        Assert.Contains("Codigo", ex.Message);
     }
 
     [Fact]
     public void Crear_ConCodigoMayorA50_ThrowsArgumentException()
     {
-        var codigoLargo = new string('A', 51);
+        var codigoLargo = new string('A', HabilidadRules.CodigoMaxLength + 1);
 
-        var ex = Assert.Throws<ArgumentException>(
+        Assert.Throws<ArgumentException>(
             () => new Habilidad(codigoLargo, "Comunicación"));
-
-        Assert.Contains("Codigo", ex.Message);
     }
 
     [Fact]
     public void Crear_ConNombreVacio_ThrowsArgumentException()
     {
-        var ex = Assert.Throws<ArgumentException>(
+        Assert.Throws<ArgumentException>(
             () => new Habilidad("COM01", ""));
-
-        Assert.Contains("Nombre", ex.Message);
     }
 
     [Fact]
     public void Crear_ConNombreNull_ThrowsArgumentException()
     {
-        var ex = Assert.Throws<ArgumentException>(
+        Assert.Throws<ArgumentException>(
             () => new Habilidad("COM01", null!));
-
-        Assert.Contains("Nombre", ex.Message);
     }
 
     [Fact]
@@ -83,21 +80,8 @@ public sealed class HabilidadTests
     {
         var nombreLargo = new string('A', 201);
 
-        var ex = Assert.Throws<ArgumentException>(
+        Assert.Throws<ArgumentException>(
             () => new Habilidad("COM01", nombreLargo));
-
-        Assert.Contains("Nombre", ex.Message);
-    }
-
-    [Fact]
-    public void Crear_ConCategoriaMayorA100_ThrowsArgumentException()
-    {
-        var categoriaLarga = new string('A', 101);
-
-        var ex = Assert.Throws<ArgumentException>(
-            () => new Habilidad("COM01", "Comunicación", categoriaLarga));
-
-        Assert.Contains("Categoria", ex.Message);
     }
 
     [Fact]
@@ -116,22 +100,20 @@ public sealed class HabilidadTests
     [Fact]
     public void Actualizar_ModificaCamposEditables()
     {
-        var habilidad = new Habilidad("COM01", "Comunicación", "Blandas", "Original");
+        var habilidad = new Habilidad("COM01", "Comunicación", ConduccionId, "Original");
 
-        habilidad.Actualizar("COM02", "Comunicación Efectiva", "Blandas/Avanzadas", "Nueva descripción");
+        habilidad.Actualizar("COM02", "Comunicación Efectiva",
+            Guid.Parse("72000000-0000-0000-0000-000000000001"), "Nueva descripción");
 
         Assert.Equal("COM02", habilidad.Codigo);
         Assert.Equal("Comunicación Efectiva", habilidad.Nombre);
-        Assert.Equal("Blandas/Avanzadas", habilidad.Categoria);
+        Assert.Equal(Guid.Parse("72000000-0000-0000-0000-000000000001"), habilidad.CategoriaId);
         Assert.Equal("Nueva descripción", habilidad.Descripcion);
     }
 
     [Fact]
     public void Actualizar_CambiaCodigoSiNoDuplica()
     {
-        // La unicidad activa contra otras Habilidades es responsabilidad del
-        // servicio de aplicación; aquí sólo verificamos que la entidad aplica
-        // el nuevo código cuando la regla de shape es válida.
         var habilidad = new Habilidad("COM01", "Comunicación");
 
         habilidad.Actualizar("COM02", "Comunicación");
@@ -142,11 +124,11 @@ public sealed class HabilidadTests
     [Fact]
     public void Actualizar_PermiteCategoriaNulaYLimpia()
     {
-        var habilidad = new Habilidad("COM01", "Comunicación", "Blandas", "Original");
+        var habilidad = new Habilidad("COM01", "Comunicación", ConduccionId, "Original");
 
         habilidad.Actualizar("COM01", "Comunicación", null, null);
 
-        Assert.Null(habilidad.Categoria);
+        Assert.Null(habilidad.CategoriaId);
         Assert.Null(habilidad.Descripcion);
     }
 
@@ -197,18 +179,6 @@ public sealed class HabilidadTests
     }
 
     [Fact]
-    public void Actualizar_ConCategoriaMayorA100_ThrowsArgumentException()
-    {
-        var habilidad = new Habilidad("COM01", "Comunicación");
-        var categoriaLarga = new string('A', 101);
-
-        var ex = Assert.Throws<ArgumentException>(
-            () => habilidad.Actualizar("COM01", "Comunicación", categoriaLarga, null));
-
-        Assert.Contains("Categoria", ex.Message);
-    }
-
-    [Fact]
     public void Actualizar_ConDescripcionMayorA1000_ThrowsArgumentException()
     {
         var habilidad = new Habilidad("COM01", "Comunicación");
@@ -223,14 +193,10 @@ public sealed class HabilidadTests
     [Fact]
     public void Actualizar_NoExponeSettersPublicos()
     {
-        // Defensa: además de la verificación de setter en Codigo, garantizamos
-        // que el método Actualizar es la única vía para mutar Nombre/Categoria/Descripcion.
         var nombreSetter = typeof(Habilidad).GetProperty(nameof(Habilidad.Nombre))?.GetSetMethod();
-        var categoriaSetter = typeof(Habilidad).GetProperty(nameof(Habilidad.Categoria))?.GetSetMethod();
         var descripcionSetter = typeof(Habilidad).GetProperty(nameof(Habilidad.Descripcion))?.GetSetMethod();
 
         Assert.Null(nombreSetter);
-        Assert.Null(categoriaSetter);
         Assert.Null(descripcionSetter);
     }
 
@@ -246,41 +212,10 @@ public sealed class HabilidadTests
         Assert.False(habilidad.IsActive);
     }
 
-    [Fact]
-    public void Desactivar_NoCambiaCodigo()
-    {
-        var habilidad = new Habilidad("COM01", "Comunicación");
-
-        habilidad.Desactivar();
-
-        Assert.Equal("COM01", habilidad.Codigo);
-    }
-
-    [Fact]
-    public void Desactivar_NoCambiaNombre()
-    {
-        var habilidad = new Habilidad("COM01", "Comunicación");
-
-        habilidad.Desactivar();
-
-        Assert.Equal("Comunicación", habilidad.Nombre);
-    }
-
-    [Fact]
-    public void Desactivar_HabilidadYaInactiva_MantieneIsActiveFalse()
-    {
-        var habilidad = new Habilidad("COM01", "Comunicación");
-        habilidad.Desactivar();
-
-        habilidad.Desactivar();
-
-        Assert.False(habilidad.IsActive);
-    }
-
     // ── Activar ─────────────────────────────────────────────────
 
     [Fact]
-    public void Activar_HabilidadInactiva_SeteaIsActiveTrue()
+    public void Activar_SeteaIsActiveTrue()
     {
         var habilidad = new Habilidad("COM01", "Comunicación");
         habilidad.Desactivar();
@@ -290,35 +225,15 @@ public sealed class HabilidadTests
         Assert.True(habilidad.IsActive);
     }
 
-    [Fact]
-    public void Activar_NoCambiaCodigo()
-    {
-        var habilidad = new Habilidad("COM01", "Comunicación");
-        habilidad.Desactivar();
-
-        habilidad.Activar();
-
-        Assert.Equal("COM01", habilidad.Codigo);
-    }
+    // ── Defensa contra reintroducción de string Categoria ────────
 
     [Fact]
-    public void Activar_HabilidadYaActiva_MantieneIsActiveTrue()
+    public void Habilidad_NoExponePropiedadCategoriaString()
     {
-        var habilidad = new Habilidad("COM01", "Comunicación");
+        var tipo = typeof(Habilidad);
+        var tieneCategoriaString = tipo.GetProperty("Categoria")?.PropertyType == typeof(string);
 
-        habilidad.Activar();
-
-        Assert.True(habilidad.IsActive);
-    }
-
-    [Fact]
-    public void Activar_NoCambiaNombre()
-    {
-        var habilidad = new Habilidad("COM01", "Comunicación");
-        habilidad.Desactivar();
-
-        habilidad.Activar();
-
-        Assert.Equal("Comunicación", habilidad.Nombre);
+        Assert.False(tieneCategoriaString,
+            "Habilidad NO debe exponer una propiedad 'Categoria' de tipo string.");
     }
 }

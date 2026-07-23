@@ -45,6 +45,15 @@ public interface IHabilidadRepository : IReadOnlyRepository<Habilidad>
     Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Verifica si la categoría con el id indicado existe en el catálogo
+    /// inmutable <c>CategoriasHabilidad</c> (issue
+    /// migrar-campo-categoria-habilidades-a-tabla). Se invoca desde el
+    /// servicio de comandos antes de persistir el FK; una respuesta
+    /// <c>false</c> se traduce a <c>HabilidadError.CategoriaInexistente</c>.
+    /// </summary>
+    Task<bool> ExistsCategoriaAsync(Guid categoriaId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns a filtered, paginated set of habilidades for the requested
     /// segment (active or soft-deleted) and the total count matching the
     /// filters. The optional <paramref name="sort"/> expression is applied

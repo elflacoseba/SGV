@@ -5,6 +5,13 @@ using Xunit;
 
 namespace SGV.Tests.Aplicacion.Habilidades;
 
+/// <summary>
+/// Tests del validador FluentValidation de <see cref="CrearHabilidadRequest"/>.
+///
+/// <b>Issue migrar-campo-categoria-habilidades-a-tabla:</b> el campo legacy
+/// <c>string? Categoria</c> se reemplazó por <c>Guid? CategoriaId</c>; la
+/// validación contra catálogo la hace el servicio (no el validador).
+/// </summary>
 public sealed class CrearHabilidadRequestValidatorTests
 {
     private static CrearHabilidadRequest RequestValido() => new(
@@ -85,36 +92,37 @@ public sealed class CrearHabilidadRequestValidatorTests
         result.ShouldNotHaveValidationErrorFor(r => r.Nombre);
     }
 
-    // ── Categoria ─────────────────────────────────────────────
+    // ── CategoriaId ───────────────────────────────────────────
 
     [Fact]
-    public void Should_Have_Error_When_Categoria_Exceeds_Max_Length()
+    public void Should_Not_Have_Error_For_Null_CategoriaId()
     {
-        var request = RequestValido() with { Categoria = new string('X', 101) };
+        var request = RequestValido() with { CategoriaId = null };
 
         var result = _validator.TestValidate(request);
 
-        result.ShouldHaveValidationErrorFor(r => r.Categoria!);
+        result.ShouldNotHaveValidationErrorFor(r => r.CategoriaId);
     }
 
     [Fact]
-    public void Should_Not_Have_Error_For_Null_Categoria()
+    public void Should_Not_Have_Error_For_Valid_CategoriaId()
     {
-        var request = RequestValido() with { Categoria = null };
+        var request = RequestValido()
+            with { CategoriaId = Guid.Parse("72000000-0000-0000-0000-000000000000") };
 
         var result = _validator.TestValidate(request);
 
-        result.ShouldNotHaveValidationErrorFor(r => r.Categoria);
+        result.ShouldNotHaveValidationErrorFor(r => r.CategoriaId);
     }
 
     [Fact]
-    public void Should_Not_Have_Error_For_Valid_Categoria()
+    public void Should_Have_Error_When_CategoriaId_Is_Empty()
     {
-        var request = RequestValido() with { Categoria = "Blandas" };
+        var request = RequestValido() with { CategoriaId = Guid.Empty };
 
         var result = _validator.TestValidate(request);
 
-        result.ShouldNotHaveValidationErrorFor(r => r.Categoria);
+        result.ShouldHaveValidationErrorFor(r => r.CategoriaId!.Value);
     }
 
     // ── Descripcion ────────────────────────────────────────────
@@ -156,7 +164,7 @@ public sealed class CrearHabilidadRequestValidatorTests
     {
         var request = RequestValido() with
         {
-            Categoria = "Blandas",
+            CategoriaId = Guid.Parse("72000000-0000-0000-0000-000000000000"),
             Descripcion = "Descripción opcional"
         };
 

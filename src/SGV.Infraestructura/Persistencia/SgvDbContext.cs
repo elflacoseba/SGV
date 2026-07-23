@@ -55,6 +55,8 @@ public sealed class SgvDbContext : IdentityDbContext<SgvIdentityUser, IdentityRo
 
     public DbSet<TipoDocumentoEntity> TiposDocumento => Set<TipoDocumentoEntity>();
 
+    public DbSet<CategoriaHabilidadEntity> CategoriasHabilidad => Set<CategoriaHabilidadEntity>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

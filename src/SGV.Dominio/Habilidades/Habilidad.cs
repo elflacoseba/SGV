@@ -8,9 +8,9 @@ public sealed record class Habilidad : EntidadAuditable
     {
     }
 
-    public Habilidad(string codigo, string nombre, string? categoria = null, string? descripcion = null)
+    public Habilidad(string codigo, string nombre, Guid? categoriaId = null, string? descripcion = null)
     {
-        CambiarDatos(codigo, nombre, categoria, descripcion);
+        CambiarDatos(codigo, nombre, categoriaId, descripcion);
         IsActive = true;
     }
 
@@ -25,7 +25,19 @@ public sealed record class Habilidad : EntidadAuditable
 
     public string? Descripcion { get; private set; }
 
-    public string? Categoria { get; private set; }
+    /// <summary>
+    /// FK opcional al catálogo <see cref="CategoriaHabilidad"/>. La
+    /// validación contra el catálogo es responsabilidad del servicio de
+    /// aplicación (<c>HabilidadServicioComandos.CrearAsync</c> /
+    /// <c>ActualizarAsync</c>).
+    /// </summary>
+    public Guid? CategoriaId { get; private set; }
+
+    /// <summary>
+    /// Navegación al catálogo <see cref="CategoriaHabilidad"/> hidratado por
+    /// el repositorio cuando se hace <c>Include</c> o proyección LEFT JOIN.
+    /// </summary>
+    public CategoriaHabilidad? Categoria { get; private set; }
 
     public bool IsActive { get; private set; }
 
@@ -33,11 +45,11 @@ public sealed record class Habilidad : EntidadAuditable
     /// Reemplaza todos los campos editables y el código. Reservado al constructor
     /// y al mapper de persistencia (slice 2).
     /// </summary>
-    public void CambiarDatos(string codigo, string nombre, string? categoria = null, string? descripcion = null)
+    public void CambiarDatos(string codigo, string nombre, Guid? categoriaId = null, string? descripcion = null)
     {
         Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), HabilidadRules.CodigoMaxLength);
         Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
-        Categoria = ValidacionesDominio.Opcional(categoria, nameof(Categoria), 100);
+        CategoriaId = categoriaId;
         Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
     }
 
@@ -51,10 +63,10 @@ public sealed record class Habilidad : EntidadAuditable
     /// </summary>
     /// <param name="codigo">Nuevo código de la habilidad. Requerido, máximo <see cref="HabilidadRules.CodigoMaxLength"/> caracteres.</param>
     /// <param name="nombre">Nuevo nombre de la habilidad. Requerido, máximo 200 caracteres.</param>
-    /// <param name="categoria">Categoría opcional, máximo 100 caracteres.</param>
+    /// <param name="categoriaId">FK opcional al catálogo <see cref="CategoriaHabilidad"/>.</param>
     /// <param name="descripcion">Descripción opcional, máximo 1000 caracteres.</param>
-    public void Actualizar(string codigo, string nombre, string? categoria = null, string? descripcion = null)
-        => CambiarDatos(codigo, nombre, categoria, descripcion);
+    public void Actualizar(string codigo, string nombre, Guid? categoriaId = null, string? descripcion = null)
+        => CambiarDatos(codigo, nombre, categoriaId, descripcion);
 
     /// <summary>
     /// Desactiva la habilidad (baja lógica). No elimina el registro y no
@@ -85,7 +97,7 @@ public sealed record class Habilidad : EntidadAuditable
     /// <param name="id">Identificador persistido.</param>
     /// <param name="codigo">Código único, requerido, máx. <see cref="HabilidadRules.CodigoMaxLength"/>.</param>
     /// <param name="nombre">Nombre requerido, máx. 200 caracteres.</param>
-    /// <param name="categoria">Categoría opcional, máx. 100 caracteres.</param>
+    /// <param name="categoriaId">FK opcional al catálogo <see cref="CategoriaHabilidad"/>.</param>
     /// <param name="descripcion">Descripción opcional, máx. 1000 caracteres.</param>
     /// <param name="isActive">Flag activo persistido.</param>
     /// <param name="createdAt">Marca de auditoría de creación.</param>
@@ -99,7 +111,7 @@ public sealed record class Habilidad : EntidadAuditable
         Guid id,
         string codigo,
         string nombre,
-        string? categoria,
+        Guid? categoriaId,
         string? descripcion,
         bool isActive,
         DateTime createdAt,
@@ -108,7 +120,8 @@ public sealed record class Habilidad : EntidadAuditable
         string? updatedByUserId,
         bool isDeleted,
         DateTime? deletedAt,
-        string? deletedByUserId)
+        string? deletedByUserId,
+        CategoriaHabilidad? categoria = null)
     {
         var self = new Habilidad
         {
@@ -126,7 +139,8 @@ public sealed record class Habilidad : EntidadAuditable
         // reasignar después de la construcción del record.
         self.Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), HabilidadRules.CodigoMaxLength);
         self.Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
-        self.Categoria = ValidacionesDominio.Opcional(categoria, nameof(Categoria), 100);
+        self.CategoriaId = categoriaId;
+        self.Categoria = categoria;
         self.Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
         self.IsActive = isActive;
 

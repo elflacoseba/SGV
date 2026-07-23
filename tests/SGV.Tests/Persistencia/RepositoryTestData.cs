@@ -46,7 +46,7 @@ internal static class RepositoryTestData
             Id = Guid.NewGuid(),
             Codigo = $"{prefix}-{suffix}",
             Nombre = $"{prefix} {suffix}",
-            Categoria = "Test",
+            CategoriaId = CategoriaHabilidadConstantes.TecnicaId,
             IsActive = true
         };
     }

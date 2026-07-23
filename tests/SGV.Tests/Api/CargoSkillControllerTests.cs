@@ -52,7 +52,7 @@ public sealed class CargoSkillControllerTests
     // ---- Fake service ----
 
     private static readonly HabilidadDto DefaultHabilidad = new(
-        ExistingSkillId, "PROG", "Programación", "Lenguajes", "Técnica");
+        ExistingSkillId, "PROG", "Programación", "Lenguajes", null, "Técnica");
 
     private static readonly NivelHabilidadDto DefaultNivel = new(
         ExistingNivelRequeridoId, "N1", "Nivel 1", 1, 1);

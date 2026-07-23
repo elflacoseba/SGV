@@ -46,7 +46,8 @@ public sealed class PersonaSkillRepository(SgvDbContext context)
                     e.Habilidad.Codigo,
                     e.Habilidad.Nombre,
                     e.Habilidad.Descripcion,
-                    e.Habilidad.Categoria),
+                    e.Habilidad.CategoriaId,
+                    e.Habilidad.Categoria != null ? e.Habilidad.Categoria.Nombre : null),
                 new NivelHabilidadDto(
                     e.NivelHabilidad.Id,
                     e.NivelHabilidad.Codigo,
