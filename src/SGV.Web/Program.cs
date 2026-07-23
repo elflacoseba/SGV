@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SGV.Api.Infrastructure.Health;
@@ -60,6 +61,20 @@ builder.Services
 
 
 builder.Services.AddAuthorization();
+
+// Issue #191: cultura regional única para todo el shell web (render, model
+// binding, validación, orden de strings). es-AR es la fuente de verdad para
+// la presentación. El contrato HTTP wire con la API sigue siendo invariante
+// (System.Text.Json default); esta cultura sólo afecta la capa de UI.
+builder.Services.AddLocalization();
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    var esAr = new System.Globalization.CultureInfo("es-AR");
+    options.DefaultRequestCulture = new RequestCulture(esAr);
+    options.SupportedCultures = new[] { esAr };
+    options.SupportedUICultures = new[] { esAr };
+    options.FallBackToParentCultures = false;
+});
 
 // HttpContextAccessor is required by ApiBearerTokenHandler so the JWT stored
 // on the inbound cookie-auth ticket can be bridged into an
@@ -222,6 +237,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseRouting();
+app.UseRequestLocalization();
 app.UseAuthentication();
 app.UseAuthorization();
 

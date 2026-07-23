@@ -14,12 +14,18 @@
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
 {
-    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+    <div class="alert alert-@Model.StatusKind alert-dismissible" role="alert">
+        @Model.StatusMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
 }
 
 @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
 {
-    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+    <div class="alert alert-danger alert-dismissible" role="alert">
+        @Model.ErrorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
 }
 
 @if (Model.IsRecoverable)
@@ -135,13 +141,12 @@ else
                                                 }
                                             </td>
                                             <td>
-                                                <input type="number"
+                                                <input type="text"
                                                        name="Actualizar[@skill.SkillId].Ponderacion"
                                                        form="@updateFormId"
-                                                       value="@skill.Ponderacion.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
-                                                       step="0.01"
-                                                       min="0.01"
-                                                       max="100.00"
+                                                       value="@skill.Ponderacion.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("es-AR"))"
+                                                       inputmode="decimal"
+                                                       pattern="[0-9]+([,][0-9]{1,2})?"
                                                        class="form-control form-control-sm"
                                                        data-skill-editable
                                                        disabled />
@@ -243,10 +248,10 @@ else
                             <div class="col-md-6">
                                 <label asp-for="AsignarInput.Ponderacion" class="form-label">Ponderación</label>
                                 <input asp-for="AsignarInput.Ponderacion"
-                                       type="number"
-                                       step="0.01"
-                                       min="0.01"
-                                       max="100.00"
+                                       type="text"
+                                       value="1"
+                                       inputmode="decimal"
+                                       pattern="[0-9]+([,][0-9]{1,2})?"
                                        class="form-control" />
                                 <span asp-validation-for="AsignarInput.Ponderacion" class="text-danger"></span>
                             </div>

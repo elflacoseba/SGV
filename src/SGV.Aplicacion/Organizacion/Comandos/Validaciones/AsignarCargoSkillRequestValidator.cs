@@ -7,7 +7,7 @@ namespace SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 /// Validates the link-level fields of <see cref="AsignarCargoSkillRequest"/>:
 /// <list type="bullet">
 ///   <item><description><c>NivelRequeridoId</c> is required (not <see cref="Guid.Empty"/>).</description></item>
-///   <item><description><c>Ponderacion</c> is optional; when supplied it MUST be in the
+///   <item><description><c>Ponderacion</c> is required; when supplied it MUST be in the
 ///   range (0, 100] with at most 2 decimal places.</description></item>
 ///   <item><description><c>EsObligatoria</c> is optional; no validation required.</description></item>
 /// </list>
@@ -32,6 +32,10 @@ public class AsignarCargoSkillRequestValidator : AbstractValidator<AsignarCargoS
         RuleFor(x => x.NivelRequeridoId)
             .NotEqual(Guid.Empty)
             .WithMessage("El nivel requerido es obligatorio.");
+
+        RuleFor(x => x.Ponderacion)
+            .NotNull()
+            .WithMessage("La ponderación es obligatoria.");
 
         RuleFor(x => x.Ponderacion)
             .GreaterThan(0)

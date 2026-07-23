@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -200,6 +201,22 @@ builder.Services.AddAplicacionServicios();
 // Infrastructure services (repositories, UoW, query services)
 builder.Services.AddInfraestructuraServicios();
 
+// Issue #191: cultura regional única para la API. es-AR por defecto para que
+// los servicios que dependan de CultureInfo.CurrentCulture (por ejemplo,
+// StringComparer.Create(CultureInfo.CurrentCulture, ...) en el orden de
+// unidades organizativas) operen en una sola cultura coherente con el shell
+// web. El contrato HTTP wire es invariante (System.Text.Json default) — esta
+// cultura sólo afecta orden de strings y formateo a nivel proceso.
+builder.Services.AddLocalization();
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    var esAr = new System.Globalization.CultureInfo("es-AR");
+    options.DefaultRequestCulture = new RequestCulture(esAr);
+    options.SupportedCultures = new[] { esAr };
+    options.SupportedUICultures = new[] { esAr };
+    options.FallBackToParentCultures = false;
+});
+
 // Rate limiting (issue #181): two named fixed-window policies for the
 // password recovery endpoints. Both are applied BEFORE authentication
 // (see pipeline order below) so anonymous bursts are still subject to
@@ -293,6 +310,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+app.UseRequestLocalization();
 
 // Issue #181: rate limiter MUST run before authentication so the
 // "ForgotPassword"/"ResetPassword" named policies can throttle

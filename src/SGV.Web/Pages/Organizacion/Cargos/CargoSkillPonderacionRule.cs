@@ -28,12 +28,30 @@ public static class CargoSkillPonderacionRule
             return (false, null);
         }
 
-        if (!decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed))
+        // Acepta "1.50" (formato invariante: JSON wire, hábito de tipeo)
+        // y "1,50" (es-AR, configuración regional del shell web).
+        //
+        // Estrategia de parseo: si el string tiene coma y NO tiene punto,
+        // la coma es el separador decimal de es-AR y la reemplazamos por
+        // punto antes de parsear en InvariantCulture. Esto evita la
+        // ambigüedad del parser con NumberStyles.Number en es-AR, donde
+        // la coma es a la vez separador de miles y decimal — "100,00"
+        // sin contexto se interpreta como 10000, no 100.
+        //
+        // Si tiene punto, lo dejamos tal cual (formato invariante puro).
+        // Si tiene ambos (punto y coma), no tocamos: lo más probable es
+        // que sea un input malformado y el parse fallará de cualquier
+        // manera.
+        var normalized = raw.Contains(',') && !raw.Contains('.')
+            ? raw.Replace(',', '.')
+            : raw;
+
+        if (decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed))
         {
-            return (false, null);
+            return (IsInRange(parsed), parsed);
         }
 
-        return (IsInRange(parsed), parsed);
+        return (false, null);
     }
 
     public static bool IsInRange(decimal value) => value >= Min && value <= Max;

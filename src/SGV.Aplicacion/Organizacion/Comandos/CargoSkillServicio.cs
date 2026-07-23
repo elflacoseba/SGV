@@ -13,9 +13,9 @@ namespace SGV.Aplicacion.Organizacion.Comandos;
 /// <summary>
 /// Implements upsert, delete, and list use cases for Cargo-Habilidad assignments.
 /// Validates the link-level payload (<see cref="AsignarCargoSkillRequest"/>) via
-/// FluentValidation before touching the repositories, applies documented defaults
-/// (<c>Ponderacion = 1.00</c>, <c>EsObligatoria = false</c>) when the request omits
-/// them, and propagates per-field validation errors via
+/// FluentValidation before touching the repositories, applies the documented
+/// default for <c>EsObligatoria = false</c> when the request omits it, and
+/// propagates per-field validation errors via
 /// <see cref="CargoSkillCommandResult.FieldErrors"/>.
 /// </summary>
 public sealed class CargoSkillServicio(
@@ -26,13 +26,6 @@ public sealed class CargoSkillServicio(
     IUnitOfWork unitOfWork,
     IValidator<AsignarCargoSkillRequest> validator) : ICargoSkillServicio
 {
-    /// <summary>
-    /// Default weight applied to a CargoHabilidad link when the request omits
-    /// <see cref="AsignarCargoSkillRequest.Ponderacion"/>. Mirrors
-    /// <see cref="Dominio.Habilidades.CargoHabilidad"/>'s minimum required value.
-    /// </summary>
-    public const decimal PonderacionPorDefecto = 1.00m;
-
     /// <summary>
     /// Default value applied to <see cref="AsignarCargoSkillRequest.EsObligatoria"/>
     /// when the request omits it.
@@ -117,7 +110,16 @@ public sealed class CargoSkillServicio(
                     "El nivel de habilidad referenciado no existe."));
         }
 
-        var ponderacion = request.Ponderacion ?? PonderacionPorDefecto;
+        // Ponderacion is required by the validator (NotNull). Reaching here with null
+        // is a programming error: surface it loudly instead of silently masking it
+        // with a fallback default.
+        if (request.Ponderacion is null)
+        {
+            throw new ArgumentNullException(nameof(request),
+                "Ponderacion no puede ser null; el validador debe bloquear aguas arriba.");
+        }
+
+        var ponderacion = request.Ponderacion.Value;
         var esObligatoria = request.EsObligatoria ?? EsObligatoriaPorDefecto;
 
         try
