@@ -267,7 +267,7 @@ public sealed class HabilidadServicioComandos(
     /// </summary>
     private static HabilidadCommandResult FailureCategoriaInexistente()
         => HabilidadCommandResult.Failure(
-            new(HabilidadErrorType.CategoriaInexistente, "CategoriaHabilidadNoExiste", CategoriaInexistenteMessage));
+            new(HabilidadErrorType.CategoriaInexistente, HabilidadErrorCodes.CategoriaHabilidadNoExiste, CategoriaInexistenteMessage));
 
     /// <summary>
     /// Detects whether a <see cref="DbUpdateException"/> corresponds to a
