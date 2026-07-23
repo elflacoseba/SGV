@@ -285,13 +285,18 @@ public sealed class SkillsControllerTests
     [Fact]
     public async Task Put_ValidRequest_WithCodigo_Returns200OkWithUpdatedDto()
     {
+        // Issue migrar-campo-categoria-habilidades-a-tabla: el campo legacy
+        // `categoria` (string) se reemplazó por `categoriaId` (Guid?). El
+        // fake por default no hidrata CategoriaNombre; por eso assertamos
+        // que viene null aquí y la proyección CategoriaNombre la verifica
+        // el repo real en tests [MySqlFact].
         var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var body = ToJsonBody(new
         {
             codigo = "PROG-V2",
             nombre = "Habilidad Actualizada",
-            categoria = "Nueva Categoría"
+            categoriaId = (Guid?)null
         });
 
         var response = await client.PutAsync(
@@ -301,7 +306,8 @@ public sealed class SkillsControllerTests
         var dto = await ReadAsAsync<HabilidadDto>(response);
         Assert.Equal("PROG-V2", dto.Codigo);
         Assert.Equal("Habilidad Actualizada", dto.Nombre);
-        Assert.Equal("Nueva Categoría", dto.CategoriaNombre);
+        Assert.Null(dto.CategoriaId);
+        Assert.Null(dto.CategoriaNombre);
     }
 
     [Fact]
