@@ -470,7 +470,7 @@ public sealed class PersonaHabilidadesIntegrationTests
         apiClient.GetSkillsResult =
         [
             new PersonaSkillDetailDto(
-                new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual"),
+                new HabilidadDto(skillId, "H-001", "Liderazgo", null, null, "Conductual"),
                 level)
         ];
         var habilidadApiClient = FakeHabilidadApiClient.WithHabilidadList();

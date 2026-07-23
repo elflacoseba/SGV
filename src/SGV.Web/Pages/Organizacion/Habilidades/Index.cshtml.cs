@@ -418,5 +418,5 @@ public sealed class IndexModel(
             item.Codigo,
             item.Nombre,
             item.Descripcion,
-            item.Categoria);
+            item.CategoriaNombre);
 }

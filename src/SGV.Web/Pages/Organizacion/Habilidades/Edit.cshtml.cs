@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Comun;
+using SGV.Contracts.Habilidades.Categorias.Consultas;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
@@ -28,6 +29,7 @@ namespace SGV.Web.Pages.Organizacion.Habilidades;
 [Authorize]
 public sealed class EditModel(
     IHabilidadApiClient habilidadApiClient,
+    ICategoriaHabilidadApiClient categoriaHabilidadApiClient,
     IAuthSessionRedirector authRedirector,
     ILogger<EditModel> logger) : PageModel, IHabilidadForm
 {
@@ -37,6 +39,11 @@ public sealed class EditModel(
     public string? ErrorMessage { get; private set; }
 
     public bool IsEdit => true;
+
+    /// <summary>
+    /// Catálogo de categorías de habilidad para el &lt;select&gt; del formulario.
+    /// </summary>
+    public IReadOnlyList<CategoriaHabilidadDto> CategoriasDisponibles { get; private set; } = [];
 
     /// <summary>
     /// <c>true</c> cuando la habilidad solicitada no existe o la consulta
@@ -88,7 +95,9 @@ public sealed class EditModel(
             Input.Codigo = habilidad.Codigo;
             Input.Nombre = habilidad.Nombre;
             Input.Descripcion = habilidad.Descripcion;
-            Input.Categoria = habilidad.Categoria;
+            Input.CategoriaId = habilidad.CategoriaId;
+
+            await LoadCategoriasAsync(cancellationToken);
 
             return Page();
         }
@@ -113,13 +122,14 @@ public sealed class EditModel(
     {
         if (!ModelState.IsValid)
         {
+            await LoadCategoriasAsync(cancellationToken);
             return Page();
         }
 
         var request = new ActualizarHabilidadRequest(
             Input.Codigo,
             Input.Nombre,
-            string.IsNullOrWhiteSpace(Input.Categoria) ? null : Input.Categoria.Trim(),
+            Input.CategoriaId,
             string.IsNullOrWhiteSpace(Input.Descripcion) ? null : Input.Descripcion.Trim());
 
         HabilidadCommandResult result;
@@ -133,6 +143,7 @@ public sealed class EditModel(
             logger.LogError(ex, "Habilidad update transport failure.");
             ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
+            await LoadCategoriasAsync(cancellationToken);
             return Page();
         }
 
@@ -180,7 +191,24 @@ public sealed class EditModel(
             }
         }
 
+        await LoadCategoriasAsync(cancellationToken);
         return Page();
     }
 
+    private async Task LoadCategoriasAsync(CancellationToken ct)
+    {
+        if (CategoriasDisponibles.Count > 0) return;
+
+        try
+        {
+            CategoriasDisponibles = await categoriaHabilidadApiClient.GetAllAsync(ct);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            logger.LogError(ex, "Failed to load categorias de habilidad for edit page.");
+            CategoriasDisponibles = [];
+            if (string.IsNullOrWhiteSpace(ErrorMessage))
+                ErrorMessage = "No se pudo cargar el catálogo de categorías.";
+        }
+    }
 }

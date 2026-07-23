@@ -45,9 +45,9 @@ else
 
                         <dt class="col-sm-3 text-muted">Categoría</dt>
                         <dd class="col-sm-9">
-                            @if (!string.IsNullOrWhiteSpace(Model.Habilidad!.Categoria))
+                            @if (!string.IsNullOrWhiteSpace(Model.Habilidad!.CategoriaNombre))
                             {
-                                <span class="badge badge-soft-secondary">@Model.Habilidad!.Categoria</span>
+                                <span class="badge badge-soft-secondary">@Model.Habilidad!.CategoriaNombre</span>
                             }
                             else
                             {

@@ -36,7 +36,7 @@ public sealed class HabilidadWebSeamTests
         Assert.Equal("H-001", vm.Codigo);
         Assert.Equal("Liderazgo", vm.Nombre);
         Assert.Equal("Descripción", vm.Descripcion);
-        Assert.Equal("Conductual", vm.Categoria);
+        Assert.Equal("Conductual", vm.CategoriaNombre);
     }
 
     [Fact]
@@ -63,21 +63,22 @@ public sealed class HabilidadWebSeamTests
     }
 
     [Fact]
-    public void HabilidadInputModel_Defaults_CodigoEsVacioYCategoriaEsNull()
+    public void HabilidadInputModel_Defaults_CodigoEsVacioYCategoriaIdEsNull()
     {
         var input = new HabilidadInputModel();
 
         Assert.Equal(string.Empty, input.Codigo);
         Assert.Equal(string.Empty, input.Nombre);
-        Assert.Null(input.Categoria);
+        Assert.Null(input.CategoriaId);
         Assert.Null(input.Descripcion);
     }
 
     [Fact]
     public void HabilidadInputModel_LongitudesReflejanDominio()
     {
-        // 50 (Codigo), 200 (Nombre), 100 (Categoria), 1000 (Descripcion) son
+        // 50 (Codigo), 200 (Nombre), 1000 (Descripcion) son
         // las longitudes que fija la entidad de dominio.
+        // CategoriaId es Guid? sin StringLengthAttribute.
         var input = new HabilidadInputModel();
         var props = typeof(HabilidadInputModel).GetProperties();
         var codigoAttr = props.First(p => p.Name == nameof(input.Codigo))
@@ -91,12 +92,6 @@ public sealed class HabilidadWebSeamTests
             .Cast<System.ComponentModel.DataAnnotations.StringLengthAttribute>()
             .Single();
         Assert.Equal(200, nombreAttr.MaximumLength);
-
-        var categoriaAttr = props.First(p => p.Name == nameof(input.Categoria))
-            .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.StringLengthAttribute), false)
-            .Cast<System.ComponentModel.DataAnnotations.StringLengthAttribute>()
-            .Single();
-        Assert.Equal(100, categoriaAttr.MaximumLength);
 
         var descAttr = props.First(p => p.Name == nameof(input.Descripcion))
             .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.StringLengthAttribute), false)

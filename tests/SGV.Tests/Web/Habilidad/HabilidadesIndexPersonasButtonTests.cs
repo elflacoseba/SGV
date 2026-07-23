@@ -30,7 +30,7 @@ public sealed class HabilidadesIndexPersonasButtonTests
     {
         // REQ-HLD-NEW + REQ-HLD-NEW-VISIBILITY: la fila activa MUST exponer
         // el botón Personas hacia /organizacion/habilidades/{id}/personas.
-        var habilidad = new HabilidadDto(Guid.NewGuid(), "HAB-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(Guid.NewGuid(), "HAB-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
@@ -67,7 +67,7 @@ public sealed class HabilidadesIndexPersonasButtonTests
     {
         // REQ-HLD-NEW-VISIBILITY: la fila eliminada MUST NOT exponer el
         // botón Personas (sólo Reactivar).
-        var habilidadEliminada = new HabilidadDto(Guid.NewGuid(), "HAB-DEL", "Habilidad Eliminada", null, "Conductual");
+        var habilidadEliminada = new HabilidadDto(Guid.NewGuid(), "HAB-DEL", "Habilidad Eliminada", null, null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.QueryHandler = query =>
             string.Equals(query?.Status, "eliminadas", StringComparison.OrdinalIgnoreCase)
@@ -102,7 +102,7 @@ public sealed class HabilidadesIndexPersonasButtonTests
     {
         // REQ-HLD-NEW-POSITION: el botón Personas MUST ubicarse en la
         // columna Acciones, entre Cargos y Editar.
-        var habilidad = new HabilidadDto(Guid.NewGuid(), "HAB-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(Guid.NewGuid(), "HAB-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);

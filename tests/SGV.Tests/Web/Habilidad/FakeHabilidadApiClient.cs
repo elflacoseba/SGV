@@ -73,7 +73,7 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
     public Exception? GetByIdException { get; set; }
 
     public HabilidadCommandResult ReactivateResult { get; set; } = HabilidadCommandResult.Success(
-        new HabilidadDto(Guid.NewGuid(), "PROG", "Programación", null, "Técnica"));
+        new HabilidadDto(Guid.NewGuid(), "PROG", "Programación", null, null, "Técnica"));
 
     public List<Guid> ReactivateCalls { get; } = new();
 
@@ -267,7 +267,7 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
             snapshot = snapshot
                 .Where(h => h.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase)
                          || h.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase)
-                         || (h.Categoria?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                         || (h.CategoriaNombre?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
                          || (h.Descripcion?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false))
                 .ToList();
         }
@@ -303,8 +303,8 @@ public sealed class FakeHabilidadApiClient : IHabilidadApiClient
             "codigo_asc" => source.OrderBy(static h => h.Codigo, StringComparer.OrdinalIgnoreCase).ToList(),
             "nombre_desc" => source.OrderByDescending(static h => h.Nombre, StringComparer.OrdinalIgnoreCase).ToList(),
             "nombre_asc" => source.OrderBy(static h => h.Nombre, StringComparer.OrdinalIgnoreCase).ToList(),
-            "categoria_desc" => source.OrderByDescending(static h => h.Categoria ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToList(),
-            "categoria_asc" => source.OrderBy(static h => h.Categoria ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToList(),
+            "categoria_desc" => source.OrderByDescending(static h => h.CategoriaNombre ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToList(),
+            "categoria_asc" => source.OrderBy(static h => h.CategoriaNombre ?? string.Empty, StringComparer.OrdinalIgnoreCase).ToList(),
             _ => source.OrderBy(static h => h.Codigo, StringComparer.OrdinalIgnoreCase).ToList()
         };
 

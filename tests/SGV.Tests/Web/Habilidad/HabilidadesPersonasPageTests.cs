@@ -47,7 +47,7 @@ public sealed class HabilidadesPersonasPageTests
         // REQ-HM-NEW-PAGE: la página muestra legajo, apellidos, nombres,
         // email y nivel de cada persona asociada.
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var nivelId = Guid.NewGuid();
         var nivel = new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3);
         var personaId = Guid.NewGuid();
@@ -140,7 +140,7 @@ public sealed class HabilidadesPersonasPageTests
     public async Task Get_PersonasPage_StatusEliminadas_PassesEliminadasSegment()
     {
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var nivel = new NivelHabilidadDto(Guid.NewGuid(), "AVZ", "Avanzado", 3, 3);
 
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
@@ -180,7 +180,7 @@ public sealed class HabilidadesPersonasPageTests
         // subrecurso. La página destino debe invocar GetPersonasAsync con
         // exactamente los valores normalizados.
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
@@ -207,7 +207,7 @@ public sealed class HabilidadesPersonasPageTests
         // correspondiente en Pages/Personas/Details usando el identificador
         // de la persona.
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var nivel = new NivelHabilidadDto(Guid.NewGuid(), "AVZ", "Avanzado", 3, 3);
         var personaId = Guid.NewGuid();
         var persona = new PersonaDto(
@@ -243,7 +243,7 @@ public sealed class HabilidadesPersonasPageTests
     public async Task Get_PersonasPage_EmptyResult_RendersEmptyState()
     {
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         // Sin seed → resultado vacío por defecto.
 

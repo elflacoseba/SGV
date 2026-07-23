@@ -74,8 +74,8 @@ public sealed class PersonaHabilidadesPageTests
             "30123456",
             null,
             true);
-        var skill = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
-        var availableSkill = new HabilidadDto(Guid.NewGuid(), "H-002", "Comunicación", null, "Conductual");
+        var skill = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
+        var availableSkill = new HabilidadDto(Guid.NewGuid(), "H-002", "Comunicación", null, null, "Conductual");
         var level = new NivelHabilidadDto(levelId, "AVZ", "Avanzado", 3, 3);
         var apiClient = FakePersonaApiClient.WithPersonaList(persona);
         apiClient.GetSkillsResult = [new PersonaSkillDetailDto(skill, level)];
@@ -115,7 +115,7 @@ public sealed class PersonaHabilidadesPageTests
             false);
         var apiClient = FakePersonaApiClient.WithPersonaList(inactive);
         apiClient.GetSkillsResult = [new PersonaSkillDetailDto(
-            new HabilidadDto(Guid.NewGuid(), "H-002", "Debe ignorarse", null, null),
+            new HabilidadDto(Guid.NewGuid(), "H-002", "Debe ignorarse", null, null, null),
             new NivelHabilidadDto(Guid.NewGuid(), "BAS", "Básico", 1, 1))];
         var page = CreatePage(apiClient, authenticated: true, administrator: true);
 
@@ -550,8 +550,8 @@ public sealed class PersonaHabilidadesPageTests
         var personaId = Guid.NewGuid();
         var persona = new PersonaDto(
             personaId, "L-001", "Ana", "García", null, null, null, null, null, null, true);
-        var habilidad1 = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", "Desc 1", "Conductual");
-        var habilidad2 = new HabilidadDto(Guid.NewGuid(), "H-002", "Programación", "Desc 2", "Técnica");
+        var habilidad1 = new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", "Desc 1", null, "Conductual");
+        var habilidad2 = new HabilidadDto(Guid.NewGuid(), "H-002", "Programación", "Desc 2", null, "Técnica");
         var nivel1 = new NivelHabilidadDto(Guid.NewGuid(), "BAS", "Básico", 1, 1);
         var nivel2 = new NivelHabilidadDto(Guid.NewGuid(), "INT", "Intermedio", 2, 2);
         var apiClient = FakePersonaApiClient.WithPersonaList(persona);
@@ -608,7 +608,7 @@ public sealed class PersonaHabilidadesPageTests
         var apiClient = FakePersonaApiClient.WithPersonaList(persona);
         var nivel1 = new NivelHabilidadDto(nivelId, "BAS", "Básico", 1, 1);
         var habilidadSeed = FakeHabilidadApiClient.WithHabilidadList(
-            new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", "Desc", "Conductual"));
+            new HabilidadDto(Guid.NewGuid(), "H-001", "Liderazgo", "Desc", null, "Conductual"));
         habilidadSeed.NivelesResult = [nivel1];
         var page = CreatePostPage(apiClient, administrator: true,
             BuildAsignarForm(skillId: null, nivelId),

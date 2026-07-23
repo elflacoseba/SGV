@@ -53,7 +53,7 @@ public sealed class HabilidadesCargosModelTests
     public async Task Get_CargosPage_ExistingSkillWithCargos_RendersTableWithItems()
     {
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var nivel = new NivelHabilidadDto(Guid.NewGuid(), "AVZ", "Avanzado", 3, 3);
         var cargoId = Guid.NewGuid();
         var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
@@ -139,7 +139,7 @@ public sealed class HabilidadesCargosModelTests
         // cae a activas": status=archivo debe resolver a Activas antes de
         // invocar al subrecurso. La página no debe propagar status inválido.
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         // Sin cargos seed → resultado vacío por defecto.
 
@@ -161,7 +161,7 @@ public sealed class HabilidadesCargosModelTests
     public async Task Get_CargosPage_StatusEliminadas_PassesEliminadasSegment()
     {
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
@@ -184,7 +184,7 @@ public sealed class HabilidadesCargosModelTests
         // subrecurso. La página destino debe invocar GetCargosAsync con
         // exactamente los valores normalizados.
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
@@ -213,7 +213,7 @@ public sealed class HabilidadesCargosModelTests
         // autenticado, pero un usuario estándar NO debe ver el botón que
         // lo mandaría a un 403.
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var nivel = new NivelHabilidadDto(Guid.NewGuid(), "AVZ", "Avanzado", 3, 3);
         var cargoId = Guid.NewGuid();
         var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
@@ -266,7 +266,7 @@ public sealed class HabilidadesCargosModelTests
         // página destino es admin-only (Forbid para no-admins), así que el
         // botón no-admin sería un riesgo de UX.
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var nivel = new NivelHabilidadDto(Guid.NewGuid(), "AVZ", "Avanzado", 3, 3);
         var cargoId = Guid.NewGuid();
         var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
@@ -312,7 +312,7 @@ public sealed class HabilidadesCargosModelTests
     public async Task Get_CargosPage_EmptyResult_RendersEmptyState()
     {
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         // GetCargosResult por defecto es empty.
 
@@ -356,7 +356,7 @@ public sealed class HabilidadesCargosModelTests
     public async Task Get_CargosPage_GetCargosTransportFailure_RendersRecoverableState()
     {
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         apiClient.GetCargosException = new HttpRequestException("subresource down");
 
@@ -383,7 +383,7 @@ public sealed class HabilidadesCargosModelTests
         // deserializar, que entra en IsTransportFailure y debe traducirse a
         // estado recuperable (paridad con HttpRequestException/TaskCanceled).
         var skillId = Guid.NewGuid();
-        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", null, "Conductual");
         var apiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad);
         apiClient.GetCargosException = new System.Text.Json.JsonException("unexpected token");
 

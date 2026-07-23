@@ -11,7 +11,7 @@ public sealed record HabilidadListItemViewModel(
     string Codigo,
     string Nombre,
     string? Descripcion,
-    string? Categoria);
+    string? CategoriaNombre);
 
 /// <summary>
 /// Contrato de consulta para el listado web de habilidades.

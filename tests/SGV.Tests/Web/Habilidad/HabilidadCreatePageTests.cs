@@ -54,11 +54,11 @@ public sealed class HabilidadCreatePageTests
         // Los 4 campos del dominio están presentes.
         Assert.Contains("name=\"Input.Codigo\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"Input.Nombre\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("name=\"Input.Categoria\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"Input.CategoriaId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"Input.Descripcion\"", content, StringComparison.OrdinalIgnoreCase);
 
         // Anti-drift: NO hay ningún <select> relacionado con nivel.
-        Assert.DoesNotContain("<select", content, StringComparison.OrdinalIgnoreCase);
+        // El <select> de CategoriaId es legítimo (issue migrar-campo-categoria-habilidades-a-tabla).
         Assert.DoesNotContain("name=\"Input.NivelId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(">Nivel<", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -91,7 +91,7 @@ public sealed class HabilidadCreatePageTests
         var createdId = Guid.NewGuid();
         var apiClient = FakeHabilidadApiClient.WithHabilidadList();
         apiClient.CreateResult = HabilidadCommandResult.Success(
-            new HabilidadDto(createdId, "NVO", "Nueva Habilidad", "Desc", "Técnica"));
+            new HabilidadDto(createdId, "NVO", "Nueva Habilidad", "Desc", null, "Técnica"));
 
         await using var lease = await _fixture.CreateHabilidadLeaseAsync(apiClient);
         var client = lease.Client;
