@@ -189,6 +189,44 @@ public sealed class HabilidadRepositoryTests
         Assert.Null(noExiste);
     }
 
+    /// <summary>
+    /// Regression guard introducido por el change
+    /// <c>migrar-campo-categoria-habilidades-a-tabla</c>: el override de
+    /// <see cref="HabilidadRepository.GetByIdAsync"/> debe cargar la navegación
+    /// <see cref="HabilidadEntity.Categoria"/> para que
+    /// <c>HabilidadServicioConsulta.MapToDto</c> pueda proyectar
+    /// <c>CategoriaNombre</c> en el contrato <c>HabilidadDto</c>. Sin el
+    /// <c>Include</c>, <c>GET /api/v1/skills/{id}</c> devolvía
+    /// <c>CategoriaNombre = null</c> aunque la FK existiera (REQ-CAT-07).
+    /// </summary>
+    [MySqlFact]
+    public async Task GetByIdAsync_CargaNavegacionCategoria_PermiteProyectarCategoriaNombre()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new HabilidadRepository(context);
+        var habilidad = new Habilidad("TEST-HAB-CATNAV", "Test Habilidad Categoria Navegacion",
+            CategoriaHabilidadConstantes.TecnicaId, "Test desc");
+
+        await repo.AddAsync(habilidad, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var obtenido = await repo.GetByIdAsync(habilidad.Id, default);
+
+            Assert.NotNull(obtenido);
+            Assert.Equal(CategoriaHabilidadConstantes.TecnicaId, obtenido!.CategoriaId);
+            Assert.NotNull(obtenido.Categoria);
+            Assert.Equal("Técnica", obtenido.Categoria!.Nombre);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>().Where(h => h.Id == habilidad.Id).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
     // ===================== Write tests =====================
 
     [MySqlFact]
