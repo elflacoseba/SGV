@@ -33,11 +33,15 @@ Chain strategy: stacked-to-main
 
 *(Sin cambios respecto a la versión original — 7 tareas)*
 
+- [x] 1.1 — RED: test contratos PersonaSkill existen en Contracts namespace
+
 ### 1.1 — RED: test contratos PersonaSkill existen en Contracts namespace
 - **Files**: `tests/SGV.Tests/Contracts/Personas/PersonaSkillContractsCompatibilityTests.cs` *(creado en commit `d34b0d0`)*
 - **Comportamiento**: Verifica `PersonaSkillCommandResult`, `PersonaSkillError`, `PersonaSkillDeleteResult`, `AsignarPersonaSkillRequest` existen en `SGV.Contracts.Personas.Comandos`. (REQ-TAXO-01, REQ-TAXO-03)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaSkillContracts"` → **9 PASS**
 - **Dependencias**: ninguna
+
+- [x] 1.2 — RED: test mapeo ErrorCategoria NotFound/Validation en ApiResults
 
 ### 1.2 — RED: test mapeo ErrorCategoria NotFound/Validation en ApiResults
 - **Files**: `tests/SGV.Tests/Api/PersonaSkillErrorCategoriaMappingTests.cs` *(creado en commit `d34b0d0`)*
@@ -45,11 +49,15 @@ Chain strategy: stacked-to-main
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaSkillErrorCategoria"` → **6 PASS**
 - **Dependencias**: ninguna
 
+- [x] 1.3 — RED: test deserialización JSON preserva wire shape
+
 ### 1.3 — RED: test deserialización JSON preserva wire shape
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaSkillJsonCompatibilityTests.cs` *(creado en commit `d34b0d0`)*
 - **Comportamiento**: Verifica nombres JSON `skillId`/`nivelId` (Dto) y `skill`/`nivel` (DetailDto) se preservan tras migrar. (REQ-TAXO-01, SCENARIO-01)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaSkillJson"` → **6 PASS**
 - **Dependencias**: ninguna
+
+- [x] 1.4 — GREEN: crear tipos PersonaSkill en SGV.Contracts.Personas
 
 ### 1.4 — GREEN: crear tipos PersonaSkill en SGV.Contracts.Personas
 - **Files** (nuevos, commit `ce485d4`):
@@ -62,17 +70,23 @@ Chain strategy: stacked-to-main
 - **Verify**: `dotnet build SGV.slnx` → **0 errors**
 - **Dependencias**: 1.1, 1.2, 1.3
 
+- [x] 1.5 — GREEN: migrar ApiResults a usar Contracts + ErrorCategoria
+
 ### 1.5 — GREEN: migrar ApiResults a usar Contracts + ErrorCategoria
 - **Files**: `src/SGV.Api/Infrastructure/Results/ApiResults.cs`, `src/SGV.Contracts/Comun/ErrorCategoriaMappers.cs` *(commits `ce485d4`)*
 - **Comportamiento**: Reemplazado `using SGV.Aplicacion.Personas.Comandos` por `using SGV.Contracts.Personas.Comandos`. Añadidos mappers `ToCategoria(PersonaSkillErrorType)` y `ToTipoPersonaSkill(ErrorCategoria)` y eliminado el switch privado duplicado. (REQ-TAXO-02)
 - **Verify**: `dotnet build src/SGV.Api && dotnet test --filter "FullyQualifiedName~PersonaSkillErrorCategoria"` → **6 PASS**
 - **Dependencias**: 1.4
 
+- [x] 1.6 — GREEN: actualizar usings en Aplicación, Infraestructura y Controller
+
 ### 1.6 — GREEN: actualizar usings en Aplicación, Infraestructura y Controller
 - **Files**: `src/SGV.Aplicacion/Personas/Comandos/PersonaSkillServicio.cs`, `IPersonaSkillServicio.cs`, `src/SGV.Aplicacion/Personas/Consultas/IPersonaSkillRepository.cs`, `src/SGV.Infraestructura/Persistencia/Repositorios/PersonaSkillRepository.cs`, `src/SGV.Api/Controllers/PersonasController.cs`, `tests/SGV.Tests/Api/PersonaSkillControllerTests.cs`, `tests/SGV.Tests/Api/PersonasControllerTests.cs`, `tests/SGV.Tests/Aplicacion/Personas/PersonaSkillServicioTests.cs` *(todos modificados en commit `ce485d4`)*
 - **Comportamiento**: Actualizados `using` a `SGV.Contracts.Personas.*`. Sin cambio de lógica. (REQ-TAXO-01)
 - **Verify**: `dotnet build SGV.slnx` → **0 errors**
 - **Dependencias**: 1.4
+
+- [x] 1.7 — Eliminar fuentes duplicadas de Aplicación
 
 ### 1.7 — Eliminar fuentes duplicadas de Aplicación
 - **Files** (eliminados en commit `ce485d4`): `src/SGV.Aplicacion/Personas/Comandos/PersonaSkillCommandResult.cs`, `PersonaSkillRequests.cs`, `Consultas/Dtos/PersonaSkillDto.cs`, `PersonaSkillDetailDto.cs`
@@ -86,12 +100,16 @@ Chain strategy: stacked-to-main
 
 *(Sin cambios respecto a la versión original — 5 tareas)*
 
+- [x] 2.1 — RED: test fake registra invocaciones de skill methods
+
 ### 2.1 — RED: test fake registra invocaciones de skill methods
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaSkillClientContractTests.cs`
 - **Comportamiento**: `FakePersonaApiClient.GetSkillsAsync`/`UpsertSkillAsync`/`DeleteSkillAsync` incrementan contadores sin HTTP. (REQ-WEB-04, SCENARIO-01)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaSkillClientContract"`
 - **Dependencias**: 1.7
 - **Estado**: ✅ `b9f0da2f` (RED commit) — 4 tests de contrato de firma + 1 guard de conteo de métodos.
+
+- [x] 2.2 — RED: test errores NotFound/Validation/Transport en cliente
 
 ### 2.2 — RED: test errores NotFound/Validation/Transport en cliente
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaApiClientSkillErrorsTests.cs`
@@ -100,6 +118,8 @@ Chain strategy: stacked-to-main
 - **Dependencias**: 2.1
 - **Estado**: ✅ `b9f0da2f` (RED commit) — 14 tests de comportamiento del fake cubriendo defaults, seed, errores por `ErrorCategoria` (NotFound/Validation/Conflict/Unauthorized/Forbidden/Transport) y propagación de excepciones nativas.
 
+- [x] 2.3 — GREEN: agregar métodos a IPersonaApiClient
+
 ### 2.3 — GREEN: agregar métodos a IPersonaApiClient
 - **Files**: `src/SGV.Web/Integration/Personas/IPersonaApiClient.cs`
 - **Comportamiento**: `GetSkillsAsync`, `UpsertSkillAsync`, `DeleteSkillAsync`. (REQ-WEB-04, REQ-WEB-05)
@@ -107,12 +127,16 @@ Chain strategy: stacked-to-main
 - **Dependencias**: 1.4
 - **Estado**: ✅ `3664b1a9` (GREEN commit) — 3 métodos públicos agregados con XML docs; heredan la misma forma wire que el subrecurso CargoSkill.
 
+- [x] 2.4 — GREEN: implementar métodos en PersonaApiClient
+
 ### 2.4 — GREEN: implementar métodos en PersonaApiClient
 - **Files**: `src/SGV.Web/Integration/Personas/PersonaApiClient.cs`
 - **Comportamiento**: `GET/PUT/DELETE /api/v1/personas/{personaId}/skills/{skillId}`. Delegar errores en `CommandResultMapper`/`DeleteResultMapper`. (Patrón CargoApiClient)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 2.3
 - **Estado**: ✅ `3664b1a9` (GREEN commit) — 3 métodos HTTP implementados + helper `ToSkillCommandResultAsync` + `MapCategoriaToLegacySkillType` con fallback `Validation` para categorías fuera de `PersonaSkillErrorType` (espejo de CargoSkill).
+
+- [x] 2.5 — GREEN: extender FakePersonaApiClient con skill methods
 
 ### 2.5 — GREEN: extender FakePersonaApiClient con skill methods
 - **Files**: `tests/SGV.Tests/Web/Persona/FakePersonaApiClient.cs`
@@ -125,12 +149,16 @@ Chain strategy: stacked-to-main
 
 ## Slice 3a — PersonaHabilidades PageModel GET + autorización + view + antiforgery
 
+- [x] 3a.1 — RED: test autorización admin-only
+
 ### 3a.1 — RED: test autorización admin-only
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs`
 - **Comportamiento**: `GET /personas/{id}/habilidades` exige rol Administrador; anónimo redirect a sign-in; autenticado sin rol recibe 403. (REQ-WEB-01, SCENARIO-01)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage_Anon"`
 - **Dependencias**: 2.5 (Fake con skills)
 - **Estado**: ✅ Completada — `ce0091a` (RED), `5` tests focalizados pasan tras GREEN.
+
+- [x] 3a.2 — RED: test GET carga persona y grilla
 
 ### 3a.2 — RED: test GET carga persona y grilla
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs`
@@ -139,6 +167,8 @@ Chain strategy: stacked-to-main
 - **Dependencias**: 3a.1
 - **Estado**: ✅ Completada — `ce0091a` (RED), `5` tests focalizados pasan tras GREEN.
 
+- [x] 3a.3 — GREEN: crear PersonaHabilidades.cshtml.cs (PageModel GET)
+
 ### 3a.3 — GREEN: crear PersonaHabilidades.cshtml.cs (PageModel GET)
 - **Files**: `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml.cs` (nuevo)
 - **Comportamiento**: `[Authorize(Roles = RolesSgv.Administrador)]`, gate admin manual en `OnGetAsync`, carga `IPersonaApiClient.GetSkillsAsync`, persona inactiva → redirect `/error/404` antes de cargar skills. Sin handlers POST. Sin Ponderacion/EsObligatoria. Antiforgery configurado (formulario con `@Html.AntiForgeryToken()`). (REQ-WEB-01, REQ-WEB-02, REQ-WEB-03)
@@ -146,12 +176,16 @@ Chain strategy: stacked-to-main
 - **Dependencias**: 2.4 (ApiClient), 3a.2 (tests en rojo)
 - **Estado**: ✅ Completada — `feat` commit de Slice 3a.
 
+- [x] 3a.4 — GREEN: crear PersonaHabilidades.cshtml (View)
+
 ### 3a.4 — GREEN: crear PersonaHabilidades.cshtml (View)
 - **Files**: `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml` (nuevo)
 - **Comportamiento**: Vista Razor con grilla de skills (inspiración `CargoHabilidades.cshtml` pero más simple: sin Ponderacion/Obligatoria), estado vacío, estado recuperable, acceso denegado, `TempData` feedback section, look Inspinia. Formulario "Asignar" preparado (solo `NivelHabilidadId` selector). Sin handlers POST aún. (REQ-WEB-02)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 3a.3
 - **Estado**: ✅ Completada — `feat` commit de Slice 3a.
+
+- [x] 3a.5 — Verify slice 3a
 
 ### 3a.5 — Verify slice 3a
 - **Files**: todos los del slice
@@ -164,12 +198,16 @@ Chain strategy: stacked-to-main
 
 ## Slice 3b — Handlers POST + PRG + Details enlace + tests integración web + bun build
 
+- [x] 3b.1 — RED: test handlers POST upsert/delete con PRG
+
 ### 3b.1 — RED: test handlers POST upsert/delete con PRG
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs`
 - **Comportamiento**: `OnPostAsignar` y `OnPostQuitar` invocan cliente, redirigen con PRG, `TempData` refleja éxito. Fallan antes de implementar handlers. (REQ-WEB-02, SCENARIO-02/03)
 - **Verify**: `dotnet test --filter "FullyQualifiedName~PersonaHabilidadesPage_Post_Init"`
 - **Dependencias**: 3a.5 (page model scaffold existente)
 - **Estado**: ✅ Completada — `c2f9a798` (RED), 17 tests RED → GREEN con handlers.
+
+- [x] 3b.2 — RED: test POST persona inactiva bloquea mutación
 
 ### 3b.2 — RED: test POST persona inactiva bloquea mutación
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesPageTests.cs`
@@ -178,12 +216,16 @@ Chain strategy: stacked-to-main
 - **Dependencias**: 3b.1
 - **Estado**: ✅ Completada — `c2f9a798` (incluida en el commit RED), 2 tests RED → GREEN.
 
+- [x] 3b.3 — GREEN: agregar handlers POST al PageModel
+
 ### 3b.3 — GREEN: agregar handlers POST al PageModel
 - **Files**: `src/SGV.Web/Pages/Personas/PersonaHabilidades.cshtml.cs`
 - **Comportamiento**: `OnPostAsignarAsync` y `OnPostQuitarAsync` con PRG, `TempData` feedback (`StatusMessage`/`StatusKind` via `PageFeedback`), gateo admin. Sin Ponderacion/EsObligatoria. (REQ-WEB-02, REQ-WEB-05)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 3b.2 (tests en rojo)
 - **Estado**: ✅ Completada — `3e49e80c` (GREEN commit), 23/23 tests PersonaHabilidadesPage pasan. Helpers extraídos: `PersonaSkillFormHelpers.ReadAsignarInput` + `ResolveFailureMessage`. `EnsurePersonaActivaAsync` gatea la mutación.
+
+- [x] 3b.4 — GREEN: tests integración web con WebApplicationFactory
 
 ### 3b.4 — GREEN: tests integración web con WebApplicationFactory
 - **Files**: `tests/SGV.Tests/Web/Persona/PersonaHabilidadesIntegrationTests.cs` (nuevo)
@@ -192,12 +234,16 @@ Chain strategy: stacked-to-main
 - **Dependencias**: 3b.3
 - **Estado**: ✅ Completada — `7ff90f24`, 11/11 tests integración pasan (incluido `Get_PersonaHabilidades_ForwardsBearerTokenToPersonaApi` que verifica el bridge JWT end-to-end contra el subrecurso). Helper `CreatePersonaBridgeLeaseAsync` agregado a `WebIntegrationFixture`.
 
+- [x] 3b.5 — GREEN: enlace Habilidades desde Details.cshtml
+
 ### 3b.5 — GREEN: enlace Habilidades desde Details.cshtml
 - **Files**: `src/SGV.Web/Pages/Personas/Details.cshtml`, `src/SGV.Web/Pages/Personas/Details.cshtml.cs` (si requiere exponer `EsAdministrador`)
 - **Comportamiento**: Botón "Habilidades" con `ti-stars` en barra inferior de Details, solo para persona activa y admin. Enlace a `/Personas/PersonaHabilidades?id=...`. Oculto si `IsNotFound`. (REQ-WEB-06, REQ-PM-01, SCENARIO-01/02)
 - **Verify**: `dotnet build src/SGV.Web`
 - **Dependencias**: 3b.3
 - **Estado**: ✅ Completada — `7ff90f24`, 3/3 tests DetailsHabilidadesButton pasan. Botón renderiza solo con `!IsNotFound && Persona.IsActive && User.IsInRole(Administrador)`.
+
+- [x] 3b.6 — Verify final slice 3b
 
 ### 3b.6 — Verify final slice 3b
 - **Files**: todos los del cambio
