@@ -61,7 +61,7 @@ internal static class PersistenceToDomainMapper
             entity.Id,
             entity.Codigo,
             entity.Nombre,
-            entity.Categoria,
+            entity.CategoriaId,
             entity.Descripcion,
             entity.IsActive,
             entity.CreatedAt,
@@ -71,6 +71,11 @@ internal static class PersistenceToDomainMapper
             entity.IsDeleted,
             entity.DeletedAt,
             entity.DeletedByUserId);
+    }
+
+    public static CategoriaHabilidad ToDomain(CategoriaHabilidadEntity entity)
+    {
+        return CategoriaHabilidad.Reconstitute(entity.Id, entity.Codigo, entity.Nombre);
     }
 
     public static UnidadOrganizativa ToDomain(UnidadOrganizativaEntity entity)

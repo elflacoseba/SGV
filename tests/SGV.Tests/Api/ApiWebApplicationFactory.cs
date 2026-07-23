@@ -27,6 +27,7 @@ using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
+using SGV.Contracts.Habilidades.Categorias.Consultas;
 using SGV.Infraestructura.Persistencia.Catalogos;
 
 namespace SGV.Tests.Api;
@@ -329,11 +330,11 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
     {
         _data = isEmpty
             ? []
-            : [new(HabilidadId1, "PROG", "Programación", "Lenguajes de programación", "Técnica")];
+            : [new(HabilidadId1, "PROG", "Programación", "Lenguajes de programación", null, null)];
 
         _eliminadas = (isEmpty || !withEliminadas)
             ? []
-            : [new(HabilidadEliminadaId1, "DEL-001", "Eliminada", "Descripción eliminada", "General")];
+            : [new(HabilidadEliminadaId1, "DEL-001", "Eliminada", "Descripción eliminada", null, null)];
 
         // Set de ids soft-disabled (IsActive=false, IsDeleted=false). El
         // repository filtra por IsActive=true, por lo que estos ids existen
@@ -378,7 +379,7 @@ internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
             filtered = filtered.Where(d =>
                 d.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase)
                 || d.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase)
-                || (d.Categoria?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (d.CategoriaNombre?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
                 || (d.Descripcion?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
@@ -545,7 +546,7 @@ internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos
     {
         if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
         return Task.FromResult(HabilidadCommandResult.Success(
-            new HabilidadDto(DefaultHabilidadId, request.Codigo, request.Nombre, request.Descripcion, request.Categoria)));
+            new HabilidadDto(DefaultHabilidadId, request.Codigo, request.Nombre, request.Descripcion, request.CategoriaId, null)));
     }
 
     public Task<HabilidadCommandResult> ActualizarAsync(
@@ -555,7 +556,7 @@ internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos
     {
         if (ActualizarHandler is not null) return ActualizarHandler(id, request, cancellationToken);
         return Task.FromResult(HabilidadCommandResult.Success(
-            new HabilidadDto(id, request.Codigo, request.Nombre, request.Descripcion, request.Categoria)));
+            new HabilidadDto(id, request.Codigo, request.Nombre, request.Descripcion, request.CategoriaId, null)));
     }
 
     public Task<HabilidadCommandResult> DesactivarAsync(
@@ -564,7 +565,7 @@ internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos
     {
         if (DesactivarHandler is not null) return DesactivarHandler(id, cancellationToken);
         return Task.FromResult(HabilidadCommandResult.Success(
-            new HabilidadDto(id, "PROG", "Programación", "Lenguajes de programación", "Técnica")));
+            new HabilidadDto(id, "PROG", "Programación", "Lenguajes de programación", null, null)));
     }
 
     public Task<HabilidadCommandResult> ReactivarAsync(
@@ -573,7 +574,7 @@ internal sealed class FakeHabilidadServicioComandos : IHabilidadServicioComandos
     {
         if (ReactivarHandler is not null) return ReactivarHandler(id, cancellationToken);
         return Task.FromResult(HabilidadCommandResult.Success(
-            new HabilidadDto(id, "PROG", "Programación", "Lenguajes de programación", "Técnica")));
+            new HabilidadDto(id, "PROG", "Programación", "Lenguajes de programación", null, null)));
     }
 }
 
@@ -623,6 +624,43 @@ internal sealed class FakeTipoDocumentoCatalogoConsulta : ITipoDocumentoCatalogo
         => Task.FromResult(_data);
 
     public Task<TipoDocumentoDto?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => Task.FromResult(_data.FirstOrDefault(t => t.Id == id));
+}
+
+internal sealed class FakeCategoriaHabilidadServicioConsulta : ICategoriaHabilidadServicioConsulta
+{
+    public static readonly Guid ConduccionId = SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.ConduccionId;
+    public static readonly Guid TecnicaId = SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.TecnicaId;
+    public static readonly Guid DominioId = SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.DominioId;
+    public static readonly Guid AcademicaId = SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.AcademicaId;
+
+    private static readonly IReadOnlyList<CategoriaHabilidadDto> Seed =
+    [
+        new(ConduccionId,
+            SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.ConduccionCodigo,
+            SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.ConduccionNombre),
+        new(TecnicaId,
+            SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.TecnicaCodigo,
+            SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.TecnicaNombre),
+        new(DominioId,
+            SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.DominioCodigo,
+            SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.DominioNombre),
+        new(AcademicaId,
+            SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.AcademicaCodigo,
+            SGV.Infraestructura.Persistencia.Catalogos.CategoriaHabilidadConstantes.AcademicaNombre)
+    ];
+
+    private readonly IReadOnlyList<CategoriaHabilidadDto> _data;
+
+    public FakeCategoriaHabilidadServicioConsulta(bool isEmpty = false)
+    {
+        _data = isEmpty ? [] : Seed;
+    }
+
+    public Task<IReadOnlyList<CategoriaHabilidadDto>> ListAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(_data);
+
+    public Task<CategoriaHabilidadDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => Task.FromResult(_data.FirstOrDefault(t => t.Id == id));
 }
 
@@ -1048,6 +1086,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<INivelHabilidadServicioConsulta>();
             services.RemoveService<IHabilidadServicioComandos>();
             services.RemoveService<ITipoDocumentoCatalogoConsulta>();
+            services.RemoveService<ICategoriaHabilidadServicioConsulta>();
             services.RemoveService<IPersonaServicioConsulta>();
             services.RemoveService<IPersonaServicioComandos>();
             services.RemoveService<IUsuarioServicioConsulta>();
@@ -1070,6 +1109,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<INivelHabilidadServicioConsulta>(new FakeNivelHabilidadServicio());
             services.AddSingleton<IHabilidadServicioComandos>(new FakeHabilidadServicioComandos());
             services.AddSingleton<ITipoDocumentoCatalogoConsulta>(new FakeTipoDocumentoCatalogoConsulta());
+            services.AddSingleton<ICategoriaHabilidadServicioConsulta>(new FakeCategoriaHabilidadServicioConsulta());
             services.AddSingleton<IPersonaServicioConsulta>(new FakePersonaServicioConsulta());
             services.AddSingleton<IPersonaServicioComandos>(new FakePersonaServicioComandos());
             services.AddSingleton<IUsuarioServicioConsulta>(new FakeUsuarioServicioConsulta());

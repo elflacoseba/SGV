@@ -8,6 +8,10 @@ namespace SGV.Aplicacion.Habilidades.Comandos.Validaciones;
 /// Validates shape and input rules for <see cref="ActualizarHabilidadRequest"/>.
 /// Uniqueness of <c>Codigo</c> against other active Habilidades is enforced by
 /// the application service and the database index, not here.
+///
+/// <b>Breaking change (issue migrar-campo-categoria-habilidades-a-tabla):</b>
+/// el campo legacy <c>string? Categoria</c> se reemplaza por
+/// <c>Guid? CategoriaId</c>; la validación de catálogo la hace el servicio.
 /// </summary>
 public class ActualizarHabilidadRequestValidator : AbstractValidator<ActualizarHabilidadRequest>
 {
@@ -21,8 +25,10 @@ public class ActualizarHabilidadRequestValidator : AbstractValidator<ActualizarH
             .NotEmpty()
             .MaximumLength(200);
 
-        RuleFor(x => x.Categoria)
-            .MaximumLength(100);
+        RuleFor(x => x.CategoriaId!.Value)
+            .NotEqual(Guid.Empty)
+            .When(x => x.CategoriaId.HasValue)
+            .WithName("CategoriaId");
 
         RuleFor(x => x.Descripcion)
             .MaximumLength(1000);

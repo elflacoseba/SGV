@@ -14,7 +14,6 @@ public sealed class HabilidadConfiguracion : IEntityTypeConfiguration<HabilidadE
 
         builder.Property(e => e.Codigo).HasMaxLength(50).IsRequired();
         builder.Property(e => e.Nombre).HasMaxLength(200).IsRequired();
-        builder.Property(e => e.Categoria).HasMaxLength(100);
         builder.Property(e => e.Descripcion).HasMaxLength(1000);
 
         builder.Property<string?>("ActiveCodigoUnique")
@@ -22,6 +21,15 @@ public sealed class HabilidadConfiguracion : IEntityTypeConfiguration<HabilidadE
             .IsRequired(false);
         builder.HasIndex("ActiveCodigoUnique").IsUnique();
 
-        builder.HasIndex(e => e.Categoria);
+        // FK opcional al catálogo CategoriasHabilidad. La FK constraint
+        // (FK_Habilidades_CategoriasHabilidad_CategoriaId con OnDelete Restrict)
+        // se crea en la migración AddCategoriaHabilidadCatalog.
+        builder.HasOne(e => e.Categoria)
+            .WithMany()
+            .HasForeignKey(e => e.CategoriaId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(e => e.CategoriaId)
+            .HasDatabaseName("IX_Habilidades_CategoriaId");
     }
 }

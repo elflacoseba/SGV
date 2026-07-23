@@ -131,7 +131,7 @@ internal static class DomainToPersistenceMapper
             Codigo = domain.Codigo,
             Nombre = domain.Nombre,
             Descripcion = domain.Descripcion,
-            Categoria = domain.Categoria,
+            CategoriaId = domain.CategoriaId,
             IsActive = domain.IsActive,
             CreatedAt = domain.CreatedAt,
             CreatedByUserId = domain.CreatedByUserId,
@@ -145,7 +145,7 @@ internal static class DomainToPersistenceMapper
         entity.Codigo = domain.Codigo;
         entity.Nombre = domain.Nombre;
         entity.Descripcion = domain.Descripcion;
-        entity.Categoria = domain.Categoria;
+        entity.CategoriaId = domain.CategoriaId;
         entity.IsActive = domain.IsActive;
         entity.UpdatedAt = domain.UpdatedAt;
         entity.UpdatedByUserId = domain.UpdatedByUserId;

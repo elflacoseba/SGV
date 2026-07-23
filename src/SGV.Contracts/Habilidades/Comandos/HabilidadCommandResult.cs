@@ -16,7 +16,14 @@ public enum HabilidadErrorType
     /// La página web la muestra como error de servidor sin asociarla a un
     /// campo del formulario.
     /// </summary>
-    Infrastructure
+    Infrastructure,
+    /// <summary>
+    /// El <c>CategoriaId</c> informado al crear/actualizar una habilidad
+    /// no existe en el catálogo inmutable <c>CategoriasHabilidad</c>
+    /// (issue migrar-campo-categoria-habilidades-a-tabla). Se traduce a
+    /// <c>400 Bad Request</c> con código <c>CategoriaHabilidadNoExiste</c>.
+    /// </summary>
+    CategoriaInexistente
 }
 
 /// <summary>

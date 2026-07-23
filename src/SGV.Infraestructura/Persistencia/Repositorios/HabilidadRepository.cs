@@ -18,7 +18,12 @@ public sealed class HabilidadRepository(SgvDbContext context)
 
     public override async Task<IReadOnlyList<Habilidad>> ListAllAsync(CancellationToken cancellationToken = default)
     {
+        // LEFT JOIN CategoriasHabilidad para proyectar CategoriaNombre y
+        // popular la navegación Categoria (issue
+        // migrar-campo-categoria-habilidades-a-tabla). Sin categoría: Categoria = null,
+        // CategoriaNombre = null — coherente con CategoriaId nullable.
         var entities = await Query
+            .Include(h => h.Categoria)
             .OrderBy(h => h.Codigo)
             .ToListAsync(cancellationToken);
 
@@ -35,6 +40,7 @@ public sealed class HabilidadRepository(SgvDbContext context)
     {
         var entity = await Context
             .Set<HabilidadEntity>()
+            .Include(h => h.Categoria)
             .FirstOrDefaultAsync(h => h.Id == id && h.IsActive && !h.IsDeleted, cancellationToken)
             .ConfigureAwait(false);
 
@@ -45,6 +51,7 @@ public sealed class HabilidadRepository(SgvDbContext context)
     {
         var entity = await Context
             .Set<HabilidadEntity>()
+            .Include(h => h.Categoria)
             .FirstOrDefaultAsync(h => h.Id == id, cancellationToken)
             .ConfigureAwait(false);
 
@@ -116,6 +123,20 @@ public sealed class HabilidadRepository(SgvDbContext context)
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Verifica si la categoría con el id indicado existe en el catálogo
+    /// inmutable <c>CategoriasHabilidad</c>. No respeta <c>IsActive</c>
+    /// (el catálogo es inmutable y no tiene soft-delete).
+    /// </summary>
+    public async Task<bool> ExistsCategoriaAsync(Guid categoriaId, CancellationToken cancellationToken = default)
+    {
+        return await Context
+            .Set<CategoriaHabilidadEntity>()
+            .AsNoTracking()
+            .AnyAsync(c => c.Id == categoriaId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public async Task<(IReadOnlyList<Habilidad> Items, int TotalCount)> QueryAsync(
         string? search,
         int page,
@@ -136,20 +157,20 @@ public sealed class HabilidadRepository(SgvDbContext context)
             query = query.Where(h =>
                 h.Codigo.Contains(search) ||
                 h.Nombre.Contains(search) ||
-                (h.Categoria != null && h.Categoria.Contains(search)) ||
+                (h.Categoria != null && h.Categoria.Nombre.Contains(search)) ||
                 (h.Descripcion != null && h.Descripcion.Contains(search)));
         }
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
 
         // El sort se aplica ANTES del Skip/Take para que la paginación respete
-        // el orden visible (REQ-CM-01 equivalente para habilidades). Valores
-        // soportados: codigo_asc / codigo_desc / nombre_asc / nombre_desc /
-        // categoria_asc / categoria_desc. Cualquier otro valor cae al orden
-        // por defecto por Codigo asc para preservar contratos existentes.
+        // el orden visible. Valores soportados: codigo_asc / codigo_desc /
+        // nombre_asc / nombre_desc / categoria_asc / categoria_desc.
+        // Cualquier otro valor cae al orden por defecto por Codigo asc.
         var ordered = ApplySort(query, sort);
 
         var entities = await ordered
+            .Include(h => h.Categoria)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken)
@@ -166,8 +187,8 @@ public sealed class HabilidadRepository(SgvDbContext context)
             "codigo_asc" => query.OrderBy(h => h.Codigo),
             "nombre_desc" => query.OrderByDescending(h => h.Nombre),
             "nombre_asc" => query.OrderBy(h => h.Nombre),
-            "categoria_desc" => query.OrderByDescending(h => h.Categoria ?? string.Empty),
-            "categoria_asc" => query.OrderBy(h => h.Categoria ?? string.Empty),
+            "categoria_desc" => query.OrderByDescending(h => h.Categoria!.Nombre ?? string.Empty),
+            "categoria_asc" => query.OrderBy(h => h.Categoria!.Nombre ?? string.Empty),
             _ => query.OrderBy(h => h.Codigo)
         };
     }

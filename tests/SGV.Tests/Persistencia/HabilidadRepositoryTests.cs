@@ -196,7 +196,8 @@ public sealed class HabilidadRepositoryTests
     {
         await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var repo = new HabilidadRepository(context);
-        var habilidad = new Habilidad("TEST-HAB-01", "Test Habilidad", "Test", "Test desc");
+        var habilidad = new Habilidad("TEST-HAB-01", "Test Habilidad",
+            CategoriaHabilidadConstantes.TecnicaId, "Test desc");
 
         await repo.AddAsync(habilidad, default);
         await context.SaveChangesAsync();
@@ -207,7 +208,7 @@ public sealed class HabilidadRepositoryTests
             Assert.NotNull(obtenido);
             Assert.Equal(habilidad.Codigo, obtenido!.Codigo);
             Assert.Equal(habilidad.Nombre, obtenido.Nombre);
-            Assert.Equal(habilidad.Categoria, obtenido.Categoria);
+            Assert.Equal(habilidad.CategoriaId, obtenido.CategoriaId);
             Assert.Equal(habilidad.Descripcion, obtenido.Descripcion);
             Assert.True(obtenido.IsActive);
             Assert.False(obtenido.IsDeleted);
@@ -307,14 +308,14 @@ public sealed class HabilidadRepositoryTests
             Assert.NotNull(habilidad);
 
             var nuevoCodigo = entity.Codigo + "-V2";
-            habilidad!.Actualizar(nuevoCodigo, "Modificado", "NuevaCategoria", "Desc modificada");
+            habilidad!.Actualizar(nuevoCodigo, "Modificado", Guid.NewGuid(), "Desc modificada");
             await repo.UpdateAsync(habilidad, default);
             await context.SaveChangesAsync();
 
             var modificado = await repo.GetByIdAsync(entity.Id, default);
             Assert.NotNull(modificado);
             Assert.Equal("Modificado", modificado!.Nombre);
-            Assert.Equal("NuevaCategoria", modificado.Categoria);
+            Assert.NotNull(modificado.CategoriaId);
             Assert.Equal("Desc modificada", modificado.Descripcion);
             Assert.Equal(nuevoCodigo, modificado.Codigo);
         }
@@ -516,13 +517,13 @@ public sealed class HabilidadRepositoryTests
         var repo = new HabilidadRepository(context);
         var codigoCompartido = "UNIQ-DUP-" + Guid.NewGuid().ToString("N")[..8];
 
-        var habilidad1 = new Habilidad(codigoCompartido, "Primera", "Test", "Desc 1");
+        var habilidad1 = new Habilidad(codigoCompartido, "Primera", null, "Desc 1");
         await repo.AddAsync(habilidad1, default);
         await context.SaveChangesAsync();
 
         try
         {
-            var habilidad2 = new Habilidad(codigoCompartido, "Segunda", "Test", "Desc 2");
+            var habilidad2 = new Habilidad(codigoCompartido, "Segunda", null, "Desc 2");
             await repo.AddAsync(habilidad2, default);
 
             var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());

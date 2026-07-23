@@ -11,19 +11,22 @@ namespace SGV.Tests.Persistencia;
 /// See issue #124: <c>ToDomain(HabilidadEntity)</c> must not call the internal
 /// <c>SetProperty</c> reflection helper; instead it should delegate to
 /// <c>Habilidad.Reconstitute(...)</c>.
+///
+/// <b>Issue migrar-campo-categoria-habilidades-a-tabla:</b> la columna legacy
+/// <c>string? Categoria</c> se reemplazó por la FK <c>Guid? CategoriaId</c>.
 /// </summary>
 public sealed class HabilidadMapperTests
 {
     private static readonly Guid Id = Guid.Parse("a0000000-0000-0000-0000-000000000001");
 
-    private static HabilidadEntity CrearEntidad(bool isActive, bool isDeleted = false)
+    private static HabilidadEntity CrearEntidad(bool isActive, bool isDeleted = false, Guid? categoriaId = null)
     {
         return new HabilidadEntity
         {
             Id = Id,
             Codigo = "HAB-001",
             Nombre = "Liderazgo",
-            Categoria = "Soft",
+            CategoriaId = categoriaId,
             Descripcion = "Capacidad de liderazgo",
             IsActive = isActive,
             IsDeleted = isDeleted,
@@ -89,13 +92,14 @@ public sealed class HabilidadMapperTests
     [Fact]
     public void Reconstitute_MapsAllFields()
     {
-        var entidad = CrearEntidad(isActive: true);
+        var categoriaId = Guid.Parse("72000000-0000-0000-0000-000000000000");
+        var entidad = CrearEntidad(isActive: true, categoriaId: categoriaId);
 
         var dominio = Habilidad.Reconstitute(
             entidad.Id,
             entidad.Codigo,
             entidad.Nombre,
-            entidad.Categoria,
+            entidad.CategoriaId,
             entidad.Descripcion,
             entidad.IsActive,
             entidad.CreatedAt,
@@ -109,9 +113,24 @@ public sealed class HabilidadMapperTests
         Assert.Equal(entidad.Id, dominio.Id);
         Assert.Equal("HAB-001", dominio.Codigo);
         Assert.Equal("Liderazgo", dominio.Nombre);
-        Assert.Equal("Soft", dominio.Categoria);
+        Assert.Equal(categoriaId, dominio.CategoriaId);
         Assert.Equal("Capacidad de liderazgo", dominio.Descripcion);
         Assert.True(dominio.IsActive);
+    }
+
+    [Fact]
+    public void Reconstitute_SinCategoriaId_PreservaNull()
+    {
+        var entidad = CrearEntidad(isActive: true, categoriaId: null);
+
+        var dominio = Habilidad.Reconstitute(
+            entidad.Id, entidad.Codigo, entidad.Nombre,
+            entidad.CategoriaId, entidad.Descripcion, entidad.IsActive,
+            entidad.CreatedAt, entidad.CreatedByUserId,
+            entidad.UpdatedAt, entidad.UpdatedByUserId,
+            entidad.IsDeleted, entidad.DeletedAt, entidad.DeletedByUserId);
+
+        Assert.Null(dominio.CategoriaId);
     }
 
     [Fact]
@@ -121,7 +140,7 @@ public sealed class HabilidadMapperTests
 
         var dominio = Habilidad.Reconstitute(
             entidad.Id, entidad.Codigo, entidad.Nombre,
-            entidad.Categoria, entidad.Descripcion, entidad.IsActive,
+            entidad.CategoriaId, entidad.Descripcion, entidad.IsActive,
             entidad.CreatedAt, entidad.CreatedByUserId,
             entidad.UpdatedAt, entidad.UpdatedByUserId,
             entidad.IsDeleted, entidad.DeletedAt, entidad.DeletedByUserId);
@@ -138,7 +157,7 @@ public sealed class HabilidadMapperTests
 
         var dominio = Habilidad.Reconstitute(
             entidad.Id, entidad.Codigo, entidad.Nombre,
-            entidad.Categoria, entidad.Descripcion, entidad.IsActive,
+            entidad.CategoriaId, entidad.Descripcion, entidad.IsActive,
             entidad.CreatedAt, entidad.CreatedByUserId,
             entidad.UpdatedAt, entidad.UpdatedByUserId,
             entidad.IsDeleted, entidad.DeletedAt, entidad.DeletedByUserId);
@@ -157,7 +176,7 @@ public sealed class HabilidadMapperTests
                 Guid.NewGuid(),
                 codigo: "",
                 nombre: "Cualquiera",
-                categoria: null,
+                categoriaId: null,
                 descripcion: null,
                 isActive: true,
                 DateTime.UtcNow, null, null, null,

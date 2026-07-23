@@ -39,6 +39,9 @@ internal sealed class FakeHabilidadReadRepository : IHabilidadRepository
     public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken ct = default)
         => Task.FromResult(false);
 
+    public Task<bool> ExistsCategoriaAsync(Guid categoriaId, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+
     public Task<(IReadOnlyList<Habilidad> Items, int TotalCount)> QueryAsync(
         string? search,
         int page,

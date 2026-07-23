@@ -301,7 +301,7 @@ public sealed class SkillsControllerTests
         var dto = await ReadAsAsync<HabilidadDto>(response);
         Assert.Equal("PROG-V2", dto.Codigo);
         Assert.Equal("Habilidad Actualizada", dto.Nombre);
-        Assert.Equal("Nueva Categoría", dto.Categoria);
+        Assert.Equal("Nueva Categoría", dto.CategoriaNombre);
     }
 
     [Fact]

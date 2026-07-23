@@ -508,7 +508,7 @@ internal sealed class FakeCargoSkillRepository : ICargoSkillRepository
         var items = Datos.Where(d => d.CargoId == cargoId).ToList();
         return Task.FromResult<IReadOnlyList<CargoSkillDetailDto>>(
             items.Select(a => new CargoSkillDetailDto(
-                new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null),
+                new HabilidadDto(a.HabilidadId, "COD", "Nombre", null, null, null),
                 new NivelHabilidadDto(a.NivelRequeridoId, "N1", "Nivel", 1, 1))
             {
                 SkillId = a.HabilidadId,
