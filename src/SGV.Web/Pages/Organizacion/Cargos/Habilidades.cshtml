@@ -83,9 +83,9 @@ else
                                     <tr>
                                         <th>Habilidad</th>
                                         <th>NivelRequerido</th>
-                                        <th style="width: 120px;">Ponderación</th>
-                                        <th style="width: 110px;">Obligatoria</th>
-                                        <th style="width: 200px;">Acciones</th>
+                                        <th style="width: 140px;">Ponderación</th>
+                                        <th style="width: 140px;">Obligatoria</th>
+                                        <th style="width: 240px;">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -97,79 +97,102 @@ else
                                         var nivelError = ViewData.ModelState[nivelKey]?.Errors.FirstOrDefault()?.ErrorMessage;
                                         var ponderacionError = ViewData.ModelState[ponderacionKey]?.Errors.FirstOrDefault()?.ErrorMessage;
                                         var obligatoriaError = ViewData.ModelState[obligatoriaKey]?.Errors.FirstOrDefault()?.ErrorMessage;
+                                        var updateFormId = $"skill-update-{skill.SkillId}";
                                         <tr data-skill-management-row>
                                             <td>
                                                 <div class="fw-semibold">@skill.Skill.Nombre</div>
                                                 <div class="text-muted small">@skill.Skill.Codigo</div>
-                                            </td>
-                                            <td colspan="4">
-                                                <form method="post" asp-page-handler="Actualizar" class="row g-2 align-items-center" data-skill-update-form>
+                                                <form method="post"
+                                                      asp-page-handler="Actualizar"
+                                                      id="@updateFormId"
+                                                      class="d-none"
+                                                      data-skill-update-form>
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="skillId" value="@skill.SkillId" />
-                                                    <div class="col-md-4">
-                                                        <select name="Actualizar[@skill.SkillId].NivelRequeridoId" class="form-select form-select-sm" data-skill-editable disabled>
-                                                            @foreach (var nivel in Model.NivelOptions)
-                                                            {
-                                                                if (nivel.Id == skill.NivelRequeridoId)
-                                                                {
-                                                                    <option value="@nivel.Id" selected="selected">@nivel.Nombre</option>
-                                                                }
-                                                                else
-                                                                {
-                                                                    <option value="@nivel.Id">@nivel.Nombre</option>
-                                                                }
-                                                            }
-                                                        </select>
-                                                        @if (!string.IsNullOrEmpty(nivelError))
+                                                </form>
+                                            </td>
+                                            <td>
+                                                <select name="Actualizar[@skill.SkillId].NivelRequeridoId"
+                                                        form="@updateFormId"
+                                                        class="form-select form-select-sm"
+                                                        data-skill-editable
+                                                        disabled>
+                                                    @foreach (var nivel in Model.NivelOptions)
+                                                    {
+                                                        if (nivel.Id == skill.NivelRequeridoId)
                                                         {
-                                                            <div class="invalid-feedback d-block">@nivelError</div>
+                                                            <option value="@nivel.Id" selected="selected">@nivel.Nombre</option>
                                                         }
-                                                    </div>
-                                                    <div class="col-md-3">
-                                                        <input type="number"
-                                                               name="Actualizar[@skill.SkillId].Ponderacion"
-                                                               value="@skill.Ponderacion.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
-                                                               step="0.01"
-                                                               min="0.01"
-                                                               max="100.00"
-                                                               class="form-control form-control-sm"
+                                                        else
+                                                        {
+                                                            <option value="@nivel.Id">@nivel.Nombre</option>
+                                                        }
+                                                    }
+                                                </select>
+                                                @if (!string.IsNullOrEmpty(nivelError))
+                                                {
+                                                    <div class="invalid-feedback d-block">@nivelError</div>
+                                                }
+                                            </td>
+                                            <td>
+                                                <input type="number"
+                                                       name="Actualizar[@skill.SkillId].Ponderacion"
+                                                       form="@updateFormId"
+                                                       value="@skill.Ponderacion.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                                       step="0.01"
+                                                       min="0.01"
+                                                       max="100.00"
+                                                       class="form-control form-control-sm"
+                                                       data-skill-editable
+                                                       disabled />
+                                                @if (!string.IsNullOrEmpty(ponderacionError))
+                                                {
+                                                    <div class="invalid-feedback d-block">@ponderacionError</div>
+                                                }
+                                            </td>
+                                            <td>
+                                                <div class="form-check">
+                                                    @if (skill.EsObligatoria)
+                                                    {
+                                                        <input type="checkbox"
+                                                               name="Actualizar[@skill.SkillId].EsObligatoria"
+                                                               form="@updateFormId"
+                                                               value="true"
+                                                               checked="checked"
+                                                               class="form-check-input"
                                                                data-skill-editable
                                                                disabled />
-                                                        @if (!string.IsNullOrEmpty(ponderacionError))
-                                                        {
-                                                            <div class="invalid-feedback d-block">@ponderacionError</div>
-                                                        }
-                                                    </div>
-                                                    <div class="col-md-2">
-                                                        <div class="form-check">
-                                                            @if (skill.EsObligatoria)
-                                                            {
-                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" checked="checked" class="form-check-input" data-skill-editable disabled />
-                                                            }
-                                                            else
-                                                            {
-                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" class="form-check-input" data-skill-editable disabled />
-                                                            }
-                                                            <label class="form-check-label small">Obligatoria</label>
-                                                        </div>
-                                                        @if (!string.IsNullOrEmpty(obligatoriaError))
-                                                        {
-                                                            <div class="invalid-feedback d-block">@obligatoriaError</div>
-                                                        }
-                                                    </div>
-                                                    <div class="col-md-3 d-flex gap-1">
-                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-skill-edit-button>Editar</button>
-                                                        <button type="submit" class="btn btn-sm btn-primary d-none" data-skill-save-button>Guardar</button>
-                                                    </div>
-                                                </form>
-                                                <form method="post" asp-page-handler="Quitar" class="d-flex justify-content-end mt-2" data-skill-delete-form>
-                                                    @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="skillId" value="@skill.SkillId" />
-                                                    <button type="submit"
-                                                            class="btn btn-sm btn-outline-danger"
-                                                            data-skill-delete-button
-                                                            data-skill-item-name="@skill.Skill.Nombre">Quitar</button>
-                                                </form>
+                                                    }
+                                                    else
+                                                    {
+                                                        <input type="checkbox"
+                                                               name="Actualizar[@skill.SkillId].EsObligatoria"
+                                                               form="@updateFormId"
+                                                               value="true"
+                                                               class="form-check-input"
+                                                               data-skill-editable
+                                                               disabled />
+                                                    }
+                                                    <label class="form-check-label small">Obligatoria</label>
+                                                </div>
+                                                @if (!string.IsNullOrEmpty(obligatoriaError))
+                                                {
+                                                    <div class="invalid-feedback d-block">@obligatoriaError</div>
+                                                }
+                                            </td>
+                                            <td>
+                                                <div class="d-flex gap-1 align-items-center">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-skill-edit-button>Editar</button>
+                                                    <button type="submit" class="btn btn-sm btn-primary d-none" form="@updateFormId" data-skill-save-button>Guardar</button>
+                                                    <form method="post" asp-page-handler="Quitar" class="d-inline" data-skill-delete-form>
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="skillId" value="@skill.SkillId" />
+                                                        <button type="submit"
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                data-skill-delete-button
+                                                                data-skill-item-name="@skill.Skill.Nombre">Quitar</button>
+                                                    </form>
+                                                </div>
                                             </td>
                                         </tr>
                                     }
