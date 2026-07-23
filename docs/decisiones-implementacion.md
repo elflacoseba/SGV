@@ -608,4 +608,106 @@ Cuando un error 409 (o equivalente de conflicto único) provenga de un endpoint 
 
 Archivos vigentes: `src/SGV.Web/Pages/Seguridad/Usuarios/Create.cshtml.cs`, `src/SGV.Web/Pages/Seguridad/Usuarios/Edit.cshtml.cs` (ambos en `OnPostAsync` / handler equivalente).
 
+## Cultura regional es-AR como default único (issue #191)
+
+### Contexto
+
+La shell web (`SGV.Web`) y la API (`SGV.Api`) operaban con la cultura del
+proceso heredada del host. Tres bugs se concentraban en la gestión de
+habilidades de Cargos:
+
+1. Los banners de feedback de Bootstrap (success / warning / danger) no
+   eran dismissible: el usuario no podía cerrarlos sin esperar al próximo
+   redirect.
+2. El input `Ponderación` (`type="number"`) aceptaba sólo `"."` como
+   separador decimal (HTML5 ignora la cultura de la página). Los usuarios
+   con configuración regional es-AR tipeaban `"1,50"` y el form rechazaba
+   el valor al guardar.
+3. La ponderación podía llegar vacía desde el form; el servicio aplicaba
+   un default invisible de `1.00m`, oscureciendo el problema (la grilla
+   mostraba una ponderación que el usuario nunca tipeó).
+
+### Decisión adoptada (vigente)
+
+- **Cultura única `es-AR`** para Web y API vía
+  `AddLocalization()` + `Configure<RequestLocalizationOptions>` con
+  `DefaultRequestCulture = "es-AR"` + `app.UseRequestLocalization()`
+  insertado entre `UseRouting()` y `UseAuthentication()` en Web, y
+  temprano en el pipeline de API (después de CORS, antes de RateLimiter).
+  Es la fuente única de la cultura para render, model binding,
+  validación y orden de strings.
+- **JSON wire sigue invariante.** El contrato HTTP entre Web y API
+  transporta decimales con `.` (default de `System.Text.Json`); la cultura
+  es-AR sólo afecta la capa de presentación y los servicios que usen
+  `CultureInfo.CurrentCulture` (por ejemplo, el `StringComparer.Create
+  (CultureInfo.CurrentCulture, ...)` en el orden de unidades
+  organizativas). No hay riesgo de romper el contrato de API.
+- **`type="number"` reemplazado por `type="text" inputmode="decimal"
+  pattern="[0-9]+([,][0-9]{1,2})?"`** en los inputs de Ponderación
+  (grilla editable + form Asignar). HTML5 ignora la cultura en
+  `type="number"` y exige `"."`; la única forma nativa de aceptar coma
+  sin JS custom es migrar a `text` con `inputmode` + `pattern` +
+  validación server-side.
+- **`CargoSkillPonderacionRule.TryParse`** es tolerante: si el string
+  tiene coma y no tiene punto, la coma es separador decimal de es-AR y
+  se reemplaza por punto antes de parsear en `InvariantCulture`. Esto
+  esquiva la ambigüedad de `NumberStyles.Number` en es-AR donde la coma
+  es a la vez separador de miles y decimal (`"100,00"` sin contexto se
+  interpreta como `10000`).
+- **`AsignarCargoSkillRequestValidator.Ponderacion` ahora es
+  `NotNull`** (era opcional). El form de Asignar renderiza `value="1"`
+  como default HTML estático; si el usuario borra el valor, la validación
+  local corta antes de invocar al backend y el servicio nunca recibe un
+  payload con ponderación vacía. Se eliminó el fallback
+  `request.Ponderacion ?? PonderacionPorDefecto` en `CargoSkillServicio`
+  — alcanzar esa rama con `null` es ahora un error de programación
+  (`ArgumentNullException` defensivo).
+- **Alertas `alert-dismissible` + `btn-close`** en todos los banners de
+  feedback de `Habilidades.cshtml` (patrón vigente en
+  `Pages/Auth/SignIn.cshtml`). El usuario puede cerrar el banner sin
+  esperar al próximo PRG.
+
+### Invariantes preservados
+
+- `Personas/Edit.cshtml.cs` y `Cargos/Edit.cshtml.cs` siguen usando
+  `InvariantCulture` explícito para serializar `ReturnPage` (campo hidden
+  de paginación): son identificadores técnicos que viajan por querystring
+  y deben ser invariantes.
+- `src/SGV.Api/Program.cs` mantiene `InvariantCulture` para serializar el
+  header HTTP técnico `Retry-After`.
+
+### Archivos clave del change
+
+- `src/SGV.Web/Program.cs` — `AddLocalization` + `UseRequestLocalization`.
+- `src/SGV.Api/Program.cs` — mismo setup, pipeline API.
+- `src/SGV.Web/Pages/Organizacion/Cargos/Habilidades.cshtml` — alerts
+  dismissible, input `text`/`inputmode="decimal"`, default `1`.
+- `src/SGV.Web/Pages/Organizacion/Cargos/CargoSkillPonderacionRule.cs` —
+  parser tolerante con normalización de coma es-AR.
+- `src/SGV.Aplicacion/Organizacion/Comandos/Validaciones/AsignarCargoSkillRequestValidator.cs` —
+  regla `NotNull` para `Ponderacion`.
+- `src/SGV.Aplicacion/Organizacion/Comandos/CargoSkillServicio.cs` —
+  eliminación del fallback `PonderacionPorDefecto` (constante pública
+  removida).
+
+### Cobertura nueva
+
+- `CargoSkillPonderacionRuleTests.TryParse_WithinRange_ReturnsValidAndParsedValue`:
+  espejos es-AR (`"1,00"`, `"2,50"`, `"50,00"`, `"50,75"`, `"100,00"`).
+- `CargoHabilidadesValidationTests`:
+  `Post_Asignar_PonderacionConComaEsAR_GuardaCorrectamente`,
+  `Post_Actualizar_PonderacionConComaEsAR_GuardaCorrectamente`,
+  `Post_Asignar_PonderacionVacia_NoInvocaApiYMuestraErrorRequerido`,
+  `Render_StatusMessageAlert_LlevaAlertDismissibleYBotonClose`.
+- `CargoSkillControllerTests.UpsertSkill_PonderacionNull_Returns400ConMensajeObligatoria`.
+- Tests actualizados al nuevo contrato:
+  `AsignarCargoSkillRequestValidatorTests.Should_Have_Error_When_Ponderacion_Is_Null`,
+  `CargoSkillServicioTests.UpsertAsync_SinEsObligatoria_AplicaDefaultFalseYDevuelveDtoCompleto`,
+  `CargoSkillServicioTests.UpsertAsync_PonderacionNull_RetornaValidacionYSinGuardar`,
+  `CargoHabilidadesLoadTests` (aserción `value="2,50"` en formato es-AR),
+  `CargoHabilidadesDeleteErrorTests` (aserción `alert-dismissible`).
+
+Plan de pruebas ejecutado: `dotnet test SGV.slnx` — 2840 / 2840 verde
+(11 tests nuevos sobre la base previa de 2829).
+
 
