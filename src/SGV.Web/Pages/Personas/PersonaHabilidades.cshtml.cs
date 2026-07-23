@@ -383,16 +383,22 @@ public sealed record PersonaHabilidadesViewModel
         IReadOnlyList<PersonaSkillDetailDto> skills,
         IReadOnlyList<HabilidadListItemViewModel> habilidades,
         IReadOnlyList<NivelHabilidadDto> niveles)
-        => new()
+    {
+        var assignedSkillIds = skills.Select(skill => skill.Skill.Id).ToHashSet();
+
+        return new()
         {
             PersonaId = persona.Id,
             PersonaNombre = $"{persona.Nombres} {persona.Apellidos}",
             Skills = skills
                 .Select(skill => PersonaHabilidadRowViewModel.From(skill))
                 .ToArray(),
-            HabilidadesDisponibles = habilidades,
+            HabilidadesDisponibles = habilidades
+                .Where(habilidad => !assignedSkillIds.Contains(habilidad.Id))
+                .ToArray(),
             NivelOptions = niveles
         };
+    }
 }
 
 /// <summary>Fila de una asociación Persona-Habilidad para la grilla.</summary>

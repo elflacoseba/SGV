@@ -1,6 +1,10 @@
 @page "/organizacion/cargos/{id:guid}/habilidades"
 @model SGV.Web.Pages.Organizacion.Cargos.HabilidadesModel
 
+@section styles {
+    <link rel="stylesheet" href="/plugins/sweetalert2/sweetalert2.min.css" />
+}
+
 @{
     ViewBag.title = "Habilidades del cargo";
     ViewBag.subtitle = "Organización";
@@ -93,17 +97,17 @@ else
                                         var nivelError = ViewData.ModelState[nivelKey]?.Errors.FirstOrDefault()?.ErrorMessage;
                                         var ponderacionError = ViewData.ModelState[ponderacionKey]?.Errors.FirstOrDefault()?.ErrorMessage;
                                         var obligatoriaError = ViewData.ModelState[obligatoriaKey]?.Errors.FirstOrDefault()?.ErrorMessage;
-                                        <tr>
+                                        <tr data-skill-management-row>
                                             <td>
                                                 <div class="fw-semibold">@skill.Skill.Nombre</div>
                                                 <div class="text-muted small">@skill.Skill.Codigo</div>
                                             </td>
                                             <td colspan="4">
-                                                <form method="post" asp-page-handler="Actualizar" class="row g-2 align-items-center">
+                                                <form method="post" asp-page-handler="Actualizar" class="row g-2 align-items-center" data-skill-update-form>
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="skillId" value="@skill.SkillId" />
                                                     <div class="col-md-4">
-                                                        <select name="Actualizar[@skill.SkillId].NivelRequeridoId" class="form-select form-select-sm">
+                                                        <select name="Actualizar[@skill.SkillId].NivelRequeridoId" class="form-select form-select-sm" data-skill-editable disabled>
                                                             @foreach (var nivel in Model.NivelOptions)
                                                             {
                                                                 if (nivel.Id == skill.NivelRequeridoId)
@@ -128,7 +132,9 @@ else
                                                                step="0.01"
                                                                min="0.01"
                                                                max="100.00"
-                                                               class="form-control form-control-sm" />
+                                                               class="form-control form-control-sm"
+                                                               data-skill-editable
+                                                               disabled />
                                                         @if (!string.IsNullOrEmpty(ponderacionError))
                                                         {
                                                             <div class="invalid-feedback d-block">@ponderacionError</div>
@@ -138,11 +144,11 @@ else
                                                         <div class="form-check">
                                                             @if (skill.EsObligatoria)
                                                             {
-                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" checked="checked" class="form-check-input" />
+                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" checked="checked" class="form-check-input" data-skill-editable disabled />
                                                             }
                                                             else
                                                             {
-                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" class="form-check-input" />
+                                                                <input type="checkbox" name="Actualizar[@skill.SkillId].EsObligatoria" value="true" class="form-check-input" data-skill-editable disabled />
                                                             }
                                                             <label class="form-check-label small">Obligatoria</label>
                                                         </div>
@@ -152,12 +158,17 @@ else
                                                         }
                                                     </div>
                                                     <div class="col-md-3 d-flex gap-1">
-                                                        <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
-                                                        <button type="submit"
-                                                                formaction="?handler=Quitar&amp;skillId=@skill.SkillId"
-                                                                onclick="return confirm('¿Quitar la habilidad @skill.Skill.Nombre?');"
-                                                                class="btn btn-sm btn-outline-danger">Quitar</button>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" data-skill-edit-button>Editar</button>
+                                                        <button type="submit" class="btn btn-sm btn-primary d-none" data-skill-save-button>Guardar</button>
                                                     </div>
+                                                </form>
+                                                <form method="post" asp-page-handler="Quitar" class="d-flex justify-content-end mt-2" data-skill-delete-form>
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="skillId" value="@skill.SkillId" />
+                                                    <button type="submit"
+                                                            class="btn btn-sm btn-outline-danger"
+                                                            data-skill-delete-button
+                                                            data-skill-item-name="@skill.Skill.Nombre">Quitar</button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -227,9 +238,15 @@ else
                         <div class="d-flex gap-2 mt-4">
                             <button type="submit" class="btn btn-primary">Asignar habilidad</button>
                         </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    }
+}
+
+@section scripts {
+    <script src="/plugins/sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="/js/pages/skill-management.js"></script>
 }

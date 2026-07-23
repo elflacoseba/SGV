@@ -75,10 +75,12 @@ public sealed class PersonaHabilidadesPageTests
             null,
             true);
         var skill = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var availableSkill = new HabilidadDto(Guid.NewGuid(), "H-002", "Comunicación", null, "Conductual");
         var level = new NivelHabilidadDto(levelId, "AVZ", "Avanzado", 3, 3);
         var apiClient = FakePersonaApiClient.WithPersonaList(persona);
         apiClient.GetSkillsResult = [new PersonaSkillDetailDto(skill, level)];
-        var page = CreatePage(apiClient, authenticated: true, administrator: true);
+        var habilidadApiClient = FakeHabilidadApiClient.WithHabilidadList(skill, availableSkill);
+        var page = CreatePage(apiClient, authenticated: true, administrator: true, habilidad: habilidadApiClient);
 
         var result = await page.OnGetAsync(personaId);
 
@@ -90,6 +92,8 @@ public sealed class PersonaHabilidadesPageTests
         Assert.Equal("Liderazgo", row.SkillNombre);
         Assert.Equal(levelId, row.NivelHabilidadId);
         Assert.Equal("Avanzado", row.NivelNombre);
+        Assert.DoesNotContain(page.ViewModel.HabilidadesDisponibles, item => item.Id == skillId);
+        Assert.Contains(page.ViewModel.HabilidadesDisponibles, item => item.Id == availableSkill.Id);
         Assert.Equal([personaId], apiClient.GetSkillsCalls);
     }
 

@@ -1,6 +1,10 @@
 @page "/personas/{id:guid}/habilidades"
 @model SGV.Web.Pages.Personas.PersonaHabilidadesModel
 
+@section styles {
+    <link rel="stylesheet" href="/plugins/sweetalert2/sweetalert2.min.css" />
+}
+
 @{
     ViewBag.title = "Habilidades de la persona";
     ViewBag.subtitle = "Personas";
@@ -68,27 +72,43 @@ else
                                 <tbody>
                                     @foreach (var skill in Model.ViewModel.Skills)
                                     {
-                                        <tr>
+                                        <tr data-skill-management-row>
                                             <td>
                                                 <div class="fw-semibold">@skill.SkillNombre</div>
                                                 <div class="text-muted small">@skill.SkillCodigo</div>
                                             </td>
                                             <td>
-                                                <form method="post" asp-page-handler="Asignar" class="d-flex gap-2">
+                                                <form method="post" asp-page-handler="Asignar" id="skill-update-@skill.SkillId" class="d-flex gap-2" data-skill-update-form>
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="SkillId" value="@skill.SkillId" />
-                                                    <select name="NivelHabilidadId" class="form-select form-select-sm">
-                                                        <option value="@skill.NivelHabilidadId" selected="selected">@skill.NivelNombre</option>
+                                                    <select name="NivelHabilidadId" class="form-select form-select-sm" data-skill-editable disabled>
+                                                        @foreach (var nivel in Model.ViewModel.NivelOptions)
+                                                        {
+                                                            if (nivel.Id == skill.NivelHabilidadId)
+                                                            {
+                                                                <option value="@nivel.Id" selected="selected">@nivel.Nombre</option>
+                                                            }
+                                                            else
+                                                            {
+                                                                <option value="@nivel.Id">@nivel.Nombre</option>
+                                                            }
+                                                        }
                                                     </select>
-                                                    <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
                                                 </form>
                                             </td>
                                             <td>
-                                                <form method="post" asp-page-handler="Quitar">
-                                                    @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="SkillId" value="@skill.SkillId" />
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
-                                                </form>
+                                                <div class="d-flex gap-1">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-skill-edit-button>Editar</button>
+                                                    <button type="submit" class="btn btn-sm btn-primary d-none" form="skill-update-@skill.SkillId" data-skill-save-button>Guardar</button>
+                                                    <form method="post" asp-page-handler="Quitar" class="d-inline" data-skill-delete-form>
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="SkillId" value="@skill.SkillId" />
+                                                        <button type="submit"
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                data-skill-delete-button
+                                                                data-skill-item-name="@skill.SkillNombre">Quitar</button>
+                                                    </form>
+                                                </div>
                                             </td>
                                         </tr>
                                     }
@@ -137,9 +157,15 @@ else
                         <div class="d-flex gap-2 mt-4">
                             <button type="submit" class="btn btn-primary">Asignar habilidad</button>
                         </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    }
+}
+
+@section scripts {
+    <script src="/plugins/sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="/js/pages/skill-management.js"></script>
 }

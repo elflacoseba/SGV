@@ -141,24 +141,16 @@ public sealed partial class CargoHabilidadesPageTests
     }
 
     [Fact]
-    public async Task Get_Admin_QuitarButton_RendersConfirmPromptWithSkillName()
+    public async Task Get_Admin_RowStartsLockedAndExposesEditSaveAndSweetAlertDeleteControls()
     {
-        // Req 4 de cargo-skill-ui-tabla-editable exige que la interfaz MUST
-        // confirmar la baja antes de quitar una asociación. El handler
-        // nativo confirm() es la opción más simple y compatible con todos
-        // los navegadores modernos, y mantiene el flujo HTML5 formaction
-        // sin requerir un harness JS dedicado.
         var cargoId = Guid.NewGuid();
         var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
-
         var nivel = new NivelHabilidadDto(Guid.NewGuid(), "BAS", "Básico", 1, 1);
         var skillId = Guid.NewGuid();
-        const string skillNombre = "Liderazgo";
-        var habilidad = new HabilidadDto(skillId, "H-001", skillNombre, "Desc", "Conductual");
-
+        var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
-        apiClient.GetSkillsResult = new[]
-        {
+        apiClient.GetSkillsResult =
+        [
             new CargoSkillDetailDto(habilidad, nivel)
             {
                 SkillId = skillId,
@@ -166,41 +158,70 @@ public sealed partial class CargoHabilidadesPageTests
                 Ponderacion = 1.00m,
                 EsObligatoria = false
             }
-        };
-
+        ];
         var habilidadApiClient = new FakeHabilidadApiClient
         {
-            NivelesResult = new[] { nivel }
+            NivelesResult = [nivel]
         };
 
         await using var lease = await _fixture.CreateCargoLeaseAsync(
-            apiClient,
-            habilidadApiClient,
-            adminRole: true);
+            apiClient, habilidadApiClient, adminRole: true);
 
         var response = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        // El botón Quitar debe invocar confirm() con return para cancelar
-        // el submit cuando el usuario rechaza. El mensaje MUST identificar
-        // la habilidad concreta (interpolando el nombre vía Razor) para que
-        // el admin no quite una asociación por accidente.
-        var quitarButtonMatch = Regex.Match(
-            content,
-            @"<button[^>]*formaction=""\?handler=Quitar[^>]*>[^<]*Quitar</button>",
-            RegexOptions.IgnoreCase);
-        Assert.True(quitarButtonMatch.Success, "Quitar button was not rendered.");
-        var quitarButton = quitarButtonMatch.Value;
-        var onclickMatch = Regex.Match(
-            quitarButton,
-            @"onclick\s*=\s*""([^""]*)""",
-            RegexOptions.IgnoreCase);
-        Assert.True(
-            onclickMatch.Success,
-            "Quitar button must declare an onclick attribute.");
-        var onclickValue = onclickMatch.Groups[1].Value;
-        Assert.Contains("return confirm(", onclickValue, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(skillNombre, onclickValue, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-management-row", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-editable", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("disabled", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-edit-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-save-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-delete-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sweetalert2.all.min.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("skill-management.js", content, StringComparison.OrdinalIgnoreCase);
+
+        // Contrato DOM endurezido (cambio fix Quitar wiring): el botón
+        // Quitar debe ser type="submit" (no type="button") para que
+        // form.requestSubmit(submitter) del JS funcione con un submitter
+        // real. La aserción regex rechaza markup con type="button" o sin
+        // type explícito en el botón marcado con data-skill-delete-button.
+        Assert.Matches(
+            new Regex(@"<button[^>]*type\s*=\s*""submit""[^>]*data-skill-delete-button",
+                RegexOptions.IgnoreCase),
+            content);
+
+        // Contrato DOM endurezido (cambio fix Quitar wiring): Quitar vive
+        // en un <form data-skill-delete-form> APARTE del Actualizar
+        // <form data-skill-update-form>. Ambos forms deben tener su
+        // propia action apuntando al handler correspondiente. La regex
+        // exige que el form con data-skill-delete-form tenga action
+        // terminando en ?handler=Quitar y que el form con
+        // data-skill-update-form tenga action terminando en
+        // ?handler=Actualizar — la dirección de cada formulario es lo
+        // que blinda contra el bug previo del fallback
+        // deleteForm.submit() que caía en Actualizar.
+        Assert.Matches(
+            new Regex(@"<form[^>]*data-skill-delete-form[^>]*action\s*=\s*""[^""]*\?handler=Quitar""",
+                RegexOptions.IgnoreCase),
+            content);
+        Assert.Matches(
+            new Regex(@"<form[^>]*data-skill-update-form[^>]*action\s*=\s*""[^""]*\?handler=Actualizar""",
+                RegexOptions.IgnoreCase),
+            content);
+
+        // Anti-regresión estructural: el form Quitar debe ser hermano del
+        // form Actualizar dentro del mismo row, NO anidado dentro. Si el
+        // form Quitar quedara nested dentro del Actualizar (caso previo
+        // del bug), el navegador ignora el form anidado y el submit del
+        // botón caería al form padre — resucitando el misroute. La regex
+        // exige que entre el cierre </form> del Actualizar y la apertura
+        // <form data-skill-delete-form> NO haya otro <form> que las
+        // separe — probando que ambos forms conviven como pares
+        // abrir/cerrar independientes en la fila.
+        Assert.Matches(
+            new Regex(
+                @"<form[^>]*data-skill-update-form[^>]*>.*?</form>.*?<form[^>]*data-skill-delete-form[^>]*>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline),
+            content);
     }
 }

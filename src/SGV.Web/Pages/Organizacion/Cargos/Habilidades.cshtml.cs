@@ -140,9 +140,13 @@ public sealed class HabilidadesModel(
 
             await Task.WhenAll(skillsTask, nivelesTask, habilidadesTask);
 
-            Skills = skillsTask.Result;
+            var skills = skillsTask.Result;
+            var assignedSkillIds = skills.Select(skill => skill.SkillId).ToHashSet();
+
+            Skills = skills;
             NivelOptions = nivelesTask.Result;
             HabilidadesDisponibles = habilidadesTask.Result
+                .Where(h => !assignedSkillIds.Contains(h.Id))
                 .Select(h => new HabilidadListItemViewModel(
                     h.Id, h.Codigo, h.Nombre, h.Descripcion, h.Categoria))
                 .ToArray();

@@ -422,8 +422,12 @@ public sealed partial class CargoHabilidadesPageTests
                 ["Ponderacion"] = new[] { "Anclaje-por-fila A" }
             });
 
+        var habilidadApiClient = new FakeHabilidadApiClient
+        {
+            NivelesResult = [nivel]
+        };
         await using var lease = await _fixture.CreateCargoLeaseAsync(
-            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+            apiClient, habilidadApiClient, adminRole: true);
 
         var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
         var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);

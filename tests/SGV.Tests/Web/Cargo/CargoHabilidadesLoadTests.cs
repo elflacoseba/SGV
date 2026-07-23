@@ -48,6 +48,7 @@ public sealed partial class CargoHabilidadesPageTests
         var nivelAvanzado = new NivelHabilidadDto(Guid.NewGuid(), "AVZ", "Avanzado", 3, 3);
         var skillId = Guid.NewGuid();
         var habilidad = new HabilidadDto(skillId, "H-001", "Liderazgo", "Desc", "Conductual");
+        var availableSkill = new HabilidadDto(Guid.NewGuid(), "H-002", "Comunicación", null, "Conductual");
 
         var apiClient = FakeCargoApiClient.WithCargoList(cargo);
         apiClient.GetSkillsResult = new[]
@@ -65,10 +66,8 @@ public sealed partial class CargoHabilidadesPageTests
         // de habilidades (no del catálogo del vínculo). Sin catálogo, el
         // select de la fila queda vacío y el NivelRequeridoId no aparece
         // en el HTML.
-        var habilidadApiClient = new FakeHabilidadApiClient
-        {
-            NivelesResult = new[] { nivelBasico, nivelAvanzado }
-        };
+        var habilidadApiClient = FakeHabilidadApiClient.WithHabilidadList(habilidad, availableSkill);
+        habilidadApiClient.NivelesResult = [nivelBasico, nivelAvanzado];
 
         await using var lease = await _fixture.CreateCargoLeaseAsync(
             apiClient,
@@ -95,5 +94,13 @@ public sealed partial class CargoHabilidadesPageTests
         // usuario entienda qué opción está aplicada sin tener que abrir
         // el dropdown.
         Assert.Contains("Avanzado", content, StringComparison.OrdinalIgnoreCase);
+
+        var assignSelect = Regex.Match(
+            content,
+            @"<select[^>]*name=""AsignarInput\.SkillId""[^>]*>(?<options>.*?)</select>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        Assert.True(assignSelect.Success);
+        Assert.DoesNotContain(skillId.ToString(), assignSelect.Groups["options"].Value, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(availableSkill.Id.ToString(), assignSelect.Groups["options"].Value, StringComparison.OrdinalIgnoreCase);
     }
 }

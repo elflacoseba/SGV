@@ -8,6 +8,7 @@ using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Common;
+using SGV.Tests.Web.Habilidad;
 using Xunit;
 
 namespace SGV.Tests.Web.Persona;
@@ -416,8 +417,63 @@ public sealed class PersonaHabilidadesIntegrationTests
         Assert.DoesNotContain("network down", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Get_Admin_RowStartsLockedAndExposesEditSaveAndSweetAlertDeleteControls()
+    {
+        var persona = BuildActivePersona();
+        var skillId = Guid.NewGuid();
+        var level = new NivelHabilidadDto(Guid.NewGuid(), "BAS", "Básico", 1, 1);
+        var apiClient = FakePersonaApiClient.WithPersonaList(persona);
+        apiClient.GetSkillsResult =
+        [
+            new PersonaSkillDetailDto(
+                new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual"),
+                level)
+        ];
+        var habilidadApiClient = FakeHabilidadApiClient.WithHabilidadList();
+        habilidadApiClient.NivelesResult = [level];
+
+        await using var lease = await _fixture.CreatePersonaLeaseAsync(
+            apiClient, habilidadApiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/personas/{persona.Id}/habilidades");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-skill-management-row", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-editable", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("disabled", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-edit-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-save-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-skill-delete-button", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sweetalert2.all.min.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("skill-management.js", content, StringComparison.OrdinalIgnoreCase);
+
+        // Contrato DOM endurezido (cambio fix Quitar wiring): el botón
+        // Quitar debe ser type="submit" para que form.requestSubmit(submitter)
+        // del JS funcione con un submitter real (antes era type="button" y
+        // requestSubmit(submitter) lanzaba NotSupportedError, abortando el
+        // submit del POST). La aserción regex exige type="submit"
+        // explícito en el botón marcado con data-skill-delete-button.
+        Assert.Matches(
+            new Regex(
+                @"<button[^>]*type\s*=\s*""submit""[^>]*data-skill-delete-button",
+                RegexOptions.IgnoreCase),
+            content);
+
+        // Contrato DOM endurezido: el form Quitar debe apuntar a
+        // handler=Quitar vía tag helper asp-page-handler. Esto blinda
+        // contra una regresión donde el form Quitar quede con action
+        // vacía/heredada y el submit del botón termine en un handler
+        // equivocado.
+        Assert.Matches(
+            new Regex(
+                @"<form[^>]*data-skill-delete-form[^>]*action\s*=\s*""[^""]*\?handler=Quitar""",
+                RegexOptions.IgnoreCase),
+            content);
+    }
+
     // ──────────────────────────────────────────────
-    // 3b.4 — Bridge JWT end-to-end para el subrecurso persona-skill
     // (analog a ApiBearerTokenIntegrationTests para Cargo).
     // ──────────────────────────────────────────────
 
