@@ -114,6 +114,7 @@ Para que los catálogos inmutables seedeados por migración tengan IDs estables 
 |-----------------|---------------------------------|---------------------------|----------------------------------|
 | `70000000-…`    | `NivelCargo` (issue #141)       | `NivelCargoConstantes`    | `DirectivoId`, `OperativoId`     |
 | `71000000-…`    | `TipoDocumento` (issue #147)    | `TipoDocumentoConstantes` | `DniId`, `LeId`, `LcId`, `PasaporteId` |
+| `72000000-…`    | `CategoriaHabilidad` (issue migrar-campo-categoria-habilidades-a-tabla) | `CategoriaHabilidadConstantes` | `ConduccionId`, `TecnicaId`, `DominioId`, `AcademicaId` |
 | (libre)         | Próximos catálogos              | reservado                 | —                                |
 
 **Por qué bloques y no IDs al azar.** Los seed values se persisten tanto en `DatosSemilla.HasData` (model snapshot path) como en `InsertData` dentro de la migración EF. Un test de paridad (`DatosSemilla_*_SeedIdsMatchConstantes`) asserta que ambos lugares usen la misma source-of-truth. Si los IDs se generaran con `Guid.NewGuid()`, ese test sería frágil: cualquier `add migration` accidental movería los IDs en el snapshot sin tocar la fila viva. Con bloques reservados por catálogo, los IDs quedan explícitos en el código de constantes y el bloque de 16 bits sirve como una "etiqueta" legible del catálogo dueño.
@@ -709,5 +710,78 @@ habilidades de Cargos:
 
 Plan de pruebas ejecutado: `dotnet test SGV.slnx` — 2840 / 2840 verde
 (11 tests nuevos sobre la base previa de 2829).
+
+## Variantes opt-in del REQ-SPA-EVOLUTION-001
+
+> Change: `migrar-campo-categoria-habilidades-a-tabla`. Slice 1 / 4 de la
+> capability `categoria-habilidad-catalog`. Artefactos SDD completos en
+> `openspec/changes/migrar-campo-categoria-habilidades-a-tabla/`.
+
+### Rationale
+
+`Habilidad.Categoria` es texto libre. Se introduce el catálogo inmutable
+`CategoriasHabilidad` (bloque `72000000-…`) con FK opcional
+`Habilidades.CategoriaId` (Guid?). Para preservar los datos legacy que
+NO matcheen ningún `Nombre` del seed (e.g. `"Otra cosa"`), la migración
+NO aborta — los strings sucios caen a `CategoriaId = NULL` con
+**auditoría de la transición** en la tabla `Auditorias` (columna
+`NewValuesJson`) para remediación post-deploy.
+
+### Patrón
+
+- FK nullable (`Habilidades.CategoriaId: Guid?`).
+- Backfill case-insensitive con `LOWER(h.Categoria) = LOWER(c.Nombre)`.
+- Sin match → `CategoriaId = NULL` + fila en `Auditorias` con
+  `Metadata = { Origen: "Migracion.AddCategoriaHabilidadCatalog", CategoriaOriginal: <valor legacy> }`.
+- FK constraint `OnDelete(Restrict)` (la categoría no se borra si está en uso).
+- Pre-flight NO fail-loud: lista los valores sucios para logging.
+- Forward-only: `Down()` lanza `NotSupportedException` (precedente
+  `FixActivePuestoIdUniqueType`).
+
+### Precedentes (instancias documentadas de REQ-SPA-EVOLUTION-001)
+
+| # | Catálogo                | Variante                              | Precedente (issue)        |
+|---|-------------------------|---------------------------------------|---------------------------|
+| 1 | `NivelCargo`            | strict (sin opt-in)                   | #141                      |
+| 2 | `TipoDocumento`         | opt-in relajada (FK nullable + audit) | #147                      |
+| 3 | (reservada)             | —                                     | —                         |
+| 4 | `CategoriaHabilidad`    | opt-in relajada (cuarta invocación)   | migrar-campo-categoria-habilidades-a-tabla |
+
+### Tradeoffs aceptados
+
+- Habilita rollback parcial si una nueva fila seed no resuelve un
+  valor legacy sucio.
+- La auditoría permite remediación post-deploy via SQL:
+  `SELECT * FROM Auditorias WHERE EntityName = 'Habilidad' AND Operation = 'BackfillLegacyCategoriaToNull'`.
+- La FK sigue `OnDelete(Restrict)` para evitar borrado accidental de
+  categorías en uso.
+
+### Cobertura nueva
+
+- `tests/SGV.Tests/Persistencia/CategoriaHabilidadConstantesTests.cs`:
+  4 Guids únicos en bloque reservado `72000000-…`, semilla `HasData`
+  alineada con `DatosSemilla`.
+- `tests/SGV.Tests/Persistencia/CategoriaHabilidadMigracionTests.cs`
+  (11 tests `[MySqlFact]`): estructura post-migración, seed, FK
+  Restrict, backfill case-insensitive, variante opt-in relajada con
+  auditoría, drop index/columna legacy, idempotencia, `Down()`
+  forward-only.
+- `tests/SGV.Tests/Api/CategoriasHabilidadControllerTests.cs`:
+  integración con `WebApplicationFactory` (200/401/404/405, shape JSON).
+
+### Archivos clave
+
+- `src/SGV.Dominio/Habilidades/CategoriaHabilidad.cs` (sealed record +
+  `Reconstitute` factory).
+- `src/SGV.Dominio/Habilidades/CategoriaHabilidadRules.cs` (constantes
+  de longitud: `CodigoMaxLength = 50`, `NombreMaxLength = 100`).
+- `src/SGV.Infraestructura/Persistencia/Entidades/CategoriaHabilidadEntity.cs`:
+  paridad con `TipoDocumentoEntity` (sin `IsActive`/`IsDeleted`).
+- `src/SGV.Infraestructura/Persistencia/Catalogos/CategoriaHabilidadConstantes.cs`:
+  source of truth para seeds y migración.
+- `src/SGV.Infraestructura/Persistencia/Migraciones/20260723203015_AddCategoriaHabilidadCatalog.cs`:
+  migración forward-only con backfill opt-in relajado.
+- `src/SGV.Api/Controllers/CategoriasHabilidadController.cs`: read-only,
+  `[Authorize]`, default-deny.
 
 
