@@ -12,7 +12,14 @@ function wireSkillManagement(root, swal) {
 
         if (updateForm && editButton && saveButton) {
             editButton.addEventListener('click', function () {
-                updateForm.querySelectorAll('[data-skill-editable]').forEach(function (control) {
+                // Buscar los editables dentro de la FILA, no dentro del form.
+                // El form Actualizar solo contiene el hidden skillId; los
+                // controles editables (NivelRequeridoId, Ponderacion,
+                // EsObligatoria) viven fuera del form y se asocian vía
+                // atributo form="...". Si los buscamos dentro del form,
+                // nunca se habilitan y el POST envía el form vacío
+                // → backend rechaza NivelRequeridoId y Ponderacion.
+                row.querySelectorAll('[data-skill-editable]').forEach(function (control) {
                     control.disabled = false;
                 });
                 editButton.classList.add('d-none');
