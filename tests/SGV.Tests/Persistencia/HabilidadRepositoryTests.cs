@@ -308,7 +308,7 @@ public sealed class HabilidadRepositoryTests
             Assert.NotNull(habilidad);
 
             var nuevoCodigo = entity.Codigo + "-V2";
-            habilidad!.Actualizar(nuevoCodigo, "Modificado", Guid.NewGuid(), "Desc modificada");
+            habilidad!.Actualizar(nuevoCodigo, "Modificado", CategoriaHabilidadConstantes.AcademicaId, "Desc modificada");
             await repo.UpdateAsync(habilidad, default);
             await context.SaveChangesAsync();
 
