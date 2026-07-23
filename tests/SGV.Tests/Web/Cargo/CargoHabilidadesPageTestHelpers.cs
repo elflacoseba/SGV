@@ -12,13 +12,17 @@ namespace SGV.Tests.Web.Cargo;
 
 public sealed partial class CargoHabilidadesPageTests
 {
-    private static FormUrlEncodedContent BuildAsignarForm(string antiforgeryToken, Guid skillId, Guid nivelId) =>
+    private static FormUrlEncodedContent BuildAsignarForm(
+        string antiforgeryToken,
+        Guid skillId,
+        Guid nivelId,
+        string ponderacion = "50.00") =>
         new(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
             ["AsignarInput.SkillId"] = skillId.ToString(),
             ["AsignarInput.NivelRequeridoId"] = nivelId.ToString(),
-            ["AsignarInput.Ponderacion"] = "50.00"
+            ["AsignarInput.Ponderacion"] = ponderacion
         });
 
     /// <summary>

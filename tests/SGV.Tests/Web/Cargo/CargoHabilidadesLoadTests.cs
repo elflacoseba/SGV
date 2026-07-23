@@ -88,8 +88,10 @@ public sealed partial class CargoHabilidadesPageTests
         // variable según la serialización del Guid.
         var guidString = nivelAvanzado.Id.ToString().ToLowerInvariant();
         Assert.Contains(guidString, content, StringComparison.OrdinalIgnoreCase);
-        // La ponderación persistida se rehidrata en el input.
-        Assert.Contains($@"value=""2.50", content, StringComparison.OrdinalIgnoreCase);
+        // La ponderación persistida se rehidrata en el input. Issue #191
+        // cambió la cultura por defecto a es-AR, así que el separador
+        // decimal renderizado ahora es "," en lugar de ".".
+        Assert.Contains($@"value=""2,50", content, StringComparison.OrdinalIgnoreCase);
         // La fila expone el nombre del nivel seleccionado para que el
         // usuario entienda qué opción está aplicada sin tener que abrir
         // el dropdown.

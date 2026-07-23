@@ -481,4 +481,168 @@ var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync())
             sliceB,
             StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────
+    // Issue #191 — Cultura es-AR, ponderación obligatoria, alerts dismissibles
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Asignar_PonderacionConComaEsAR_GuardaCorrectamente()
+    {
+        // Issue #191 problema 2: el form debe aceptar coma decimal (es-AR)
+        // además del punto invariante. El rule tolerante intenta primero
+        // InvariantCulture y luego es-AR; con "1,50" el camino es-AR gana
+        // y la ponderación se persiste como 1.50m.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
+            new CargoSkillDto(skillId, nivelId) { Ponderacion = 1.50m, EsObligatoria = false });
+
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
+            BuildAsignarForm(antiforgeryToken, skillId, nivelId, ponderacion: "1,50"));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var upsert = Assert.Single(apiClient.SkillUpsertCalls);
+        Assert.Equal(1.50m, upsert.Request.Ponderacion);
+    }
+
+    [Fact]
+    public async Task Post_Actualizar_PonderacionConComaEsAR_GuardaCorrectamente()
+    {
+        // Espejo del caso Asignar pero en el path Actualizar (fila editable
+        // de la grilla). Mismo contrato: coma es-AR debe llegar al backend
+        // como decimal invariante.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.GetSkillsResult = new[]
+        {
+            new CargoSkillDetailDto(
+                new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual"),
+                new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3))
+            {
+                SkillId = skillId,
+                NivelRequeridoId = nivelId,
+                Ponderacion = 1.00m,
+                EsObligatoria = false
+            }
+        };
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
+            new CargoSkillDto(skillId, nivelId) { Ponderacion = 2.50m, EsObligatoria = false });
+
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Actualizar&skillId={skillId}",
+            BuildActualizarForm(antiforgeryToken, skillId, nivelId, ponderacion: "2,50"));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var upsert = Assert.Single(apiClient.SkillUpsertCalls);
+        Assert.Equal(2.50m, upsert.Request.Ponderacion);
+    }
+
+    [Fact]
+    public async Task Post_Asignar_PonderacionVacia_NoInvocaApiYMuestraErrorRequerido()
+    {
+        // Issue #191 problema 3: si el usuario borra el valor por defecto
+        // (HTML estático "1") y envía vacío, la validación local corta
+        // antes de invocar al backend. El handler no debe llegar al cliente
+        // API y la página re-renderizada debe mostrar el mensaje
+        // localizado del rule ("La ponderación debe estar entre...").
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
+            new CargoSkillDto(skillId, nivelId) { Ponderacion = 1m, EsObligatoria = false });
+
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Asignar",
+            BuildAsignarForm(antiforgeryToken, skillId, nivelId, ponderacion: ""));
+
+        // OK (200) — el handler cortó antes de salir al backend y
+        // re-renderizó la página con el error de validación.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(apiClient.SkillUpsertCalls);
+
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        Assert.Contains(
+            "La ponderación debe estar entre",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Render_StatusMessageAlert_LlevaAlertDismissibleYBotonClose()
+    {
+        // Issue #191 problema 1: el banner de feedback tras un PRG debe
+        // ser dismissible (alert-dismissible + botón btn-close) para que
+        // el usuario pueda cerrarlo sin esperar al próximo redirect.
+        // Esta cobertura blinda la decisión de UI acordada en el issue.
+        var cargoId = Guid.NewGuid();
+        var skillId = Guid.NewGuid();
+        var nivelId = Guid.NewGuid();
+        var cargo = new CargoDto(cargoId, "C-001", "Director", null, Guid.NewGuid(), "Senior");
+        var apiClient = FakeCargoApiClient.WithCargoList(cargo);
+        apiClient.GetSkillsResult = new[]
+        {
+            new CargoSkillDetailDto(
+                new HabilidadDto(skillId, "H-001", "Liderazgo", null, "Conductual"),
+                new NivelHabilidadDto(nivelId, "AVZ", "Avanzado", 3, 3))
+            {
+                SkillId = skillId,
+                NivelRequeridoId = nivelId,
+                Ponderacion = 1.00m,
+                EsObligatoria = false
+            }
+        };
+        apiClient.SkillUpsertResult = CargoSkillCommandResult.Success(
+            new CargoSkillDto(skillId, nivelId) { Ponderacion = 1m, EsObligatoria = false });
+
+        await using var lease = await _fixture.CreateCargoLeaseAsync(
+            apiClient, new FakeHabilidadApiClient(), adminRole: true);
+
+        // Disparar un POST que setea TempData con success y redirige via PRG.
+        var getResponse = await lease.Client.GetAsync($"/organizacion/cargos/{cargoId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+        var postResponse = await lease.Client.PostAsync(
+            $"/organizacion/cargos/{cargoId}/habilidades?handler=Quitar&skillId={skillId}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+
+        // Seguir el redirect → el GET renderizado debe contener la alerta
+        // con la clase alert-dismissible y el botón btn-close de Bootstrap.
+        var refreshed = await lease.Client.GetAsync(postResponse.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Contains("alert-dismissible", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("btn-close", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("data-bs-dismiss=\"alert\"", refreshedContent, StringComparison.Ordinal);
+    }
 }

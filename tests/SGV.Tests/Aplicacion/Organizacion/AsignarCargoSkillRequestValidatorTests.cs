@@ -85,13 +85,14 @@ public sealed class AsignarCargoSkillRequestValidatorTests
     }
 
     [Fact]
-    public void Should_Not_Have_Error_When_Ponderacion_Is_Null()
+    public void Should_Have_Error_When_Ponderacion_Is_Null()
     {
         var request = RequestValido(ponderacion: null);
 
         var result = _validator.TestValidate(request);
 
-        result.ShouldNotHaveValidationErrorFor(r => r.Ponderacion);
+        result.ShouldHaveValidationErrorFor(r => r.Ponderacion)
+              .WithErrorMessage("La ponderación es obligatoria.");
     }
 
     [Theory]
@@ -114,7 +115,7 @@ public sealed class AsignarCargoSkillRequestValidatorTests
     [Fact]
     public void Should_Not_Have_Error_When_EsObligatoria_Is_Null()
     {
-        var request = RequestValido(esObligatoria: null);
+        var request = RequestValido(ponderacion: 1.00m, esObligatoria: null);
 
         var result = _validator.TestValidate(request);
 
@@ -126,7 +127,7 @@ public sealed class AsignarCargoSkillRequestValidatorTests
     [InlineData(false)]
     public void Should_Not_Have_Error_When_EsObligatoria_Is_Bool(bool esObligatoria)
     {
-        var request = RequestValido(esObligatoria: esObligatoria);
+        var request = RequestValido(ponderacion: 1.00m, esObligatoria: esObligatoria);
 
         var result = _validator.TestValidate(request);
 

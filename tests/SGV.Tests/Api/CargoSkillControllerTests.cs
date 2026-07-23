@@ -510,6 +510,45 @@ public sealed class CargoSkillControllerTests
     }
 
     [Fact]
+    public async Task UpsertSkill_PonderacionNull_Returns400ConMensajeObligatoria()
+    {
+        // Issue #191: la ponderación pasó de opcional a obligatoria. Un
+        // payload con Ponderacion=null debe rechazarse con 400 y un
+        // ValidationProblemDetails que contenga la clave 'ponderacion'
+        // con el mensaje "La ponderación es obligatoria." — esto valida
+        // el flujo completo request → FluentValidation → controller.
+        var fake = new FakeCargoSkillServicio
+        {
+            UpsertHandler = (_, _, _, _) => Task.FromResult(
+                CargoSkillCommandResult.Failure(
+                    new CargoSkillError(CargoSkillErrorType.Validation, "DatosInvalidos",
+                        "Uno o más campos del vínculo contienen errores de validación."),
+                    new Dictionary<string, string[]>
+                    {
+                        ["ponderacion"] = ["La ponderación es obligatoria."]
+                    }))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<ICargoSkillServicio>();
+            services.AddSingleton<ICargoSkillServicio>(fake);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new { nivelRequeridoId = ExistingNivelRequeridoId, ponderacion = (decimal?)null });
+
+        var response = await client.PutAsync(
+            $"/api/v1/cargos/{ExistingCargoId}/skills/{ExistingSkillId}", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+        Assert.True(doc.RootElement.TryGetProperty("errors", out var errors));
+        Assert.True(errors.TryGetProperty("ponderacion", out var ponderacionErrors));
+        var messages = ponderacionErrors.EnumerateArray().Select(e => e.GetString()).ToArray();
+        Assert.Contains("La ponderación es obligatoria.", messages);
+    }
+
+    [Fact]
     public async Task UpsertSkill_ValidationErrorSinFieldErrors_MantieneProblemDetails()
     {
         // PR2-T2.2: un error de validación sin FieldErrors (e.g. NotFound

@@ -109,7 +109,9 @@ public sealed partial class CargoHabilidadesPageTests
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Contains("No se pudo contactar", refreshedContent, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("class=\"alert alert-danger\"", refreshedContent, StringComparison.Ordinal);
+        // Issue #191: las alertas ahora son dismissible para que el usuario
+        // pueda cerrarlas sin esperar al próximo redirect.
+        Assert.Contains("class=\"alert alert-danger alert-dismissible\"", refreshedContent, StringComparison.Ordinal);
         // El stack trace / tipo de excepción NO debe filtrarse al HTML.
         Assert.DoesNotContain("HttpRequestException", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("network down", refreshedContent, StringComparison.OrdinalIgnoreCase);
@@ -152,7 +154,9 @@ public sealed partial class CargoHabilidadesPageTests
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
         Assert.Contains("ya no existe", refreshedContent, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("class=\"alert alert-warning\"", refreshedContent, StringComparison.Ordinal);
+        // Issue #191: las alertas ahora son dismissible para que el usuario
+        // pueda cerrarlas sin esperar al próximo redirect.
+        Assert.Contains("class=\"alert alert-warning alert-dismissible\"", refreshedContent, StringComparison.Ordinal);
     }
 
     // ──────────────────────────────────────────────

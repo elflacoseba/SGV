@@ -40,7 +40,7 @@ public sealed class CargoSkillServicioTests
 
     private static AsignarCargoSkillRequest CrearRequest(
         Guid? nivelRequeridoId = null,
-        decimal? ponderacion = null,
+        decimal? ponderacion = 1.00m,
         bool? esObligatoria = null)
         => new(nivelRequeridoId ?? NivelIdValido, ponderacion, esObligatoria);
 
@@ -122,7 +122,7 @@ public sealed class CargoSkillServicioTests
     // ── UpsertAsync — Defaults del vínculo (T1.1) ───────────────
 
     [Fact]
-    public async Task UpsertAsync_SinPonderacionNiEsObligatoria_AplicaDefaultsYDevuelveDtoCompleto()
+    public async Task UpsertAsync_SinEsObligatoria_AplicaDefaultFalseYDevuelveDtoCompleto()
     {
         var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
         var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
@@ -134,7 +134,7 @@ public sealed class CargoSkillServicioTests
         var resultado = await servicio.UpsertAsync(
             CargoIdValido,
             SkillIdValido,
-            CrearRequest(),
+            CrearRequest(), // Ponderacion = 1.00m (default), EsObligatoria = null
             default);
 
         Assert.True(resultado.IsSuccess);
@@ -143,6 +143,29 @@ public sealed class CargoSkillServicioTests
         Assert.Equal(NivelIdValido, resultado.Value.NivelRequeridoId);
         Assert.Equal(1.00m, resultado.Value.Ponderacion);
         Assert.False(resultado.Value.EsObligatoria);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_PonderacionNull_RetornaValidacionYSinGuardar()
+    {
+        var cargoRepo = new FakeCargoReadRepositoryForSkills(CargoActivo);
+        var habilidadRepo = new FakeHabilidadReadRepository(HabilidadActiva);
+        var nivelRepo = new FakeNivelHabilidadRepo(NivelValido);
+        var skillRepo = new FakeCargoSkillRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(cargoRepo, habilidadRepo, nivelRepo, skillRepo, uow);
+
+        var resultado = await servicio.UpsertAsync(
+            CargoIdValido,
+            SkillIdValido,
+            new AsignarCargoSkillRequest(NivelIdValido, Ponderacion: null, EsObligatoria: null),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(CargoSkillErrorType.Validation, resultado.Error!.Type);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.True(resultado.FieldErrors!.ContainsKey("ponderacion"));
+        Assert.Equal(0, uow.SaveChangesCount);
     }
 
     [Fact]
