@@ -3246,5 +3246,346 @@ DELIMITER ;
 CALL MigrationsScript();
 DROP PROCEDURE MigrationsScript;
 
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    CREATE TABLE `CategoriasHabilidad` (
+        `Id` char(36) COLLATE ascii_general_ci NOT NULL,
+        `Codigo` varchar(50) COLLATE ascii_general_ci NOT NULL,
+        `Nombre` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+        CONSTRAINT `PK_CategoriasHabilidad` PRIMARY KEY (`Id`),
+        CONSTRAINT `CK_CategoriasHabilidad_Codigo` CHECK (`Codigo` <> '')
+    ) CHARACTER SET=utf8mb4;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    INSERT INTO `CategoriasHabilidad` (`Id`, `Codigo`, `Nombre`)
+    VALUES ('72000000-0000-0000-0000-000000000000', 'Conduccion', 'Conducción'),
+    ('72000000-0000-0000-0000-000000000001', 'Tecnica', 'Técnica'),
+    ('72000000-0000-0000-0000-000000000002', 'Dominio', 'Dominio'),
+    ('72000000-0000-0000-0000-000000000003', 'Academica', 'Académica');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    CREATE UNIQUE INDEX `IX_CategoriasHabilidad_Codigo` ON `CategoriasHabilidad` (`Codigo`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+
+                    CREATE TEMPORARY TABLE IF NOT EXISTS _DirtyCategoriaHabilidad AS
+                    SELECT DISTINCT h.Categoria
+                    FROM Habilidades h
+                    WHERE h.Categoria IS NOT NULL
+                      AND LOWER(h.Categoria) NOT IN (
+                          SELECT LOWER(Nombre) FROM CategoriasHabilidad
+                      );
+
+                    SET @dirtyCount = (SELECT COUNT(*) FROM _DirtyCategoriaHabilidad);
+                    SET @dirtyExamples = (
+                        SELECT COALESCE(GROUP_CONCAT(DISTINCT Categoria SEPARATOR ', '), 'ninguno')
+                        FROM (SELECT Categoria FROM _DirtyCategoriaHabilidad LIMIT 5) AS d
+                    );
+
+                    -- Log diagnóstico (no aborta). Se puede inspeccionar vía
+                    -- SHOW ENGINE INNODB STATUS o capturando el output del
+                    -- EF migration.
+                    SELECT CONCAT('Backfill opt-in relajado: ', @dirtyCount,
+                                  ' valores de Categoria sin catalogar. Ejemplos: ',
+                                  @dirtyExamples) AS _backfill_diagnostics;
+
+                    DROP TEMPORARY TABLE IF EXISTS _DirtyCategoriaHabilidad;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    ALTER TABLE `Habilidades` ADD `CategoriaId` char(36) COLLATE ascii_general_ci NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    CREATE INDEX `IX_Habilidades_CategoriaId` ON `Habilidades` (`CategoriaId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+
+                    UPDATE Habilidades h
+                    INNER JOIN CategoriasHabilidad c ON LOWER(c.Nombre) = LOWER(h.Categoria)
+                    SET h.CategoriaId = c.Id
+                    WHERE h.Categoria IS NOT NULL;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+
+                    INSERT INTO Auditorias (Id, UserId, OccurredAt, EntityName, EntityId, Operation, NewValuesJson)
+                    SELECT
+                        UUID(),
+                        NULL,
+                        UTC_TIMESTAMP(6),
+                        'Habilidad',
+                        h.Id,
+                        'BackfillLegacyCategoriaToNull',
+                        JSON_OBJECT(
+                            'Origen', 'Migracion.AddCategoriaHabilidadCatalog',
+                            'CategoriaOriginal', h.Categoria
+                        )
+                    FROM Habilidades h
+                    WHERE h.Categoria IS NOT NULL AND h.CategoriaId IS NULL;
+                
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    UPDATE `Habilidades` SET `CategoriaId` = '72000000-0000-0000-0000-000000000000'
+    WHERE `Id` = '50000000-0000-0000-0000-000000000001';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    UPDATE `Habilidades` SET `CategoriaId` = '72000000-0000-0000-0000-000000000000'
+    WHERE `Id` = '50000000-0000-0000-0000-000000000002';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    UPDATE `Habilidades` SET `CategoriaId` = '72000000-0000-0000-0000-000000000001'
+    WHERE `Id` = '50000000-0000-0000-0000-000000000003';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    UPDATE `Habilidades` SET `CategoriaId` = '72000000-0000-0000-0000-000000000001'
+    WHERE `Id` = '50000000-0000-0000-0000-000000000004';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    UPDATE `Habilidades` SET `CategoriaId` = '72000000-0000-0000-0000-000000000001'
+    WHERE `Id` = '50000000-0000-0000-0000-000000000005';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    UPDATE `Habilidades` SET `CategoriaId` = '72000000-0000-0000-0000-000000000002'
+    WHERE `Id` = '50000000-0000-0000-0000-000000000006';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    UPDATE `Habilidades` SET `CategoriaId` = '72000000-0000-0000-0000-000000000003'
+    WHERE `Id` = '50000000-0000-0000-0000-000000000007';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    ALTER TABLE `Habilidades` ADD CONSTRAINT `FK_Habilidades_CategoriasHabilidad_CategoriaId` FOREIGN KEY (`CategoriaId`) REFERENCES `CategoriasHabilidad` (`Id`) ON DELETE RESTRICT;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    ALTER TABLE `Habilidades` DROP INDEX `IX_Habilidades_Categoria`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    ALTER TABLE `Habilidades` DROP COLUMN `Categoria`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260723203015_AddCategoriaHabilidadCatalog') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260723203015_AddCategoriaHabilidadCatalog', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
 COMMIT;
 
