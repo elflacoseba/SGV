@@ -315,7 +315,7 @@ public sealed class PersonaHabilidadesModel(
 
             var habilidades = habilidadesTask.Result
                 .Select(h => new HabilidadListItemViewModel(
-                    h.Id, h.Codigo, h.Nombre, h.Descripcion, h.Categoria))
+                    h.Id, h.Codigo, h.Nombre, h.Descripcion, h.CategoriaNombre))
                 .ToArray();
             var niveles = (IReadOnlyList<NivelHabilidadDto>)nivelesTask.Result;
 

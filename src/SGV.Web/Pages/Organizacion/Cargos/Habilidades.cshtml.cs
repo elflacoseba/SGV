@@ -148,7 +148,7 @@ public sealed class HabilidadesModel(
             HabilidadesDisponibles = habilidadesTask.Result
                 .Where(h => !assignedSkillIds.Contains(h.Id))
                 .Select(h => new HabilidadListItemViewModel(
-                    h.Id, h.Codigo, h.Nombre, h.Descripcion, h.Categoria))
+                    h.Id, h.Codigo, h.Nombre, h.Descripcion, h.CategoriaNombre))
                 .ToArray();
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
