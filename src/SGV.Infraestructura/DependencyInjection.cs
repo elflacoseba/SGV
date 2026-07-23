@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<ICargoRepository, CargoRepository>();
         services.AddScoped<IPuestoRepository, PuestoRepository>();
         services.AddScoped<IHabilidadRepository, HabilidadRepository>();
+        services.AddScoped<ICategoriaHabilidadRepository, CategoriaHabilidadRepository>();
         services.AddScoped<ITipoUnidadOrganizativaRepository, TipoUnidadOrganizativaRepository>();
         services.AddScoped<INivelCargoRepository, NivelCargoRepository>();
         services.AddScoped<ITipoDocumentoRepository, TipoDocumentoRepository>();
@@ -58,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<ICargoServicioConsulta, CargoServicioConsulta>();
         services.AddScoped<IPuestoServicioConsulta, PuestoServicioConsulta>();
         services.AddScoped<IHabilidadServicioConsulta, HabilidadServicioConsulta>();
+        services.AddScoped<ICategoriaHabilidadServicioConsulta, CategoriaHabilidadServicioConsulta>();
         services.AddScoped<ITipoUnidadOrganizativaServicioConsulta, TipoUnidadOrganizativaServicioConsulta>();
         services.AddScoped<INivelCargoServicioConsulta, NivelCargoServicioConsulta>();
         services.AddScoped<ITipoDocumentoCatalogoConsulta, TipoDocumentoCatalogoConsulta>();
