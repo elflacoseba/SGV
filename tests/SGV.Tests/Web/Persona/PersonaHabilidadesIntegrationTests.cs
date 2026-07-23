@@ -254,7 +254,7 @@ public sealed class PersonaHabilidadesIntegrationTests
         var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
-        Assert.Contains("class=\"alert alert-danger\"", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("class=\"alert alert-danger alert-dismissible\"", refreshedContent, StringComparison.Ordinal);
         Assert.Contains("nivel", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("NivelHabilidadNoExiste", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("at SGV.", refreshedContent, StringComparison.OrdinalIgnoreCase);
@@ -298,7 +298,7 @@ public sealed class PersonaHabilidadesIntegrationTests
         var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
-        Assert.Contains("class=\"alert alert-danger\"", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("class=\"alert alert-danger alert-dismissible\"", refreshedContent, StringComparison.Ordinal);
         Assert.Contains("no existe", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("PersonaNoEncontrada", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
@@ -338,7 +338,7 @@ public sealed class PersonaHabilidadesIntegrationTests
         var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
-        Assert.Contains("class=\"alert alert-danger\"", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("class=\"alert alert-danger alert-dismissible\"", refreshedContent, StringComparison.Ordinal);
         Assert.Contains("No se pudo contactar", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("HttpRequestException", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("network down", refreshedContent, StringComparison.OrdinalIgnoreCase);
@@ -378,7 +378,7 @@ public sealed class PersonaHabilidadesIntegrationTests
         var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
-        Assert.Contains("class=\"alert alert-warning\"", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("class=\"alert alert-warning alert-dismissible\"", refreshedContent, StringComparison.Ordinal);
         Assert.Contains("ya no existe", refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -411,10 +411,53 @@ public sealed class PersonaHabilidadesIntegrationTests
         var refreshed = await lease.Client.GetAsync(response.Headers.Location);
         var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
 
-        Assert.Contains("class=\"alert alert-danger\"", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("class=\"alert alert-danger alert-dismissible\"", refreshedContent, StringComparison.Ordinal);
         Assert.Contains("No se pudo contactar", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("HttpRequestException", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("network down", refreshedContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Render_StatusMessageAlert_LlevaAlertDismissibleYBotonClose()
+    {
+        // Espejo del CargoHabilidadesValidationTests.Render_StatusMessageAlert_Lleva
+        // AlertDismissibleYBotonClose: el banner de feedback tras un PRG
+        // debe ser dismissible (alert-dismissible + botón btn-close) para
+        // que el usuario pueda cerrarlo sin esperar al próximo redirect.
+        // Esta cobertura blinda la decisión de UI acordada en el patrón
+        // vigente del módulo Cargos (commit a96eeea9), llevada al módulo
+        // Personas.
+        var personaId = Guid.NewGuid();
+        var persona = new PersonaDto(
+            personaId, "L-001", "Ana", "García",
+            null, null, null, null, null, null, true);
+        var apiClient = FakePersonaApiClient.WithPersonaList(persona);
+        // SkillDeleteResult default = Success NoContent, suficiente para
+        // que el handler setee TempData success y emita PRG.
+
+        var skillId = Guid.NewGuid();
+
+        await using var lease = await _fixture.CreatePersonaLeaseAsync(apiClient, adminRole: true);
+
+        // Follow the GET (warming antiforgery) → POST Quitar → PRG →
+        // GET redirect chain. El GET renderizado debe contener la alerta
+        // con la clase alert-dismissible y el botón btn-close de Bootstrap.
+        var getResponse = await lease.Client.GetAsync($"/personas/{personaId}/habilidades");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+        var postResponse = await lease.Client.PostAsync(
+            $"/personas/{personaId}/habilidades?handler=Quitar&skillId={skillId}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+
+        var refreshed = await lease.Client.GetAsync(postResponse.Headers.Location);
+        var refreshedContent = HttpUtility.HtmlDecode(await refreshed.Content.ReadAsStringAsync());
+
+        Assert.Contains("alert-dismissible", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("btn-close", refreshedContent, StringComparison.Ordinal);
+        Assert.Contains("data-bs-dismiss=\"alert\"", refreshedContent, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -14,7 +14,10 @@
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
 {
-    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+    <div class="alert alert-@Model.StatusKind alert-dismissible" role="alert">
+        @Model.StatusMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
 }
 
 @if (Model.ViewModel.IsRecoverable)
@@ -36,8 +39,9 @@
 }
 else if (!Model.EsAdministrador)
 {
-    <div class="alert alert-danger" role="alert">
+    <div class="alert alert-danger alert-dismissible" role="alert">
         Esta sección requiere rol Administrador.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
     </div>
 }
 else
