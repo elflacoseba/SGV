@@ -57,6 +57,16 @@ internal static class PersistenceToDomainMapper
 
     public static Habilidad ToDomain(HabilidadEntity entity)
     {
+        // Si el repositorio cargó la navegación Categoria con Include, propagamos
+        // la CategoriaHabilidad hidratada para que HabilidadDto.CategoriaNombre
+        // pueda proyectarse sin un round-trip extra (issue
+        // migrar-campo-categoria-habilidades-a-tabla). Cuando la navegación es
+        // null, Categoria queda null y el wire devuelve CategoriaNombre = null
+        // (consistente con CategoriaId nullable).
+        CategoriaHabilidad? categoria = entity.Categoria is null
+            ? null
+            : ToDomain(entity.Categoria);
+
         return Habilidad.Reconstitute(
             entity.Id,
             entity.Codigo,
@@ -70,7 +80,8 @@ internal static class PersistenceToDomainMapper
             entity.UpdatedByUserId,
             entity.IsDeleted,
             entity.DeletedAt,
-            entity.DeletedByUserId);
+            entity.DeletedByUserId,
+            categoria);
     }
 
     public static CategoriaHabilidad ToDomain(CategoriaHabilidadEntity entity)

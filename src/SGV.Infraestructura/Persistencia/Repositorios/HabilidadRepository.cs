@@ -16,6 +16,25 @@ public sealed class HabilidadRepository(SgvDbContext context)
 
     protected override Habilidad MapToDomain(HabilidadEntity entity) => PersistenceToDomainMapper.ToDomain(entity);
 
+    /// <summary>
+    /// Override del base <c>ReadOnlyRepository.GetByIdAsync</c> para garantizar
+    /// que la navegación <see cref="HabilidadEntity.Categoria"/> se carga con un
+    /// LEFT JOIN y el mapper de dominio puede proyectar <c>CategoriaNombre</c>
+    /// en <c>HabilidadDto</c> (issue
+    /// migrar-campo-categoria-habilidades-a-tabla). Sin esta carga,
+    /// <c>GET /api/v1/skills/{id}</c> devolvía <c>CategoriaNombre = null</c>
+    /// aunque la FK existiera, rompiendo REQ-CAT-07.
+    /// </summary>
+    public override async Task<Habilidad?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await Query
+            .Include(h => h.Categoria)
+            .FirstOrDefaultAsync(h => h.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        return entity is null ? null : MapToDomain(entity);
+    }
+
     public override async Task<IReadOnlyList<Habilidad>> ListAllAsync(CancellationToken cancellationToken = default)
     {
         // LEFT JOIN CategoriasHabilidad para proyectar CategoriaNombre y

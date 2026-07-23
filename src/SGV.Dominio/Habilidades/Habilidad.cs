@@ -120,7 +120,8 @@ public sealed record class Habilidad : EntidadAuditable
         string? updatedByUserId,
         bool isDeleted,
         DateTime? deletedAt,
-        string? deletedByUserId)
+        string? deletedByUserId,
+        CategoriaHabilidad? categoria = null)
     {
         var self = new Habilidad
         {
@@ -139,6 +140,7 @@ public sealed record class Habilidad : EntidadAuditable
         self.Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), HabilidadRules.CodigoMaxLength);
         self.Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
         self.CategoriaId = categoriaId;
+        self.Categoria = categoria;
         self.Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
         self.IsActive = isActive;
 
