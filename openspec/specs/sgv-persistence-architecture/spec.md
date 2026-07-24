@@ -166,3 +166,49 @@ The system MAY introduce Identity-specific persistence customization only to sat
 - WHEN persistence behavior changes for authentication data
 - THEN the change MUST be limited to mandatory Persona linkage and fixed role catalog behavior
 - AND MUST NOT alter unrelated SGV domain persistence behavior.
+
+### Requirement: REQ-124-1 — Reconstitute factories tipadas
+
+Las entidades de dominio que requieren reconstitución desde la capa de persistencia DEBEN exponer una factory estática interna `Reconstitute(...)` con setters tipados (sin reflexión). Los parámetros DEBEN incluir todos los campos persistibles en el orden canónico: `Id + auditoría + IsDeleted` → datos primarios → `IsActive` → propiedades de navegación.
+
+#### Scenario: Las 6 entidades exponen `internal static Reconstitute(...)`
+
+- **GIVEN** las entidades Cargo, Habilidad, Puesto, Persona, Ocupacion y UnidadOrganizativa son reconstituidas desde persistencia
+- **WHEN** se invoca `ToDomain(TEntity)` en `PersistenceToDomainMapper`
+- **THEN** cada una DEBE delegar a su factory `internal static Reconstitute(...)` con la signatura exacta definida en su diseño
+- **AND** los setters DEBEN ser tipados (sin `PropertyInfo.SetValue` ni `BindingFlags.NonPublic`)
+
+#### Scenario: `PersistenceToDomainMapper.ToDomain(TEntity)` delega al factory
+
+- **GIVEN** el mapper recibe una entidad EF Core (`CargoEntity`, `HabilidadEntity`, etc.)
+- **WHEN** se ejecuta `ToDomain(TEntity)`
+- **THEN** el mapper DEBE invocar directamente `Entidad.Reconstitute(...)`
+- **AND** NO DEBE pasar por `PropertyInfo.SetValue` ni `SetProperty<T>`
+
+### Requirement: REQ-124-2 — IL Guards estructurales
+
+Cada entidad con `Reconstitute` DEBE tener un test IL estructural que verifique que ningún código del mapper reintroduce `PropertyInfo.SetValue` ni el helper `SetProperty<T>`.
+
+#### Scenario: 6 IL guards verifican la ausencia de reflexión
+
+- **GIVEN** la implementación actual de `PersistenceToDomainMapper` usa factories tipados
+- **WHEN** se ejecutan los 6 tests `ToDomain_*_NoLlamaSetPropertyReflectionHelper`
+- **THEN** los 6 DEBEN pasar (Cargo, Habilidad, Puesto, Persona, Ocupacion — 5 nuevos — más UnidadOrganizativa existente)
+- **AND** cada test DEBE inspeccionar `MethodBody.GetILAsByteArray()`, decodificar tokens `0x28`/`0x6F`, y fallar si resuelve `SetProperty` declarada en `PersistenceToDomainMapper`
+
+#### Scenario: Build limpio sin `using System.Reflection`
+
+- **GIVEN** el archivo `PersistenceToDomainMapper.cs` fue limpiado
+- **WHEN** se ejecuta `grep -n "System.Reflection\|PropertyInfo\|SetProperty" src/SGV.Infraestructura/Persistencia/Mapeos/PersistenceToDomainMapper.cs`
+- **THEN** DEBE devolver 0 hits
+- **AND** `grep -rn "PropertyInfo\.SetValue" src/` DEBE devolver 0 hits
+
+### Requirement: REQ-124-3 — Sin nuevas migraciones EF Core
+
+El refactor de reconstitución NO DEBE introducir cambios en el schema de base de datos.
+
+#### Scenario: Sin migraciones nuevas
+
+- **GIVEN** el cambio solo modifica clases C# de dominio y el mapper
+- **WHEN** se ejecuta `git status -- src/SGV.Infraestructura/Persistencia/Migraciones/`
+- **THEN** DEBE estar limpio (sin archivos nuevos ni modificados)

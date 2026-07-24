@@ -17,6 +17,6 @@
 
 ## PR 3 (CU-3 + CU-4 + CU-5) — Docs + verify (pendiente)
 
-- [ ] **3-DOC**: Delta de specs (operational-readiness + docs)
-- [ ] **4-DOC**: Subsección "Contrato runtime MySQL" en `docs/decisiones-implementacion.md`
-- [ ] **5-VERIFY**: Ejecutar suite completa y archivar change
+- [x] **3-DOC**: Delta de specs (operational-readiness + docs)
+- [x] **4-DOC**: Subsección "Contrato runtime MySQL" en `docs/decisiones-implementacion.md`
+- [x] **5-VERIFY**: Ejecutar suite completa y archivar change
