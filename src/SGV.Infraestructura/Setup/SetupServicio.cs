@@ -116,9 +116,13 @@ public sealed class SetupServicio(
         }
         catch (Exception ex)
         {
+            var sanitizedUserName = (request.UserName ?? string.Empty)
+                .Replace("\r", string.Empty)
+                .Replace("\n", string.Empty);
+
             logger.LogError(ex,
                 "Setup inicial falló durante la creación de Persona (UserName={UserName})",
-                request.UserName);
+                sanitizedUserName);
             return SetupCommandResult.Failure(TransaccionFallida("No se pudo crear la persona administradora."));
         }
 
