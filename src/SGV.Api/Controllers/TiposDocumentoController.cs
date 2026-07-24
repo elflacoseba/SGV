@@ -25,13 +25,18 @@ public class TiposDocumentoController : ControllerBase
 
     /// <summary>
     /// Lista todos los tipos de documento del catálogo (4 filas seed: DNI/LE/LC/Pasaporte).
+    /// Issue #195: <c>[AllowAnonymous]</c> en este endpoint para que el
+    /// formulario de setup inicial pueda cargar el dropdown de
+    /// <c>TipoDocumento</c> sin requerir un admin logueado
+    /// (chicken-and-egg). El resto del controller (<c>GetById</c>)
+    /// mantiene la autorización heredada de <c>[Authorize]</c> a nivel clase.
     /// </summary>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
     /// <returns>Lista de tipos de documento.</returns>
     /// <response code="200">Lista devuelta correctamente.</response>
     [HttpGet]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IReadOnlyList<TipoDocumentoDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<TipoDocumentoDto>>> GetAll(
         CancellationToken cancellationToken)
     {

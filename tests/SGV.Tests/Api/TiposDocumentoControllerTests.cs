@@ -37,14 +37,23 @@ public sealed class TiposDocumentoControllerTests
     }
 
     [Fact]
-    public async Task GetAll_SinAuth_401()
+    public async Task GetAll_SinAuth_Devuelve4Tipos_Issue195AllowAnonymous()
     {
+        // Issue #195 REQ-SETUP-005: el catálogo de TipoDocumento se carga
+        // en /auth/setup antes de que exista un admin logueado. La acción
+        // GetAll ahora está marcada [AllowAnonymous] mientras que GetById
+        // mantiene [Authorize] heredado. Verificamos que el catálogo es
+        // público (200) pero GetById sigue exigiendo auth (401).
         var factory = _fixture.RootFactory;
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/tipos-documento");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var dtos = JsonSerializer.Deserialize<List<TipoDocumentoDto>>(json, JsonOptions);
+        Assert.NotNull(dtos);
+        Assert.Equal(4, dtos!.Count);
     }
 
     [Fact]

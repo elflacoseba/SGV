@@ -224,6 +224,11 @@ public sealed class SwaggerConfigurationTests
                 continue;
             if (path.Name.StartsWith("/api/v1/ocupaciones", StringComparison.OrdinalIgnoreCase))
                 continue;
+            // Issue #195: el setup inicial es one-time y expone POST
+            // anónimo para crear el primer Administrador. No encaja en
+            // la regla "no-org resources solo exponen GET".
+            if (path.Name.StartsWith("/api/v1/setup", StringComparison.OrdinalIgnoreCase))
+                continue;
 
             foreach (var operation in path.Value.EnumerateObject())
             {
