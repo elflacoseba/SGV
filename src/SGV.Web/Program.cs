@@ -15,6 +15,7 @@ using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Health;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Integration.Setup;
 using SGV.Web.Integration.Usuarios;
 
 [assembly: InternalsVisibleTo("SGV.Tests")]
@@ -230,6 +231,28 @@ builder.Services.AddHttpClient<IUsuarioApiClient, UsuarioApiClient>((serviceProv
     client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+// Setup inicial one-time del primer Administrador (issue #195 / WU-4
+// del change `setup-admin-inicial-issue-195`). El cliente es
+// explícitamente anónimo: NO usa ApiBearerTokenHandler porque los
+// endpoints /api/v1/setup y /api/v1/tipos-documento están
+// [AllowAnonymous] desde el PR #1 (chicken-and-egg: el primer admin
+// no puede autenticarse si todavía no existe). El cache de status
+// vive en IMemoryCache, registrado por
+// `builder.Services.AddMemoryCache()` justo debajo.
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<ISetupApiClient, SetupApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    // 10s paralelo a AuthApiClient: el status y el submit del setup
+    // no pueden esperar el HttpClient default (100s); un timeout
+    // largo se confunde con un crash y TaskCanceledException debe
+    // traducirse a un mensaje recuperable en la Razor Page.
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+// NO `.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>())`:
+// los endpoints de setup son [AllowAnonymous].
 
 // Health checks — upstream probe and response writer
 builder.Services.AddHealthChecks()

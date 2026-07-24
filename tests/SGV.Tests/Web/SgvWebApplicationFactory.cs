@@ -12,6 +12,7 @@ using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Integration.Setup;
 using SGV.Web.Integration.Usuarios;
 
 namespace SGV.Tests.Web;
@@ -32,6 +33,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly IPuestosApiClient? _puestosApiClient;
     private readonly IPersonaApiClient? _personaApiClient;
     private readonly IUsuarioApiClient? _usuarioApiClient;
+    private readonly ISetupApiClient? _setupApiClient;
     private readonly RecordingLoggerProvider? _recordingLoggerProvider;
 
     public SgvWebApplicationFactory()
@@ -49,6 +51,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IPuestosApiClient? puestosApiClient,
         IPersonaApiClient? personaApiClient,
         IUsuarioApiClient? usuarioApiClient,
+        ISetupApiClient? setupApiClient = null,
         RecordingLoggerProvider? recordingLoggerProvider = null)
     {
         _configureServices = configureServices;
@@ -61,6 +64,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         _puestosApiClient = puestosApiClient;
         _personaApiClient = personaApiClient;
         _usuarioApiClient = usuarioApiClient;
+        _setupApiClient = setupApiClient;
         _recordingLoggerProvider = recordingLoggerProvider;
     }
 
@@ -75,6 +79,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IPuestosApiClient? puestosApiClient = null,
         IPersonaApiClient? personaApiClient = null,
         IUsuarioApiClient? usuarioApiClient = null,
+        ISetupApiClient? setupApiClient = null,
         RecordingLoggerProvider? recordingLoggerProvider = null)
     {
         return new SgvWebApplicationFactory(
@@ -88,6 +93,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             puestosApiClient,
             personaApiClient,
             usuarioApiClient,
+            setupApiClient,
             recordingLoggerProvider);
     }
 
@@ -110,6 +116,17 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     /// </summary>
     public SgvWebApplicationFactory WithUsuarioApiClient(IUsuarioApiClient fake)
         => WithOverrides(usuarioApiClient: fake);
+
+    /// <summary>
+    /// Convenience helper para inyectar un fake de
+    /// <see cref="ISetupApiClient"/> en el contenedor del host. El
+    /// setup inicial (issue #195 / WU-4) no requiere autenticación,
+    /// por eso este helper se usa combinado con
+    /// <see cref="WebIntegrationFixture.CreateSetupLeaseAsync"/> en
+    /// vez del <c>CreateAuthenticatedLeaseAsync</c> estándar.
+    /// </summary>
+    public SgvWebApplicationFactory WithSetupApiClient(ISetupApiClient fake)
+        => WithOverrides(setupApiClient: fake);
 
     /// <summary>
     /// Convenience helper to swap <see cref="IHabilidadApiClient"/> for a fake
@@ -218,6 +235,12 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<IUsuarioApiClient>();
                 services.AddSingleton(_usuarioApiClient);
+            }
+
+            if (_setupApiClient is not null)
+            {
+                services.RemoveAll<ISetupApiClient>();
+                services.AddSingleton(_setupApiClient);
             }
 
             if (_recordingLoggerProvider is not null)

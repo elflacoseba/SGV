@@ -8,19 +8,33 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Web.Integration.Auth;
+using SGV.Web.Integration.Setup;
 
 namespace SGV.Web.Pages.Auth;
 
 public sealed class SignInModel(
     IAuthApiClient authApiClient,
     IAuthSessionFactory authSessionFactory,
+    ISetupApiClient setupApiClient,
     ILogger<SignInModel> logger) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public void OnGet()
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
+        // Issue #195 / WU-5: si AspNetUsers está vacía, redirigir a
+        // /auth/setup. El cliente `ISetupApiClient` aplica fail-open
+        // con cache TTL 30s (design §2.3), por eso una caída de la
+        // API NO rompe el acceso a producción: simplemente
+        // renderizamos SignIn normalmente.
+        var status = await setupApiClient.ObtenerEstadoAsync(cancellationToken).ConfigureAwait(false);
+        if (status.RequiresSetup)
+        {
+            return RedirectToPage("/Auth/Setup");
+        }
+
+        return Page();
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)

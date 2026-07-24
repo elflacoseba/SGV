@@ -1,0 +1,106 @@
+@page "/auth/setup"
+@model SGV.Web.Pages.Auth.SetupModel
+
+@{
+    ViewBag.title = "Configuración Inicial";
+    ViewBag.BodyClass = "auth-body";
+}
+
+<div class="auth-box overflow-hidden align-items-center d-flex">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-xxl-6 col-md-8 col-sm-10">
+                <div class="auth-brand text-center mb-4">
+                    <a class="logo-dark" href="/">
+                        <img alt="SGV" src="/images/logo-black.png" />
+                    </a>
+                    <h4 class="fw-bold mt-3">Configuración Inicial</h4>
+                    <p class="text-muted w-lg-75 mx-auto">
+                        Creá el primer usuario Administrador del sistema. Este paso se realiza una sola vez.
+                    </p>
+                </div>
+
+                <div class="card p-4">
+                    <form method="post">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.Nombres" class="form-label">Nombres</label>
+                                <input asp-for="Input.Nombres" class="form-control" autocomplete="given-name" />
+                                <span asp-validation-for="Input.Nombres" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.Apellidos" class="form-label">Apellidos</label>
+                                <input asp-for="Input.Apellidos" class="form-control" autocomplete="family-name" />
+                                <span asp-validation-for="Input.Apellidos" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.Legajo" class="form-label">Legajo</label>
+                                <input asp-for="Input.Legajo" class="form-control" autocomplete="off" />
+                                <span asp-validation-for="Input.Legajo" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.Telefono" class="form-label">Teléfono</label>
+                                <input asp-for="Input.Telefono" class="form-control" autocomplete="tel" />
+                                <span asp-validation-for="Input.Telefono" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Input.Email" class="form-label">Correo electrónico</label>
+                            <input asp-for="Input.Email" class="form-control" type="email" autocomplete="email" />
+                            <span asp-validation-for="Input.Email" class="text-danger"></span>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.UserName" class="form-label">Nombre de usuario</label>
+                                <input asp-for="Input.UserName" class="form-control" autocomplete="username" />
+                                <span asp-validation-for="Input.UserName" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.Password" class="form-label">Contraseña</label>
+                                <input asp-for="Input.Password" class="form-control" type="password" autocomplete="new-password" />
+                                <span asp-validation-for="Input.Password" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.TipoDocumentoId" class="form-label">Tipo de documento</label>
+                                @{
+                                    // Texto = Codigo (DNI/PAS/LE/LC) según el patrón del
+                                    // _Form de Personas: las etiquetas visibles son los
+                                    // códigos canónicos del catálogo, no los nombres
+                                    // descriptivos largos.
+                                    var tiposOptions = new SelectList(
+                                        Model.TiposDocumentoOptions,
+                                        nameof(SelectListItem.Value),
+                                        nameof(SelectListItem.Text));
+                                }
+                                <select asp-for="Input.TipoDocumentoId" class="form-select" asp-items="tiposOptions">
+                                    <option value="">— Sin documento —</option>
+                                </select>
+                                <span asp-validation-for="Input.TipoDocumentoId" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Input.NumeroDocumento" class="form-label">Número de documento</label>
+                                <input asp-for="Input.NumeroDocumento" class="form-control" autocomplete="off" />
+                                <span asp-validation-for="Input.NumeroDocumento" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="d-grid mt-3">
+                            <button class="btn btn-primary fw-semibold py-2" type="submit">Crear Administrador</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
