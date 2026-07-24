@@ -784,4 +784,57 @@ NO aborta — los strings sucios caen a `CategoriaId = NULL` con
 - `src/SGV.Api/Controllers/CategoriasHabilidadController.cs`: read-only,
   `[Authorize]`, default-deny.
 
+## Setup inicial del primer administrador — issue #195
+
+> Change: `setup-admin-inicial-issue-195`. Artefactos SDD completos en `openspec/changes/setup-admin-inicial-issue-195/`. Chain strategy: `feature-branch-chain` con 3 PRs encadenados contra tracker `feat/setup-admin-inicial-issue-195`. PRs [#196](https://github.com/elflacoseba/SGV/pull/196) (backend) y [#197](https://github.com/elflacoseba/SGV/pull/197) (frontend) mergeados; este PR (#3) cierra la documentación.
+
+### Contexto y problema
+
+La issue #195 atacó un chicken-and-egg operacional: con la base vacía ningún endpoint puede crear el primer admin porque la fallback policy vigente (`RequireAuthenticatedUser()`) rechaza sin token, y nadie tiene credenciales todavía. El fix expone un flujo de setup completamente anónimo, one-time, restringido a bases sin filas en `AspNetUsers`. Diseño completo y tradeoffs en `openspec/changes/setup-admin-inicial-issue-195/design.md`.
+
+### Las seis decisiones técnicas
+
+| # | Decisión | Justificación compacta |
+|---|----------|------------------------|
+| §2.1 | Aislamiento MySQL default (`REPEATABLE READ`) + índice único `IX_AspNetUsers_NormalizedUserName` de Identity como defensa real contra race | `SERIALIZABLE` y gap locks son sutiles en MySQL InnoDB; el índice único rechaza el duplicado vía `UserManager.CreateAsync` → `IdentityResult.DuplicateUserName`. Alternativas rechazadas: advisory locks, `INSERT ... ON DUPLICATE KEY UPDATE`. |
+| §2.2 | `[AllowAnonymous]` en `SetupController` (status + post) y en `TiposDocumentoController.GetAll`; `GetById` mantiene `[Authorize]` heredado | El catálogo `TipoDocumento` es inmutable (4 filas seed). `GetAll` no expone PII. Patrón idéntico a `AuthController.Login`. |
+| §2.3 | Fail-open con `IMemoryCache` TTL 30s en `SetupApiClient.ObtenerEstadoAsync` ante `HttpRequestException` / `TaskCanceledException` | Fail-closed rompería el acceso a producción ante una caída de API. El cache absorbe fallas transitorias; la UI igual permite POST y el server responde 409 si ya hay admin. |
+| §2.4 | Enum `SetupErrorCode` (10 valores) reusando `UsuarioIdentityGateway.IdentityErrorMap` | Mapeo centralizado `IdentityError.Code → SetupErrorCode → HTTP`. Evita filtrar detalles de Identity al cliente. |
+| §2.5 | Rate limit `AddFixedWindowLimiter("Setup", 5 req / 15 min)` aplicado sólo a `POST /api/v1/setup` (no al status) | Consistente con `ForgotPassword` (3 req) y `ResetPassword` (5 req). El status no muta y ya está protegido por cache de 30s. |
+| §2.6 | `409 Conflict` con código `SetupYaCompletado` cuando `AspNetUsers` ya tiene filas | Coincide con la taxonomía vigente (`UsuarioErrorType.Conflict`); `404 Gone` es raro y semánticamente confuso para "endpoint cerrado pero vivo". |
+
+### Desviaciones documentadas (W-001, W-002)
+
+- **W-001 — Atomicidad best-effort.** Pomelo 9 + MySqlConnector no exponen `BeginTransactionAsync` anidados con SAVEPOINT explícito; el gateway de Identity maneja su propia transacción interna. Si `PersonaServicio.CrearAsync` ok pero `identityGateway.CrearAsync` falla, se compensa con `PersonaServicioComandos.DesactivarAsync` (soft-delete de Persona) y rollback manual. Audit es best-effort (si falla se loggea warning, no se hace rollback). Estado final siempre consistente: 1 admin válido o ninguno; una `Persona` huérfana soft-deleted queda como residuo aceptable porque el setup es one-time y la próxima vuelta encuentra `IsDeleted=1` que no cuenta para `AnyUsersAsync`. Ver `verify-report.md` §"Hallazgos WARNING".
+- **W-002 — `AnyUsersAsync` se ejecuta fuera de la transacción outer.** Por la misma limitación de W-001 no hay transacción EF única que envuelva la guarda + creación. La defensa contra doble admin simultáneo es el índice único de Identity, probado por `SetupConcurrencyMySqlFactTests` (1×200 + 1×409|500).
+
+### Fail-open con cache TTL 30s — riesgo aceptado
+
+Si el setup completo se hace en otro nodo antes de que la cache local expire, el nodo actual puede ver `RequiresSetup=true` stale hasta 30s. La UI igual permite POST y el server responde 409 con `SetupYaCompletado`, así que la ventana de confusión UX es acotada y recuperable. Aceptable porque la probabilidad de setup concurrente entre nodos es despreciable en escenarios reales.
+
+### Archivos clave
+
+**PR #1 (backend, [#196](https://github.com/elflacoseba/SGV/pull/196))** — `src/SGV.Contracts/Setup/*.cs` (5 archivos), `src/SGV.Aplicacion/Setup/*.cs` (4 archivos), `src/SGV.Infraestructura/Setup/SetupServicio.cs`, `src/SGV.Api/Controllers/SetupController.cs`, ediciones en `src/SGV.Api/Program.cs` (rate limit) y `src/SGV.Api/Controllers/TiposDocumentoController.cs` (`[AllowAnonymous]`).
+
+**PR #2 (frontend, [#197](https://github.com/elflacoseba/SGV/pull/197))** — `src/SGV.Web/Integration/Setup/{ISetupApiClient,SetupApiClient,SetupHttpResult}.cs`, `src/SGV.Web/Pages/Auth/Setup.{cshtml,cshtml.cs}`, edición en `src/SGV.Web/Pages/Auth/SignIn.cshtml.cs` (redirect), `AddMemoryCache` + `AddHttpClient<ISetupApiClient,SetupApiClient>` en `src/SGV.Web/Program.cs`.
+
+**PR #3 (docs, este)** — esta sección de `docs/decisiones-implementacion.md`.
+
+### Tests
+
+- **PR #1** — 17 tests nuevos (`tests/SGV.Tests/Setup/*`): 6 unit, 11 integración `[MySqlFact]`. Cubren happy path, 409 por setup ya completado, validación 400, concurrencia 1×200 + 1×409, auditoría `userId="system"`, rate limit 429 + `Retry-After: 900`, 500 transaccional.
+- **PR #2** — 27 tests nuevos (`tests/SGV.Tests/Web/Auth/Setup*` + `tests/SGV.Tests/Web/Integration/Setup/*`): render de 9 campos, dropdown `TipoDocumento`, PRG a `/auth/sign-in` con `TempData`, fieldErrors por campo, errores de transporte recuperables, cache TTL 30s verificado contra `IMemoryCache` real, redirect de `SignIn` cuando `RequiresSetup=true`.
+
+### Riesgos residuales
+
+1. **Persona huérfana soft-deleted** (W-001) — ventana de race entre `Persona.CrearAsync` y `identityGateway.CrearAsync` deja 0-1 Persona con `IsDeleted=1`. Probabilidad <0.01%; el siguiente intento del usuario da 409 limpio.
+2. **Stale cache TTL 30s** (§2.3) — si setup completo ocurre en otro nodo, el actual puede servir `RequiresSetup=true` stale hasta 30s. UI y server lo manejan sin pérdida de datos.
+3. **Auditoría best-effort** (W-001) — si `AuditoriaServicio.RegistrarAsync` falla por columna o constraint inesperada, la transacción commit no se aborta (sólo log). El log estructurado previo al commit cubre el intento. Razonable: la auditoría del setup completo debe ser atómica con la creación o nada.
+
+### Follow-up
+
+- **S-002 (`verify-report.md`)** — detectar `DbUpdateException` con constraint `IX_AspNetUsers_NormalizedUserName` en `SetupServicio.CrearAdminAsync` y mapear consistentemente a `SetupErrorCode.UserNameDuplicado` (hoy el race puede terminar como 409 o 500 según el path que tome Pomelo).
+- **Re-autenticación automática post-setup** (out of scope original) — el usuario debe volver a `/auth/sign-in` y tipear credenciales. Mejora futura: emitir cookie/JWT directamente al completar el setup.
+- **Email de verificación** (out of scope original) — el setup crea la cuenta y termina; no hay flujo de confirmación.
+
 
