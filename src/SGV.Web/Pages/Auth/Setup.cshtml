@@ -23,13 +23,6 @@
                 <div class="card p-4">
                     <form method="post">
                         @Html.AntiForgeryToken()
-                        @if (TempData["SetupSuccess"] is string setupMessage)
-                        {
-                            <div class="alert alert-success alert-dismissible" role="status">
-                                @setupMessage
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-                            </div>
-                        }
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
                         <div class="row">

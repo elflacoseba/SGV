@@ -47,11 +47,10 @@ public sealed class SetupModel(
             return RedirectToPage("/Auth/SignIn");
         }
 
-        var tipos = await setupApiClient.GetTiposDocumentoAsync(cancellationToken).ConfigureAwait(false);
-        TiposDocumentoOptions = tipos
-            .Select(t => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem(t.Codigo, t.Id.ToString()))
-            .ToList();
-
+        // Usamos LoadTiposDocumentoAsync (con try-catch) en vez de llamar
+        // directamente a GetTiposDocumentoAsync para evitar un 500 si el
+        // catálogo falla después de que el status se cacheó como true.
+        await LoadTiposDocumentoAsync(cancellationToken).ConfigureAwait(false);
         return Page();
     }
 
@@ -70,9 +69,9 @@ public sealed class SetupModel(
             Email: Input.Email,
             UserName: Input.UserName,
             Password: Input.Password,
-            TipoDocumentoId: string.IsNullOrWhiteSpace(Input.TipoDocumentoId)
+            TipoDocumentoId: string.IsNullOrWhiteSpace(Input.TipoDocumentoId) || !Guid.TryParse(Input.TipoDocumentoId, out var tipoDocId)
                 ? null
-                : Guid.Parse(Input.TipoDocumentoId),
+                : tipoDocId,
             NumeroDocumento: string.IsNullOrWhiteSpace(Input.NumeroDocumento) ? null : Input.NumeroDocumento,
             Telefono: string.IsNullOrWhiteSpace(Input.Telefono) ? null : Input.Telefono);
 

@@ -45,13 +45,15 @@ public sealed class SetupApiClient(
     ILogger<SetupApiClient> logger) : ISetupApiClient
 {
     /// <summary>
-    /// Clave del cache en memoria para el status. Es pública para
-    /// que los tests puedan limpiarla cuando necesitan forzar un
-    /// round-trip fresco (ver <c>SetupApiClientTests.ObtenerEstadoAsync_FallaYRecuperacion_RecacheaValorReal</c>).
+    /// Clave del cache en memoria para el status. Es internal en
+    /// lugar de private porque los tests la limpian para forzar un
+    /// round-trip fresco. El assembly SGV.Tests accede via
+    /// InternalsVisibleTo (ver <c>SetupApiClientTests.ObtenerEstadoAsync_FallaYRecuperacion_RecacheaValorReal</c>).
     /// </summary>
-    public const string StatusCacheKey = "setup:status";
+    internal const string StatusCacheKey = "setup:status";
 
     private static readonly TimeSpan StatusTtl = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan NegativeTtl = TimeSpan.FromSeconds(10);
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
@@ -81,7 +83,12 @@ public sealed class SetupApiClient(
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             logger.LogWarning(ex, "Fallo al consultar estado de setup; fail-open devolviendo RequiresSetup=false");
-            return new SetupStatusResponse(false);
+            // Cache negativo con TTL corto: durante una outage evitamos
+            // golpear la API en cada request, pero nos recuperamos rápido
+            // cuando el servicio vuelve (10s vs 30s del cache positivo).
+            var fallback = new SetupStatusResponse(false);
+            cache.Set(StatusCacheKey, fallback, NegativeTtl);
+            return fallback;
         }
     }
 
@@ -139,6 +146,13 @@ public sealed class SetupApiClient(
 
                     return SetupHttpResult.Success(new SetupResult(personaId, userId, userName));
                 }
+
+                // La propiedad "value" no existe o no es un objeto — probablemente
+                // el contrato del backend cambió (ej: renombraron la propiedad
+                // a "data" o "result"). Loggear para diagnóstico.
+                logger.LogWarning(
+                    "POST /api/v1/setup devolvió 200 sin propiedad 'value'. Contrato del backend cambió? Cuerpo: {Body}",
+                    body);
             }
             catch (JsonException ex)
             {
