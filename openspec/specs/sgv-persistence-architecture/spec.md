@@ -67,6 +67,15 @@ The change `cambiar-campo-tipounidad-a-tabla-tipounidadorganizativa` is the firs
 - The `DROP COLUMN` of the legacy free-form `Personas.TipoDocumento` string column after the backfill completes.
 - **Relaxation of condition #3 (opt-in variant):** because the FK is nullable, unknown legacy values map to `TipoDocumentoId = NULL` with `NumeroDocumento` preserved. The audit interceptor records the transition in `Auditorias` so the orphan value can be remediated post-deploy.
 
+The change `migrar-campo-categoria-habilidades-a-tabla` is the fourth invocation of this exception. It introduces:
+
+- The table `CategoriasHabilidad` (Id `char(36)` PK, `Codigo varchar(50)` `UNIQUE NOT NULL`, `Nombre varchar(100)` `NOT NULL`) seeded from the `72000000-…` GUID block.
+- The column `Habilidades.CategoriaId` `char(36) NULL` with FK to `CategoriasHabilidad.Id` and `OnDelete(Restrict)`.
+- The index `IX_Habilidades_CategoriaId`.
+- The contract shape change on `HabilidadDto`: `Categoria: string?` is replaced by `CategoriaId: Guid?` (Domain) and `CategoriaId: Guid?` + `CategoriaNombre: string?` (wire).
+- The `DROP COLUMN` of the legacy free-form `Habilidades.Categoria` `varchar(100)` after the backfill completes.
+- **Relaxation of condition #3 (opt-in variant):** the FK is nullable (`char(36) NULL`); unknown legacy values (`Categoria` strings that do not match any seeded `CategoriasHabilidad.Nombre`) are persisted with `CategoriaId = NULL` for post-deploy remediation; the audit interceptor MUST record the transition `legacy string → NULL` in `Auditorias` so the orphan rows can be remediated after the deploy.
+
 Any subsequent change that wants to invoke this exception MUST add a new delta to this spec, naming the change explicitly and confirming which variant of condition #3 applies (default fail-loud or opt-in relaxed).
 (Previously: the exception listed only the first two invocations and condition #3 mandated fail-loud with no relaxation path.)
 
@@ -96,6 +105,17 @@ Any subsequent change that wants to invoke this exception MUST add a new delta t
 - **AND** the seed is loaded with 4 static Guids from `TipoDocumentoConstantes` (block `71000000-…`)
 - **AND** the `ActiveDocumentoUnique` generated column is recreated with the new formula
 - **AND** the free-form `Personas.TipoDocumento` string column is dropped after the backfill completes
+- **THEN** conditions #1, #2 and #4 of REQ-SPA-EVOLUTION-001 are satisfied
+- **AND** the change opts into the relaxed variant of condition #3 (nullable FK, orphan-tolerant)
+- **AND** the change is an authorized exception to the `Observable Persistence Invariants` requirement.
+
+#### Scenario: Fourth invocation of the exception is approved with opt-in relaxed variant
+
+- **GIVEN** the change `migrar-campo-categoria-habilidades-a-tabla` is being applied
+- **WHEN** the migration adds the `CategoriasHabilidad` table, the `Habilidades.CategoriaId` FK with `OnDelete(Restrict)`, the `IX_Habilidades_CategoriaId` index, and the wire shape change from `HabilidadDto.Categoria: string?` to `CategoriaId: Guid? + CategoriaNombre: string?`
+- **AND** the FK is declared nullable (`char(36) NULL`) on purpose
+- **AND** the seed is loaded with 4 static Guids from `CategoriaHabilidadConstantes` (block `72000000-…`, positions `…000`, `…001`, `…002`, `…003`)
+- **AND** the free-form `Habilidades.Categoria` `varchar(100)` column is dropped after the backfill completes
 - **THEN** conditions #1, #2 and #4 of REQ-SPA-EVOLUTION-001 are satisfied
 - **AND** the change opts into the relaxed variant of condition #3 (nullable FK, orphan-tolerant)
 - **AND** the change is an authorized exception to the `Observable Persistence Invariants` requirement.
@@ -212,3 +232,28 @@ El refactor de reconstitución NO DEBE introducir cambios en el schema de base d
 - **GIVEN** el cambio solo modifica clases C# de dominio y el mapper
 - **WHEN** se ejecuta `git status -- src/SGV.Infraestructura/Persistencia/Migraciones/`
 - **THEN** DEBE estar limpio (sin archivos nuevos ni modificados)
+
+### Requirement: REQ-SPA-EVOLUTION-004 — Cuarta invocación: `CategoriasHabilidad` (opt-in relajada)
+
+El cambio `migrar-campo-categoria-habilidades-a-tabla` invoca el REQ-SPA-EVOLUTION-001 por cuarta vez aplicando la variante opt-in relajada. El sistema DEBE introducir la tabla `CategoriasHabilidad` (Id `char(36)` PK, `Codigo varchar(50)` `UNIQUE NOT NULL`, `Nombre varchar(100)` `NOT NULL`) con seed del bloque `72000000-…`. La columna `Habilidades.CategoriaId` `char(36) NULL` DEBE ser FK hacia `CategoriasHabilidad.Id` con `OnDelete(Restrict)` e indexada (`IX_Habilidades_CategoriaId`). El contrato wire de `HabilidadDto` DEBE reemplazar `Categoria: string?` por `CategoriaId: Guid?` (dominio) y `CategoriaId: Guid?` + `CategoriaNombre: string?` (wire). La columna string legacy `Habilidades.Categoria` `varchar(100)` DEBE eliminarse tras el backfill. Bajo la variante relajada, los valores legacy sin match en el seed DEBEN quedar con `CategoriaId = NULL` y el interceptor DEBE auditar la transición.
+
+#### Scenario: Bloque GUID `72000000-…` reservado y registrado
+
+- **GIVEN** la matriz "Mapa de bloques GUID reservados por catálogo" en `docs/decisiones-implementacion.md`
+- **WHEN** el cambio es archivado
+- **THEN** el bloque `72000000-0000-0000-0000-000000000000` … `72000000-0000-0000-0000-00000000000F` DEBE aparecer como reservado para `CategoriaHabilidad`
+- **AND** las cuatro posiciones seed (`…000`, `…001`, `…002`, `…003`) DEBEN estar etiquetadas como `Conduccion`, `Tecnica`, `Dominio`, `Academica`.
+
+#### Scenario: Sin desvío de GUIDs seed entre migración y `DatosSemilla`
+
+- **GIVEN** la migración (`InsertData`) y `DatosSemilla.HasData` referencian las mismas constantes `CategoriaHabilidadConstantes`
+- **WHEN** se ejecuta el test `DatosSemilla_CategoriaHabilidad_SeedIdsMatchConstantes`
+- **THEN** todo `Id` del `InsertData` está presente en `DatosSemilla` (y viceversa)
+- **AND** la cantidad de `Id` distintos en ambas fuentes es idéntica (4).
+
+#### Scenario: El catálogo `CategoriasHabilidad` rechaza escritura HTTP
+
+- **GIVEN** el `CategoriasHabilidadController` publicado
+- **WHEN** un cliente invoca `POST`, `PUT`, `PATCH` o `DELETE` sobre `/api/v1/categorias-habilidad` o `/api/v1/categorias-habilidad/{id:guid}`
+- **THEN** la API DEBE responder `405 Method Not Allowed` (o `404` cuando no existe acción)
+- **AND** ninguna fila de `CategoriasHabilidad` DEBE insertarse, actualizarse ni eliminarse.

@@ -22,7 +22,7 @@ class PasswordAuth {
                 const barContainer = wrapper.querySelector(".password-bar")
 
                 if (!input || !barContainer) {
-                    console.warn("Auth: Missing input or .password-bar in password wrapper.")
+                    console.warn("Auth: Missing input or .password-bar in", wrapper)
                     return
                 }
 
