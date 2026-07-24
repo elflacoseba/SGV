@@ -27,7 +27,7 @@ namespace SGV.Tests.Seguridad;
 /// instances created with <c>new</c> inside a test body. Callers must
 /// invoke <see cref="InitializeAsync"/> explicitly.
 /// </remarks>
-internal sealed class JwtRealWebApplicationFactory(string signingKey)
+internal class JwtRealWebApplicationFactory(string signingKey)
     : WebApplicationFactory<SGV.Api.Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)

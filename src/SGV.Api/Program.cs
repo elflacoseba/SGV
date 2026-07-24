@@ -16,6 +16,7 @@ using SGV.Aplicacion;
 using SGV.Aplicacion.Seguridad;
 using SGV.Contracts.Auth;
 using SGV.Contracts.Seguridad;
+using SGV.Contracts.Setup;
 using SGV.Infraestructura;
 using SGV.Infraestructura.Email;
 using SGV.Infraestructura.Persistencia;
@@ -233,6 +234,19 @@ builder.Services.AddRateLimiter(options =>
     });
 
     options.AddFixedWindowLimiter(AuthApiRoutes.ResetPasswordPolicyName, policy =>
+    {
+        policy.PermitLimit = 5;
+        policy.Window = TimeSpan.FromMinutes(15);
+        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        policy.QueueLimit = 0;
+    });
+
+    // Issue #195: rate limiting para el setup one-time del primer
+    // Administrador. 5 req / 15 min: más permisivo que ForgotPassword
+    // (3) porque el formulario tiene 9 campos con probabilidad alta
+    // de error humano, y más estricto que ResetPassword (5) en la
+    // misma ventana porque crea un admin.
+    options.AddFixedWindowLimiter(SetupApiRoutes.SetupPolicyName, policy =>
     {
         policy.PermitLimit = 5;
         policy.Window = TimeSpan.FromMinutes(15);
