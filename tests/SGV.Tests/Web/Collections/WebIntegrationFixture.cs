@@ -158,6 +158,23 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             unidadOrganizativaApiClient: unidad));
 
+    /// <summary>
+    /// Lease anónimo para tests del módulo de setup inicial (issue #195
+    /// / WU-4). No requiere autenticación porque el flujo de setup es
+    /// la primera acción del sistema cuando <c>AspNetUsers</c> está
+    /// vacía. Toma un fake de <see cref="SGV.Web.Integration.Setup.ISetupApiClient"/>
+    /// para controlar el status, el catálogo de <c>TipoDocumento</c> y
+    /// el resultado de <c>POST /auth/setup</c> sin necesidad de la API
+    /// real ni de MySQL.
+    /// </summary>
+    public Task<WebClientLease> CreateSetupLeaseAsync(
+        SGV.Web.Integration.Setup.ISetupApiClient setupApiClient)
+        => CreateLeaseWithBootstrapAsync(
+            f => f.WithOverrides(
+                ConfigureBaseUrl,
+                setupApiClient: setupApiClient),
+            NoOpBootstrapAsync);
+
     /// <summary>Lease sin autenticar con una factory derivada y de propiedad exclusiva.</summary>
     public Task<WebClientLease> CreateAnonymousLeaseAsync()
         => CreateLeaseWithBootstrapAsync(f => f.WithOverrides(), NoOpBootstrapAsync);
