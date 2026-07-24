@@ -29,13 +29,6 @@ public enum SetupErrorCode
     EmailDuplicado,
 
     /// <summary>
-    /// El legajo elegido colisiona con uno existente en Persona
-    /// (<c>PersonaServicioComandos</c> uniqueness check).
-    /// → HTTP 409.
-    /// </summary>
-    LegajoDuplicado,
-
-    /// <summary>
     /// La persona ya tiene un usuario Identity asociado
     /// (defensa lógica del gateway).
     /// → HTTP 409.

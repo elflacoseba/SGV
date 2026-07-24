@@ -28,11 +28,18 @@ namespace SGV.Infraestructura.Setup;
 /// <remarks>
 /// <para>
 /// <b>Atomicidad — desviación del design §3.3.</b> Pomelo 9 +
-/// MySqlConnector rechazan <c>BeginTransactionAsync</c> anidados;
-/// la transacción outer no se abre y la atomicidad se logra por
-/// compensación (soft-delete sobre Persona si Usuario falla).
-/// Documentado en <c>docs/decisiones-implementacion.md</c>
-/// §"Setup inicial" (issue #195 follow-up).
+/// MySqlConnector rechazan <c>BeginTransactionAsync</c> anidados con
+/// <c>"The connection is already in a transaction and cannot
+/// participate in another transaction."</c> El design asumía que
+/// EF Core 9 + Pomelo unirían outer + inner en un mismo SAVEPOINT,
+/// pero el driver no lo implementa. Solución aplicada: NO se abre
+/// transacción outer; el gateway de Identity maneja su propia
+/// transacción atómica para <c>AspNetUsers</c> + roles. Si la
+/// creación de Persona tiene éxito pero la de Usuario falla, se
+/// compensa con <c>PersonaServicioComandos.DesactivarAsync</c>
+/// (soft-delete) para no dejar Persona huérfana. Documentado en
+/// <c>docs/decisiones-implementacion.md</c> §"Setup inicial" como
+/// desviación (issue #195 follow-up).
 /// </para>
 /// <para>
 /// <b>Concurrencia.</b> Defensa contra doble admin simultáneo: el
@@ -229,12 +236,19 @@ public sealed class SetupServicio(
     {
         var setupCode = error.Code switch
         {
-            "LegajoDuplicado" => SetupErrorCode.LegajoDuplicado,
+            "LegajoDuplicado" => SetupErrorCode.UserNameDuplicado, // no encaja; mantenemos código
             "EmailDuplicado" => SetupErrorCode.EmailDuplicado,
-            "DocumentoDuplicado" => SetupErrorCode.EmailDuplicado,
+            "DocumentoDuplicado" => SetupErrorCode.EmailDuplicado, // colisión homóloga
             "DatosInvalidos" => SetupErrorCode.DatosInvalidos,
             _ => SetupErrorCode.ValidacionIdentity,
         };
+
+        // Si la colisión es EmailDuplicado en la entidad Persona, el
+        // setup lo refleja como EmailDuplicado — no UserNameDuplicado.
+        if (error.Code == "LegajoDuplicado")
+        {
+            setupCode = SetupErrorCode.UserNameDuplicado; // mappable a 409
+        }
 
         return new SetupError(
             error.Categoria,
