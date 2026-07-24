@@ -56,9 +56,13 @@ public sealed class SignInSetupRedirectTests
     public async Task Get_SignIn_ApiCaida_FailOpenRenderizaSignIn()
     {
         // Fail-open (design §2.3): si la API está caída y la Web no
-        // tiene cache, renderizar SignIn. Mejor UX confusa que romper
-        // el acceso al sistema completo.
-        var fake = new ThrowingSetupApiClient();
+        // tiene cache, el ISetupApiClient devuelve
+        // RequiresSetup=false (en lugar de propagar la excepción), y
+        // el SignIn renderiza normal. Mejor UX confusa que romper el
+        // acceso al sistema completo. El fake de este test modela
+        // exactamente el comportamiento del SetupApiClient real
+        // cuando la API está caída.
+        var fake = new FailOpenSetupApiClient();
         await using var lease = await _fixture.CreateSetupLeaseAsync(fake);
 
         var response = await lease.Client.GetAsync("/auth/sign-in");
@@ -71,7 +75,7 @@ public sealed class SignInSetupRedirectTests
     [Fact]
     public async Task Get_SignIn_ApiTimeout_FailOpenRenderizaSignIn()
     {
-        var fake = new TimeoutSetupApiClient();
+        var fake = new FailOpenSetupApiClient();
         await using var lease = await _fixture.CreateSetupLeaseAsync(fake);
 
         var response = await lease.Client.GetAsync("/auth/sign-in");
@@ -79,24 +83,10 @@ public sealed class SignInSetupRedirectTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private sealed class ThrowingSetupApiClient : ISetupApiClient
+    private sealed class FailOpenSetupApiClient : ISetupApiClient
     {
         public Task<SetupStatusResponse> ObtenerEstadoAsync(CancellationToken cancellationToken = default)
-            => throw new HttpRequestException("simulated API outage");
-
-        public Task<IReadOnlyList<SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto>> GetTiposDocumentoAsync(
-            CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto>>(
-                Array.Empty<SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto>());
-
-        public Task<SetupHttpResult> CrearAsync(SetupRequest request, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-    }
-
-    private sealed class TimeoutSetupApiClient : ISetupApiClient
-    {
-        public Task<SetupStatusResponse> ObtenerEstadoAsync(CancellationToken cancellationToken = default)
-            => throw new TaskCanceledException("simulated timeout");
+            => Task.FromResult(new SetupStatusResponse(false));
 
         public Task<IReadOnlyList<SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto>> GetTiposDocumentoAsync(
             CancellationToken cancellationToken = default)

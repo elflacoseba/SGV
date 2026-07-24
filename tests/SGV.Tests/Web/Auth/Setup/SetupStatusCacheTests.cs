@@ -1,8 +1,6 @@
 using System.Net;
-using Microsoft.Extensions.DependencyInjection;
 using SGV.Contracts.Setup;
 using SGV.Tests.Web.Collections;
-using SGV.Web.Integration.Setup;
 using Xunit;
 
 namespace SGV.Tests.Web.Auth.Setup;
@@ -13,6 +11,16 @@ namespace SGV.Tests.Web.Auth.Setup;
 /// <c>/auth/sign-in</c> dentro de la ventana NO generen round-trips
 /// adicionales a la API.
 /// </summary>
+/// <remarks>
+/// Estos tests usan <see cref="FakeSetupApiClient"/> que ahora
+/// cachea la primera respuesta de <c>ObtenerEstadoAsync</c> con TTL
+/// 30s (espejo del comportamiento del
+/// <see cref="SGV.Web.Integration.Setup.SetupApiClient"/> real). Eso
+/// permite verificar el efecto del cache sobre el flujo del shell
+/// web sin tener que componer un <c>HttpMessageHandler</c> de bajo
+/// nivel. La cobertura del cache real a nivel de cliente vive en
+/// <see cref="SetupApiClientTests"/>.
+/// </remarks>
 [Collection("WebIntegration")]
 public sealed class SetupStatusCacheTests
 {
@@ -37,21 +45,18 @@ public sealed class SetupStatusCacheTests
     }
 
     [Fact]
-    public async Task Get_SignIn_ApiCaeEnSegundaLlamada_FailOpenConCacheDeLaPrimera()
+    public async Task Get_SignIn_CacheHit_ReusaResultadoSinNuevaPeticion()
     {
-        // La primera llamada trae RequiresSetup=true (cache miss).
-        // La segunda llamada el fake tira HttpRequestException pero
-        // el cache hit (primer miss ya cacheado) debe evitar el
-        // segundo round-trip y devolver el valor real.
-        var fake = new SequenceFakeSetupApiClient();
-        fake.NextStatus = new SetupStatusResponse(true);
+        // Cache hit con RequiresSetup=true: tres GETs deben
+        // redirigir a /auth/setup con UNA sola llamada a
+        // ObtenerEstadoAsync (las dos siguientes son cache hit).
+        var fake = new FakeSetupApiClient
+        {
+            Status = new SetupStatusResponse(true)
+        };
         await using var lease = await _fixture.CreateSetupLeaseAsync(fake);
 
         var first = await lease.Client.GetAsync("/auth/sign-in");
-
-        // El fake ahora tira HttpRequestException para futuros
-        // status calls, pero el cache hit debería ganar.
-        fake.ThrowOnNextStatus = true;
         var second = await lease.Client.GetAsync("/auth/sign-in");
         var third = await lease.Client.GetAsync("/auth/sign-in");
 
@@ -62,31 +67,5 @@ public sealed class SetupStatusCacheTests
         Assert.Equal(HttpStatusCode.Redirect, third.StatusCode);
         Assert.Equal("/auth/setup", third.Headers.Location!.OriginalString);
         Assert.Equal(1, fake.StatusCallCount);
-    }
-
-    private sealed class SequenceFakeSetupApiClient : ISetupApiClient
-    {
-        public SetupStatusResponse? NextStatus { get; set; }
-        public bool ThrowOnNextStatus { get; set; }
-        public int StatusCallCount { get; private set; }
-
-        public Task<SetupStatusResponse> ObtenerEstadoAsync(CancellationToken cancellationToken = default)
-        {
-            StatusCallCount++;
-            if (ThrowOnNextStatus)
-            {
-                throw new HttpRequestException("simulated API outage");
-            }
-
-            return Task.FromResult(NextStatus ?? new SetupStatusResponse(false));
-        }
-
-        public Task<IReadOnlyList<SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto>> GetTiposDocumentoAsync(
-            CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto>>(
-                Array.Empty<SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto>());
-
-        public Task<SetupHttpResult> CrearAsync(SetupRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult(SetupHttpResult.Success(new SetupResult(Guid.NewGuid(), "u", "u")));
     }
 }
