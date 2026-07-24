@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Seguridad.Usuarios;
+using SGV.Aplicacion.Setup;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Dominio.Ocupaciones;
@@ -1095,6 +1096,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IAuthServicio>();
             services.RemoveService<IOcupacionServicioConsulta>();
             services.RemoveService<IOcupacionServicioComandos>();
+            services.RemoveService<ISetupServicio>();
 
             // Add default fake services with test data
             services.AddSingleton<IUnidadOrganizativaServicioConsulta>(new FakeUnidadOrganizativaServicio());
@@ -1118,6 +1120,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IAuthServicio>(new FakeAuthServicio());
             services.AddSingleton<IOcupacionServicioConsulta>(new FakeOcupacionServicioConsulta());
             services.AddSingleton<IOcupacionServicioComandos>(new FakeOcupacionServicioComandos());
+            services.AddSingleton<ISetupServicio>(new SGV.Tests.Setup.FakeSetupServicio());
 
             services.AddAuthentication(FakeAuthenticationDefaults.Scheme)
                 .AddScheme<AuthenticationSchemeOptions, FakeAuthenticationHandler>(FakeAuthenticationDefaults.Scheme, _ => { });
