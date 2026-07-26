@@ -54,10 +54,14 @@ Single PR — cambio contenido (~340 líneas, <400), bajo riesgo de salto de pre
 
 ## Phase 4: Tests de integración
 
-- [ ] 4.1 RED: `PersonaApiClientBasicTests`: 3 tests seam — `CreateAsync_LegajoNull_SerializaLegajoNull`, `CreateAsync_LegajoVacio_SerializaLegajoVacio`, `UpdateAsync_LegajoConEspaciosNoTrimeaCliente` (Diseño §8, spec transport-contract §5 escenarios)
-- [ ] 4.2 RED: `PersonasControllerTests`: 3 tests API — `Post_LegajoNullEnBody_Retorna201`, `Put_LimpiarLegajo_Retorna200YRegistraUpdateLegajo`, `Put_LegajoSinClave_Retorna200` (Diseño §8)
-- [ ] 4.3 RED: `PersonaRepositoryTests`: `PersistirPersona_LegajoNull_LecturaPosterior` (`[MySqlFact]`) (Diseño §8)
-- [ ] 4.4 `dotnet test SGV.slnx` — todos los tests en verde
+- [x] 4.1 RED: `PersonaApiClientBasicTests`: 3 tests seam — `CreateAsync_LegajoNull_SerializaLegajoNull`, `CreateAsync_LegajoVacio_SerializaLegajoVacio`, `UpdateAsync_LegajoConEspaciosNoTrimeaCliente` (Diseño §8, spec transport-contract §5 escenarios)
+- [x] 4.2 RED: `PersonasControllerTests`: 3 tests API — `Post_LegajoNullEnBody_Retorna201`, `Put_LimpiarLegajo_Retorna200YRegistraUpdateLegajo`, `Put_LegajoSinClave_Retorna200` (Diseño §8)
+- [x] 4.3 RED: `PersonaRepositoryTests`: `PersistirPersona_LegajoNull_LecturaPosterior` (`[MySqlFact]`) (Diseño §8)
+- [x] 4.4 `dotnet test SGV.slnx` — todos los tests en verde
+  - Resultado: 2948/2948 passing, 0 skipped.
+  - MySQL alcanzable en `localhost:3306`; todos los `[MySqlFact]` corrieron (no skip).
+  - `dotnet test SGV.slnx --filter "FullyQualifiedName~PersonaApiClientBasicTests"`: 33/33 passing.
+  - `dotnet test SGV.slnx --filter "FullyQualifiedName~PersonasControllerTests"`: 57/57 passing.
 
 ## Phase 5: UI warning + Verificación final
 
