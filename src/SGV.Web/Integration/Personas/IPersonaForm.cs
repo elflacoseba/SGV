@@ -40,6 +40,16 @@ public interface IPersonaForm
     /// </summary>
     bool IsEdit { get; }
 
-    /// <summary>URL de retorno al listado preservando los filtros de la página anterior.</summary>
+    /// <summary>
+    /// URL de retorno al listado preservando los filtros de la página anterior.</summary>
     string ReturnToListUrl { get; }
+
+    /// <summary>
+    /// Indica si el partial <c>_Form.cshtml</c> debe mostrar la
+    /// advertencia contextual sobre el campo <c>Legajo</c>. Issue
+    /// #202: el shell deja reservado este slot; los módulos downstream
+    /// que exijan legajo activan la advertencia sin bloquear el
+    /// submit. Default <c>false</c>.
+    /// </summary>
+    bool ShowLegajoContextWarning { get; }
 }

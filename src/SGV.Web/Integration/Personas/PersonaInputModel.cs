@@ -10,12 +10,18 @@ namespace SGV.Web.Integration.Personas;
 /// son las del backend, pero el cliente las repite aquí como defensa
 /// de UX (cliente nunca enviaría 400 por campos vacíos obvios). El
 /// backend sigue siendo la fuente de verdad.
+/// <para>
+/// Issue #202: <c>Legajo</c> deja de ser obligatorio en el cliente;
+/// pasa a <c>string?</c> con longitud máxima 50 (alineada con
+/// <c>Personas.Legajo</c> en BD y el validator del backend). El
+/// PageModel normaliza whitespace a <c>null</c> antes de invocar la
+/// API; ver <c>PersonaFormHelpers</c>.
+/// </para>
 /// </summary>
 public sealed class PersonaInputModel
 {
-    [Required(ErrorMessage = "El legajo es obligatorio.")]
-    [StringLength(20, ErrorMessage = "El legajo no puede superar los 20 caracteres.")]
-    public string Legajo { get; set; } = string.Empty;
+    [StringLength(50, ErrorMessage = "El legajo no puede superar los 50 caracteres.")]
+    public string? Legajo { get; set; }
 
     [Required(ErrorMessage = "Los nombres son obligatorios.")]
     [StringLength(100, ErrorMessage = "Los nombres no pueden superar los 100 caracteres.")]
