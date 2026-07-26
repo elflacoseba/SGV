@@ -1,8 +1,11 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
+using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Personas.Comandos.Validaciones;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
@@ -17,18 +20,25 @@ public sealed class PersonaServicioComandos(
     IPersonaRepository repository,
     IUnitOfWork unitOfWork,
     IValidator<CrearPersonaRequest> crearValidator,
-    IValidator<ActualizarPersonaRequest> actualizarValidator) : IPersonaServicioComandos
+    IValidator<ActualizarPersonaRequest> actualizarValidator,
+    IAuditoriaServicio auditoriaServicio,
+    IUsuarioActual usuarioActual,
+    ILogger<PersonaServicioComandos> logger) : IPersonaServicioComandos
 {
     /// <summary>
-    /// Convenience constructor for backward compatibility (e.g., tests).
-    /// Uses the real validators directly.
+    /// Convenience constructor for backward compatibility. Uses the real validators,
+    /// a no-op audit service, and a null current-user implementation.
     /// </summary>
     public PersonaServicioComandos(
         IPersonaRepository repository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILogger<PersonaServicioComandos> logger)
         : this(repository, unitOfWork,
                new CrearPersonaRequestValidator(),
-               new ActualizarPersonaRequestValidator())
+               new ActualizarPersonaRequestValidator(),
+               new NoopAuditoriaServicio(),
+               new NullUsuarioActual(),
+               logger)
     {
     }
 
@@ -111,11 +121,42 @@ public sealed class PersonaServicioComandos(
 
         try
         {
+            // The explicit audit runs in a separate auto-commit transaction after
+            // the persona SaveChangesAsync. The central interceptor already emits
+            // Modificacion; if this audit fails, log a warning and keep the request
+            // successful.
+            var legajoAnterior = persona.Legajo;
+
             persona.CambiarDatos(request.Nombres, request.Apellidos, request.Legajo, request.Email, request.Telefono);
             persona.CambiarDocumento(request.TipoDocumentoId, request.NumeroDocumento);
 
             await repository.UpdateAsync(persona, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            if (legajoAnterior is not null && persona.Legajo is null)
+            {
+                try
+                {
+                    await auditoriaServicio.RegistrarAsync(
+                        entidad: "Persona",
+                        entityId: persona.Id.ToString(),
+                        accion: "UpdateLegajo",
+                        usuarioOperadorId: usuarioActual.UserId,
+                        valoresAnteriores: new Dictionary<string, object?>
+                        {
+                            ["LegajoAnterior"] = legajoAnterior
+                        },
+                        valoresNuevos: new Dictionary<string, object?>
+                        {
+                            ["LegajoNuevo"] = null
+                        },
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to write explicit UpdateLegajo audit for Persona {PersonaId}: {Message}", persona.Id, ex.Message);
+                }
+            }
 
             return PersonaCommandResult.Success(MapToDto(persona));
         }

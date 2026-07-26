@@ -48,6 +48,20 @@ public sealed class EditModel(
     public bool IsEdit => true;
 
     /// <summary>
+    /// Issue #202: slot reservado para que módulos downstream que
+    /// exijan <c>Legajo</c> activen la advertencia contextual en
+    /// <c>_Form.cshtml</c>. Edit no muestra la advertencia por
+    /// defecto; el módulo que lo necesite lo setea a <c>true</c>.
+    /// </summary>
+    public bool ShowLegajoContextWarning => false;
+
+    /// <summary>
+    /// Issue #202 (H4): mensaje personalizado para la advertencia
+    /// contextual. <c>null</c> deja al partial usar el texto por defecto.
+    /// </summary>
+    public string? LegajoContextWarningMessage => null;
+
+    /// <summary>
     /// Indica si la persona solicitada no pudo cargarse (404 o error de
     /// transporte). En ese estado la vista muestra un mensaje
     /// recuperable y oculta el formulario.
@@ -115,7 +129,7 @@ public sealed class EditModel(
                 return Page();
             }
 
-            Input.Legajo = persona.Legajo ?? string.Empty;
+            Input.Legajo = persona.Legajo;
             Input.Nombres = persona.Nombres;
             Input.Apellidos = persona.Apellidos;
             Input.Email = persona.Email;
@@ -169,9 +183,13 @@ public sealed class EditModel(
         // Issue #147 PR3: binding directo desde el <select>. El legacy
         // ParseTipoDocumentoIdBackCompat se elimina porque el frontend ya no
         // envía el string TipoDocumento.
+        // Issue #202: Legajo se normaliza a null cuando es whitespace-only,
+        // alineando con el wire string?. Email / NumeroDocumento / Telefono
+        // mantienen su patrón existente.
         var tipoDocumentoId = Input.TipoDocumentoId;
+        var legajoNormalizado = string.IsNullOrWhiteSpace(Input.Legajo) ? null : Input.Legajo.Trim();
         var request = new ActualizarPersonaRequest(
-            Input.Legajo.Trim(),
+            legajoNormalizado,
             Input.Nombres.Trim(),
             Input.Apellidos.Trim(),
             string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),

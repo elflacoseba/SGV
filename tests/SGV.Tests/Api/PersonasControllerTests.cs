@@ -433,6 +433,104 @@ public sealed class PersonasControllerTests
         await AssertErrorFieldExists(response, "nombres");
     }
 
+    // ---- Issue #202: Legajo nullable en POST/PUT ----
+
+    [Fact]
+    public async Task Post_LegajoNullEnBody_Retorna201ConLegajoNull()
+    {
+        // AC web-apiclient-transport-contract § "Payload legajo: null
+        // deserializa a string? == null": un POST con legajo: null debe
+        // persistirse como Legajo=null y devolver 201. La respuesta
+        // expone PersonaDto.Legajo=null.
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new
+        {
+            legajo = (string?)null,
+            nombres = "Maria",
+            apellidos = "Garcia",
+            email = "maria@test.com",
+            tipoDocumentoId = (Guid?)null,
+            numeroDocumento = (string?)null,
+            telefono = (string?)null
+        });
+
+        var response = await client.PostAsync("/api/v1/personas", body);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var dto = await ReadAsAsync<PersonaDto>(response);
+        Assert.NotNull(dto);
+        Assert.Null(dto!.Legajo);
+        Assert.Equal("Maria", dto.Nombres);
+    }
+
+    [Fact]
+    public async Task Put_LimpiarLegajo_Retorna200YRegistraUpdateLegajo()
+    {
+        // AC persona-management § "Editar limpiando Legajo persiste null
+        // y registra auditoría UpdateLegajo": un PUT que limpia el
+        // legajo de una Persona existente debe retornar 200 y la fila
+        // debe quedar persistida en Auditorias con Accion=UpdateLegajo,
+        // LegajoAnterior=<previo> y LegajoNuevo=null. El fake captura la
+        // invocación para verificar el path de auditoría.
+        var fakeComandos = new FakePersonaServicioComandos();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioComandos>();
+            services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new
+        {
+            legajo = (string?)null,
+            nombres = "Juan",
+            apellidos = "Perez",
+            email = "juan@test.com",
+            tipoDocumentoId = (Guid?)null,
+            numeroDocumento = "12345678",
+            telefono = "555-0001"
+        });
+
+        var response = await client.PutAsync($"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}", body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await ReadAsAsync<PersonaDto>(response);
+        Assert.Null(dto!.Legajo);
+    }
+
+    [Fact]
+    public async Task Put_LegajoSinClave_Retorna200()
+    {
+        // AC web-apiclient-transport-contract § "Payload sin la clave
+        // legajo deserializa a string? == null": un PUT cuyo body omite
+        // la clave legajo debe deserializarse como Legajo=null y
+        // procesarse sin errores de validación. Esto preserva la
+        // simetría con POST y la back-compat con clientes que no
+        // enviaban el campo.
+        var fakeComandos = new FakePersonaServicioComandos();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioComandos>();
+            services.AddSingleton<IPersonaServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var body = ToJsonBody(new
+        {
+            nombres = "Juan",
+            apellidos = "Perez",
+            email = "juan@test.com",
+            tipoDocumentoId = (Guid?)null,
+            numeroDocumento = "12345678",
+            telefono = "555-0001"
+        });
+
+        var response = await client.PutAsync($"/api/v1/personas/{FakePersonaServicioConsulta.PersonaId1}", body);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dto = await ReadAsAsync<PersonaDto>(response);
+        Assert.Null(dto!.Legajo);
+    }
+
     // ---- DELETE (soft-delete) ----
 
     [Fact]

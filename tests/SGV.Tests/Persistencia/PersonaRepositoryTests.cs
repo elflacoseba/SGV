@@ -1,5 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using SGV.Aplicacion.Auditoria;
+using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Personas.Comandos;
+using SGV.Aplicacion.Personas.Comandos.Validaciones;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad;
+using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
@@ -145,6 +152,145 @@ public sealed class PersonaRepositoryTests
                 await context.Set<PersonaEntity>().Where(p => p.Id == persona.Id).ToListAsync());
             await context.SaveChangesAsync();
         }
+    }
+
+    [MySqlFact]
+    public async Task PersistirPersona_LegajoNull_LecturaPosterior()
+    {
+        // AC persona-management § "Crear persona omitiendo Legajo":
+        // una Persona persistida con Legajo=null en MySQL debe
+        // recuperarse como Legajo=null. El round-trip cubre la columna
+        // Personas.Legajo (varchar(50) NULL) sin que el cliente ni el
+        // repo apliquen defaults espurios.
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new PersonaRepository(context);
+        var emailUnico = "legajonull-" + Guid.NewGuid().ToString("N")[..8] + "@test.com";
+        var persona = new Persona("Sin", "Legajo", legajo: null, email: emailUnico)
+        {
+            Id = Guid.NewGuid()
+        };
+
+        await repo.AddAsync(persona, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var obtained = await repo.GetByIdAsync(persona.Id, default);
+            Assert.NotNull(obtained);
+            Assert.Null(obtained!.Legajo);
+
+            // Verifica también el round-trip contra la entidad cruda de EF
+            // para descartar cualquier transformación del mapeo.
+            var entity = await context.Set<PersonaEntity>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == persona.Id);
+            Assert.NotNull(entity);
+            Assert.Null(entity!.Legajo);
+        }
+        finally
+        {
+            context.Set<PersonaEntity>().RemoveRange(
+                await context.Set<PersonaEntity>().Where(p => p.Id == persona.Id).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
+    public async Task ActualizarPersona_LimpiarLegajo_PersisteNullYRegistraUpdateLegajoEnAuditorias()
+    {
+        // Review H3: cobertura end-to-end del camino de auditoría
+        // UpdateLegajo contra MySQL real. Crea una Persona con Legajo,
+        // la actualiza limpiando Legajo, y verifica:
+        //   1) la fila Personas.Legajo queda NULL tras el Update.
+        //   2) existe una fila en Auditorias con Operation="UpdateLegajo",
+        //      EntityId=<personaId>, OldValuesJson conteniendo
+        //      "LegajoAnterior" y NewValuesJson conteniendo "LegajoNuevo".
+        // El interceptor central emite su fila Modificacion con todos los
+        // cambios; aquí sólo se asserta la fila explícita que es el valor
+        // distintivo del issue #202.
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var usuarioActual = new TestUsuarioActual();
+        var repo = new PersonaRepository(context);
+        var uow = new UnitOfWork(context);
+        var auditoria = new AuditoriaServicio(context, usuarioActual);
+        var servicio = new PersonaServicioComandos(
+            repo,
+            uow,
+            new CrearPersonaRequestValidator(),
+            new ActualizarPersonaRequestValidator(),
+            auditoria,
+            usuarioActual,
+            NullLogger<PersonaServicioComandos>.Instance);
+
+        var legajoInicial = "L-H3-" + Guid.NewGuid().ToString("N")[..8];
+        var emailUnico = "h3-audit-" + Guid.NewGuid().ToString("N")[..8] + "@test.com";
+        var crear = new CrearPersonaRequest(legajoInicial, "Review", "H3", emailUnico);
+        var crearResult = await servicio.CrearAsync(crear, default);
+        Assert.True(crearResult.IsSuccess, crearResult.Error?.Message ?? "CrearAsync failed");
+        var personaId = crearResult.Value!.Id;
+
+        try
+        {
+            // Limpia Legajo vía ActualizarAsync (issue #202: legajo: null).
+            var actualizar = new ActualizarPersonaRequest(null, "Review", "H3", emailUnico);
+            var actualizarResult = await servicio.ActualizarAsync(personaId, actualizar, default);
+            Assert.True(actualizarResult.IsSuccess, actualizarResult.Error?.Message ?? "ActualizarAsync failed");
+            Assert.Null(actualizarResult.Value!.Legajo);
+
+            // 1) Columna Personas.Legajo quedó NULL tras el Update.
+            var entity = await context.Set<PersonaEntity>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == personaId);
+            Assert.NotNull(entity);
+            Assert.Null(entity!.Legajo);
+
+            // 2) Fila AuditoriaEntity explícita con Operation=UpdateLegajo.
+            //    Puede haber más de una fila para ese EntityId (la fila
+            //    Modificacion del interceptor central también coincide);
+            //    nos interesa específicamente la que tiene OldValuesJson
+            //    con "LegajoAnterior" — esa es la fila explícita.
+            var filasUpdate = await context.Auditorias
+                .AsNoTracking()
+                .Where(a => a.EntityId == personaId.ToString() && a.Operation == "UpdateLegajo")
+                .ToListAsync();
+            Assert.Single(filasUpdate);
+            var fila = filasUpdate[0];
+            Assert.Equal("Persona", fila.EntityName);
+            Assert.Equal(usuarioActual.UserId, fila.UserId);
+            Assert.NotNull(fila.OldValuesJson);
+            Assert.NotNull(fila.NewValuesJson);
+            Assert.Contains("LegajoAnterior", fila.OldValuesJson!, StringComparison.Ordinal);
+            Assert.Contains(legajoInicial, fila.OldValuesJson!, StringComparison.Ordinal);
+            Assert.Contains("LegajoNuevo", fila.NewValuesJson!, StringComparison.Ordinal);
+        }
+        finally
+        {
+            // Cleanup: borrar las filas de auditoría creadas por este test
+            // y la Persona, en orden inverso para no romper FKs si las hay.
+            var filasAudit = await context.Auditorias
+                .Where(a => a.EntityId == personaId.ToString())
+                .ToListAsync();
+            context.Auditorias.RemoveRange(filasAudit);
+            context.Set<PersonaEntity>().RemoveRange(
+                await context.Set<PersonaEntity>().Where(p => p.Id == personaId).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// IUsuarioActual fake in-line para el test end-to-end. Devuelve un
+    /// userId fijo y sin correlación — suficiente para ejercitar la fila
+    /// de auditoría explícita.
+    /// </summary>
+    private sealed class TestUsuarioActual : IUsuarioActual
+    {
+        public string? UserId => "test-h3-user";
+
+        public Guid? PersonaId => null;
+
+        public IReadOnlyCollection<string> Roles => [];
+
+        public Guid? CorrelationId => null;
     }
 
     [MySqlFact]

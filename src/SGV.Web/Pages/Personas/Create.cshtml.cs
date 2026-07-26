@@ -48,6 +48,20 @@ public sealed class CreateModel(
 
     public bool IsEdit => false;
 
+    /// <summary>
+    /// Issue #202: slot reservado para que módulos downstream que
+    /// exijan <c>Legajo</c> activen la advertencia contextual en
+    /// <c>_Form.cshtml</c>. Create no muestra la advertencia por
+    /// defecto; el módulo que lo necesite lo setea a <c>true</c>.
+    /// </summary>
+    public bool ShowLegajoContextWarning => false;
+
+    /// <summary>
+    /// Issue #202 (H4): mensaje personalizado para la advertencia
+    /// contextual. <c>null</c> deja al partial usar el texto por defecto.
+    /// </summary>
+    public string? LegajoContextWarningMessage => null;
+
     [BindProperty]
     public string? ReturnPage { get; set; }
 
@@ -106,9 +120,14 @@ public sealed class CreateModel(
         // Issue #147 PR3: binding directo desde el <select>. El legacy
         // ParseTipoDocumentoIdBackCompat se elimina porque el frontend ya no
         // envía el string TipoDocumento.
+        // Issue #202: Legajo se normaliza a null cuando es whitespace-only,
+        // para alinear con el dominio nullable y el wire string?. El resto
+        // de los campos opcionales (Email / NumeroDocumento / Telefono)
+        // siguen el mismo patrón.
         var tipoDocumentoId = Input.TipoDocumentoId;
+        var legajoNormalizado = string.IsNullOrWhiteSpace(Input.Legajo) ? null : Input.Legajo.Trim();
         var request = new CrearPersonaRequest(
-            Input.Legajo.Trim(),
+            legajoNormalizado,
             Input.Nombres.Trim(),
             Input.Apellidos.Trim(),
             string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),

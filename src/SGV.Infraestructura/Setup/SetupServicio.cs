@@ -101,7 +101,7 @@ public sealed class SetupServicio(
         // 3) Crear Persona vía servicio de aplicación (validación +
         //    unicidad de Legajo / Email / Documento ya implementadas).
         var personaRequest = new CrearPersonaRequest(
-            Legajo: request.Legajo ?? string.Empty,
+            Legajo: request.Legajo,
             Nombres: request.Nombres,
             Apellidos: request.Apellidos,
             Email: request.Email,
