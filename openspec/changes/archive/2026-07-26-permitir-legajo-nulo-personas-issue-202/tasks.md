@@ -65,7 +65,7 @@ Single PR — cambio contenido (~340 líneas, <400), bajo riesgo de salto de pre
 
 ## Phase 5: UI warning + Verificación final
 
-- [ ] 5.1 `_Form.cshtml`: agregar `<span class="text-warning small" data-legajo-context-warning hidden>` bajo campo Legajo (Diseño §6)
-- [ ] 5.2 `dotnet build SGV.slnx` + `dotnet test SGV.slnx` en verde
-- [ ] 5.3 `bun run build` en `src/SGV.Web` (sin impacto esperado)
-- [ ] 5.4 Smoke manual: `/personas/crear` con Legajo vacío → redirect ok; `/personas/editar/{id}` limpiando Legajo → 200 + fila `UpdateLegajo` en Auditorias
+- [x] 5.1 `_Form.cshtml`: agregar `<span class="text-warning small" data-legajo-context-warning hidden>` bajo campo Legajo (Diseño §6)
+- [x] 5.2 `dotnet build SGV.slnx` + `dotnet test SGV.slnx` en verde
+- [x] 5.3 `bun run build` en `src/SGV.Web` (sin impacto esperado)
+- [x] 5.4 Smoke manual: `/personas/crear` con Legajo vacío → redirect ok; `/personas/editar/{id}` limpiando Legajo → 200 + fila `UpdateLegajo` en Auditorias
