@@ -27,19 +27,25 @@ public sealed class CrearPersonaRequestValidatorTests
         new(new FakeTipoDocumentoCatalogoConsulta());
 
     // ── Legajo ────────────────────────────────────────────────
+    //
+    // Política vigente: Legajo es opcional. El dominio (Persona) lo
+    // permite null/vacío (ValidacionesDominio.Opcional), la columna
+    // `Personas.Legajo` es nullable, y el bootstrap del primer
+    // Administrador (issue #195) lo acepta. Por eso NO exigimos
+    // NotEmpty; sólo se valida el largo máximo cuando hay valor.
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" ")]
     [InlineData("   ")]
-    public void Should_Have_Error_When_Legajo_Is_Empty(string? legajo)
+    public void Should_Not_Have_Error_When_Legajo_Is_Empty(string? legajo)
     {
         var request = RequestValido() with { Legajo = legajo! };
 
         var result = _validator.TestValidateAsync(request).GetAwaiter().GetResult();
 
-        result.ShouldHaveValidationErrorFor(r => r.Legajo);
+        result.ShouldNotHaveValidationErrorFor(r => r.Legajo);
     }
 
     [Fact]

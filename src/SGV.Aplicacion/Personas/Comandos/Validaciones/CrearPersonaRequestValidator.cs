@@ -32,9 +32,17 @@ public class CrearPersonaRequestValidator : AbstractValidator<CrearPersonaReques
     /// </summary>
     public CrearPersonaRequestValidator(ITipoDocumentoCatalogoConsulta? catalogo)
     {
+        // Legajo es opcional: el modelo de dominio (Persona) lo permite
+        // null/vacío (ValidacionesDominio.Opcional) y la columna
+        // `Personas.Legajo` es nullable. Lo único que aplicamos cuando
+        // hay valor es el control de longitud máxima. Esta decisión
+        // destrabó también el bootstrap del primer Administrador
+        // (SetupSolicitaLegajoOpcional / issue #195 WU-3) sin obligar
+        // al usuario final a cargar un legajo del que podría no
+        // disponer al primer inicio del sistema.
         RuleFor(x => x.Legajo)
-            .NotEmpty()
-            .MaximumLength(50);
+            .MaximumLength(50)
+                .When(x => !string.IsNullOrEmpty(x.Legajo));
 
         RuleFor(x => x.Nombres)
             .NotEmpty()
