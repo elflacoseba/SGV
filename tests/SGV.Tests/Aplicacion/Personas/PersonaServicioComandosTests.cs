@@ -100,25 +100,43 @@ public sealed class PersonaServicioComandosTests
     }
 
     [Fact]
-    public async Task CrearAsync_LegajoVacio_RetornaFieldErrorsSinConsultarRepos()
+    public async Task CrearAsync_LegajoVacio_PermitidoYGuarda()
     {
-        var repo = new FakePersonaWriteRepository
-        {
-            Datos = [CrearPersonaActiva("LEG-001", PersonaIdActiva)]
-        };
+        // Política vigente: Legajo es opcional (Persona.Legajo? +
+        // ValidacionesDominio.Opcional + columna nullable). El
+        // bootstrap del primer Administrador (issue #195) lo necesita
+        // opcional; por eso no exigimos NotEmpty en el validator.
+        // Antes este test verificaba que Legajo vacío devolvía un
+        // FieldError; ahora verifica que la request atraviesa la
+        // validación, llega al repo y persiste.
+        var repo = new FakePersonaWriteRepository();
         var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(repo, uow);
         var request = new CrearPersonaRequest("", "Juan", "Pérez");
 
         var resultado = await servicio.CrearAsync(request, default);
 
-        Assert.False(resultado.IsSuccess);
-        Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("legajo", resultado.FieldErrors!.Keys);
-        Assert.DoesNotContain("Legajo", resultado.FieldErrors.Keys);
-        Assert.Equal(0, repo.ExistsActiveLegajoCallCount);
-        Assert.Equal(0, repo.AddCallCount);
-        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.True(string.IsNullOrEmpty(resultado.Value!.Legajo));
+        Assert.Equal(1, repo.AddCallCount);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_LegajoConUnSoloEspacio_TambienEsValido()
+    {
+        // El validator sólo aplica MaximumLength cuando hay valor
+        // (no-blanco tras IsNullOrEmpty). Espacios en blanco cuentan
+        // como ausencia y deben pasar.
+        var repo = new FakePersonaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, uow);
+        var request = new CrearPersonaRequest("   ", "Juan", "Pérez");
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
     }
 
     [Fact]
@@ -270,6 +288,11 @@ public sealed class PersonaServicioComandosTests
     [Fact]
     public async Task CrearAsync_MultiplesErrores_EmiteTodasLasClavesCamelCase()
     {
+        // Tras la relajación de Legajo (ahora opcional, alineado con
+        // el dominio), una request con los tres campos String.Empty
+        // sólo falla por Nombres y Apellidos. Legajo vacío sigue
+        // formando parte de la request — no agrega un error de
+        // validación.
         var repo = new FakePersonaWriteRepository();
         var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(repo, uow);
@@ -279,7 +302,7 @@ public sealed class PersonaServicioComandosTests
 
         Assert.False(resultado.IsSuccess);
         Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("legajo", resultado.FieldErrors!.Keys);
+        Assert.DoesNotContain("legajo", resultado.FieldErrors!.Keys);
         Assert.Contains("nombres", resultado.FieldErrors.Keys);
         Assert.Contains("apellidos", resultado.FieldErrors.Keys);
         Assert.Equal(0, repo.AddCallCount);

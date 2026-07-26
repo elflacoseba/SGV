@@ -24,9 +24,12 @@ public class ActualizarPersonaRequestValidator : AbstractValidator<ActualizarPer
 
     public ActualizarPersonaRequestValidator(ITipoDocumentoCatalogoConsulta? catalogo)
     {
+        // Misma política que CrearPersonaRequestValidator: Legajo es
+        // opcional según el dominio y la columna. Sólo se valida la
+        // longitud máxima cuando hay valor presente.
         RuleFor(x => x.Legajo)
-            .NotEmpty()
-            .MaximumLength(50);
+            .MaximumLength(50)
+                .When(x => !string.IsNullOrEmpty(x.Legajo));
 
         RuleFor(x => x.Nombres)
             .NotEmpty()
