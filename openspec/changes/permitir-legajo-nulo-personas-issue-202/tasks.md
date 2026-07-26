@@ -45,9 +45,12 @@ Single PR — cambio contenido (~340 líneas, <400), bajo riesgo de salto de pre
 
 ## Phase 3: Normalización web (TDD)
 
-- [ ] 3.1 RED: `PersonaWebSeamTests`: `EditPageTests.OnPostAsync_LegajoWhitespace_NormalizaANull` — FAIL (PageModels sin normalizar) (Diseño §8)
-- [ ] 3.2 GREEN: `Create.cshtml.cs:111`: normalizar `Input.Legajo` — whitespace→null, else `.Trim()` (Diseño §4; spec persona-management §Crear whitespace-only)
-- [ ] 3.3 GREEN: `Edit.cshtml.cs:118`: simplificar pre-carga a `Input.Legajo = persona.Legajo`; línea 174: normalizar POST (Diseño §4; spec persona-management §Editar whitespace-only)
+- [x] 3.1 RED: `PersonaWebSeamTests`: `EditPageTests.OnPostAsync_LegajoWhitespace_NormalizaANull` — FAIL (PageModels sin normalizar) (Diseño §8)
+- [x] 3.2 GREEN: `Create.cshtml.cs:111`: normalizar `Input.Legajo` — whitespace→null, else `.Trim()` (Diseño §4; spec persona-management §Crear whitespace-only)
+- [x] 3.3 GREEN: `Edit.cshtml.cs:118`: simplificar pre-carga a `Input.Legajo = persona.Legajo`; línea 174: normalizar POST (Diseño §4; spec persona-management §Editar whitespace-only)
+  - RED confirmado: el test nuevo recibía 500 por NRE al invocar `Input.Legajo.Trim()` con whitespace.
+  - GREEN: 106/106 tests web Persona/Create/Edit pasando (54 previos + 1 nuevo + ajustes 1 existente).
+  - Ajusté `Post_Edit_WhenBackendReturnsFieldErrors_RendersFieldValidationAndKeepsForm` para enviar `Input.Apellidos` no vacío (sigue siendo [Required]) y un mensaje de legajo alcanzable vía backend (no vía client-side).
 
 ## Phase 4: Tests de integración
 
