@@ -148,6 +148,47 @@ public sealed class PersonaRepositoryTests
     }
 
     [MySqlFact]
+    public async Task PersistirPersona_LegajoNull_LecturaPosterior()
+    {
+        // AC persona-management § "Crear persona omitiendo Legajo":
+        // una Persona persistida con Legajo=null en MySQL debe
+        // recuperarse como Legajo=null. El round-trip cubre la columna
+        // Personas.Legajo (varchar(50) NULL) sin que el cliente ni el
+        // repo apliquen defaults espurios.
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new PersonaRepository(context);
+        var emailUnico = "legajonull-" + Guid.NewGuid().ToString("N")[..8] + "@test.com";
+        var persona = new Persona("Sin", "Legajo", legajo: null, email: emailUnico)
+        {
+            Id = Guid.NewGuid()
+        };
+
+        await repo.AddAsync(persona, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var obtained = await repo.GetByIdAsync(persona.Id, default);
+            Assert.NotNull(obtained);
+            Assert.Null(obtained!.Legajo);
+
+            // Verifica también el round-trip contra la entidad cruda de EF
+            // para descartar cualquier transformación del mapeo.
+            var entity = await context.Set<PersonaEntity>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == persona.Id);
+            Assert.NotNull(entity);
+            Assert.Null(entity!.Legajo);
+        }
+        finally
+        {
+            context.Set<PersonaEntity>().RemoveRange(
+                await context.Set<PersonaEntity>().Where(p => p.Id == persona.Id).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    [MySqlFact]
     public async Task AddAsync_NoIncluyeRelacionesFueraDeAlcance()
     {
         await using var context = new TestSgvDbContextFactory().CreateDbContext([]);

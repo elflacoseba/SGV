@@ -450,6 +450,77 @@ public class PersonaApiClientBasicTests
                 Segmento: PersonaSegmentoListado.Activas, SoloSinUsuario: true)));
     }
 
+    // ──────────────────────────────────────────────
+    // Issue #202: el cliente NO pre-procesa Legajo. La normalización
+    // whitespace->null vive en el PageModel; aquí verificamos que el
+    // cliente serializa exactamente lo que recibe del request, sin
+    // trim ni reemplazo null↔"".
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateAsync_LegajoNull_SerializaLegajoNull()
+    {
+        // AC web-apiclient-transport-contract § "Cliente entrega crudo
+        // null y serializa legajo: null": un CrearPersonaRequest con
+        // Legajo=null debe serializar el campo legajo como JSON null
+        // sin transformación intermedia.
+        var newId = Guid.NewGuid();
+        var dto = new PersonaDto(newId, null, "Nueva", "Persona", null, null, null, null, null, null, true);
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Created, dto));
+        var client = new PersonaApiClient(NewHttpClient(handler));
+
+        var result = await client.CreateAsync(new CrearPersonaRequest(null, "Nueva", "Persona"));
+
+        Assert.True(result.IsSuccess);
+        var body = await handler.LastRequest!.Content!.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        Assert.True(doc.RootElement.TryGetProperty("legajo", out var legajoElement));
+        Assert.Equal(JsonValueKind.Null, legajoElement.ValueKind);
+    }
+
+    [Fact]
+    public async Task CreateAsync_LegajoVacio_SerializaLegajoVacio()
+    {
+        // AC web-apiclient-transport-contract § "Cliente entrega crudo
+        // '' y serializa legajo: '' (no permitido por UI)": un
+        // CrearPersonaRequest con Legajo="" debe serializar el campo
+        // como string vacío, NO como null. La normalización vive en el
+        // PageModel, no en el cliente HTTP.
+        var newId = Guid.NewGuid();
+        var dto = new PersonaDto(newId, "", "Nueva", "Persona", null, null, null, null, null, null, true);
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.Created, dto));
+        var client = new PersonaApiClient(NewHttpClient(handler));
+
+        var result = await client.CreateAsync(new CrearPersonaRequest("", "Nueva", "Persona"));
+
+        Assert.True(result.IsSuccess);
+        var body = await handler.LastRequest!.Content!.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        Assert.True(doc.RootElement.TryGetProperty("legajo", out var legajoElement));
+        Assert.Equal(JsonValueKind.String, legajoElement.ValueKind);
+        Assert.Equal(string.Empty, legajoElement.GetString());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LegajoConEspaciosNoTrimeaCliente()
+    {
+        // AC web-apiclient-transport-contract § "Cliente entrega valor
+        // con espacios y los preserva": un ActualizarPersonaRequest con
+        // Legajo="  L-7  " (no whitespace-only) debe llegar al backend
+        // con los espacios intactos; el cliente NO aplica Trim antes
+        // de serializar.
+        var id = Guid.NewGuid();
+        var dto = new PersonaDto(id, "  L-7  ", "Ana", "García", null, null, null, null, null, null, true);
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, dto));
+        var client = new PersonaApiClient(NewHttpClient(handler));
+
+        var result = await client.UpdateAsync(id, new ActualizarPersonaRequest("  L-7  ", "Ana", "García"));
+
+        Assert.True(result.IsSuccess);
+        var body = await handler.LastRequest!.Content!.ReadAsStringAsync();
+        Assert.Contains("\"legajo\":\"  L-7  \"", body, StringComparison.Ordinal);
+    }
+
     private static HttpClient NewHttpClient(HttpMessageHandler handler) =>
         new(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.test") };
 
