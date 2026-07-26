@@ -37,8 +37,11 @@ Single PR — cambio contenido (~340 líneas, <400), bajo riesgo de salto de pre
 
 ## Phase 2: Auditoría al limpiar Legajo (TDD)
 
-- [ ] 2.1 RED: crear `FakeAuditoriaServicio` helper en tests/Aplicacion/Personas/; escribir tests `CrearAsync_LegajoNull_PermitidoYGuarda`, `ActualizarAsync_LimpiarLegajo_RegistraAuditoria`, `ActualizarAsync_LegajoSinTransicion_NoEmiteAuditoriaLegajo`, `ActualizarAsync_LegajoDuplicado_SigueRechazando` en `PersonaServicioComandosTests` — FAIL (sin inyección de auditoría) (Diseño §8, spec persona-management §Auditoría explícita)
-- [ ] 2.2 GREEN: agregar `IAuditoriaServicio` + `IUsuarioActual` al ctor de `PersonaServicioComandos`; implementar bloque de auditoría en `ActualizarAsync` tras `SaveChangesAsync` (Diseño §5)
+- [x] 2.1 RED: crear `FakeAuditoriaServicio` helper en tests/Aplicacion/Personas/; escribir tests `CrearAsync_LegajoNull_PermitidoYGuarda`, `ActualizarAsync_LimpiarLegajo_RegistraAuditoria`, `ActualizarAsync_LegajoSinTransicion_NoEmiteAuditoriaLegajo`, `ActualizarAsync_LegajoDuplicado_SigueRechazando` en `PersonaServicioComandosTests` — FAIL (sin inyección de auditoría) (Diseño §8, spec persona-management §Auditoría explícita)
+- [x] 2.2 GREEN: agregar `IAuditoriaServicio` + `IUsuarioActual` al ctor de `PersonaServicioComandos`; implementar bloque de auditoría en `ActualizarAsync` tras `SaveChangesAsync` (Diseño §5)
+  - RED confirmado por error de compilación en `CrearServicio(repo, uow, auditoria)` al invocar el nuevo ctor de 6 argumentos.
+  - GREEN: 20/20 `PersonaServicioComandosTests` pasando (16 previos + 4 nuevos).
+  - Helpers nuevos: `NoopAuditoriaServicio` + `NullUsuarioActual` (internals en `SGV.Aplicacion`) para mantener el ctor de back-compat con 11 tests previos.
 
 ## Phase 3: Normalización web (TDD)
 
