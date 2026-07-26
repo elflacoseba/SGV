@@ -13,6 +13,21 @@
             <input asp-for="Input.Legajo" class="form-control" placeholder="Legajo" />
             <label asp-for="Input.Legajo">Legajo</label>
             <span asp-validation-for="Input.Legajo" class="text-danger"></span>
+            @* Issue #202: slot reservado para que módulos downstream que
+               exijan Legajo activen la advertencia contextual. Por
+               defecto queda oculto (hidden) y sin mensaje; el módulo
+               que lo necesite lo muestra vía CSS/JS o un reemplazo
+               server-side futuro. No bloquea el submit. *@
+            @if (Model.ShowLegajoContextWarning)
+            {
+                <span class="text-warning small" data-legajo-context-warning>
+                    Este legajo se utiliza en flujos que lo requieren.
+                </span>
+            }
+            else
+            {
+                <span class="text-warning small" data-legajo-context-warning hidden></span>
+            }
         </div>
     </div>
     <div class="col-md-6">
