@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Personas.Comandos;
@@ -386,6 +388,25 @@ public sealed class PersonaServicioComandosTests
     }
 
     [Fact]
+    public async Task ActualizarAsync_RegistrarAsyncFalla_PersonaUpdatePersisteYNoPropagaExcepcion()
+    {
+        var persona = CrearPersonaActiva("L-001", PersonaIdActiva);
+        var repo = new FakePersonaWriteRepository { Datos = [persona] };
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio { ThrowOnRegistrar = true };
+        var logger = new ListLogger<PersonaServicioComandos>();
+        var servicio = CrearServicio(repo, uow, auditoria, logger);
+
+        var resultado = await servicio.ActualizarAsync(persona.Id,
+            new ActualizarPersonaRequest(null, "Juan", "Pérez"), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Null(resultado.Value!.Legajo);
+        Assert.Equal(1, uow.SaveChangesCount);
+        Assert.Single(logger.Warnings);
+        Assert.Contains("UpdateLegajo", logger.Warnings[0]);
+    }
+    [Fact]
     public async Task ActualizarAsync_LegajoDuplicado_SigueRechazando()
     {
         // Regresión: la introducción de IAuditoriaServicio en el ctor no
@@ -412,7 +433,7 @@ public sealed class PersonaServicioComandosTests
         IPersonaRepository repo,
         IUnitOfWork uow)
     {
-        return new PersonaServicioComandos(repo, uow);
+        return new PersonaServicioComandos(repo, uow, NullLogger<PersonaServicioComandos>.Instance);
     }
 
     private static PersonaServicioComandos CrearServicio(
@@ -426,9 +447,25 @@ public sealed class PersonaServicioComandosTests
             new CrearPersonaRequestValidator(),
             new ActualizarPersonaRequestValidator(),
             auditoria,
-            new FakeUsuarioActual());
+            new FakeUsuarioActual(),
+            NullLogger<PersonaServicioComandos>.Instance);
     }
 
+    private static PersonaServicioComandos CrearServicio(
+        IPersonaRepository repo,
+        IUnitOfWork uow,
+        IAuditoriaServicio auditoria,
+        ILogger<PersonaServicioComandos> logger)
+    {
+        return new PersonaServicioComandos(
+            repo,
+            uow,
+            new CrearPersonaRequestValidator(),
+            new ActualizarPersonaRequestValidator(),
+            auditoria,
+            new FakeUsuarioActual(),
+            logger);
+    }
     private static Persona CrearPersonaActiva(
         string legajo, Guid? id = null,
         string? email = null,
@@ -591,9 +628,33 @@ internal sealed class FakePersonaWriteRepository : IPersonaRepository
 
 // ── Fakes for issue #202 (auditoría al limpiar Legajo) ─────
 
+internal sealed class ListLogger<T> : ILogger<T>
+{
+    public List<string> Warnings { get; } = [];
+    public List<Exception> Exceptions { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        if (logLevel >= LogLevel.Warning)
+        {
+            Warnings.Add(formatter(state, exception));
+            if (exception is not null)
+            {
+                Exceptions.Add(exception);
+            }
+        }
+    }
+}
+
 internal sealed class FakeAuditoriaServicio : IAuditoriaServicio
 {
-    public List<AuditoriaInvocacion> Invocaciones { get; } = new();
+    public List<AuditoriaInvocacion> Invocaciones { get; } = [];
+    public bool ThrowOnRegistrar { get; init; }
+    public Exception? RegistrarException { get; init; }
 
     public Task RegistrarAsync(
         string entidad,
@@ -604,6 +665,11 @@ internal sealed class FakeAuditoriaServicio : IAuditoriaServicio
         IReadOnlyDictionary<string, object?> valoresNuevos,
         CancellationToken cancellationToken = default)
     {
+        if (ThrowOnRegistrar)
+        {
+            throw RegistrarException ?? new InvalidOperationException("forced audit failure");
+        }
+
         Invocaciones.Add(new AuditoriaInvocacion(
             entidad,
             entityId,
@@ -614,7 +680,6 @@ internal sealed class FakeAuditoriaServicio : IAuditoriaServicio
         return Task.CompletedTask;
     }
 }
-
 internal sealed record AuditoriaInvocacion(
     string Entidad,
     string EntityId,
