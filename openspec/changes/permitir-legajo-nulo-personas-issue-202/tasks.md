@@ -29,11 +29,11 @@ Single PR — cambio contenido (~340 líneas, <400), bajo riesgo de salto de pre
 
 ## Phase 1: Cambios de tipo (Foundation)
 
-- [ ] 1.1 `src/SGV.Contracts/Personas/Comandos/PersonaRequests.cs`: `string Legajo` → `string? Legajo` en `CrearPersonaRequest` y `ActualizarPersonaRequest` (Diseño §3; spec persona-management §Alta, spec transport-contract §Req)
-- [ ] 1.2 `src/SGV.Web/Integration/Personas/PersonaInputModel.cs`: quitar `[Required]`, `[StringLength(20)]`→`(50)`, `string`→`string?`, sin default (Diseño §2; spec persona-management §Alta)
-- [ ] 1.3 `IPersonaForm.cs` + `CreateModel`/`EditModel`: agregar `bool ShowLegajoContextWarning { get; }` default `false` (Diseño §6)
-- [ ] 1.4 `src/SGV.Infraestructura/Setup/SetupServicio.cs:104`: `?? string.Empty` → `request.Legajo` (Diseño §7)
-- [ ] 1.5 `dotnet build SGV.slnx` — verificar compilación de ~45 call-sites con `string?`
+- [x] 1.1 `src/SGV.Contracts/Personas/Comandos/PersonaRequests.cs`: `string Legajo` → `string? Legajo` en `CrearPersonaRequest` y `ActualizarPersonaRequest` (Diseño §3; spec persona-management §Alta, spec transport-contract §Req)
+- [x] 1.2 `src/SGV.Web/Integration/Personas/PersonaInputModel.cs`: quitar `[Required]`, `[StringLength(20)]`→`(50)`, `string`→`string?`, sin default (Diseño §2; spec persona-management §Alta)
+- [x] 1.3 `IPersonaForm.cs` + `CreateModel`/`EditModel`: agregar `bool ShowLegajoContextWarning { get; }` default `false` (Diseño §6)
+- [x] 1.4 `src/SGV.Infraestructura/Setup/SetupServicio.cs:104`: `?? string.Empty` → `request.Legajo` (Diseño §7)
+- [x] 1.5 `dotnet build SGV.slnx` — verificar compilación de ~45 call-sites con `string?`
 
 ## Phase 2: Auditoría al limpiar Legajo (TDD)
 
