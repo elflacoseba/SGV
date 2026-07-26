@@ -20,6 +20,12 @@ namespace SGV.Web.Integration.Personas;
 /// </summary>
 public sealed class PersonaInputModel
 {
+    /// <summary>
+    /// Legajo opcional (issue #202). Estado inicial <c>null</c>; el PageModel
+    /// distingue explícitamente <c>null</c> vs <c>""</c> y normaliza
+    /// whitespace a <c>null</c> antes de invocar la API. No usar
+    /// <c>= string.Empty</c> como inicializador para no romper el contrato.
+    /// </summary>
     [StringLength(50, ErrorMessage = "El legajo no puede superar los 50 caracteres.")]
     public string? Legajo { get; set; }
 
