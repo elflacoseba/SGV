@@ -1,8 +1,10 @@
 using FluentValidation;
+using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Personas.Comandos.Validaciones;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
@@ -17,18 +19,25 @@ public sealed class PersonaServicioComandos(
     IPersonaRepository repository,
     IUnitOfWork unitOfWork,
     IValidator<CrearPersonaRequest> crearValidator,
-    IValidator<ActualizarPersonaRequest> actualizarValidator) : IPersonaServicioComandos
+    IValidator<ActualizarPersonaRequest> actualizarValidator,
+    IAuditoriaServicio auditoriaServicio,
+    IUsuarioActual usuarioActual) : IPersonaServicioComandos
 {
     /// <summary>
-    /// Convenience constructor for backward compatibility (e.g., tests).
-    /// Uses the real validators directly.
+    /// Convenience constructor for backward compatibility (e.g., legacy
+    /// tests que no necesitan explícitamente la auditoría ni el
+    /// usuario actual). Usa los validators reales y un
+    /// <see cref="NoopAuditoriaServicio"/> + un <see cref="NullUsuarioActual"/>
+    /// para mantener el comportamiento previo a la issue #202.
     /// </summary>
     public PersonaServicioComandos(
         IPersonaRepository repository,
         IUnitOfWork unitOfWork)
         : this(repository, unitOfWork,
                new CrearPersonaRequestValidator(),
-               new ActualizarPersonaRequestValidator())
+               new ActualizarPersonaRequestValidator(),
+               new NoopAuditoriaServicio(),
+               new NullUsuarioActual())
     {
     }
 
@@ -111,11 +120,37 @@ public sealed class PersonaServicioComandos(
 
         try
         {
+            // Issue #202: capturar el Legajo previo antes de aplicar el
+            // cambio para detectar la transición no-nulo -> null y emitir
+            // la fila de auditoría explícita correspondiente. El
+            // interceptor central sigue emitiendo su fila Modificacion
+            // genérica; ambas coexisten con Operation distinta y mismo
+            // CorrelationId dentro de la misma unidad lógica.
+            var legajoAnterior = persona.Legajo;
+
             persona.CambiarDatos(request.Nombres, request.Apellidos, request.Legajo, request.Email, request.Telefono);
             persona.CambiarDocumento(request.TipoDocumentoId, request.NumeroDocumento);
 
             await repository.UpdateAsync(persona, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            if (legajoAnterior is not null && persona.Legajo is null)
+            {
+                await auditoriaServicio.RegistrarAsync(
+                    entidad: "Persona",
+                    entityId: persona.Id.ToString(),
+                    accion: "UpdateLegajo",
+                    usuarioOperadorId: usuarioActual.UserId,
+                    valoresAnteriores: new Dictionary<string, object?>
+                    {
+                        ["LegajoAnterior"] = legajoAnterior
+                    },
+                    valoresNuevos: new Dictionary<string, object?>
+                    {
+                        ["LegajoNuevo"] = null
+                    },
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
 
             return PersonaCommandResult.Success(MapToDto(persona));
         }

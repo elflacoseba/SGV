@@ -1,6 +1,9 @@
+using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Personas.Comandos;
+using SGV.Aplicacion.Personas.Comandos.Validaciones;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
@@ -309,6 +312,100 @@ public sealed class PersonaServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ── Issue #202: Auditoría explícita al limpiar Legajo ─────
+
+    [Fact]
+    public async Task CrearAsync_LegajoNull_PermitidoYGuarda()
+    {
+        // AC persona-management § "Alta de Persona": Legajo MAY omitirse.
+        // Tras wire-type a string?, CrearPersonaRequest acepta null; el
+        // servicio debe persistirlo y NO emitir auditoría UpdateLegajo
+        // (no hay transición previa).
+        var repo = new FakePersonaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio();
+        var servicio = CrearServicio(repo, uow, auditoria);
+        var request = new CrearPersonaRequest(null, "Juan", "Pérez");
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Null(resultado.Value!.Legajo);
+        Assert.Equal(1, repo.AddCallCount);
+        Assert.Equal(1, uow.SaveChangesCount);
+        Assert.Equal(0, auditoria.Invocaciones.Count);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_LimpiarLegajo_RegistraAuditoria()
+    {
+        // AC persona-management § "Editar limpiando Legajo persiste null y
+        // registra auditoría UpdateLegajo": Legajo="L-001" -> null debe
+        // invocar IAuditoriaServicio.RegistrarAsync con Accion="UpdateLegajo",
+        // LegajoAnterior="L-001" y LegajoNuevo=null.
+        var persona = CrearPersonaActiva("L-001", PersonaIdActiva);
+        var repo = new FakePersonaWriteRepository { Datos = [persona] };
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio();
+        var servicio = CrearServicio(repo, uow, auditoria);
+
+        var resultado = await servicio.ActualizarAsync(persona.Id,
+            new ActualizarPersonaRequest(null, "Juan", "Pérez"), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Null(resultado.Value!.Legajo);
+        Assert.Equal(1, uow.SaveChangesCount);
+
+        var inv = Assert.Single(auditoria.Invocaciones);
+        Assert.Equal("Persona", inv.Entidad);
+        Assert.Equal(persona.Id.ToString(), inv.EntityId);
+        Assert.Equal("UpdateLegajo", inv.Accion);
+        Assert.Equal("L-001", inv.ValoresAnteriores["LegajoAnterior"]);
+        Assert.Null(inv.ValoresNuevos["LegajoNuevo"]);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_LegajoSinTransicion_NoEmiteAuditoriaLegajo()
+    {
+        // AC persona-management § "Editar sin transición de Legajo no genera
+        // fila UpdateLegajo": Legajo="L-001" -> "L-001" (sin cambio) NO debe
+        // invocar RegistrarAsync. La auditoría central sigue emitiendo su
+        // fila Modificacion vía interceptor, fuera del alcance de este test.
+        var persona = CrearPersonaActiva("L-001", PersonaIdActiva);
+        var repo = new FakePersonaWriteRepository { Datos = [persona] };
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio();
+        var servicio = CrearServicio(repo, uow, auditoria);
+
+        var resultado = await servicio.ActualizarAsync(persona.Id,
+            new ActualizarPersonaRequest("L-001", "Juan Carlos", "Pérez"), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Empty(auditoria.Invocaciones);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_LegajoDuplicado_SigueRechazando()
+    {
+        // Regresión: la introducción de IAuditoriaServicio en el ctor no
+        // debe debilitar la regla de unicidad activa para legajos no nulos.
+        var activa = CrearPersonaActiva("LEG-001", PersonaIdActiva);
+        var otra = CrearPersonaActiva("LEG-002", PersonaIdConflicto);
+        var repo = new FakePersonaWriteRepository { Datos = [activa, otra] };
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio();
+        var servicio = CrearServicio(repo, uow, auditoria);
+
+        var resultado = await servicio.ActualizarAsync(otra.Id,
+            new ActualizarPersonaRequest("LEG-001", "Otra", "Persona"), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(PersonaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Empty(auditoria.Invocaciones);
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private static PersonaServicioComandos CrearServicio(
@@ -316,6 +413,20 @@ public sealed class PersonaServicioComandosTests
         IUnitOfWork uow)
     {
         return new PersonaServicioComandos(repo, uow);
+    }
+
+    private static PersonaServicioComandos CrearServicio(
+        IPersonaRepository repo,
+        IUnitOfWork uow,
+        IAuditoriaServicio auditoria)
+    {
+        return new PersonaServicioComandos(
+            repo,
+            uow,
+            new CrearPersonaRequestValidator(),
+            new ActualizarPersonaRequestValidator(),
+            auditoria,
+            new FakeUsuarioActual());
     }
 
     private static Persona CrearPersonaActiva(
@@ -476,4 +587,49 @@ internal sealed class FakePersonaWriteRepository : IPersonaRepository
         CancellationToken cancellationToken = default,
         bool? soloSinUsuario = null)
         => throw new NotSupportedException("Write-only fake does not support QueryAsync.");
+}
+
+// ── Fakes for issue #202 (auditoría al limpiar Legajo) ─────
+
+internal sealed class FakeAuditoriaServicio : IAuditoriaServicio
+{
+    public List<AuditoriaInvocacion> Invocaciones { get; } = new();
+
+    public Task RegistrarAsync(
+        string entidad,
+        string entityId,
+        string accion,
+        string? usuarioOperadorId,
+        IReadOnlyDictionary<string, object?> valoresAnteriores,
+        IReadOnlyDictionary<string, object?> valoresNuevos,
+        CancellationToken cancellationToken = default)
+    {
+        Invocaciones.Add(new AuditoriaInvocacion(
+            entidad,
+            entityId,
+            accion,
+            usuarioOperadorId,
+            valoresAnteriores,
+            valoresNuevos));
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed record AuditoriaInvocacion(
+    string Entidad,
+    string EntityId,
+    string Accion,
+    string? UsuarioOperadorId,
+    IReadOnlyDictionary<string, object?> ValoresAnteriores,
+    IReadOnlyDictionary<string, object?> ValoresNuevos);
+
+internal sealed class FakeUsuarioActual : IUsuarioActual
+{
+    public string? UserId { get; init; } = "test-user";
+
+    public Guid? PersonaId => null;
+
+    public IReadOnlyCollection<string> Roles { get; init; } = [];
+
+    public Guid? CorrelationId { get; init; }
 }
