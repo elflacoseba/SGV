@@ -4,6 +4,19 @@
 @using Microsoft.AspNetCore.Mvc.Rendering
 @using SGV.Contracts.Personas.Consultas.Dtos
 @model SGV.Web.Integration.Personas.IPersonaForm
+@{
+    // Issue #202: slot reservado para que módulos downstream que exijan
+    // Legajo activen una advertencia contextual sin bloquear el submit.
+    // El default queda oculto y vacío; ShowLegajoContextWarning controla
+    // visibilidad y LegajoContextWarningMessage permite personalizar el
+    // texto (null → mensaje por defecto del shell).
+    var mostrarWarning = Model.ShowLegajoContextWarning;
+    var mensajeWarning = mostrarWarning
+        ? (string.IsNullOrWhiteSpace(Model.LegajoContextWarningMessage)
+            ? "Este legajo se utiliza en flujos que lo requieren."
+            : Model.LegajoContextWarningMessage)
+        : string.Empty;
+}
 
 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
@@ -13,10 +26,8 @@
             <input asp-for="Input.Legajo" class="form-control" placeholder="Legajo" />
             <label asp-for="Input.Legajo">Legajo</label>
             <span asp-validation-for="Input.Legajo" class="text-danger"></span>
-            @* Issue #202: one conditional span reserves the contextual warning slot.
-               It stays hidden and empty by default, and can be enabled by a
-               downstream module without blocking submission. *@
-            <span class="text-warning small" data-legajo-context-warning@(Model.ShowLegajoContextWarning ? string.Empty : " hidden")>@(Model.ShowLegajoContextWarning ? "Este legajo se utiliza en flujos que lo requieren." : string.Empty)</span>
+            @* Issue #202: span condicional para advertencia contextual. *@
+            <span class="text-warning small@(mostrarWarning ? string.Empty : " hidden")" data-legajo-context-warning>@mensajeWarning</span>
         </div>
     </div>
     <div class="col-md-6">

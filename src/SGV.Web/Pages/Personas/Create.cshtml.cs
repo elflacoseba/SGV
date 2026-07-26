@@ -56,6 +56,12 @@ public sealed class CreateModel(
     /// </summary>
     public bool ShowLegajoContextWarning => false;
 
+    /// <summary>
+    /// Issue #202 (H4): mensaje personalizado para la advertencia
+    /// contextual. <c>null</c> deja al partial usar el texto por defecto.
+    /// </summary>
+    public string? LegajoContextWarningMessage => null;
+
     [BindProperty]
     public string? ReturnPage { get; set; }
 

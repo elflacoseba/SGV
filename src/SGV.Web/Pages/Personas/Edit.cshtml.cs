@@ -56,6 +56,12 @@ public sealed class EditModel(
     public bool ShowLegajoContextWarning => false;
 
     /// <summary>
+    /// Issue #202 (H4): mensaje personalizado para la advertencia
+    /// contextual. <c>null</c> deja al partial usar el texto por defecto.
+    /// </summary>
+    public string? LegajoContextWarningMessage => null;
+
+    /// <summary>
     /// Indica si la persona solicitada no pudo cargarse (404 o error de
     /// transporte). En ese estado la vista muestra un mensaje
     /// recuperable y oculta el formulario.

@@ -52,4 +52,15 @@ public interface IPersonaForm
     /// submit. Default <c>false</c>.
     /// </summary>
     bool ShowLegajoContextWarning { get; }
+
+    /// <summary>
+    /// Texto personalizado para la advertencia contextual del campo
+    /// <c>Legajo</c>. Cuando es <c>null</c> o whitespace, el partial
+    /// usa el mensaje por defecto del shell ("Este legajo se utiliza en
+    /// flujos que lo requieren."). Sólo aplica cuando
+    /// <see cref="ShowLegajoContextWarning"/> es <c>true</c>; en caso
+    /// contrario se ignora. Issue #202 / H4: permite a módulos
+    /// downstream personalizar el copy sin forkear el partial.
+    /// </summary>
+    string? LegajoContextWarningMessage { get; }
 }
