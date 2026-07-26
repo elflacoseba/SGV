@@ -123,7 +123,7 @@ public sealed class EditModel(
                 return Page();
             }
 
-            Input.Legajo = persona.Legajo ?? string.Empty;
+            Input.Legajo = persona.Legajo;
             Input.Nombres = persona.Nombres;
             Input.Apellidos = persona.Apellidos;
             Input.Email = persona.Email;
@@ -177,9 +177,13 @@ public sealed class EditModel(
         // Issue #147 PR3: binding directo desde el <select>. El legacy
         // ParseTipoDocumentoIdBackCompat se elimina porque el frontend ya no
         // envía el string TipoDocumento.
+        // Issue #202: Legajo se normaliza a null cuando es whitespace-only,
+        // alineando con el wire string?. Email / NumeroDocumento / Telefono
+        // mantienen su patrón existente.
         var tipoDocumentoId = Input.TipoDocumentoId;
+        var legajoNormalizado = string.IsNullOrWhiteSpace(Input.Legajo) ? null : Input.Legajo.Trim();
         var request = new ActualizarPersonaRequest(
-            Input.Legajo.Trim(),
+            legajoNormalizado,
             Input.Nombres.Trim(),
             Input.Apellidos.Trim(),
             string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),

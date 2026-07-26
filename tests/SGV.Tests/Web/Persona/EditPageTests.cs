@@ -133,6 +133,15 @@ public sealed class EditPageTests
     [Fact]
     public async Task Post_Edit_WhenBackendReturnsFieldErrors_RendersFieldValidationAndKeepsForm()
     {
+        // AC persona-management § "Feedback de validación server-side en
+        // Create/Edit": cuando el backend responde 400 con FieldErrors, los
+        // mensajes deben renderear bajo los data-valmsg-for correctos.
+        // Issue #202: Legajo es opcional, así que enviamos un valor no
+        // vacío y dejamos que el backend devuelva un error de campo
+        // distinto (e.g. "legajo duplicado") para ejercitar el camino de
+        // mapping. Apellidos sigue siendo [Required] en el cliente; el
+        // mensaje "Los apellidos son obligatorios" lo emite el backend
+        // simulando una validación server-side adicional.
         var personaId = Guid.NewGuid();
         var apiClient = new FakePersonaApiClient
         {
@@ -140,8 +149,8 @@ public sealed class EditPageTests
                 new PersonaError(PersonaErrorType.Validation, "Validation", "validation failed"),
                 new Dictionary<string, string[]>
                 {
-                    ["legajo"] = new[] { "El legajo es obligatorio." },
-                    ["apellidos"] = new[] { "Los apellidos son obligatorios." }
+                    ["legajo"] = new[] { "El legajo ya está en uso." },
+                    ["apellidos"] = new[] { "Los apellidos no cumplen el formato." }
                 })
         };
 
@@ -153,9 +162,9 @@ public sealed class EditPageTests
         var response = await lease.Client.PostAsync($"/personas/editar/{personaId}", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = antiforgeryToken,
-            ["Input.Legajo"] = string.Empty,
+            ["Input.Legajo"] = "L-001",
             ["Input.Nombres"] = "Ana",
-            ["Input.Apellidos"] = string.Empty
+            ["Input.Apellidos"] = "García"
         }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -164,11 +173,11 @@ public sealed class EditPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.True(
-            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(PersonaFormKeys.LegajoKey)}""[^>]*>[\s\S]*?El legajo es obligatorio[\s\S]*?</span>", RegexOptions.IgnoreCase),
-            $"Expected the backend field-error message 'El legajo es obligatorio' to be rendered inside the {PersonaFormKeys.LegajoKey} field-validation span.");
+            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(PersonaFormKeys.LegajoKey)}""[^>]*>[\s\S]*?El legajo ya está en uso[\s\S]*?</span>", RegexOptions.IgnoreCase),
+            $"Expected the backend field-error message 'El legajo ya está en uso' to be rendered inside the {PersonaFormKeys.LegajoKey} field-validation span.");
         Assert.True(
-            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(PersonaFormKeys.ApellidosKey)}""[^>]*>[\s\S]*?Los apellidos son obligatorios[\s\S]*?</span>", RegexOptions.IgnoreCase),
-            $"Expected the backend field-error message 'Los apellidos son obligatorios' to be rendered inside the {PersonaFormKeys.ApellidosKey} field-validation span.");
+            Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{Regex.Escape(PersonaFormKeys.ApellidosKey)}""[^>]*>[\s\S]*?Los apellidos no cumplen el formato[\s\S]*?</span>", RegexOptions.IgnoreCase),
+            $"Expected the backend field-error message 'Los apellidos no cumplen el formato' to be rendered inside the {PersonaFormKeys.ApellidosKey} field-validation span.");
     }
 
     // ──────────────────────────────────────────────
@@ -304,6 +313,42 @@ public sealed class EditPageTests
 
         // El catálogo se cargó exactamente una vez en el GET.
         Assert.Equal(1, seeded.GetTiposDocumentoCalls);
+    }
+
+    [Fact]
+    public async Task Post_Edit_WhenLegajoWhitespace_NormalizaANullAntesDeApi()
+    {
+        // AC persona-management § "Editar con Legajo whitespace-only se
+        // normaliza a null antes de la API" + spec web-apiclient-transport-contract
+        // § "PageModel Edit normaliza whitespace antes de invocar Update".
+        // El operador envía "   " en Input.Legajo; el PageModel debe
+        // normalizar a null antes de llamar a IPersonaApiClient.UpdateAsync,
+        // de modo que el request serializado viaje como Legajo=null. La
+        // operación sigue siendo success porque el backend acepta null.
+        var personaId = Guid.NewGuid();
+        var apiClient = new FakePersonaApiClient
+        {
+            UpdateResult = PersonaCommandResult.Success(
+                new PersonaDto(personaId, null, "Ana", "García", null, null, null, null, null, null, true))
+        };
+
+        await using var lease = await _fixture.CreatePersonaLeaseAsync(apiClient, adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync($"/personas/editar/{personaId}");
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync($"/personas/editar/{personaId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.Legajo"] = "   ",
+            ["Input.Nombres"] = "Ana",
+            ["Input.Apellidos"] = "García"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+        var sent = Assert.Single(apiClient.UpdateCalls);
+        Assert.Null(sent.Request.Legajo);
     }
 
     [Fact]

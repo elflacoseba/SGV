@@ -114,9 +114,14 @@ public sealed class CreateModel(
         // Issue #147 PR3: binding directo desde el <select>. El legacy
         // ParseTipoDocumentoIdBackCompat se elimina porque el frontend ya no
         // envía el string TipoDocumento.
+        // Issue #202: Legajo se normaliza a null cuando es whitespace-only,
+        // para alinear con el dominio nullable y el wire string?. El resto
+        // de los campos opcionales (Email / NumeroDocumento / Telefono)
+        // siguen el mismo patrón.
         var tipoDocumentoId = Input.TipoDocumentoId;
+        var legajoNormalizado = string.IsNullOrWhiteSpace(Input.Legajo) ? null : Input.Legajo.Trim();
         var request = new CrearPersonaRequest(
-            Input.Legajo.Trim(),
+            legajoNormalizado,
             Input.Nombres.Trim(),
             Input.Apellidos.Trim(),
             string.IsNullOrWhiteSpace(Input.Email) ? null : Input.Email.Trim(),
