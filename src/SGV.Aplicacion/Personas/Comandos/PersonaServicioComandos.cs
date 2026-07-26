@@ -25,7 +25,6 @@ public sealed class PersonaServicioComandos(
     IUsuarioActual usuarioActual,
     ILogger<PersonaServicioComandos> logger) : IPersonaServicioComandos
 {
-    private readonly ILogger<PersonaServicioComandos> logger = logger ?? throw new ArgumentNullException(nameof(logger));
     /// <summary>
     /// Convenience constructor for backward compatibility. Uses the real validators,
     /// a no-op audit service, and a null current-user implementation.
