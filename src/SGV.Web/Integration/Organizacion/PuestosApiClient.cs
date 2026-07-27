@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Common;
+using ContractsPuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -49,7 +51,23 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
     }
 
     /// <inheritdoc />
-    public async Task<PuestoCommandResult> CreateAsync(CrearPuestoRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<PuestoDto>> QueryAsync(
+        ContractsPuestoListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        var response = await httpClient.GetAsync(BuildQueryUri(query), cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<PagedResult<PuestoDto>>(cancellationToken)
+            ?? new PagedResult<PuestoDto>([], 0, query.Page, query.PageSize);
+    }
+
+    /// <inheritdoc />
+    public async Task<PuestoCommandResult> CreateAsync(
+        CrearPuestoRequest request,
+        CancellationToken cancellationToken = default)
     {
         var response = await httpClient.PostAsJsonAsync(BaseRoute, request, cancellationToken);
 
@@ -107,7 +125,34 @@ public sealed class PuestosApiClient(HttpClient httpClient) : IPuestosApiClient
         return await ToCommandResultAsync(response, cancellationToken);
     }
 
-    private static async Task<PuestoCommandResult> ToCommandResultAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    private static string BuildQueryUri(ContractsPuestoListQuery query)
+    {
+        var builder = new StringBuilder(
+            $"{BaseRoute}/consulta?page={query.Page}&pageSize={query.PageSize}");
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            builder.Append("&search=");
+            builder.Append(Uri.EscapeDataString(query.Search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Sort))
+        {
+            builder.Append("&sort=");
+            builder.Append(Uri.EscapeDataString(query.Sort));
+        }
+
+        if (query.Segmento == PuestoSegmentoListado.Eliminadas)
+        {
+            builder.Append("&status=eliminadas");
+        }
+
+        return builder.ToString();
+    }
+
+    private static async Task<PuestoCommandResult> ToCommandResultAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
     {
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
         var (categoria, code, message, statusCode) = CommandResultMapper.Map(response, parsed);

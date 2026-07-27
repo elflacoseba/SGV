@@ -45,6 +45,24 @@ PR1 ──→ PR2
          └─ T-15 (Index.cshtml toggle + paginación)
 ```
 
+## Estado de implementación
+
+- [x] T-01: Contrato `PuestoListQuery` y `PuestoSegmentoListado` en Contracts
+- [x] T-02: Alias/migración inicial de `PuestoListQuery` en Web
+- [x] T-03: Guarda de baja contra ocupaciones vigentes
+- [x] T-04: Tests unitarios de la guarda de baja
+- [x] T-05: `IPuestoRepository.QueryAsync` e implementación server-side
+- [x] T-06: Tests MySQL de consulta segmentada y paginada
+- [x] T-07: `IPuestoServicioConsulta.QueryAsync`
+- [x] T-08: Tests unitarios del servicio de consulta
+- [x] T-09: Endpoint HTTP `/consulta` y mapeo 409
+- [x] T-10: Tests API del endpoint y baja protegida
+- [ ] T-11: `IPuestosApiClient.QueryAsync` y serialización de query
+- [ ] T-12: Tests del cliente HTTP de puestos
+- [ ] T-13: Refactor de `PuestoIndexModel.LoadAsync` a consulta paginada
+- [ ] T-14: Tests del PageModel y feedback 409
+- [ ] T-15: Toggle Eliminadas y controles de paginación en la vista
+
 ## PR 1 — Backend (≈250 líneas, 4 commits)
 
 ### T-01: Crear `PuestoListQuery` y `PuestoSegmentoListado` en Contracts

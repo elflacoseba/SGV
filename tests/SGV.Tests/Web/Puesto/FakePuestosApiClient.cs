@@ -3,6 +3,7 @@ using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
+using PuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Tests.Web.Puesto;
 
@@ -23,6 +24,19 @@ public sealed class FakePuestosApiClient : IPuestosApiClient
 
     /// <summary>Resultado de <see cref="GetAllAsync"/> (se filtran los ids eliminados).</summary>
     public IReadOnlyList<PuestoDto> GetAllResult { get; set; } = [];
+
+    /// <summary>
+    /// Permite personalizar el resultado de cada consulta paginada. Cuando no
+    /// se configura, el fake aplica segmento, búsqueda, orden y paginación sobre
+    /// <see cref="GetAllResult"/>.
+    /// </summary>
+    public Func<PuestoListQuery, PagedResult<PuestoDto>>? QueryHandler { get; set; }
+
+    /// <summary>Consultas recibidas por <see cref="QueryAsync"/>.</summary>
+    public List<PuestoListQuery> QueryCalls { get; } = [];
+
+    /// <summary>Excepción opcional que <see cref="QueryAsync"/> debe lanzar.</summary>
+    public Exception? QueryException { get; set; }
 
     /// <summary>Resultado de <see cref="GetByIdAsync"/> cuando no se resuelve desde <see cref="GetAllResult"/>.</summary>
     public PuestoDto? GetByIdResult { get; set; }
@@ -83,6 +97,55 @@ public sealed class FakePuestosApiClient : IPuestosApiClient
         }
 
         return Task.FromResult(snapshot);
+    }
+
+    public Task<PagedResult<PuestoDto>> QueryAsync(
+        PuestoListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        QueryCalls.Add(query);
+
+        if (QueryException is not null)
+        {
+            throw QueryException;
+        }
+
+        if (QueryHandler is not null)
+        {
+            return Task.FromResult(QueryHandler(query));
+        }
+
+        var source = GetAllResult.AsEnumerable();
+        source = query.Segmento == PuestoSegmentoListado.Eliminadas
+            ? source.Where(p => _deletedIds.Contains(p.Id))
+            : source.Where(p => !_deletedIds.Contains(p.Id));
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            source = source.Where(p =>
+                p.Codigo.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || p.Nombre.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || (p.Descripcion?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        var ordered = query.Sort?.ToLowerInvariant() switch
+        {
+            "codigo_desc" => source.OrderByDescending(p => p.Codigo, StringComparer.OrdinalIgnoreCase),
+            "nombre_desc" => source.OrderByDescending(p => p.Nombre, StringComparer.OrdinalIgnoreCase),
+            "nombre_asc" => source.OrderBy(p => p.Nombre, StringComparer.OrdinalIgnoreCase),
+            _ => source.OrderBy(p => p.Codigo, StringComparer.OrdinalIgnoreCase)
+        };
+
+        var materialized = ordered.ToArray();
+        var pageSize = Math.Max(1, query.PageSize);
+        var page = Math.Max(1, query.Page);
+        var items = materialized
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToArray();
+
+        return Task.FromResult(new PagedResult<PuestoDto>(items, materialized.Length, page, pageSize));
     }
 
     public Task<PuestoDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
