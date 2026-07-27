@@ -4,6 +4,26 @@ using SGV.Contracts.Organizacion.Consultas.Dtos;
 namespace SGV.Contracts.Seguridad.Usuarios;
 
 /// <summary>
+/// Request to change the password of the currently authenticated user.
+/// </summary>
+public sealed record ChangePasswordRequest(
+    string CurrentPassword,
+    string NewPassword,
+    string ConfirmPassword);
+
+/// <summary>
+/// Outcome of an authenticated password-change operation.
+/// </summary>
+public enum ChangePasswordOutcome
+{
+    Success = 0,
+    InvalidCurrentPassword = 1,
+    ValidationError = 2,
+    RateLimited = 3
+}
+
+
+/// <summary>
 /// Request to create a new SGV user linked to an existing persona.
 /// </summary>
 public sealed record CrearUsuarioRequest(
