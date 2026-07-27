@@ -46,4 +46,17 @@ public interface IAuthApiClient
     Task<PasswordResetOutcome> ValidateResetTokenAsync(
         ValidateResetTokenRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Changes the password of the currently authenticated user. Requires a
+    /// valid bearer token; calling this from an anonymous context yields a
+    /// <c>401 Unauthorized</c> from the API which propagates as
+    /// <see cref="HttpRequestException"/> with <c>StatusCode = 401</c>.
+    /// </summary>
+    /// <param name="request">Authenticated password-change payload.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The discriminated outcome of the change-password operation.</returns>
+    Task<ChangePasswordOutcome> ChangePasswordAsync(
+        ChangePasswordRequest request,
+        CancellationToken cancellationToken = default);
 }

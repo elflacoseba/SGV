@@ -176,5 +176,10 @@ public sealed class ForgotPasswordPageTests
             ValidateResetTokenRequest request,
             CancellationToken cancellationToken = default)
             => Task.FromResult(PasswordResetOutcome.Success);
+
+        public Task<ChangePasswordOutcome> ChangePasswordAsync(
+            ChangePasswordRequest request,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(ChangePasswordOutcome.Success);
     }
 }

@@ -227,5 +227,10 @@ public sealed class ResetPasswordPageTests
             LastValidateRequest = request;
             return Task.FromResult(ValidateTokenOutcome ?? PasswordResetOutcome.Success);
         }
+
+        public Task<ChangePasswordOutcome> ChangePasswordAsync(
+            ChangePasswordRequest request,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(ChangePasswordOutcome.Success);
     }
 }

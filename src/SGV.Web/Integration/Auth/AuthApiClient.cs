@@ -74,6 +74,39 @@ public sealed class AuthApiClient : IAuthApiClient
         CancellationToken cancellationToken = default)
         => PostAnonymousAsync(AuthApiRoutes.ValidateResetToken, request, cancellationToken);
 
+    /// <inheritdoc />
+    public async Task<ChangePasswordOutcome> ChangePasswordAsync(
+        ChangePasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var response = await httpClient.PostAsJsonAsync(
+            AuthApiRoutes.ChangePassword,
+            request,
+            cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            return ChangePasswordOutcome.RateLimited;
+        }
+
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            return ChangePasswordOutcome.InvalidCurrentPassword;
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            return ChangePasswordOutcome.Success;
+        }
+
+        throw new HttpRequestException(
+            $"Change password returned {(int)response.StatusCode}.",
+            inner: null,
+            statusCode: response.StatusCode);
+    }
+
     private async Task<PasswordResetOutcome> PostAnonymousAsync<TRequest>(
         string route,
         TRequest request,
