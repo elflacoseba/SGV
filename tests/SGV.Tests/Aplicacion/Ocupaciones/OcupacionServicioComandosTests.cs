@@ -5,6 +5,7 @@ using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
@@ -901,6 +902,12 @@ internal sealed class FakePuestoWriteRepository : IPuestoRepository
 
     public Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake for reference checking.");
+
+    public Task<(IReadOnlyList<Puesto> Items, int TotalCount)> QueryAsync(
+        string? search, int page, int pageSize, string? sort = null,
+        PuestoSegmentoListado segmento = PuestoSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<(IReadOnlyList<Puesto>, int)>(([], 0));
 }
 
 internal sealed class FakeUnitOfWork : IUnitOfWork

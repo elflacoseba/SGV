@@ -311,6 +311,25 @@ internal sealed class FakePuestoServicio : IPuestoServicioConsulta
 
     public Task<PuestoDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
+
+    public Task<PagedResult<PuestoDto>> QueryAsync(PuestoListQuery query, CancellationToken ct = default)
+    {
+        var filtered = _data.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var lowered = query.Search.ToLowerInvariant();
+            filtered = filtered.Where(d =>
+                d.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || d.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var total = filtered.Count();
+        var items = filtered
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToList();
+        return Task.FromResult(new PagedResult<PuestoDto>(items, total, query.Page, query.PageSize));
+    }
 }
 
 internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta

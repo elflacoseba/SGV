@@ -1,4 +1,5 @@
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 
 namespace SGV.Aplicacion.Organizacion.Consultas;
@@ -43,4 +44,19 @@ public interface IPuestoRepository : IReadOnlyRepository<Puesto>
     /// Checks whether an active puesto already uses the given code.
     /// </summary>
     Task<bool> ExistsActiveCodeAsync(string codigo, Guid? excludingId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a filtered, paginated set of puestos for the requested segment
+    /// (active or soft-deleted) and the total count matching the filters.
+    /// The optional <paramref name="sort"/> expression is applied server-side
+    /// BEFORE pagination so page boundaries are consistent with the visible
+    /// ordering (e.g. <c>nombre_desc</c> returns Z→A on every page).
+    /// </summary>
+    Task<(IReadOnlyList<Puesto> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        PuestoSegmentoListado segmento = PuestoSegmentoListado.Activas,
+        CancellationToken cancellationToken = default);
 }

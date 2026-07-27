@@ -1,8 +1,10 @@
 using FluentValidation;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Common;
+using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
@@ -18,15 +20,18 @@ public sealed class PuestoServicioComandos(
     ICargoRepository cargoRepository,
     IUnitOfWork unitOfWork,
     IValidator<CrearPuestoRequest> crearValidator,
-    IValidator<ActualizarPuestoRequest> actualizarValidator) : IPuestoServicioComandos
+    IValidator<ActualizarPuestoRequest> actualizarValidator,
+    IOcupacionRepository ocupacionRepository) : IPuestoServicioComandos
 {
     private static IReadOnlyDictionary<string, string[]> BuildFieldErrors(
         IEnumerable<FluentValidation.Results.ValidationFailure> failures)
         => ValidationHelper.BuildFieldErrors(failures);
 
     /// <summary>
-    /// Convenience constructor for backward compatibility (e.g., tests).
-    /// Uses the real validators directly.
+    /// Convenience constructor for backward compatibility (e.g., tests
+    /// that NO necesitan la guarda contra ocupaciones vigentes, como
+    /// <c>PuestoWebTestFixture</c>). Inyecta un null-object que reporta
+    /// cero ocupaciones activas y nunca bloquea la baja (DEC-2).
     /// </summary>
     public PuestoServicioComandos(
         IPuestoRepository repository,
@@ -35,8 +40,50 @@ public sealed class PuestoServicioComandos(
         IUnitOfWork unitOfWork)
         : this(repository, unidadOrganizativaRepository, cargoRepository, unitOfWork,
                new CrearPuestoRequestValidator(),
-               new ActualizarPuestoRequestValidator())
+               new ActualizarPuestoRequestValidator(),
+               new NullOcupacionRepository())
     {
+    }
+
+    /// <summary>
+    /// Null-object de <see cref="IOcupacionRepository"/> usado por el ctor
+    /// legacy. Reporta cero ocupaciones activas (siempre <c>false</c>) y
+    /// mantiene compat con fixtures/tests que no necesitan la guarda.
+    /// </summary>
+    private sealed class NullOcupacionRepository : IOcupacionRepository
+    {
+        public Task AddAsync(global::SGV.Dominio.Ocupaciones.Ocupacion ocupacion, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: AddAsync no soportado.");
+
+        public Task<global::SGV.Dominio.Ocupaciones.Ocupacion?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: GetByIdForUpdateAsync no soportado.");
+
+        public Task<global::SGV.Dominio.Ocupaciones.Ocupacion?> GetByIdIncludingHistoryAsync(Guid id, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: GetByIdIncludingHistoryAsync no soportado.");
+
+        public Task UpdateAsync(global::SGV.Dominio.Ocupaciones.Ocupacion ocupacion, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: UpdateAsync no soportado.");
+
+        public Task<IReadOnlyList<global::SGV.Dominio.Ocupaciones.Ocupacion>> ListAllIncludingHistoryAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: ListAllIncludingHistoryAsync no soportado.");
+
+        public Task<(IReadOnlyList<global::SGV.Dominio.Ocupaciones.Ocupacion> Items, int TotalCount)> ListPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: ListPagedAsync no soportado.");
+
+        public Task<(IReadOnlyList<global::SGV.Dominio.Ocupaciones.Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: ListHistoryPagedAsync no soportado.");
+
+        public Task<bool> ExistsActiveByPuestoAsync(Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<bool> ExistsActiveByPersonaYPuestoAsync(Guid personaId, Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<global::SGV.Dominio.Ocupaciones.Ocupacion?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: GetByIdAsync no soportado.");
+
+        public Task<IReadOnlyList<global::SGV.Dominio.Ocupaciones.Ocupacion>> ListAllAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: ListAllAsync no soportado.");
     }
 
     public async Task<PuestoCommandResult> CrearAsync(
@@ -174,6 +221,26 @@ public sealed class PuestoServicioComandos(
         {
             return PuestoCommandResult.Failure(
                 new(PuestoErrorType.NotFound, "PuestoNoEncontrado", "El puesto no existe."));
+        }
+
+        // ===========================================================================
+        // Guarda contra ocupaciones vigentes (REQ-PTO-010 / DEC-3).
+        // Si el puesto tiene ocupaciones activas, NO se muta y se devuelve
+        // un Conflict con código estable `PuestoConOcupacionesActivas`. El
+        // parámetro `Categoria = ErrorCategoria.Conflict` es CRÍTICO: el
+        // default sería `Unexpected` y `ApiResults.MapCategoria` mapearía
+        // eso a HTTP 500. Sin esta línea, la guarda funcionaría pero la
+        // API respondería 500 en lugar de 409.
+        // ===========================================================================
+        if (await ocupacionRepository.ExistsActiveByPuestoAsync(id, null, cancellationToken).ConfigureAwait(false))
+        {
+            return PuestoCommandResult.Failure(
+                new PuestoError(
+                    PuestoErrorType.Conflict,
+                    "PuestoConOcupacionesActivas",
+                    "El puesto tiene ocupaciones vigentes y no puede darse de baja.",
+                    null,
+                    ErrorCategoria.Conflict));
         }
 
         try

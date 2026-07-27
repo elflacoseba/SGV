@@ -130,12 +130,14 @@ public class PuestosController : ControllerBase
     /// <response code="401">El consumidor no está autenticado.</response>
     /// <response code="403">El consumidor no tiene rol <c>Administrador</c>.</response>
     /// <response code="404">No se encontró un puesto con el ID especificado.</response>
+    /// <response code="409">Conflicto — el puesto tiene ocupaciones vigentes y no puede darse de baja.</response>
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult> Delete(
         Guid id,
         CancellationToken cancellationToken)
@@ -144,6 +146,40 @@ public class PuestosController : ControllerBase
         return result.IsSuccess
             ? NoContent()
             : ApiResults.ToProblemResult(result.Error!, HttpContext);
+    }
+
+    /// <summary>
+    /// Consulta paginada y filtrada de puestos activos o eliminados. El parámetro
+    /// <c>status</c> selecciona el segmento (<c>eliminadas</c> selecciona
+    /// eliminados; cualquier otro valor, incluido ausente, selecciona activos).
+    /// </summary>
+    /// <param name="page">1-based page number (default 1).</param>
+    /// <param name="pageSize">Items per page (default 20).</param>
+    /// <param name="search">Substring filter sobre <c>Codigo</c>, <c>Nombre</c> y opcionalmente <c>Descripcion</c>.</param>
+    /// <param name="sort">Sort expression (e.g. <c>nombre_asc</c>).</param>
+    /// <param name="status">Segmento: <c>eliminadas</c> para soft-deleted; resto = activas.</param>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    /// <returns>Resultado paginado de puestos (<c>PagedResult&lt;PuestoDto&gt;</c>) para el segmento y página solicitada.</returns>
+    /// <response code="200">Resultado paginado devuelto correctamente con el mismo contrato <c>PuestoDto</c> para vistas activas o eliminadas; no mezcla ambos conjuntos en una misma respuesta.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    [HttpGet("consulta")]
+    [ProducesResponseType(typeof(PagedResult<PuestoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<PagedResult<PuestoDto>>> GetConsulta(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? PuestoSegmentoListado.Eliminadas
+            : PuestoSegmentoListado.Activas;
+
+        var query = new PuestoListQuery(page, pageSize, search, sort, segmento);
+        var result = await _servicio.QueryAsync(query, cancellationToken);
+        return Ok(result);
     }
 
     /// <summary>
