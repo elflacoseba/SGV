@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
@@ -509,5 +510,203 @@ public sealed class PuestosControllerTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(409, problem.Status);
+    }
+
+    // ---- REQ-PTO-002: GET /api/v1/puestos/consulta ----
+
+    [Fact]
+    public async Task GetConsulta_WithoutCredentials_ReturnsUnauthorized()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/puestos/consulta?status=eliminadas");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetConsulta_SinStatus_RetornaActivas()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/puestos/consulta");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PagedResult<PuestoDto>>(response);
+        Assert.NotNull(page);
+        Assert.Single(page.Items);
+        Assert.Equal(FakePuestoServicio.PuestoId1, page.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task GetConsulta_PropagaSortAlServicio()
+    {
+        // El controller DEBE pasar el `sort` del query string al servicio
+        // para que el repositorio pueda aplicarlo server-side antes de
+        // paginar (REQ-PTO-001). Si el `sort` no se propaga, el fake
+        // capturaría null y este test fallaría.
+        var capture = new SortCapturingFake();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPuestoServicioConsulta>();
+            services.AddSingleton<IPuestoServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/puestos/consulta?sort=nombre_desc&page=2&pageSize=5&status=activas");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedSorts);
+        Assert.Equal("nombre_desc", observed);
+    }
+
+    [Fact]
+    public async Task GetConsulta_ConSearchPageSize_DevuelvePagedResult()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/puestos/consulta?search=GER&page=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PagedResult<PuestoDto>>(response);
+        Assert.NotNull(page);
+        Assert.Equal(1, page.Page);
+        Assert.Equal(10, page.PageSize);
+        Assert.Equal(1, page.TotalCount);
+        Assert.Single(page.Items);
+    }
+
+    [Fact]
+    public async Task GetConsulta_ConSortCodigoAsc_FluyeAlServicio()
+    {
+        var capture = new SortCapturingFake();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPuestoServicioConsulta>();
+            services.AddSingleton<IPuestoServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/puestos/consulta?sort=codigo_asc");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.CapturedSorts);
+        Assert.Equal("codigo_asc", observed);
+    }
+
+    [Fact]
+    public async Task GetConsulta_ConStatusInvalido_CaeA_Activas()
+    {
+        // Paridad con Cargos: status inválido cae al segmento Activas.
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/puestos/consulta?status=archivo");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = await ReadAsAsync<PagedResult<PuestoDto>>(response);
+        Assert.NotNull(page);
+        Assert.Single(page.Items);
+        Assert.Equal(FakePuestoServicio.PuestoId1, page.Items[0].Id);
+    }
+
+    // ---- REQ-PTO-010: DELETE 409 cuando hay ocupaciones vigentes ----
+
+    [Fact]
+    public async Task Delete_ConOcupacionesVigentes_Devuelve409ConProblemDetails()
+    {
+        var fakeComandos = new FakePuestoServicioComandos
+        {
+            DesactivarHandler = (_, _) => Task.FromResult(
+                PuestoCommandResult.Failure(
+                    new PuestoError(
+                        PuestoErrorType.Conflict,
+                        "PuestoConOcupacionesActivas",
+                        "El puesto tiene ocupaciones vigentes y no puede darse de baja.",
+                        null,
+                        ErrorCategoria.Conflict)))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPuestoServicioComandos>();
+            services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(409, problem.Status);
+        // El código estable se propaga al ProblemDetails (vía ApiResults).
+        Assert.Equal("PuestoConOcupacionesActivas", problem.Title);
+    }
+
+    [Fact]
+    public async Task Delete_SinOcupaciones_Devuelve204NoContent()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/puestos/{FakePuestoServicio.PuestoId1}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_PuestoInexistente_Devuelve404ConProblemDetails()
+    {
+        var fakeComandos = new FakePuestoServicioComandos
+        {
+            DesactivarHandler = (_, _) => Task.FromResult(
+                PuestoCommandResult.Failure(
+                    new PuestoError(PuestoErrorType.NotFound, "PuestoNoEncontrado", "El puesto no existe.")))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPuestoServicioComandos>();
+            services.AddSingleton<IPuestoServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.DeleteAsync($"/api/v1/puestos/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var problem = await ReadProblemDetailsAsync(response);
+        Assert.Equal(404, problem.Status);
+    }
+
+    /// <summary>
+    /// Fake en memoria que captura el <c>Sort</c> recibido por el servicio
+    /// para validar el contrato entre controller y aplicación.
+    /// Espejo del patrón de <c>CargosControllerTests</c>.
+    /// </summary>
+    private sealed class SortCapturingFake : IPuestoServicioConsulta
+    {
+        public List<string?> CapturedSorts { get; } = new();
+
+        public Task<IReadOnlyList<PuestoDto>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PuestoDto>>(
+                [new(FakePuestoServicio.PuestoId1, "GER-001", "Gerente General", null,
+                    FakePuestoServicio.UnidadId1, "Gerencia General",
+                    FakePuestoServicio.CargoId1, "Director", null)]);
+
+        public Task<PuestoDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<PuestoDto?>(null);
+
+        public Task<PagedResult<PuestoDto>> QueryAsync(PuestoListQuery query, CancellationToken ct = default)
+        {
+            CapturedSorts.Add(query.Sort);
+            return Task.FromResult(new PagedResult<PuestoDto>(
+                [new(FakePuestoServicio.PuestoId1, "GER-001", "Gerente General", null,
+                    FakePuestoServicio.UnidadId1, "Gerencia General",
+                    FakePuestoServicio.CargoId1, "Director", null)],
+                1, query.Page, query.PageSize));
+        }
     }
 }
