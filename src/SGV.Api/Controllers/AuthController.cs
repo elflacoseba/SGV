@@ -1,7 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using SGV.Aplicacion.Seguridad.PasswordChange;
 using SGV.Aplicacion.Seguridad.PasswordReset;
 using SGV.Contracts.Auth;
 using SGV.Aplicacion.Seguridad.Usuarios;
@@ -15,9 +18,11 @@ namespace SGV.Api.Controllers;
 public sealed class AuthController(
     IAuthServicio authServicio,
     IPasswordResetService passwordResetService,
+    IChangePasswordService changePasswordService,
     IValidator<ForgotPasswordRequest> forgotValidator,
     IValidator<ResetPasswordRequest> resetValidator,
-    IValidator<ValidateResetTokenRequest> validateTokenValidator) : ControllerBase
+    IValidator<ValidateResetTokenRequest> validateTokenValidator,
+    IValidator<ChangePasswordRequest> changePasswordValidator) : ControllerBase
 {
     [HttpPost(AuthApiRoutes.LoginRelative)]
     [AllowAnonymous]
@@ -27,6 +32,66 @@ public sealed class AuthController(
     {
         var result = await authServicio.LoginAsync(request, cancellationToken);
         return result is null ? Unauthorized() : Ok(result);
+    }
+
+    /// <summary>
+    /// Cambia la contraseña del usuario autenticado. El endpoint rota
+    /// además el <c>SecurityStamp</c> para invalidar cookies y bearer
+    /// vigentes (issue #204 PR2). La política rate limit
+    /// <c>ChangePassword</c> (5 req / 15 min) se keyed por subject y
+    /// MUST correr DESPUÉS de <c>[Authorize]</c>.
+    /// </summary>
+    [HttpPost(AuthApiRoutes.ChangePasswordRelative)]
+    [Authorize]
+    [EnableRateLimiting(AuthApiRoutes.ChangePasswordPolicyName)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ChangePassword(
+        ChangePasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(new { mensaje = "El cuerpo de la solicitud es obligatorio." });
+        }
+
+        var validation = await changePasswordValidator
+            .ValidateAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        if (!validation.IsValid)
+        {
+            foreach (var error in validation.Errors)
+            {
+                ModelState.AddModelError(error.PropertyName, error.ErrorMessage);
+            }
+            return ValidationProblem(ModelState);
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            // [Authorize] ya garantizó identidad, pero defensa en profundidad.
+            return Unauthorized();
+        }
+
+        var outcome = await changePasswordService
+            .ChangePasswordAsync(userId, request, cancellationToken)
+            .ConfigureAwait(false);
+
+        return outcome switch
+        {
+            ChangePasswordOutcome.Success =>
+                Ok(new { mensaje = "Tu contraseña fue actualizada." }),
+            ChangePasswordOutcome.InvalidCurrentPassword =>
+                BadRequest(new { mensaje = "La contraseña actual no es correcta." }),
+            ChangePasswordOutcome.ValidationError =>
+                BadRequest(new { mensaje = "La nueva contraseña no cumple la política de seguridad." }),
+            ChangePasswordOutcome.RateLimited =>
+                StatusCode(StatusCodes.Status429TooManyRequests),
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
     }
 
     [HttpPost(AuthApiRoutes.ForgotPasswordRelative)]
