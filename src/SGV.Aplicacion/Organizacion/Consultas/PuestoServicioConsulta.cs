@@ -18,6 +18,25 @@ public sealed class PuestoServicioConsulta(IPuestoRepository repository)
         return entity is not null ? MapToDto(entity) : null;
     }
 
+    public async Task<PagedResult<PuestoDto>> QueryAsync(
+        PuestoListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var (items, totalCount) = await repository.QueryAsync(
+            query.Search,
+            query.Page,
+            query.PageSize,
+            query.Sort,
+            query.Segmento,
+            cancellationToken);
+
+        return new PagedResult<PuestoDto>(
+            items.Select(MapToDto).ToList(),
+            totalCount,
+            query.Page,
+            query.PageSize);
+    }
+
     private static PuestoDto MapToDto(Puesto entity)
     {
         return new PuestoDto(

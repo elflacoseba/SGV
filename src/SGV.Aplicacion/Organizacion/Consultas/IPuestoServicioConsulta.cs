@@ -16,4 +16,11 @@ public interface IPuestoServicioConsulta
     /// Returns a single position by its identifier with related entity summaries, or null if not found.
     /// </summary>
     Task<PuestoDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Server-side paginated, filtered, sorted query for puestos.
+    /// Returns a <see cref="PagedResult{T}"/> with the items for the
+    /// requested page and the total count matching the filters.
+    /// </summary>
+    Task<PagedResult<PuestoDto>> QueryAsync(PuestoListQuery query, CancellationToken cancellationToken = default);
 }

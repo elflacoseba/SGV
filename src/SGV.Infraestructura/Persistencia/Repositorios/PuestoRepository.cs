@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Organizacion.Consultas;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
@@ -119,5 +120,69 @@ public sealed class PuestoRepository(SgvDbContext context)
                 p.Id != excludingId,
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Server-side paginated query para el módulo Puestos. Construye su
+    /// propio <see cref="IQueryable.AsNoTracking"/> con Includes a
+    /// <c>UnidadOrganizativa</c> + <c>Cargo</c> (DEC-4: NO reutiliza
+    /// <c>Query</c> base, que sólo cubre <c>IsActive</c>). Filtra por
+    /// segmento (activas / eliminadas) y por <c>search</c> LIKE sobre
+    /// <c>Codigo</c>, <c>Nombre</c> y opcionalmente <c>Descripcion</c>.
+    /// Devuelve tupla <c>(Items, TotalCount)</c> (DEC-5).
+    /// </summary>
+    public async Task<(IReadOnlyList<Puesto> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        PuestoSegmentoListado segmento = PuestoSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<PuestoEntity> query = Context
+            .Set<PuestoEntity>()
+            .AsNoTracking()
+            .Where(p => segmento == PuestoSegmentoListado.Activas
+                ? (p.IsActive && !p.IsDeleted)
+                : (!p.IsActive && p.IsDeleted))
+            .Include(p => p.UnidadOrganizativa)
+            .Include(p => p.Cargo);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(p =>
+                p.Codigo.Contains(search) ||
+                p.Nombre.Contains(search) ||
+                (p.Descripcion != null && p.Descripcion.Contains(search)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // El sort se aplica ANTES del Skip/Take para que la paginación
+        // respete el orden visible (REQ-PTO-001). Valores soportados:
+        // codigo_asc / codigo_desc / nombre_asc / nombre_desc. Cualquier
+        // otro valor cae al orden por defecto por Codigo asc para
+        // preservar contratos existentes.
+        var ordered = ApplySort(query, sort);
+
+        var entities = await ordered
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
+    private static IOrderedQueryable<PuestoEntity> ApplySort(IQueryable<PuestoEntity> query, string? sort)
+    {
+        return sort?.ToLowerInvariant() switch
+        {
+            "codigo_desc" => query.OrderByDescending(p => p.Codigo),
+            "codigo_asc" => query.OrderBy(p => p.Codigo),
+            "nombre_desc" => query.OrderByDescending(p => p.Nombre),
+            "nombre_asc" => query.OrderBy(p => p.Nombre),
+            _ => query.OrderBy(p => p.Codigo)
+        };
     }
 }

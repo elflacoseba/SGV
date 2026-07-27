@@ -2,10 +2,10 @@ using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Aplicacion.Organizacion.Consultas;
-using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using Xunit;
@@ -552,6 +552,15 @@ internal sealed class FakePuestoWriteRepository : IPuestoRepository
             d.Id != excludingId);
         return Task.FromResult(duplicado);
     }
+
+    public Task<(IReadOnlyList<Puesto> Items, int TotalCount)> QueryAsync(
+        string? search,
+        int page,
+        int pageSize,
+        string? sort = null,
+        PuestoSegmentoListado segmento = PuestoSegmentoListado.Activas,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("FakePuestoWriteRepository: QueryAsync no soportado en tests de comandos.");
 
     public Task<Puesto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
