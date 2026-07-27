@@ -91,6 +91,43 @@ public sealed class AuthApiClientChangePasswordTests
     }
 
     [Fact]
+    public async Task ChangePasswordAsync_WhenApiReturns401_PropagatesHttpRequestExceptionWithStatusCode()
+    {
+        var authenticatedHandler = new RecordingHttpMessageHandler(
+            () => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        await using var factory = CreateFactory(authenticatedHandler);
+        using var scope = factory.Services.CreateScope();
+        var client = scope.ServiceProvider.GetRequiredService<IAuthApiClient>();
+
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            client.ChangePasswordAsync(
+                new ChangePasswordRequest("Old1Pass!", "New2Pass!", "New2Pass!")));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, exception.StatusCode);
+        Assert.Equal(1, authenticatedHandler.CallCount);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_WhenRequestTimesOut_PropagatesTaskCanceledException()
+    {
+        var timeoutException = new TaskCanceledException("Request timed out");
+        var authenticatedHandler = new ThrowingHttpMessageHandler(timeoutException);
+        await using var factory = CreateFactory(authenticatedHandler);
+        using var scope = factory.Services.CreateScope();
+        var client = scope.ServiceProvider.GetRequiredService<IAuthApiClient>();
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        var exception = await Assert.ThrowsAsync<TaskCanceledException>(() =>
+            client.ChangePasswordAsync(
+                new ChangePasswordRequest("Old1Pass!", "New2Pass!", "New2Pass!"),
+                cancellationTokenSource.Token));
+
+        Assert.Same(timeoutException, exception);
+        Assert.False(cancellationTokenSource.IsCancellationRequested);
+        Assert.Equal(1, authenticatedHandler.CallCount);
+    }
+
+    [Fact]
     public async Task ChangePasswordAsync_WhenCallerAlreadyCancelled_DoesNotSendRequest()
     {
         var authenticatedHandler = new RecordingHttpMessageHandler(
@@ -131,6 +168,19 @@ public sealed class AuthApiClientChangePasswordTests
                     return new AuthApiClient(authenticatedClient, anonymousClient);
                 });
             });
+    }
+
+    private sealed class ThrowingHttpMessageHandler(Exception exception) : HttpMessageHandler
+    {
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromException<HttpResponseMessage>(exception);
+        }
     }
 
     private sealed class RecordingHttpMessageHandler(Func<HttpResponseMessage> responseFactory) : HttpMessageHandler

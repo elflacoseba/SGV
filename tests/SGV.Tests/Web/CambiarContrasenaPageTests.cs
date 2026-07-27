@@ -157,6 +157,62 @@ public sealed class CambiarContrasenaPageTests
     }
 
     [Fact]
+    public async Task Post_CambiarContrasenaWhenApiThrowsHttpRequestException_ShowsTransportError()
+    {
+        var fake = new FakeAuthApiClient
+        {
+            ChangePasswordException = new HttpRequestException("API unavailable")
+        };
+        await using var lease = await CreateAuthenticatedLeaseAsync(fake);
+
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(
+            await lease.Client.GetAsync("/auth/cambiar-contrasena"));
+
+        var response = await lease.Client.PostAsync("/auth/cambiar-contrasena", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.CurrentPassword"] = "Old1Pass!",
+            ["Input.NewPassword"] = "New2Pass!",
+            ["Input.ConfirmPassword"] = "New2Pass!"
+        }));
+        var content = System.Net.WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            "No se pudo conectar con el servidor. Verificá tu conexión y volvé a intentar.",
+            content);
+        Assert.NotNull(fake.LastChangePasswordRequest);
+    }
+
+    [Fact]
+    public async Task Post_CambiarContrasenaWhenApiTimesOut_ShowsTimeoutMessage()
+    {
+        var fake = new FakeAuthApiClient
+        {
+            ChangePasswordException = new TaskCanceledException("Request timed out")
+        };
+        await using var lease = await CreateAuthenticatedLeaseAsync(fake);
+
+        var antiforgeryToken = await WebTestBuilders.ExtractAntiforgeryTokenAsync(
+            await lease.Client.GetAsync("/auth/cambiar-contrasena"));
+
+        var response = await lease.Client.PostAsync("/auth/cambiar-contrasena", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgeryToken,
+            ["Input.CurrentPassword"] = "Old1Pass!",
+            ["Input.NewPassword"] = "New2Pass!",
+            ["Input.ConfirmPassword"] = "New2Pass!"
+        }));
+        var content = System.Net.WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            "El servidor tardó demasiado en responder. Volvé a intentar en unos segundos.",
+            content);
+        Assert.NotNull(fake.LastChangePasswordRequest);
+    }
+
+    [Fact]
     public async Task Post_CambiarContrasenaWithMismatchedPasswords_ShowsValidationError()
     {
         var fake = new FakeAuthApiClient();
@@ -207,7 +263,7 @@ public sealed class CambiarContrasenaPageTests
     {
         public ChangePasswordOutcome ChangePasswordOutcome { get; init; } = ChangePasswordOutcome.Success;
 
-        public HttpRequestException? ChangePasswordException { get; init; }
+        public Exception? ChangePasswordException { get; init; }
 
         public ChangePasswordRequest? LastChangePasswordRequest { get; private set; }
 
