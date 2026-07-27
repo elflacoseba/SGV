@@ -254,6 +254,14 @@ builder.Services.AddRateLimiter(options =>
         policy.QueueLimit = 0;
     });
 
+    options.AddFixedWindowLimiter(AuthApiRoutes.ChangePasswordPolicyName, policy =>
+    {
+        policy.PermitLimit = 5;
+        policy.Window = TimeSpan.FromMinutes(15);
+        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        policy.QueueLimit = 0;
+    });
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     options.OnRejected = static (context, _) =>

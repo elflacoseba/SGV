@@ -10,6 +10,7 @@ using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad.PasswordChange;
 using SGV.Aplicacion.Seguridad.PasswordReset;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Aplicacion.Setup;
@@ -17,6 +18,7 @@ using SGV.Infraestructura.Email;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Infraestructura.Seguridad;
+using SGV.Infraestructura.Seguridad.PasswordChange;
 using SGV.Infraestructura.Setup;
 
 namespace SGV.Infraestructura;
@@ -101,6 +103,7 @@ public static class DependencyInjection
         // scoped dependencies (UserManager<SgvIdentityUser>); a singleton
         // here would capture a stale UserManager across requests.
         services.AddScoped<IPasswordResetService, PasswordResetService>();
+        services.AddScoped<IChangePasswordService, ChangePasswordService>();
 
         // Setup inicial one-time del primer Administrador (issue #195).
         // Orquestador de Persona + Identity + Auditoría dentro de una

@@ -55,7 +55,20 @@ public static class AuthApiRoutes
     public const string ValidateResetToken = "/" + Base + "/" + ValidateResetTokenRelative;
 
     /// <summary>
-    /// Rate-limit policy name for the forgot-password endpoint.
+    /// Relative route for the authenticated password-change endpoint.
+    /// </summary>
+    public const string ChangePasswordRelative = "change-password";
+
+    /// <summary>
+    /// Absolute route for the authenticated password-change endpoint.
+    /// </summary>
+    public const string ChangePassword = "/" + Base + "/" + ChangePasswordRelative;
+
+    /// <summary>
+    /// Rate-limit policy name for the change-password endpoint.
+    /// </summary>
+    public const string ChangePasswordPolicyName = "ChangePassword";
+
     /// See <c>AuthController.ForgotPassword</c> in <c>SGV.Api</c>.
     /// </summary>
     public const string ForgotPasswordPolicyName = "ForgotPassword";
