@@ -33,6 +33,17 @@
                                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                             </div>
                         }
+                        @* Banner independiente del anterior: lo setea la Razor
+                            Page /auth/cambiar-contrasena tras un cambio exitoso
+                            (issue #204). Coexiste con PasswordResetMessage sin
+                            interferencia visual ni de TempData (claves distintas). *@
+                        @if (TempData["PasswordChangeMessage"] is string changeMessage)
+                        {
+                            <div class="alert alert-success alert-dismissible" role="alert">
+                                @changeMessage
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+                            </div>
+                        }
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
                         <div class="mb-3">
