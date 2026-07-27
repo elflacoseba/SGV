@@ -1,8 +1,12 @@
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Aplicacion.Ocupaciones.Consultas;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
+using SGV.Aplicacion.Organizacion.Comandos.Validaciones;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using Xunit;
 
@@ -280,6 +284,45 @@ public sealed class PuestoServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ---- REQ-PTO-010: baja protegida por ocupaciones vigentes ----
+
+    [Fact]
+    public async Task DesactivarAsync_ConOcupacionesVigentes_RetornaConflictSinGuardar()
+    {
+        var puesto = CrearPuestoActivo("GER-001");
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [puesto] };
+        var uow = new FakeUnitOfWork();
+        var ocupacionRepo = new FakeOcupacionWriteRepository { HasActiveByPuesto = true };
+        var servicio = CrearServicioConOcupaciones(puestoRepo, uow, ocupacionRepo);
+
+        var resultado = await servicio.DesactivarAsync(puesto.Id, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(PuestoErrorType.Conflict, resultado.Error!.Type);
+        // Código estable (DEC-3) — la API lo propaga al ProblemDetails como title.
+        Assert.Equal("PuestoConOcupacionesActivas", resultado.Error.Code);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error.Categoria);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Equal(0, puestoRepo.DeleteCallCount);
+        // El puesto continúa activo: no se llamó Desactivar() en el dominio.
+        Assert.True(puesto.IsActive);
+    }
+
+    [Fact]
+    public async Task DesactivarAsync_SinOcupaciones_ProcedeConLaBaja()
+    {
+        var puesto = CrearPuestoActivo("GER-001");
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [puesto] };
+        var uow = new FakeUnitOfWork();
+        var ocupacionRepo = new FakeOcupacionWriteRepository { HasActiveByPuesto = false };
+        var servicio = CrearServicioConOcupaciones(puestoRepo, uow, ocupacionRepo);
+
+        var resultado = await servicio.DesactivarAsync(puesto.Id, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
     // ── ReactivarAsync ─────────────────────────────────────────
 
     [Fact]
@@ -391,6 +434,33 @@ public sealed class PuestoServicioComandosTests
             Datos = [CrearCargoMock()]
         };
         return new PuestoServicioComandos(puestoRepo, fakeUnidadRepo, fakeCargoRepo, uow);
+    }
+
+    /// <summary>
+    /// Helper que materializa el servicio con el ctor primario 7-parámetros
+    /// (DEC-2) para los tests de la guarda de ocupaciones (REQ-PTO-010).
+    /// </summary>
+    private static PuestoServicioComandos CrearServicioConOcupaciones(
+        IPuestoRepository puestoRepo,
+        IUnitOfWork uow,
+        IOcupacionRepository ocupacionRepo)
+    {
+        var fakeUnidadRepo = new FakeUnidadOrganizativaReadRepository
+        {
+            Datos = [CrearUnidadMock()]
+        };
+        var fakeCargoRepo = new FakeCargoReadRepository
+        {
+            Datos = [CrearCargoMock()]
+        };
+        return new PuestoServicioComandos(
+            puestoRepo,
+            fakeUnidadRepo,
+            fakeCargoRepo,
+            uow,
+            new CrearPuestoRequestValidator(),
+            new ActualizarPuestoRequestValidator(),
+            ocupacionRepo);
     }
 
     private static UnidadOrganizativa CrearUnidadMock()
@@ -534,6 +604,55 @@ internal sealed class FakePuestoWriteRepository : IPuestoRepository
 
         return Task.CompletedTask;
     }
+}
+
+/// <summary>
+/// Fake minimal para los tests de la guarda de ocupaciones (REQ-PTO-010).
+/// Configurable vía <see cref="HasActiveByPuesto"/>; los demás métodos
+/// lanzan <see cref="NotSupportedException"/> porque la guarda solo
+/// requiere <c>ExistsActiveByPuestoAsync</c>.
+/// </summary>
+internal sealed class FakeOcupacionWriteRepository : IOcupacionRepository
+{
+    public bool HasActiveByPuesto { get; set; }
+
+    public int ExistsActiveByPuestoCallCount { get; private set; }
+
+    public Task<bool> ExistsActiveByPuestoAsync(Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
+    {
+        ExistsActiveByPuestoCallCount++;
+        return Task.FromResult(HasActiveByPuesto);
+    }
+
+    public Task<bool> ExistsActiveByPersonaYPuestoAsync(Guid personaId, Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task AddAsync(Ocupacion ocupacion, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<Ocupacion?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<Ocupacion?> GetByIdIncludingHistoryAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task UpdateAsync(Ocupacion ocupacion, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Ocupacion>> ListAllIncludingHistoryAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<Ocupacion?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Ocupacion>> ListAllAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
 }
 
 internal sealed class FakeUnidadOrganizativaReadRepository : IUnidadOrganizativaRepository
