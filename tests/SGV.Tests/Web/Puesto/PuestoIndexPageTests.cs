@@ -2,21 +2,21 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using System.Web;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
+using PuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Tests.Web.Puesto;
 
 /// <summary>
-/// Tests del módulo web de Puestos para PR 2: listado activo, baja lógica
-/// confirmada y harness JS de <c>puestos-index.js</c>. Cubre los escenarios
-/// "Carga inicial con 6 columnas", "Toggle Eliminadas deshabilitado",
-/// "Búsqueda con/sin resultados", "Error visible", "POST Delete éxito/409/404",
-/// "POST Reactivate éxito/409 por código" y "Harness SweetAlert2".
-/// Espejo de <c>CargoIndexPageTests</c>.
+/// Tests del módulo web de Puestos para PR2: listado segmentado y paginado,
+/// baja lógica confirmada y harness JS de <c>puestos-index.js</c>. Cubre los
+/// escenarios de carga activa/eliminada, búsqueda, orden, paginación, feedback
+/// 409 y confirmaciones SweetAlert2. Espejo de <c>CargoIndexPageTests</c>.
 /// </summary>
 [Collection("WebIntegration")]
 public sealed class PuestoIndexPageTests
@@ -76,8 +76,13 @@ public sealed class PuestoIndexPageTests
             content,
             StringComparison.OrdinalIgnoreCase);
 
-        // El endpoint /api/v1/puestos debe haber sido consultado una vez.
-        Assert.NotEmpty(apiClient.GetAllCalls);
+        // El endpoint segmentado debe haber sido consultado una vez, sin usar
+        // el listado legado.
+        Assert.Empty(apiClient.GetAllCalls);
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(PuestoSegmentoListado.Activas, query.Segmento);
+        Assert.Equal(1, query.Page);
+        Assert.Equal(20, query.PageSize);
     }
 
     // ──────────────────────────────────────────────────
@@ -88,8 +93,11 @@ public sealed class PuestoIndexPageTests
     [Fact]
     public async Task Get_Index_WhenDeletedView_DoesNotRenderEditButton()
     {
-        var apiClient = FakePuestosApiClient.WithPuestoList(
-            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null));
+        var deleted = WebTestBuilders.BuildPuestoDto("P-001", "Analista eliminada", null);
+        var apiClient = FakePuestosApiClient.WithPuestoList();
+        apiClient.QueryHandler = query => query.Segmento == PuestoSegmentoListado.Eliminadas
+            ? new PagedResult<PuestoDto>([deleted], 1, query.Page, query.PageSize)
+            : new PagedResult<PuestoDto>([], 0, query.Page, query.PageSize);
 
         await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
@@ -104,6 +112,9 @@ public sealed class PuestoIndexPageTests
         Assert.DoesNotContain("data-bs-title=\"Editar\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-puesto-reactivate-form", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("formaction=\"?handler=Reactivate\"", content, StringComparison.OrdinalIgnoreCase);
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(PuestoSegmentoListado.Eliminadas, query.Segmento);
     }
 
     [Fact]
@@ -150,7 +161,12 @@ public sealed class PuestoIndexPageTests
     {
         var superior = WebTestBuilders.BuildPuestoDto("SUP-01", "Superior", null);
         var child = WebTestBuilders.BuildPuestoDto("CHD-01", "Dependiente", null, superior.Id);
-        var apiClient = FakePuestosApiClient.WithPuestoList(superior, child);
+        var apiClient = FakePuestosApiClient.WithPuestoList();
+        apiClient.QueryHandler = query => new PagedResult<PuestoDto>(
+            query.Segmento == PuestoSegmentoListado.Eliminadas ? [superior, child] : [],
+            query.Segmento == PuestoSegmentoListado.Eliminadas ? 2 : 0,
+            query.Page,
+            query.PageSize);
 
         await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
@@ -174,48 +190,28 @@ public sealed class PuestoIndexPageTests
     }
 
     // ──────────────────────────────────────────────────
-    // Tarea 2.1.3: toggle Eliminadas deshabilitado con tooltip
+    // Tarea 2.1.3: toggle Eliminadas activo con preservación de contexto
     // ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task Get_Index_ToggleEliminadas_IsDisabledAndShowsTooltip()
+    public async Task Get_Index_ToggleEliminadas_RendersActiveLinkPreservingFilters()
     {
         var apiClient = FakePuestosApiClient.WithPuestoList(
             WebTestBuilders.BuildPuestoDto("P-001", "Analista", null));
 
         await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
-        var response = await lease.Client.GetAsync("/organizacion/puestos");
+        var response = await lease.Client.GetAsync("/organizacion/puestos?search=ana&sort=nombre_asc");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        // El control Activas|Eliminadas debe estar presente con el link
-        // Activas funcional y la opción Eliminadas deshabilitada.
         Assert.Contains(">Activas</a>", content, StringComparison.OrdinalIgnoreCase);
-
-        // Eliminadas está deshabilitada. Se renderiza como <span> (no <a>)
-        // para evitar que los lectores de pantalla la anuncien como enlace
-        // activo: se conserva la clase Bootstrap .disabled, aria-disabled y
-        // el tooltip "Próximamente" en data-bs-title.
-        Assert.Contains(
-            "data-bs-title=\"",
-            content,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(
-            "Próximamente",
-            content,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("disabled", content, StringComparison.OrdinalIgnoreCase);
-
-        // Invariante de accesibilidad: el label "Eliminadas" cierra un <span>
-        // (no un </a>), garantizando que no hay href detrás de la opción
-        // deshabilitada. Regex ancla el cierre de etiqueta adyacente.
-        Assert.Matches(
-            new System.Text.RegularExpressions.Regex(
-                @"<span[^>]*\bdisabled\b[^>]*>\s*Eliminadas\s*</span>",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase),
-            content);
+        Assert.Contains(">Eliminadas</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("status=eliminadas", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search=ana", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_asc", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Próximamente", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"btn btn-sm btn-primary disabled\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────────
@@ -236,6 +232,8 @@ public sealed class PuestoIndexPageTests
         Assert.Contains("No se encontraron puestos", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("data-puesto-delete-button", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"search\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.GetAllCalls);
+        Assert.NotEmpty(apiClient.QueryCalls);
     }
 
     // ──────────────────────────────────────────────────
@@ -256,6 +254,9 @@ public sealed class PuestoIndexPageTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("No se encontraron puestos", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"zzzzz\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.GetAllCalls);
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal("zzzzz", query.Search);
     }
 
     // ──────────────────────────────────────────────────
@@ -266,7 +267,7 @@ public sealed class PuestoIndexPageTests
     public async Task Get_Index_WhenApiFails_ShowsVisibleError()
     {
         var apiClient = FakePuestosApiClient.WithPuestoList();
-        apiClient.GetAllException = new HttpRequestException("boom");
+        apiClient.QueryException = new HttpRequestException("boom");
 
         await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
@@ -277,6 +278,8 @@ public sealed class PuestoIndexPageTests
         Assert.Contains("No se pudo cargar el listado", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"search\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Buscar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(apiClient.GetAllCalls);
+        Assert.NotEmpty(apiClient.QueryCalls);
     }
 
     // ──────────────────────────────────────────────────
@@ -337,8 +340,9 @@ public sealed class PuestoIndexPageTests
         apiClient.DeleteResult = new PuestoDeleteResult(
             Succeeded: false,
             StatusCode: HttpStatusCode.Conflict,
-            Code: "PuestoEnOcupacion",
-            Message: "El puesto tiene una ocupación activa.");
+            Code: "PuestoConOcupacionesActivas",
+            Message: "El puesto tiene ocupaciones vigentes y no puede darse de baja.",
+            Categoria: ErrorCategoria.Conflict);
 
         await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient, adminRole: true);
 
@@ -365,7 +369,8 @@ public sealed class PuestoIndexPageTests
 
         Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
         Assert.Contains("No se pudo eliminar el puesto", refreshedContent, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("El puesto tiene una ocupación activa.", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("El puesto tiene ocupaciones vigentes y no puede darse de baja.", refreshedContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PuestoConOcupacionesActivas", refreshedContent, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(puesto.Nombre, refreshedContent, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -541,14 +546,13 @@ public sealed class PuestoIndexPageTests
     // ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task Get_Index_StatusEliminadas_PreservesSegmentAndShowsForwardCompatBehavior()
+    public async Task Get_Index_StatusEliminadas_QueriesDeletedSegment()
     {
-        // El toggle Eliminadas está deshabilitado (decisión locked #2), pero
-        // el backend expone solo lista plana. Cuando el usuario llega con
-        // status=eliminadas en query (forward-compat), la página debe seguir
-        // renderizando OK y el endpoint GetAllAsync debe ser consultado.
-        var apiClient = FakePuestosApiClient.WithPuestoList(
-            WebTestBuilders.BuildPuestoDto("P-001", "Analista", null));
+        var deleted = WebTestBuilders.BuildPuestoDto("P-001", "Analista eliminada", null);
+        var apiClient = FakePuestosApiClient.WithPuestoList();
+        apiClient.QueryHandler = query => query.Segmento == PuestoSegmentoListado.Eliminadas
+            ? new PagedResult<PuestoDto>([deleted], 1, query.Page, query.PageSize)
+            : new PagedResult<PuestoDto>([], 0, query.Page, query.PageSize);
 
         await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
 
@@ -556,13 +560,68 @@ public sealed class PuestoIndexPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.NotEmpty(apiClient.GetAllCalls);
-        Assert.Contains("Puestos", content, StringComparison.OrdinalIgnoreCase);
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(PuestoSegmentoListado.Eliminadas, query.Segmento);
+        Assert.Contains(deleted.Nombre, content, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ──────────────────────────────────────────────────
-    // Tarea 2.1: usuario anónimo es redirigido a sign-in
-    // ──────────────────────────────────────────────────
+    [Fact]
+    public async Task Get_Index_WithSearchSortAndPage_PreservesQueryContextAndRendersPagination()
+    {
+        var visible = WebTestBuilders.BuildPuestoDto("P-021", "Analista página 2", null);
+        var apiClient = FakePuestosApiClient.WithPuestoList();
+        apiClient.QueryHandler = query => new PagedResult<PuestoDto>(
+            [visible],
+            TotalCount: 21,
+            Page: query.Page,
+            PageSize: query.PageSize);
+
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/organizacion/puestos?p=2&search=ana&sort=nombre_asc");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(visible.Nombre, content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Página 2 de 2", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(">Primera</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(">Anterior</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(">Siguiente</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(">Última</a>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("p=1&search=ana&sort=nombre_asc", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("p=2&search=ana&sort=nombre_asc", content, StringComparison.OrdinalIgnoreCase);
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(2, query.Page);
+        Assert.Equal(20, query.PageSize);
+        Assert.Equal("ana", query.Search);
+        Assert.Equal("nombre_asc", query.Sort);
+        Assert.Equal(PuestoSegmentoListado.Activas, query.Segmento);
+    }
+
+    [Fact]
+    public async Task Get_Index_WithSearch_ReturnsOnlyMatchingServerSideItems()
+    {
+        var matching = WebTestBuilders.BuildPuestoDto("P-001", "Analista", null);
+        var other = WebTestBuilders.BuildPuestoDto("P-002", "Contador", null);
+        var apiClient = FakePuestosApiClient.WithPuestoList(matching, other);
+
+        await using var lease = await _fixture.CreatePuestoLeaseAsync(apiClient);
+
+        var response = await lease.Client.GetAsync(
+            "/organizacion/puestos?search=analista&sort=nombre_asc");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(matching.Nombre, content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(other.Nombre, content, StringComparison.OrdinalIgnoreCase);
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal("analista", query.Search);
+        Assert.Equal("nombre_asc", query.Sort);
+    }
+
 
     [Fact]
     public async Task Get_Index_WhenAnonymous_RedirectsToSignIn()

@@ -7,6 +7,7 @@ using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Pages.Common;
+using PuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
 
@@ -31,25 +32,27 @@ public sealed class IndexModel(
     /// <summary>Etiqueta "Eliminadas" que se renderiza en el tooltip del toggle deshabilitado (locked #2).</summary>
     private const string DeletedView = "eliminadas";
 
+    /// <summary>Tamaño de página fijo para la grilla activa/eliminada.</summary>
+    public const int DefaultPageSize = 20;
+
     /// <summary>Filas visibles en la página actual.</summary>
     public IReadOnlyList<PuestoListItemViewModel> Items { get; private set; } = [];
 
-    /// <summary>
-    /// Página actual (1-based). El backend de Puestos no expone paginación; se
-    /// conserva el parámetro para preservar contexto en PRG (forward-compat
-    /// cuando el backend sume <c>page</c>/<c>pageSize</c>).
-    /// </summary>
+    /// <summary>Página actual (1-based).</summary>
     public int CurrentPage { get; private set; } = 1;
 
     /// <summary>
-    /// <c>true</c> cuando el backend expone paginación. Para Puestos siempre es
-    /// <c>false</c> en el slice actual — la lista se renderiza plana sin
-    /// controles de paginación.
+    /// <c>true</c> cuando el backend expone paginación. En el slice de PR2 lo es
+    /// siempre; la grilla se renderiza con <see cref="TotalPages"/> y los
+    /// controles de primera/anterior/siguiente/última.
     /// </summary>
-    public bool IsPaginated => false;
+    public bool IsPaginated => true;
 
-    /// <summary>Total de puestos activos en la respuesta del backend.</summary>
+    /// <summary>Total de puestos que matchean el segmento y filtros vigentes.</summary>
     public int TotalCount { get; private set; }
+
+    /// <summary>Total de páginas calculadas a partir del backend segmentado.</summary>
+    public int TotalPages { get; private set; } = 1;
 
     /// <summary>Término de búsqueda normalizado.</summary>
     public string? Search { get; private set; }
@@ -172,6 +175,10 @@ public sealed class IndexModel(
         };
 
         PageFeedback.SetDanger(TempData, message);
+        if (!string.IsNullOrWhiteSpace(result.Code))
+        {
+            TempData["ErrorCode"] = result.Code;
+        }
 
         return RedirectToPage("/Organizacion/Puestos/Index", new
         {
@@ -246,6 +253,11 @@ public sealed class IndexModel(
         {
             TempData["ErrorCode"] = errorCode;
         }
+        // Repite el código en el TempData ya seteado más arriba en este método
+        // cuando falla por Categoría != Conflict. La asignación previa cubre
+        // el caso de Conflict (no se quiere perder el code estable en
+        // `PuestoConOcupacionesActivas`). Esta segunda asignación refuerza la
+        // garantía: el banner siempre lleva el código de error si existe.
 
         // Tras fallo, permanecer en la vista Eliminadas para permitir reintento.
         return RedirectToPage("/Organizacion/Puestos/Index", new
@@ -351,6 +363,19 @@ public sealed class IndexModel(
         status = string.Equals(targetSegmento, DeletedView, StringComparison.OrdinalIgnoreCase) ? DeletedView : null
     };
 
+    /// <summary>
+    /// Construye los route values de un enlace de paginación preservando el
+    /// segmento, la búsqueda y el orden vigentes (espejo del patrón de
+    /// <c>CargoIndexModel.BuildPagedRouteValues</c>).
+    /// </summary>
+    public object BuildPagedRouteValues(int page) => new
+    {
+        p = Math.Max(1, page),
+        search = Search,
+        sort = Sort,
+        status = Segmento
+    };
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         LoadErrorMessage = null;
@@ -363,38 +388,25 @@ public sealed class IndexModel(
 
         try
         {
-            // PR 2 — Decisión locked #2: el backend de Puestos no expone
-            // un endpoint segmentado (/consulta?status=activas|eliminadas),
-            // por lo que GetAllAsync() es la fuente única. Forward-compat:
-            // cuando llegue el endpoint segmentado, este LoadAsync deberá
-            // ramificar por Segmento.
-            var dtos = await puestosApiClient.GetAllAsync(cancellationToken);
+            // PR 2: el listado ahora consume el endpoint segmentado
+            // `GET /api/v1/puestos/consulta` (DEC-1..DEC-5) en lugar de
+            // filtrar/ordenar en memoria. Mantener la forma de PuestoListQuery
+            // (con `Page`, `PageSize`, `Search`, `Sort`, `Segmento`) preserva
+            // la semántica entre PageModel y ApiClient.
+            var segmento = IsDeletedView
+                ? PuestoSegmentoListado.Eliminadas
+                : PuestoSegmentoListado.Activas;
+            var result = await puestosApiClient.QueryAsync(
+                new PuestoListQuery(CurrentPage, DefaultPageSize, Search, Sort, segmento),
+                cancellationToken);
 
-            // Filtro y orden en memoria (mismo patrón que Cargos pre-PR3).
-            IEnumerable<PuestoDto> query = dtos;
-            var lowered = Search?.ToLowerInvariant();
-            if (!string.IsNullOrWhiteSpace(lowered))
-            {
-                query = query.Where(p =>
-                    p.Codigo.Contains(lowered, StringComparison.OrdinalIgnoreCase) ||
-                    p.Nombre.Contains(lowered, StringComparison.OrdinalIgnoreCase) ||
-                    (p.Descripcion?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    p.UnidadOrganizativaNombre.Contains(lowered, StringComparison.OrdinalIgnoreCase) ||
-                    p.CargoNombre.Contains(lowered, StringComparison.OrdinalIgnoreCase));
-            }
+            CurrentPage = Math.Max(1, result.Page);
+            TotalCount = Math.Max(0, result.TotalCount);
+            TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, result.PageSize)));
 
-            query = Sort?.ToLowerInvariant() switch
-            {
-                "codigo_desc" => query.OrderByDescending(static p => p.Codigo, StringComparer.OrdinalIgnoreCase),
-                "codigo_asc" => query.OrderBy(static p => p.Codigo, StringComparer.OrdinalIgnoreCase),
-                "nombre_desc" => query.OrderByDescending(static p => p.Nombre, StringComparer.OrdinalIgnoreCase),
-                "nombre_asc" => query.OrderBy(static p => p.Nombre, StringComparer.OrdinalIgnoreCase),
-                _ => query.OrderBy(static p => p.Codigo, StringComparer.OrdinalIgnoreCase)
-            };
-
-            var materialized = query.Select(MapToViewModel).ToArray();
-            Items = materialized;
-            TotalCount = materialized.Length;
+            Items = result.Items
+                .Select(MapToViewModel)
+                .ToArray();
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {

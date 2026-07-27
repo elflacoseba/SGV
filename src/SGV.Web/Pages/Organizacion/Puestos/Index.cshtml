@@ -60,16 +60,8 @@
                     <div class="btn-group" role="group" aria-label="Filtrar por estado">
                         <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")"
                            href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildToggleSegmentoRouteValues(null))">Activas</a>
-                        @* PR 2 — Toggle "Eliminadas" deshabilitado como <span> sin href
-                           para evitar que lectores de pantalla lo anuncien como enlace
-                           activo. Se conserva la clase Bootstrap .disabled y el tooltip
-                           "Próximamente". Cuando llegue el endpoint segmentado (follow-up
-                           puestos-filtro-activos-eliminados) se vuelve a convertir en <a>. *@
-                        <span class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light") disabled"
-                              aria-disabled="true"
-                              tabindex="-1"
-                              data-bs-toggle="tooltip"
-                              data-bs-title="Próximamente">Eliminadas</span>
+                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")"
+                           href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildToggleSegmentoRouteValues("eliminadas"))">Eliminadas</a>
                     </div>
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
                     @* Espejo del patrón de Cargos/Index.cshtml: el botón Crear
@@ -257,6 +249,25 @@
                         }
                     </tbody>
                 </table>
+            </div>
+            <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <span class="text-muted">Página @Model.CurrentPage de @Model.TotalPages</span>
+                <nav aria-label="Paginación de puestos">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
+                            <a class="page-link" href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildPagedRouteValues(1))">Primera</a>
+                        </li>
+                        <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
+                            <a class="page-link" href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildPagedRouteValues(Math.Max(1, Model.CurrentPage - 1)))">Anterior</a>
+                        </li>
+                        <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
+                            <a class="page-link" href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildPagedRouteValues(Model.CurrentPage + 1))">Siguiente</a>
+                        </li>
+                        <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
+                            <a class="page-link" href="@Url.Page("/Organizacion/Puestos/Index", Model.BuildPagedRouteValues(Model.TotalPages))">Última</a>
+                        </li>
+                    </ul>
+                </nav>
             </div>
         </div>
     </div>

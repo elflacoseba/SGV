@@ -1,9 +1,11 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
+using PuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Tests.Web.Puesto;
 
@@ -58,22 +60,27 @@ public class PuestoWebSeamTests
     }
 
     [Fact]
-    public void PuestoListQuery_EmptyAndConstructor_ExposeExpectedDefaults()
+    public void PuestoListQuery_Constructor_ExposesContractDefaults()
     {
-        Assert.Equal("activas", PuestoListQuery.SegmentoActivas);
-        Assert.Equal("eliminadas", PuestoListQuery.SegmentoEliminadas);
+        var active = new PuestoListQuery(1, 20, null, null);
+        var deleted = new PuestoListQuery(
+            3,
+            10,
+            "ana",
+            "codigo_desc",
+            PuestoSegmentoListado.Eliminadas);
 
-        var empty = PuestoListQuery.Empty;
-        Assert.Null(empty.Search);
-        Assert.Null(empty.Sort);
-        Assert.Equal("activas", empty.Status);
-        Assert.Equal(1, empty.Page);
+        Assert.Equal(1, active.Page);
+        Assert.Equal(20, active.PageSize);
+        Assert.Null(active.Search);
+        Assert.Null(active.Sort);
+        Assert.Equal(PuestoSegmentoListado.Activas, active.Segmento);
 
-        var query = new PuestoListQuery("ana", "codigo_desc", "eliminadas", 3);
-        Assert.Equal("ana", query.Search);
-        Assert.Equal("codigo_desc", query.Sort);
-        Assert.Equal("eliminadas", query.Status);
-        Assert.Equal(3, query.Page);
+        Assert.Equal(3, deleted.Page);
+        Assert.Equal(10, deleted.PageSize);
+        Assert.Equal("ana", deleted.Search);
+        Assert.Equal("codigo_desc", deleted.Sort);
+        Assert.Equal(PuestoSegmentoListado.Eliminadas, deleted.Segmento);
     }
 
     // ── DI + override del seam ──────────────────────────────────
