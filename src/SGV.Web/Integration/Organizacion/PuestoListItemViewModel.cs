@@ -1,5 +1,9 @@
 using System.Net;
 using SGV.Contracts.Comun;
+// Type alias (DEC-1) que conserva el nombre `PuestoListQuery` para los
+// consumidores web, re-dirigiendo al record de Contracts. El record legacy
+// del final de este archivo se conserva para PR2 (migración atómica).
+using PuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Web.Integration.Organizacion;
 
