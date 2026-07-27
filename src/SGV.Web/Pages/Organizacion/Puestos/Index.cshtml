@@ -30,6 +30,10 @@
                 <button type="submit" class="btn btn-sm btn-outline-primary ms-2" formaction="?handler=Reactivate">Reactivar</button>
             </form>
         }
+        @* PR2 — Código de error estable: el backend mapea 409 a
+           `PuestoConOcupacionesActivas` y TempData["ErrorCode"] lo preserva
+           (ver `PuestoIndexModel.OnPostDeleteAsync`). El badge ayuda al QA
+           a distinguir conflictos de errores de transporte/inesperados. *@
         @if (TempData["ErrorCode"] is string errorCode && !string.IsNullOrWhiteSpace(errorCode))
         {
             <span class="badge bg-secondary ms-2">@errorCode</span>

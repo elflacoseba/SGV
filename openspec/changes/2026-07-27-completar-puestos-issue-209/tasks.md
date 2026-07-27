@@ -57,11 +57,11 @@ PR1 ──→ PR2
 - [x] T-08: Tests unitarios del servicio de consulta
 - [x] T-09: Endpoint HTTP `/consulta` y mapeo 409
 - [x] T-10: Tests API del endpoint y baja protegida
-- [ ] T-11: `IPuestosApiClient.QueryAsync` y serialización de query
-- [ ] T-12: Tests del cliente HTTP de puestos
-- [ ] T-13: Refactor de `PuestoIndexModel.LoadAsync` a consulta paginada
-- [ ] T-14: Tests del PageModel y feedback 409
-- [ ] T-15: Toggle Eliminadas y controles de paginación en la vista
+- [x] T-11: `IPuestosApiClient.QueryAsync` y serialización de query
+- [x] T-12: Tests del cliente HTTP de puestos
+- [x] T-13: Refactor de `PuestoIndexModel.LoadAsync` a consulta paginada
+- [x] T-14: Tests del PageModel y feedback 409
+- [x] T-15: Toggle Eliminadas y controles de paginación en la vista
 
 ## PR 1 — Backend (≈250 líneas, 4 commits)
 
