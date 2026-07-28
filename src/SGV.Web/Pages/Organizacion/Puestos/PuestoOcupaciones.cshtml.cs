@@ -1,20 +1,19 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Enums;
-using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Pages.Organizacion.Ocupaciones;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
 
 /// <summary>
 /// PageModel de la página cruzada <c>/organizacion/puestos/{id:guid}/ocupaciones</c>
 /// del change #208 / Slice 3b (REQ-OCC-NAV-002, NAV-004..006). Espejo de
-/// <see cref="SGV.Web.Pages.Personas.PersonaOcupacionesModel"/> con filtro
+/// <see cref="Personas.PersonaOcupacionesModel"/> con filtro
 /// <see cref="OcupacionListQuery.PuestoId"/> en lugar de
 /// <see cref="OcupacionListQuery.PersonaId"/>.
 /// Gatea por <c>Puesto.IsActive</c> (proxy: la API devuelve <c>null</c>
@@ -22,11 +21,18 @@ namespace SGV.Web.Pages.Organizacion.Puestos;
 /// Acceso autenticado sin rol Administrador para lectura; el botón
 /// "Nueva ocupación" se gated por rol.
 /// </summary>
+/// <remarks>
+/// Refactor (PR #215 review): implementa <see cref="IOcupacionesCrossList"/>
+/// para compartir el partial <c>_CrossList.cshtml</c> con
+/// <c>PersonaOcupaciones</c>. La vista cruzada no expone paginación
+/// (volumen esperado ≤ 20 por entidad dueña; ver
+/// <see cref="IOcupacionesCrossList"/>).
+/// </remarks>
 [Authorize]
 public sealed class PuestoOcupacionesModel(
     IPuestosApiClient puestosApiClient,
     IOcupacionApiClient ocupacionApiClient,
-    ILogger<PuestoOcupacionesModel> logger) : PageModel
+    ILogger<PuestoOcupacionesModel> logger) : PageModel, IOcupacionesCrossList
 {
     /// <summary>Tamaño de página fijo para la grilla cruzada.</summary>
     public const int DefaultPageSize = 20;
@@ -65,6 +71,66 @@ public sealed class PuestoOcupacionesModel(
     /// del botón "Nueva ocupación", REQ-OCC-NAV-006).
     /// </summary>
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
+    // ── IOcupacionesCrossList ─────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.HeaderTitle
+        => $"Ocupaciones vigentes del puesto";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.HeaderSubtitleLabel => "Puesto";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.HeaderSubtitleValue => PuestoNombre;
+
+    /// <inheritdoc/>
+    string? IOcupacionesCrossList.HeaderSubtitleBadge
+        => string.IsNullOrWhiteSpace(PuestoCodigo) ? null : PuestoCodigo;
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.HeaderSubtitleBadgeClass => "badge-soft-secondary";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.EmptyMessage
+        => "Este puesto no tiene ocupaciones vigentes asignadas.";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NotFoundHeading
+        => "El puesto solicitado no está disponible.";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NotFoundBody
+        => "Es posible que el puesto haya sido desactivado, eliminado o que haya ocurrido un error al consultarlo.";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NotFoundReturnUrl => "/organizacion/puestos";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NotFoundReturnLabel
+        => "Volver al listado de puestos";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.BackLinkUrl
+        => $"/organizacion/puestos/detalles/{PuestoId:D}";
+
+    /// <inheritdoc/>
+    object? IOcupacionesCrossList.NewOcupacionRouteValues
+        => new { puestoId = PuestoId };
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.CrossEntityColumnHeader => "Persona";
+
+    /// <inheritdoc/>
+    CrossEntityColumn IOcupacionesCrossList.ColumnSelector => CrossEntityColumn.Persona;
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.CrossEntityCellClass => "fw-medium";
+
+    /// <inheritdoc/>
+    bool IOcupacionesCrossList.RenderCrossEntityCellAsBadge => false;
+
+    // ── Handler ──────────────────────────────────────────────────────────
 
     /// <summary>
     /// Handler GET de la página cruzada. Verifica primero que el puesto
@@ -128,23 +194,4 @@ public sealed class PuestoOcupacionesModel(
             ErrorMessage = "No se pudo cargar el listado de ocupaciones del puesto. Intentá nuevamente.";
         }
     }
-
-    /// <summary>
-    /// Construye los route values para el botón "Nueva ocupación" que
-    /// REQ-OCC-NAV-006 requiere: precarga <c>puestoId</c> para que
-    /// <c>Create</c> lo bindee en el selector dueño.
-    /// </summary>
-    public object BuildNewOcupacionRouteValues() => new
-    {
-        puestoId = PuestoId
-    };
-
-    /// <summary>
-    /// URL absoluta al detalle del puesto dueño. El Details de Puestos
-    /// ya preserva su propio contexto (<c>p/search/sort/returnStatus</c>);
-    /// acá no se transporta contexto adicional porque la página cruzada
-    /// no tiene filtros propios que propagar.
-    /// </summary>
-    public string BuildPuestoDetailsUrl()
-        => $"/organizacion/puestos/detalles/{PuestoId:D}";
 }

@@ -1,13 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Enums;
-using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Pages.Organizacion.Ocupaciones;
 
 namespace SGV.Web.Pages.Personas;
 
@@ -22,11 +21,18 @@ namespace SGV.Web.Pages.Personas;
 /// la lectura — cualquier usuario autenticado puede ver las
 /// ocupaciones vigentes de la persona dueña.
 /// </summary>
+/// <remarks>
+/// Refactor (PR #215 review): implementa <see cref="IOcupacionesCrossList"/>
+/// para compartir el partial <c>_CrossList.cshtml</c> con
+/// <c>PuestoOcupaciones</c>. La vista cruzada no expone paginación
+/// (volumen esperado ≤ 20 por entidad dueña; ver
+/// <see cref="IOcupacionesCrossList"/>).
+/// </remarks>
 [Authorize]
 public sealed class PersonaOcupacionesModel(
     IPersonaApiClient personaApiClient,
     IOcupacionApiClient ocupacionApiClient,
-    ILogger<PersonaOcupacionesModel> logger) : PageModel
+    ILogger<PersonaOcupacionesModel> logger) : PageModel, IOcupacionesCrossList
 {
     /// <summary>Tamaño de página fijo para la grilla cruzada.</summary>
     public const int DefaultPageSize = 20;
@@ -61,6 +67,65 @@ public sealed class PersonaOcupacionesModel(
     /// del botón "Nueva ocupación", REQ-OCC-NAV-006).
     /// </summary>
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
+    // ── IOcupacionesCrossList ─────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.HeaderTitle
+        => $"Ocupaciones vigentes de {PersonaNombre}";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.HeaderSubtitleLabel => "Persona";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.HeaderSubtitleValue => PersonaNombre;
+
+    /// <inheritdoc/>
+    string? IOcupacionesCrossList.HeaderSubtitleBadge => null;
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.HeaderSubtitleBadgeClass => string.Empty;
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.EmptyMessage
+        => "Esta persona no tiene ocupaciones vigentes asignadas.";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NotFoundHeading
+        => "La persona solicitada no está disponible.";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NotFoundBody
+        => "Es posible que la persona haya sido desactivada, eliminada o que haya ocurrido un error al consultarla.";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NotFoundReturnUrl => "/personas";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NotFoundReturnLabel
+        => "Volver al listado de personas";
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.BackLinkUrl
+        => $"/personas/detalle/{PersonaId:D}";
+
+    /// <inheritdoc/>
+    object? IOcupacionesCrossList.NewOcupacionRouteValues
+        => new { personaId = PersonaId };
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.CrossEntityColumnHeader => "Puesto";
+
+    /// <inheritdoc/>
+    CrossEntityColumn IOcupacionesCrossList.ColumnSelector => CrossEntityColumn.Puesto;
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.CrossEntityCellClass => string.Empty;
+
+    /// <inheritdoc/>
+    bool IOcupacionesCrossList.RenderCrossEntityCellAsBadge => true;
+
+    // ── Handler ──────────────────────────────────────────────────────────
 
     /// <summary>
     /// Handler GET de la página cruzada. Verifica primero que la
@@ -123,23 +188,4 @@ public sealed class PersonaOcupacionesModel(
             ErrorMessage = "No se pudo cargar el listado de ocupaciones de la persona. Intentá nuevamente.";
         }
     }
-
-    /// <summary>
-    /// Construye los route values para el botón "Nueva ocupación" que
-    /// REQ-OCC-NAV-006 requiere: precarga <c>personaId</c> para que
-    /// <c>Create</c> lo bindee en el selector dueño.
-    /// </summary>
-    public object BuildNewOcupacionRouteValues() => new
-    {
-        personaId = PersonaId
-    };
-
-    /// <summary>
-    /// URL absoluta al detalle de la persona dueña. El Details de
-    /// Personas ya preserva su propio contexto (<c>p/search/sort/status</c>);
-    /// acá no se transporta contexto adicional porque la página cruzada
-    /// no tiene filtros propios que propagar.
-    /// </summary>
-    public string BuildPersonaDetailsUrl()
-        => $"/personas/detalle/{PersonaId:D}";
 }
