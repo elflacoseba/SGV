@@ -87,6 +87,14 @@ else
             <a class="btn btn-warning" href="@Model.BuildEditUrl(Model.Puesto!.Id)">
                 <i class="ti ti-pencil me-1"></i>Editar
             </a>
+            @* Slice 3b (REQ-OCC-NAV-003): enlace "Ver ocupaciones" visible
+               para todo usuario autenticado cuando el puesto está activo.
+               La API ya devuelve null para puestos inactivos, así que
+               Puesto is not null es el proxy de "activo". La página
+               cruzada NO requiere admin para lectura. *@
+            <a class="btn btn-primary" href="@Url.Page("/Organizacion/Puestos/PuestoOcupaciones", new { id = Model.Puesto!.Id })">
+                <i class="ti ti-history me-1"></i>Ver ocupaciones
+            </a>
         }
         <a class="btn btn-outline-secondary" href="@Model.BuildIndexUrl()">
             <i class="ti ti-arrow-left me-1"></i>Volver al listado
