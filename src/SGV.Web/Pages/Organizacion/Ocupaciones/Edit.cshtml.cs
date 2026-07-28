@@ -36,7 +36,7 @@ public sealed class EditModel(
     IPersonaApiClient personaApiClient,
     IPuestosApiClient puestosApiClient,
     IAuthSessionRedirector authRedirector,
-    ILogger<EditModel> logger) : PageModel
+    ILogger<EditModel> logger) : PageModel, IOcupacionForm
 {
     [BindProperty]
     public OcupacionInputModel Input { get; set; } = new();

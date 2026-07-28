@@ -48,7 +48,7 @@ public sealed class CreateModel(
     IPersonaApiClient personaApiClient,
     IPuestosApiClient puestosApiClient,
     IAuthSessionRedirector authRedirector,
-    ILogger<CreateModel> logger) : PageModel
+    ILogger<CreateModel> logger) : PageModel, IOcupacionForm
 {
     [BindProperty]
     public OcupacionInputModel Input { get; set; } = new();
