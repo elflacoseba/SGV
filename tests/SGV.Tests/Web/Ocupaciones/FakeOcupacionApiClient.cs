@@ -1,3 +1,4 @@
+using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Dtos;
 using SGV.Contracts.Ocupaciones.Enums;
@@ -8,18 +9,16 @@ namespace SGV.Tests.Web.Ocupaciones;
 
 /// <summary>
 /// Fake en memoria de <see cref="IOcupacionApiClient"/> compartido por las
-/// pruebas web de Ocupaciones. Slice 2 del change #208: implementa los 2
-/// métodos de lectura (Listar/ObtenerPorId) con respuestas programadas
-/// (<c>ListarResult</c>, <c>ObtenerPorIdResult</c>), captura de invocaciones
-/// (<c>ListarCalls</c>, <c>ObtenerPorIdCalls</c>) y excepciones inyectables
-/// (<c>ListarException</c>, <c>ObtenerPorIdException</c>). Las firmas de las
-/// mutaciones (<c>Crear/Actualizar/Finalizar/Eliminar/Reactivar</c>) NO
-/// existen todavía en <see cref="IOcupacionApiClient"/>; se agregan en Slice
-/// 3a junto con la cobertura fina de errores 401/403/404/409/transport.
+/// pruebas web de Ocupaciones. Slice 3a del change #208: agrega los stubs de
+/// las mutaciones (<see cref="CrearAsync"/>, <see cref="ActualizarAsync"/>,
+/// <see cref="FinalizarAsync"/>, <see cref="EliminarAsync"/>,
+/// <see cref="ReactivarAsync"/>) con respuestas programadas, captura de
+/// invocaciones y excepciones inyectables por método. Los métodos de lectura
+/// (Listar/ObtenerPorId) introducidos en Slice 2 se preservan sin cambios.
 /// </summary>
 public sealed class FakeOcupacionApiClient : IOcupacionApiClient
 {
-    // ── Respuestas programadas ──────────────────────────────────
+    // ── Respuestas programadas (lectura — Slice 2) ──────────────────
 
     /// <summary>
     /// Resultado de <see cref="ListarAsync"/>. Cuando se setea, el fake ignora
@@ -43,17 +42,48 @@ public sealed class FakeOcupacionApiClient : IOcupacionApiClient
     /// <summary>Permite personalizar el resultado por id concreto (sobrescribe <see cref="ObtenerPorIdResult"/>).</summary>
     public Func<Guid, OcupacionDto?>? ObtenerPorIdHandler { get; set; }
 
-    // ── Excepciones inyectables ─────────────────────────────────
+    // ── Respuestas programadas (mutaciones — Slice 3a) ──────────────
+
+    /// <summary>Resultado de <see cref="CrearAsync"/>. Default: éxito que refleja el request.</summary>
+    public OcupacionCommandResult CrearResult { get; set; } = default!;
+
+    /// <summary>Resultado de <see cref="ActualizarAsync"/>. Default: éxito que refleja el request.</summary>
+    public OcupacionCommandResult ActualizarResult { get; set; } = default!;
+
+    /// <summary>Resultado de <see cref="FinalizarAsync"/>. Default: éxito que refleja el request.</summary>
+    public OcupacionCommandResult FinalizarResult { get; set; } = default!;
+
+    /// <summary>Resultado de <see cref="EliminarAsync"/>. Default: éxito (204).</summary>
+    public OcupacionCommandResult EliminarResult { get; set; } =
+        new(true, Value: null, Error: null);
+
+    /// <summary>Resultado de <see cref="ReactivarAsync"/>. Default: éxito que refleja el id.</summary>
+    public OcupacionCommandResult ReactivarResult { get; set; } = default!;
+
+    // ── Excepciones inyectables ─────────────────────────────────────
 
     public Exception? ListarException { get; set; }
     public Exception? ObtenerPorIdException { get; set; }
+    public Exception? CrearException { get; set; }
+    public Exception? ActualizarException { get; set; }
+    public Exception? FinalizarException { get; set; }
+    public Exception? EliminarException { get; set; }
+    public Exception? ReactivarException { get; set; }
 
-    // ── Captura de invocaciones ─────────────────────────────────
+    // ── Captura de invocaciones (lectura — Slice 2) ─────────────────
 
     public List<OcupacionListQuery> ListarCalls { get; } = [];
     public List<Guid> ObtenerPorIdCalls { get; } = [];
 
-    // ── Métodos ─────────────────────────────────────────────────
+    // ── Captura de invocaciones (mutaciones — Slice 3a) ──────────────
+
+    public List<CrearOcupacionRequest> CrearCalls { get; } = [];
+    public List<(Guid Id, ActualizarOcupacionRequest Request)> ActualizarCalls { get; } = [];
+    public List<(Guid Id, FinalizarOcupacionRequest Request)> FinalizarCalls { get; } = [];
+    public List<Guid> EliminarCalls { get; } = [];
+    public List<Guid> ReactivarCalls { get; } = [];
+
+    // ── Métodos de lectura (Slice 2) ─────────────────────────────────
 
     public Task<PagedResult<OcupacionDto>> ListarAsync(
         OcupacionListQuery query,
@@ -93,10 +123,86 @@ public sealed class FakeOcupacionApiClient : IOcupacionApiClient
         return Task.FromResult(ObtenerPorIdResult);
     }
 
+    // ── Métodos de mutación (Slice 3a) ───────────────────────────────
+
+    public Task<OcupacionCommandResult> CrearAsync(
+        CrearOcupacionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        CrearCalls.Add(request);
+
+        if (CrearException is not null)
+        {
+            throw CrearException;
+        }
+
+        return Task.FromResult(CrearResult);
+    }
+
+    public Task<OcupacionCommandResult> ActualizarAsync(
+        Guid id,
+        ActualizarOcupacionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ActualizarCalls.Add((id, request));
+
+        if (ActualizarException is not null)
+        {
+            throw ActualizarException;
+        }
+
+        return Task.FromResult(ActualizarResult);
+    }
+
+    public Task<OcupacionCommandResult> FinalizarAsync(
+        Guid id,
+        FinalizarOcupacionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        FinalizarCalls.Add((id, request));
+
+        if (FinalizarException is not null)
+        {
+            throw FinalizarException;
+        }
+
+        return Task.FromResult(FinalizarResult);
+    }
+
+    public Task<OcupacionCommandResult> EliminarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        EliminarCalls.Add(id);
+
+        if (EliminarException is not null)
+        {
+            throw EliminarException;
+        }
+
+        return Task.FromResult(EliminarResult);
+    }
+
+    public Task<OcupacionCommandResult> ReactivarAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        ReactivarCalls.Add(id);
+
+        if (ReactivarException is not null)
+        {
+            throw ReactivarException;
+        }
+
+        return Task.FromResult(ReactivarResult);
+    }
+
     /// <summary>Helper para construir un DTO de ocupación en los tests.</summary>
     public static OcupacionDto BuildDto(
         Guid? id = null,
+        Guid? personaId = null,
         string personaNombre = "Juan Perez",
+        Guid? puestoId = null,
         string puestoNombre = "Analista",
         DateOnly? fechaInicio = null,
         DateOnly? fechaFin = null,
@@ -105,9 +211,9 @@ public sealed class FakeOcupacionApiClient : IOcupacionApiClient
         OcupacionEstado estado = OcupacionEstado.Vigente)
         => new(
             id ?? Guid.NewGuid(),
-            PersonaId: Guid.NewGuid(),
+            PersonaId: personaId ?? Guid.NewGuid(),
             PersonaNombre: personaNombre,
-            PuestoId: Guid.NewGuid(),
+            PuestoId: puestoId ?? Guid.NewGuid(),
             PuestoNombre: puestoNombre,
             FechaInicio: fechaInicio ?? new DateOnly(2026, 1, 1),
             FechaFin: fechaFin,
