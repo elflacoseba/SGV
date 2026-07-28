@@ -651,10 +651,9 @@ internal sealed class FakeOcupacionWriteRepository : IOcupacionRepository
     public Task<IReadOnlyList<Ocupacion>> ListAllIncludingHistoryAsync(CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 
-    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
-
-    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> QueryAsync(
+        SGV.Contracts.Ocupaciones.Consultas.OcupacionListQuery query,
+        CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 
     public Task<Ocupacion?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

@@ -1,4 +1,5 @@
 using SGV.Aplicacion.Ocupaciones.Consultas;
+using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Dtos;
 using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Dominio.Ocupaciones;
@@ -52,7 +53,7 @@ public sealed class OcupacionServicioConsultaTests
         };
         var servicio = new OcupacionServicioConsulta(repo);
 
-        var resultado = await servicio.ListAsync(includeHistory: false, page: 1, pageSize: 20, default);
+        var resultado = await servicio.QueryAsync(new(1, 20, null, null), default);
 
         Assert.Single(resultado.Items);
         Assert.Equal(OcupacionIdActiva, resultado.Items[0].Id);
@@ -68,12 +69,13 @@ public sealed class OcupacionServicioConsultaTests
         };
         var servicio = new OcupacionServicioConsulta(repo);
 
-        var resultado = await servicio.ListAsync(includeHistory: true, page: 1, pageSize: 20, default);
+        var resultado = await servicio.QueryAsync(
+            new(1, 20, null, null, OcupacionSegmentoListado.Eliminadas), default);
 
-        Assert.Equal(3, resultado.Items.Count);
-        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdActiva && d.Estado == OcupacionEstado.Vigente);
+        Assert.Equal(2, resultado.Items.Count);
         Assert.Contains(resultado.Items, d => d.Id == OcupacionIdFinalizada && d.Estado == OcupacionEstado.Finalizada);
         Assert.Contains(resultado.Items, d => d.Id == OcupacionIdEliminada && d.Estado == OcupacionEstado.Eliminada);
+        Assert.DoesNotContain(resultado.Items, d => d.Id == OcupacionIdActiva);
     }
 
     [Fact]
@@ -82,9 +84,38 @@ public sealed class OcupacionServicioConsultaTests
         var repo = new FakeOcupacionReadRepository { Datos = [] };
         var servicio = new OcupacionServicioConsulta(repo);
 
-        var resultado = await servicio.ListAsync(includeHistory: false, page: 1, pageSize: 20, default);
+        var resultado = await servicio.QueryAsync(new(1, 20, null, null), default);
 
         Assert.Empty(resultado.Items);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithDeletedSegmentAndContextFilters_PropagatesQueryAndReturnsFilteredPage()
+    {
+        var finalized = CrearOcupacionFinalizada();
+        var repo = new FakeOcupacionReadRepository
+        {
+            Datos = [CrearOcupacionActiva(), finalized, CrearOcupacionEliminada()]
+        };
+        var servicio = new OcupacionServicioConsulta(repo);
+        var query = new OcupacionListQuery(
+            Page: 1,
+            PageSize: 10,
+            Search: null,
+            Sort: null,
+            Segmento: OcupacionSegmentoListado.Eliminadas,
+            PersonaId: finalized.PersonaId,
+            PuestoId: finalized.PuestoId);
+
+        var resultado = await servicio.QueryAsync(query, default);
+
+        Assert.Equal(query, repo.LastQuery);
+        var dto = Assert.Single(resultado.Items);
+        Assert.Equal(OcupacionIdFinalizada, dto.Id);
+        Assert.Equal(OcupacionEstado.Finalizada, dto.Estado);
+        Assert.Equal(1, resultado.TotalCount);
+        Assert.Equal(query.Page, resultado.Page);
+        Assert.Equal(query.PageSize, resultado.PageSize);
     }
 
     // ── GetByIdAsync ────────────────────────────────────────────
@@ -145,6 +176,7 @@ public sealed class OcupacionServicioConsultaTests
 internal sealed class FakeOcupacionReadRepository : IOcupacionRepository
 {
     public List<Ocupacion> Datos { get; set; } = [];
+    public OcupacionListQuery? LastQuery { get; private set; }
 
     public Task<Ocupacion?> GetByIdIncludingHistoryAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -179,16 +211,28 @@ internal sealed class FakeOcupacionReadRepository : IOcupacionRepository
     public Task<bool> ExistsActiveByPersonaYPuestoAsync(Guid personaId, Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake does not support write operations.");
 
-    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(
-        int page, int pageSize, CancellationToken cancellationToken = default)
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> QueryAsync(
+        OcupacionListQuery query,
+        CancellationToken cancellationToken = default)
     {
-        var items = Datos.Where(o => o.EsVigente).ToList();
-        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((items, items.Count));
-    }
+        LastQuery = query;
+        IEnumerable<Ocupacion> items = query.Segmento == OcupacionSegmentoListado.Activas
+            ? Datos.Where(o => o.EsVigente)
+            : Datos.Where(o => !o.EsVigente);
+        if (query.PersonaId is { } personaId)
+        {
+            items = items.Where(o => o.PersonaId == personaId);
+        }
+        if (query.PuestoId is { } puestoId)
+        {
+            items = items.Where(o => o.PuestoId == puestoId);
+        }
 
-    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(
-        int page, int pageSize, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((Datos.ToList(), Datos.Count));
+        var filtered = items.ToList();
+        IReadOnlyList<Ocupacion> page = filtered
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToList();
+        return Task.FromResult((page, filtered.Count));
     }
 }

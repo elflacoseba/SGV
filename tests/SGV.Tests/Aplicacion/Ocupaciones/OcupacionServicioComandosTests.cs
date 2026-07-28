@@ -7,6 +7,7 @@ using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Comandos;
+using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Personas.Consultas.Dtos;
@@ -808,18 +809,10 @@ internal sealed class FakeOcupacionWriteRepository : IOcupacionRepository
         return Task.FromResult<IReadOnlyList<Ocupacion>>(Datos.ToList());
     }
 
-    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(
-        int page, int pageSize, CancellationToken cancellationToken = default)
-    {
-        var items = Datos.Where(o => o.EsVigente).ToList();
-        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((items, items.Count));
-    }
-
-    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(
-        int page, int pageSize, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((Datos.ToList(), Datos.Count));
-    }
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> QueryAsync(
+        OcupacionListQuery query,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Write fake does not support query operations.");
 }
 
 internal sealed class FakePersonaWriteRepository : IPersonaRepository

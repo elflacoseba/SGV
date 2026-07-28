@@ -1,3 +1,4 @@
+using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Dtos;
 using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
@@ -7,24 +8,21 @@ namespace SGV.Aplicacion.Ocupaciones.Consultas;
 
 /// <summary>
 /// Implements read-only queries for Ocupaciones.
-/// Default list returns active rows; <c>includeHistory</c> includes finalized
-/// and logically deleted rows. Detail reads always include historical data.
+/// Lists are segmented and filtered server-side; detail reads include historical data.
 /// </summary>
 public sealed class OcupacionServicioConsulta(IOcupacionRepository repository)
     : IOcupacionServicioConsulta
 {
-    public async Task<PagedResult<OcupacionDto>> ListAsync(
-        bool includeHistory = false,
-        int page = 1,
-        int pageSize = 20,
+    public async Task<PagedResult<OcupacionDto>> QueryAsync(
+        OcupacionListQuery query,
         CancellationToken cancellationToken = default)
     {
-        (IReadOnlyList<Ocupacion> items, int totalCount) = includeHistory
-            ? await repository.ListHistoryPagedAsync(page, pageSize, cancellationToken).ConfigureAwait(false)
-            : await repository.ListPagedAsync(page, pageSize, cancellationToken).ConfigureAwait(false);
+        var (items, totalCount) = await repository
+            .QueryAsync(query, cancellationToken)
+            .ConfigureAwait(false);
 
         var dtos = items.Select(MapToDto).ToList();
-        return new PagedResult<OcupacionDto>(dtos, totalCount, page, pageSize);
+        return new PagedResult<OcupacionDto>(dtos, totalCount, query.Page, query.PageSize);
     }
 
     public async Task<OcupacionDto?> GetByIdAsync(

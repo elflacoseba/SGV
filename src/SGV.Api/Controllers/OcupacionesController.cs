@@ -3,8 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
+using SGV.Contracts.Ocupaciones;
 using SGV.Contracts.Ocupaciones.Comandos;
+using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Dtos;
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 
@@ -14,7 +17,7 @@ namespace SGV.Api.Controllers;
 /// CRUD y operaciones sobre ocupaciones (asignaciones histórico de persona a puesto).
 /// </summary>
 [ApiController]
-[Route("api/v1/ocupaciones")]
+[Route(OcupacionApiRoutes.Base)]
 [Produces("application/json")]
 [Authorize]
 public class OcupacionesController : ControllerBase
@@ -31,25 +34,28 @@ public class OcupacionesController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene todas las ocupaciones activas. Adicionalmente, si se especifica
-    /// <c>includeHistory=true</c>, se incluyen ocupaciones finalizadas y eliminadas.
-    /// Los resultados se devuelven paginados.
+    /// Obtiene una página de ocupaciones segmentada y filtrada en servidor.
     /// </summary>
-    /// <param name="includeHistory">Si es <c>true</c>, incluye ocupaciones finalizadas y eliminadas.</param>
-    /// <param name="page">Número de página (comienza en 1).</param>
-    /// <param name="pageSize">Tamaño de página.</param>
-    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
-    /// <response code="200">Lista paginada de ocupaciones devuelta correctamente.</response>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<OcupacionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<PagedResult<OcupacionDto>>> GetAll(
-        [FromQuery] bool includeHistory = false,
+    public async Task<ActionResult<PagedResult<OcupacionDto>>> Get(
+        [FromQuery] string status = "activas",
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
+        [FromQuery] Guid? personaId = null,
+        [FromQuery] Guid? puestoId = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _servicio.ListAsync(includeHistory, page, pageSize, cancellationToken);
+        var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
+            ? OcupacionSegmentoListado.Eliminadas
+            : OcupacionSegmentoListado.Activas;
+        var query = new OcupacionListQuery(
+            page, pageSize, search, sort, segmento, personaId, puestoId);
+
+        var result = await _servicio.QueryAsync(query, cancellationToken);
         return Ok(result);
     }
 
