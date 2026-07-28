@@ -3,10 +3,10 @@ using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Aplicacion.Habilidades.Comandos;
-using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
+using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
@@ -136,7 +136,7 @@ public static class ApiResults
 
     /// <summary>Builds a <see cref="ProblemDetails"/> for an <see cref="OcupacionError"/>.</summary>
     public static ActionResult ToProblemResult(OcupacionError error, HttpContext? httpContext = null)
-        => BuildProblem(MapOcupacionStatus(error.Type), error.Code, error.Message, httpContext);
+        => BuildProblem(MapOcupacionStatus(error), error.Code, error.Message, httpContext);
 
     /// <summary>Builds a <see cref="ValidationProblemDetails"/> for an <see cref="OcupacionError"/>.</summary>
     public static ActionResult ToValidationProblemResult(
@@ -301,8 +301,12 @@ public static class ApiResults
     private static int MapUnidadOrganizativaStatus(UnidadOrganizativaErrorType type)
         => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
 
-    private static int MapOcupacionStatus(OcupacionErrorType type)
-        => MapCategoria(ToCategoria(type));
+#pragma warning disable CS0618
+    private static int MapOcupacionStatus(OcupacionError error)
+        => error.Categoria is ErrorCategoria.Unexpected
+            ? MapCategoria(ErrorCategoriaMappers.ToCategoria(error.Type))
+            : MapCategoria(error.Categoria);
+#pragma warning restore CS0618
 
     private static int MapPersonaStatus(PersonaErrorType type)
         => MapCategoria(ToCategoria(type));
@@ -322,14 +326,6 @@ public static class ApiResults
 
     private static int MapUsuarioStatus(UsuarioErrorType type)
         => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
-
-    private static ErrorCategoria ToCategoria(OcupacionErrorType type) => type switch
-    {
-        OcupacionErrorType.NotFound => ErrorCategoria.NotFound,
-        OcupacionErrorType.Conflict => ErrorCategoria.Conflict,
-        OcupacionErrorType.Validation => ErrorCategoria.Validation,
-        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown OcupacionErrorType value.")
-    };
 
     private static ErrorCategoria ToCategoria(PersonaErrorType type) => type switch
     {

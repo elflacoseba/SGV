@@ -1,4 +1,5 @@
-using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Contracts.Ocupaciones.Dtos;
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
 
@@ -50,7 +51,7 @@ public sealed class OcupacionServicioConsulta(IOcupacionRepository repository)
             puestoNombre,
             ocupacion.FechaInicio,
             ocupacion.FechaFin,
-            ocupacion.TipoAsignacion,
+            (OcupacionTipoAsignacion)ocupacion.TipoAsignacion,
             ocupacion.Observaciones,
             OcupacionEstadoHelper.CalcularEstado(ocupacion));
     }

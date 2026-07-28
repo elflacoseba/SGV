@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
-using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Contracts.Ocupaciones.Comandos;
+using SGV.Contracts.Ocupaciones.Dtos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 

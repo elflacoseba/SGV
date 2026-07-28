@@ -1,5 +1,6 @@
 using SGV.Aplicacion.Ocupaciones.Consultas;
-using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Contracts.Ocupaciones.Dtos;
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Dominio.Ocupaciones;
 using Xunit;
 
@@ -55,7 +56,7 @@ public sealed class OcupacionServicioConsultaTests
 
         Assert.Single(resultado.Items);
         Assert.Equal(OcupacionIdActiva, resultado.Items[0].Id);
-        Assert.Equal("Activo", resultado.Items[0].Estado);
+        Assert.Equal(OcupacionEstado.Vigente, resultado.Items[0].Estado);
     }
 
     [Fact]
@@ -70,9 +71,9 @@ public sealed class OcupacionServicioConsultaTests
         var resultado = await servicio.ListAsync(includeHistory: true, page: 1, pageSize: 20, default);
 
         Assert.Equal(3, resultado.Items.Count);
-        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdActiva && d.Estado == "Activo");
-        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdFinalizada && d.Estado == "Finalizado");
-        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdEliminada && d.Estado == "Eliminado");
+        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdActiva && d.Estado == OcupacionEstado.Vigente);
+        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdFinalizada && d.Estado == OcupacionEstado.Finalizada);
+        Assert.Contains(resultado.Items, d => d.Id == OcupacionIdEliminada && d.Estado == OcupacionEstado.Eliminada);
     }
 
     [Fact]
@@ -98,7 +99,7 @@ public sealed class OcupacionServicioConsultaTests
 
         Assert.NotNull(resultado);
         Assert.Equal(OcupacionIdActiva, resultado!.Id);
-        Assert.Equal("Activo", resultado.Estado);
+        Assert.Equal(OcupacionEstado.Vigente, resultado.Estado);
     }
 
     [Fact]
@@ -111,7 +112,7 @@ public sealed class OcupacionServicioConsultaTests
 
         Assert.NotNull(resultado);
         Assert.Equal(OcupacionIdFinalizada, resultado!.Id);
-        Assert.Equal("Finalizado", resultado.Estado);
+        Assert.Equal(OcupacionEstado.Finalizada, resultado.Estado);
     }
 
     [Fact]
@@ -124,7 +125,7 @@ public sealed class OcupacionServicioConsultaTests
 
         Assert.NotNull(resultado);
         Assert.Equal(OcupacionIdEliminada, resultado!.Id);
-        Assert.Equal("Eliminado", resultado.Estado);
+        Assert.Equal(OcupacionEstado.Eliminada, resultado.Estado);
     }
 
     [Fact]
