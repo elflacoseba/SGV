@@ -430,9 +430,10 @@ Una sola taxonomía `ErrorCategoria` definida como `enum` append-only en `src/SG
 - `src/SGV.Contracts/Organizacion/Comandos/CargoSkillDeleteResult.cs` — `Categoria` agregado.
 - `src/SGV.Web/Integration/*/...ViewModel.cs` — 4 `*DeleteResult` records con `Categoria` agregado; `PuestoDeleteResult.StatusCode` pasa de `HttpStatusCode` non-nullable a `HttpStatusCode?` nullable.
 
-### Follow-up documentado (fuera de este change)
+### Follow-up documentado (fuera de #125; resuelto por #208 para Ocupaciones)
 
-- `PersonaCommandResult`, `PersonaSkillCommandResult`, `OcupacionCommandResult` (viven en `SGV.Aplicacion`): no se migran en este change. Sólo exponen `NotFound`/`Conflict`/`Validation` hoy; no impactan flujos administrativos y la superficie a migrar sumaría otro bloque sin valor inmediato. Issue de follow-up sugerido tras archive del #125.
+- `PersonaCommandResult`, `PersonaSkillCommandResult` (viven en `SGV.Aplicacion`): no se migran en este change. Sólo exponen `NotFound`/`Conflict`/`Validation` hoy; no impactan flujos administrativos. Issue de follow-up sugerido tras archive del #125.
+- `OcupacionCommandResult` (vivía en `SGV.Aplicacion`): ✅ **Migrado a `ErrorCategoria` por el change `2026-07-28-web-ocupaciones-issue-208`** (PRs #212, #213, #214, #215). Ahora vive en `SGV.Contracts/Ocupaciones/Comandos/` con `Categoria: ErrorCategoria`. El enum legacy `OcupacionErrorType` queda `[Obsolete]` como compat hasta el archivado del change #125.
 - Los `ApiResults.Map*Status` de `SGV.Api/Infrastructure/Results/ApiResults.cs` se centralizan en un `MapCategoria(ErrorCategoria)` exhaustivo en el Slice 4 (issue #125, PR #4).
 
 ## Frontend CRUD de Personas
