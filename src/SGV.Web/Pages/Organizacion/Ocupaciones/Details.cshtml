@@ -1,0 +1,154 @@
+@page "/organizacion/ocupaciones/detalles/{id:guid}"
+@model SGV.Web.Pages.Organizacion.Ocupaciones.DetailsModel
+@{
+    ViewBag.title = "Detalle de ocupación";
+    ViewBag.subtitle = "Organización";
+    var showDetails = !Model.IsNotFound && Model.ViewModel is not null;
+    var o = Model.ViewModel?.Ocupacion;
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
+@if (Model.IsNotFound)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">La ocupación solicitada no está disponible.</h5>
+                    <p class="text-muted mb-3">Es posible que haya sido eliminada o que haya ocurrido un error al consultarla.</p>
+                    <a class="btn btn-primary" href="/organizacion/ocupaciones">
+                        <i class="ti ti-arrow-left me-1"></i>Volver al listado
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (showDetails)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-1">@o!.PersonaNombre</h4>
+                    <p class="text-muted mb-0">@o.PuestoNombre</p>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3 text-muted">Persona</dt>
+                        <dd class="col-sm-9">@o.PersonaNombre</dd>
+
+                        <dt class="col-sm-3 text-muted">Puesto</dt>
+                        <dd class="col-sm-9">@o.PuestoNombre</dd>
+
+                        <dt class="col-sm-3 text-muted">Fecha de inicio</dt>
+                        <dd class="col-sm-9">@o.FechaInicio.ToString("dd/MM/yyyy")</dd>
+
+                        <dt class="col-sm-3 text-muted">Fecha de fin</dt>
+                        <dd class="col-sm-9">@(o.FechaFin?.ToString("dd/MM/yyyy") ?? "—")</dd>
+
+                        <dt class="col-sm-3 text-muted">Tipo de asignación</dt>
+                        <dd class="col-sm-9">@o.TipoAsignacion</dd>
+
+                        <dt class="col-sm-3 text-muted">Estado</dt>
+                        <dd class="col-sm-9">
+                            <span class="badge @(Model.ViewModel!.EsVigente ? "badge-soft-success" : Model.ViewModel.EsFinalizada ? "badge-soft-warning" : "badge-soft-danger")">
+                                @o.Estado
+                            </span>
+                        </dd>
+
+                        <dt class="col-sm-3 text-muted">Observaciones</dt>
+                        <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(o.Observaciones) ? "—" : o.Observaciones)</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Acciones de ciclo de vida — gated por Admin + estado (REQ-OCC-FORM-003) *@
+    @if (Model.EsAdministrador && (Model.ViewModel!.EsVigente || Model.ViewModel!.EsFinalizada))
+    {
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Acciones de ciclo de vida</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (Model.ViewModel!.EsVigente)
+                        {
+                            <form method="post" class="d-inline-block me-2" asp-page-handler="Finalizar">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@o.Id" />
+                                <input type="hidden" name="fechaFin" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+                                <button type="submit" class="btn btn-warning" data-ocupacion-finalizar
+                                        data-ocupacion-persona="@o.PersonaNombre"
+                                        data-ocupacion-puesto="@o.PuestoNombre">
+                                    <i class="ti ti-flag me-1"></i>Finalizar
+                                </button>
+                            </form>
+
+                            <form method="post" class="d-inline-block" asp-page-handler="Eliminar">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@o.Id" />
+                                <button type="submit" class="btn btn-danger" data-ocupacion-eliminar
+                                        data-ocupacion-persona="@o.PersonaNombre"
+                                        data-ocupacion-puesto="@o.PuestoNombre">
+                                    <i class="ti ti-trash me-1"></i>Eliminar
+                                </button>
+                            </form>
+                        }
+
+                        @if (Model.ViewModel!.EsFinalizada)
+                        {
+                            <form method="post" class="d-inline-block" asp-page-handler="Reactivar">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@o.Id" />
+                                <button type="submit" class="btn btn-success" data-ocupacion-reactivar
+                                        data-ocupacion-persona="@o.PersonaNombre"
+                                        data-ocupacion-puesto="@o.PuestoNombre">
+                                    <i class="ti ti-refresh me-1"></i>Reactivar
+                                </button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row mt-3">
+        <div class="col-12 d-flex gap-2">
+            @if (Model.ViewModel!.EsVigente && Model.EsAdministrador)
+            {
+                <a class="btn btn-outline-warning" href="/organizacion/ocupaciones/editar/@o.Id">
+                    <i class="ti ti-pencil me-1"></i>Editar
+                </a>
+            }
+            <a class="btn btn-outline-secondary" href="/organizacion/ocupaciones">
+                <i class="ti ti-arrow-left me-1"></i>Volver al listado
+            </a>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        // Confirmaciones de acciones destructivas (paridad Puesto.Details).
+        document.querySelectorAll('[data-ocupacion-eliminar]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                var persona = btn.getAttribute('data-ocupacion-persona');
+                if (!window.confirm('¿Eliminar la ocupación de ' + persona + '? Esta acción no se puede deshacer.')) {
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+}
