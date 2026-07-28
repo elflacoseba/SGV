@@ -116,6 +116,41 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             puestosApiClient: puestos,
             ocupacionApiClient: ocupacion));
 
+    /// <summary>
+    /// Lease autenticado contra la página cruzada <c>PersonaOcupaciones</c>
+    /// (Slice 3b del change <c>2026-07-28-web-ocupaciones-issue-208</c>).
+    /// Inyecta <see cref="IPersonaApiClient"/> para gatear por
+    /// <c>Persona.IsActive</c> y <see cref="IOcupacionApiClient"/> para el
+    /// listado contextual con <c>personaId</c>. No inyecta
+    /// <see cref="IPuestosApiClient"/> porque la página sólo necesita el
+    /// cliente de ocupaciones + el de persona dueño.
+    /// </summary>
+    public Task<WebClientLease> CreatePersonaOcupacionesLeaseAsync(
+        IPersonaApiClient persona,
+        IOcupacionApiClient ocupacion,
+        bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            personaApiClient: persona,
+            ocupacionApiClient: ocupacion));
+
+    /// <summary>
+    /// Lease autenticado contra la página cruzada <c>PuestoOcupaciones</c>
+    /// (Slice 3b del change <c>2026-07-28-web-ocupaciones-issue-208</c>).
+    /// Inyecta <see cref="IPuestosApiClient"/> para gatear por
+    /// <c>Puesto.IsActive</c> (proxy: la API devuelve null para puestos
+    /// inactivos) y <see cref="IOcupacionApiClient"/> para el listado
+    /// contextual con <c>puestoId</c>.
+    /// </summary>
+    public Task<WebClientLease> CreatePuestoOcupacionesLeaseAsync(
+        IPuestosApiClient puestos,
+        IOcupacionApiClient ocupacion,
+        bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            puestosApiClient: puestos,
+            ocupacionApiClient: ocupacion));
+
     public Task<WebClientLease> CreateHabilidadLeaseAsync(
         FakeHabilidadApiClient habilidad, bool adminRole = false)
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(

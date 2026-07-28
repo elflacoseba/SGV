@@ -1,0 +1,10 @@
+@page "/personas/{id:guid}/ocupaciones"
+@model SGV.Web.Pages.Personas.PersonaOcupacionesModel
+
+@{
+    ViewBag.title = "Ocupaciones de la persona";
+    ViewBag.subtitle = "Personas";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+@await Html.PartialAsync("~/Pages/Organizacion/Ocupaciones/_CrossList.cshtml", Model)
