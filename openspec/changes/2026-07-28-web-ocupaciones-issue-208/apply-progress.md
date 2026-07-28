@@ -201,20 +201,100 @@ PR-2 neto contra `origin/develop`: **15 archivos, +1642 / -5** líneas. Subdivis
 
 ---
 
+# PR 3a — Web Slice 3a (Formularios CRUD) ✅ (6 commits work-unit)
+
+> Slice 3a de #208: formularios Create/Edit/Details con `_Form.cshtml` partial compartido, `IOcupacionForm` interface, mutaciones del cliente HTTP (`Crear/Actualizar/Finalizar/Eliminar/Reactivar`), `OcupacionInputModel` con DataAnnotations, `OcupacionDetailsViewModel` con flags `EsVigente`/`EsAdministrador`, y cobertura completa de tests Web (Create/Edit/Details page tests + client mutation tests + input model validation tests).
+
+| Commit | Tareas |
+|--------|--------|
+| `f8ec90fd` `feat(web): agregar OcupacionInputModel y DetailsViewModel con validación` | T-014 |
+| `bfb923b0` `feat(web): extender IOcupacionApiClient con Crear/Actualizar/Finalizar/Eliminar/Reactivar` | T-014 (parte — mutaciones cliente) |
+| `47c2a2c7` `feat(web): crear formulario de alta de Ocupaciones con validación y conflictos 409` | T-016 |
+| `520ef581` `feat(web): crear edición y detalle de Ocupaciones (finalizar/eliminar/reactivar)` | T-017, T-018 |
+| `a2ca31bc` `docs(sdd): agregar artefactos SDD del change 2026-07-28-web-ocupaciones-issue-208` | Documentación |
+| `0d580289` `refactor(web): extraer partial _Form.cshtml compartido para Create y Edit de Ocupaciones` | T-015 |
+
+PR-3a neto contra `origin/develop`: **28 archivos, +5209 / -46** líneas (incluye SDD artifacts +1503, production code +1678, tests +2095). El LOC count excede el soft-cap de 380 del design (R1 materializado). La subdivisión preventiva 3a-Form / 3a-Details no se aplicó porque el trabajo ya estaba commiteado como unidad coherente antes de detectar el overrun. Ver "Riesgos residuales" abajo.
+
+---
+
+## Detalle por commit (Slice 3a)
+
+- **Commit 1 (`f8ec90fd`)** — `feat(web): agregar OcupacionInputModel y DetailsViewModel con validación`. Crea `OcupacionInputModel` (PersonaId, PuestoId, FechaInicio, TipoAsignacion, Observaciones; `[Required]`/`[StringLength(500)]`) en `Integration/Ocupaciones/` y `OcupacionDetailsViewModel` (DTO + `EsVigente` + `EsAdministrador` con factory `FromDto`) en `Pages/Organizacion/Ocupaciones/`. Crea `OcupacionFormKeys` con constantes `InputPrefix`, `PersonaIdKey`, `PuestoIdKey` para mapeo de errores 409 al `ModelState`. Crea `OcupacionInputModelValidationTests` (135 líneas, 11 tests) cubriendo DataAnnotations: `[Required]` en PersonaId/PuestoId/FechaInicio/TipoAsignacion, `[StringLength(500)]` en Observaciones, y casos válidos.
+- **Commit 2 (`bfb923b0`)** — `feat(web): extender IOcupacionApiClient con Crear/Actualizar/Finalizar/Eliminar/Reactivar`. Agrega los cinco métodos de mutación a `IOcupacionApiClient` (firma canónica del design.md línea 124-133): `CrearAsync(CrearOcupacionRequest, ct)`, `ActualizarAsync(Guid, ActualizarOcupacionRequest, ct)`, `FinalizarAsync(Guid, FinalizarOcupacionRequest, ct)`, `EliminarAsync(Guid, ct)`, `ReactivarAsync(Guid, ct)`. Todos retornan `OcupacionCommandResult`. `OcupacionApiClient` implementa los métodos con `JsonContent.Create` + `ToCommandResultAsync` (espejo de `PuestosApiClient`). Propaga `HttpRequestException`/`TaskCanceledException` nativas (paridad `web-apiclient-transport-contract`). Actualiza `IOcupacionApiClientContractTests` para reflejar la nueva superficie (elimina el test `Interface_DoesNotExposeMutationMethodsYet_Slice3aAddsThem` que era un guardarraíl forward-compat de Slice 2). Crea `OcupacionApiClientMutationTests` (390 líneas, 10 tests) cubriendo: `CrearAsync` 201/409/400/401/500, `ActualizarAsync` 200/409, `FinalizarAsync` 200/400, `EliminarAsync` 204/404, `ReactivarAsync` 200/409. Actualiza `FakeOcupacionApiClient` con stubs de mutaciones (`CrearResult`/`CrearHandler`/`CrearCalls`/`CrearException`, etc.) y `WebIntegrationFixture.WithOcupacionApiClient` para inyección en tests.
+- **Commit 3 (`47c2a2c7`)** — `feat(web): crear formulario de alta de Ocupaciones con validación y conflictos 409`. Crea `Create.cshtml` (92 líneas) y `Create.cshtml.cs` (311 líneas). `[Authorize(Roles=Administrador)]`. `OnGetAsync` pre-carga `PersonaId`/`PuestoId` desde query string (`?personaId=`, `?puestoId=`) y carga catálogos Persona/Puesto en paralelo vía `Task.WhenAll`. `OnPostAsync` valida `ModelState`, llama `CrearAsync`, mapea 409 `PersonaYPuestoOcupados`/`PuestoOcupado` a `ModelState` por campo (REQ-OCC-FORM-005), 400 `FieldErrors` a `ModelState` con prefijo `Input.`, 401 → `authRedirector.TryRedirectToLogin`, 403 → `Forbid()`, 404 → `PageFeedback.NotFoundDeleteMessage`, transporte → `PageFeedback.TransportMessage`. PRG al Index con `PageFeedback.SetSuccess`. Crea `OcupacionCreatePageTests` (573 líneas, 14 tests) cubriendo: render inicial, PRG éxito, 409 PersonaYPuestoOcupados (ambos campos), 409 PuestoOcupado (sólo PuestoId), 400 FieldErrors, 401 redirect, 403 Forbid, 404 NotFound, transporte (HttpRequestException), restauración de input tras error, catálogos caídos (ErrorMessage recuperable), pre-carga desde query string, no-admin redirige, validación cliente ([Required]).
+- **Commit 4 (`520ef581`)** — `feat(web): crear edición y detalle de Ocupaciones (finalizar/eliminar/reactivar)`. Crea `Edit.cshtml` (112 líneas), `Edit.cshtml.cs` (313 líneas), `Details.cshtml` (154 líneas), `Details.cshtml.cs` (310 líneas). **Edit**: gate Admin + `EsVigente` (REQ-OCC-FORM-002); si no vigente → `IsRecoverable=true` + feedback; POST re-valida vigencia antes de mutar; 409 `PuestoOcupado` → `ModelState[PuestoId]`; PRG al Details. **Details**: `[Authorize]` (no requiere Admin para ver); `OnGetAsync(id, ct)` carga DTO; `OnPostFinalizarAsync(id, fechaFin, observaciones, ct)` valida `fechaFin >= FechaInicio` cliente+servidor (REQ-OCC-FORM-007); `OnPostEliminarAsync(id, ct)` PRG; `OnPostReactivarAsync(id, ct)` maneja 409 `OcupacionYaActiva`/`PersonaYPuestoOcupados`/`PuestoOcupado` con feedback; SweetAlert2 para confirmación (paridad Puesto.Details). Crea `OcupacionEditPageTests` (427 líneas, 11 tests) y `OcupacionDetailsPageTests` (369 líneas, 10 tests) cubriendo: render, PRG, gate admin, gate vigencia, 409 conflictos, 404, FechaFin válida (cliente+servidor), reactivación con colisión, SweetAlert2 confirmación.
+- **Commit 5 (`a2ca31bc`)** — `docs(sdd): agregar artefactos SDD del change`. Agrega `proposal.md`, `design.md`, `tasks.md` y `specs/` (4 specs: contrato-api, listado, crear-editar, navegación-contextual) al directorio del change. Total +1503 líneas de documentación SDD.
+- **Commit 6 (`0d580289`)** — `refactor(web): extraer partial _Form.cshtml compartido para Create y Edit de Ocupaciones`. Crea `IOcupacionForm` interface (Input, PersonaOptions, PuestoOptions, ErrorMessage) y `_Form.cshtml` partial (57 líneas) con los cinco campos del formulario (PersonaId, PuestoId, FechaInicio, TipoAsignacion, Observaciones) usando `asp-for` y `asp-validation-for`. `Create.cshtml` y `Edit.cshtml` reemplazan los campos inline con `@await Html.PartialAsync("_Form", Model)`. `CreateModel` y `EditModel` implementan `IOcupacionForm`. Net -13 líneas (refactor puro, cero impacto funcional).
+
+---
+
+## TDD Cycle Evidence (cumplido por PR3a)
+
+| Tarea | Test File | Layer | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|-----|-------|-------------|----------|
+| T-014 | `OcupacionInputModelValidationTests` (11 casos) | Unit | ✅ Written | ✅ Passed 11/11 | ✅ 11 DataAnnotations | ✅ Clean |
+| T-015 | Cubierto por T-016/T-017 (los tests renderizan el partial) | Integration WAF | ✅ Written | ✅ Passed (en T-016/T-017) | ✅ Verificado | ✅ Clean |
+| T-016 | `OcupacionCreatePageTests` (14 escenarios) | Integration WAF | ✅ Written (404 antes del Create) | ✅ Passed 14/14 | ✅ 14 escenarios render+PRG+409+400+401+403+404+transporte | ✅ Clean |
+| T-017 | `OcupacionEditPageTests` (11 escenarios) | Integration WAF | ✅ Written (404 antes del Edit) | ✅ Passed 11/11 | ✅ 11 escenarios render+PRG+gate+409+404 | ✅ Clean |
+| T-018 | `OcupacionDetailsPageTests` (10 escenarios) | Integration WAF | ✅ Written (404 antes del Details) | ✅ Passed 10/10 | ✅ 10 escenarios render+finalizar+eliminar+reactivar+409+FechaFin | ✅ Clean |
+| T-019 (parte) | `OcupacionApiClientMutationTests` (10 casos) | Unit | ✅ Written | ✅ Passed 10/10 | ✅ 10 mutaciones+errores HTTP | ✅ Clean |
+
+### Resumen de tests (Slice 3a)
+
+- **Total tests written**: 11 (T-014) + 14 (T-016) + 11 (T-017) + 10 (T-018) + 10 (T-019 client mutations) = **56 nuevos**.
+- **Total tests passing** (suite focal Ocupaciones web): **92/92** (sin `[MySqlFact]` con DB).
+- **Total tests passing** (suite web Puesto/Cargo/Habilidad/Persona/Usuario/Ocupaciones): **966/966** sin regresiones en los módulos web.
+- **Layers used**: Unit (HttpMessageHandler directo, DataAnnotations), Integration (WAF + FakeOcupacionApiClient).
+- **Pure functions created**: `OcupacionDetailsViewModel.FromDto` (mapping DTO → viewmodel sin estado).
+
+---
+
+## Decisiones locked aplicadas (Slice 3a)
+
+- **DEC-8 (mutaciones cliente)**: `IOcupacionApiClient` agrega `CrearAsync/ActualizarAsync/FinalizarAsync/EliminarAsync/ReactivarAsync` con firmas canónicas del design.md línea 124-133. Todos retornan `OcupacionCommandResult`. Propagan excepciones nativas de transporte (`HttpRequestException`/`TaskCanceledException`); PageModels discriminan con `TransportFailureClassifier.IsTransportFailure(ex)`.
+- **DEC-9 (409 conflict mapping)**: `CreateModel.MapConflictToModelState` y `EditModel` (inline) discriminan `PersonaYPuestoOcupados` (mapeo a ambos campos PersonaId+PuestoId) vs `PuestoOcupado` (mapeo sólo a PuestoId) vs otros (error general). REQ-OCC-FORM-005.
+- **DEC-10 (Edit gate vigencia)**: `EditModel.OnGetAsync` y `OnPostAsync` re-validan `Estado == Vigente` antes de mutar. Si no vigente → `IsRecoverable=true` + feedback. REQ-OCC-FORM-002.
+- **DEC-11 (Details FechaFin validación)**: `DetailsModel.OnPostFinalizarAsync` valida `fechaFin >= FechaInicio` servidor (defensa en profundidad); el form HTML usa `min="@Model.ViewModel.FechaInicio.ToString("yyyy-MM-dd")"` para validación cliente. REQ-OCC-FORM-007.
+- **DEC-12 (IOcupacionForm interface)**: `IOcupacionForm` expone `Input`, `PersonaOptions`, `PuestoOptions`, `ErrorMessage` para que `_Form.cshtml` partial pueda renderizarse contra Create o Edit sin distinción. No hay `IsEdit` flag (ambos exponen los mismos cinco campos).
+
+### Drift / desviaciones de design
+
+- **T-015 (partial _Form.cshtml) se commiteó al final** (Commit 6), no junto con T-016 (Commit 3) como proponía el design. La razón: el partial se extrajo como refactor posterior para evitar duplicación entre Create y Edit. El design proponía commitear T-014+T-015+T-016 juntos, pero la implementación real siguió el orden: T-014 → mutaciones cliente → T-016 (inline) → T-017+T-018 → refactor T-015. Cero impacto funcional.
+- **`OcupacionFormKeys` se commiteó en Commit 1** (junto con T-014), no en Commit 3 (T-016) como proponía el design. La razón: `CreateModel` y `EditModel` lo referencean para mapear errores 409; commitearlo junto con los PageModels rompería la compilación.
+- **`FakeOcupacionApiClient` se extendió en Commit 2** (junto con las mutaciones del cliente), no en Commit 4 (T-019) como proponía el design. La razón: `OcupacionApiClientMutationTests` necesita el fake para stubear las mutaciones; commitearlo después rompería los tests.
+- **Los SDD artifacts (proposal, design, specs, tasks) se commitearon en Commit 5** (`docs(sdd):`), no al inicio del change. La razón: se generaron durante la planificación y se commitearon al final del Slice 3a para preservar el historial work-unit. El orchestrator puede squasear o reordenar si lo considera necesario.
+
+### Riesgos residuales
+
+- **R-Budget (MATERIAL)**: PR3a neto = **+5209 / -46** (28 archivos). El soft-cap original del design era 390 LOC; el soft-cap formal por commit es 400 LOC. **El PR excede 13x el budget**. La métrica incluye SDD artifacts (+1503), production code (+1678), tests (+2095). La subdivisión preventiva 3a-Form / 3a-Details no se aplicó porque el trabajo ya estaba commiteado como unidad coherente antes de detectar el overrun. El orchestrator debe decidir: (a) aceptar `size:exception` y abrir un único PR, o (b) subdividir en dos PRs (3a-Form: T-014+T-015+T-016+T-017+tests Create/Edit+mutaciones cliente; 3a-Details: T-018+tests Details) lo cual requiere interactive rebase + cherry-picking.
+- **R-Tests comprehensivos**: los 56 tests nuevos cubren render, PRG, errores por campo, 409 conflict, 404, gate admin, FechaFin válida, restauración de input, catálogos caídos, pre-carga query string, SweetAlert2, reactivación con colisión. La cobertura es alta porque el design lo exige (`strict_tdd: true`). Reducir tests para bajar el LOC count comprometería la calidad.
+- **R-Frontend-assets**: no se modificaron assets frontend (sólo Razor Pages). `bun run build` no aplica en este slice.
+
+---
+
 ## Estado actual
 
 - **PR 1**: ✅ 3 commits (T-001 a T-007).
-- **PR 2 (Slice 2)**: ✅ 6 commits (T-008 a T-013). `dotnet build SGV.slnx --nologo` → 0 errors / 91 warnings pre-existentes. `dotnet test SGV.slnx --filter "Tests.Web.Ocupaciones"` → **29/29 passed**.
+- **PR 2 (Slice 2)**: ✅ 6 commits (T-008 a T-013).
+- **PR 3a (Slice 3a)**: ✅ 6 commits (T-014 a T-019 + docs + refactor). `dotnet build SGV.slnx --nologo` → 0 errors / 91 warnings pre-existentes. `dotnet test SGV.slnx --filter "Tests.Web.Ocupaciones"` → **92/92 passed**.
 - **Validación final**:
-  - `dotnet build SGV.slnx --nologo` → **0 errors, 91 warnings pre-existentes** (0 nuevos introducidos por PR2).
-  - `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Tests.Web.Ocupaciones"` → **29/29 passed**.
-  - `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Web.Puesto|FullyQualifiedName~Web.Cargo|FullyQualifiedName~Web.Habilidad|FullyQualifiedName~Web.Persona|FullyQualifiedName~Web.Usuario|FullyQualifiedName~Tests.Web.Ocupaciones"` → **897/897 passed** (sin regresiones en los módulos web).
-  - `dotnet test SGV.slnx --filter "Ocupacion"` (suite completa incluyendo API+App+Persistencia+Contracts+Web) → **155/155 passed** sin `[MySqlFact]`.
-- **Próxima fase**: `sdd-verify` para verificar formalmente que la implementación matchea los specs REQ-OCC-LST-001..006. Slice 3a cubre T-014 a T-019 (Create/Edit/Details/_Form).
+  - `dotnet build SGV.slnx --nologo` → **0 errors, 91 warnings pre-existentes** (0 nuevos introducidos por PR3a).
+  - `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Tests.Web.Ocupaciones"` → **92/92 passed**.
+  - `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Web.Puesto|FullyQualifiedName~Web.Cargo|FullyQualifiedName~Web.Habilidad|FullyQualifiedName~Web.Persona|FullyQualifiedName~Web.Usuario|FullyQualifiedName~Tests.Web.Ocupaciones"` → **966/966 passed** (sin regresiones en los módulos web).
+  - `grep -r "SGV.Aplicacion\|SGV.Api\|SGV.Infraestructura" src/SGV.Web/Integration/Ocupaciones src/SGV.Web/Pages/Organizacion/Ocupaciones` → **0 hits** (boundary check OK).
+  - `git diff --shortstat 8cd805fc..HEAD` → **28 files changed, 5209 insertions(+), 46 deletions(-)**.
+- **Próxima fase**: `sdd-verify` para verificar formalmente que la implementación matchea los specs REQ-OCC-FORM-001..008. Slice 3b cubre navegación cruzada (PersonaOcupaciones + PuestoOcupaciones).
 
 ---
 
 ## Referencias (actualizadas)
+
+- `openspec/changes/2026-07-28-web-ocupaciones-issue-208/{proposal,design,specs,tasks}.md`
+- Espejo: `openspec/changes/archive/2026-07-27-completar-puestos-issue-209/apply-progress.md` (PR1 backend + PR2 web + PR3a forms)
+- Memorias Engram: #1463 (proposal), #1464 (spec), #1465 (design), #1466 (tasks), #1467+ (apply Slice 2), #1470+ (apply Slice 3a)
+- Issue: https://github.com/elflacoseba/SGV/issues/208
+- `docs/decisiones-implementacion.md` § "Mapa de bloques GUID" + § "Gestión de secretos JWT" + § "Issue #125 — Taxonomía de errores para `CommandResult` y clientes HTTP de Web"
 
 - `openspec/changes/2026-07-28-web-ocupaciones-issue-208/{proposal,design,specs/web-ocupaciones-contrato-api/spec,specs/web-ocupaciones-listado/spec,tasks}.md`
 - Espejo: `openspec/changes/archive/2026-07-27-completar-puestos-issue-209/apply-progress.md` (PR1 backend + PR2 web)
