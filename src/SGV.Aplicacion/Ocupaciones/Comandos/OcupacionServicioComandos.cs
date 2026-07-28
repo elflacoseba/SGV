@@ -5,9 +5,12 @@ using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Ocupaciones.Comandos.Validaciones;
 using SGV.Aplicacion.Ocupaciones.Consultas;
-using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Contracts.Comun;
+using SGV.Contracts.Ocupaciones.Comandos;
+using SGV.Contracts.Ocupaciones.Dtos;
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using SGV.Dominio.Personas;
@@ -112,7 +115,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (!validationResult.IsValid)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                new(ErrorCategoria.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                 BuildFieldErrors(validationResult.Errors));
         }
 
@@ -120,44 +123,44 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (persona is null)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "PersonaNoEncontrada", "La persona referenciada no existe."));
+                new(ErrorCategoria.NotFound, "PersonaNoEncontrada", "La persona referenciada no existe."));
         }
         if (!persona.IsActive)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PersonaInactiva", "La persona referenciada no está activa."));
+                new(ErrorCategoria.Conflict, "PersonaInactiva", "La persona referenciada no está activa."));
         }
 
         var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(request.PuestoId, cancellationToken).ConfigureAwait(false);
         if (puesto is null)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "PuestoNoEncontrado", "El puesto referenciado no existe."));
+                new(ErrorCategoria.NotFound, "PuestoNoEncontrado", "El puesto referenciado no existe."));
         }
         if (!puesto.IsActive)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoInactivo", "El puesto referenciado no está activo."));
+                new(ErrorCategoria.Conflict, "PuestoInactivo", "El puesto referenciado no está activo."));
         }
 
         // Issue 4: Check Persona+Puesto first (more specific), then Puesto alone.
         if (await ocupacionRepository.ExistsActiveByPersonaYPuestoAsync(request.PersonaId, request.PuestoId, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PersonaYPuestoOcupados", "Ya existe una ocupación activa para la misma persona y puesto."));
+                new(ErrorCategoria.Conflict, "PersonaYPuestoOcupados", "Ya existe una ocupación activa para la misma persona y puesto."));
         }
 
         if (await ocupacionRepository.ExistsActiveByPuestoAsync(request.PuestoId, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe una ocupación activa para el puesto especificado."));
+                new(ErrorCategoria.Conflict, "PuestoOcupado", "Ya existe una ocupación activa para el puesto especificado."));
         }
 
         try
         {
             var ocupacion = new Ocupacion(
                 request.PersonaId, request.PuestoId, request.FechaInicio,
-                request.TipoAsignacion, observaciones: request.Observaciones)
+                OcupacionTipoAsignacionMapper.ToDomain(request.TipoAsignacion), observaciones: request.Observaciones)
             {
                 Id = Guid.NewGuid()
             };
@@ -174,7 +177,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(CrearAsync), ex.Message);
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "DatosInvalidos", ex.Message));
+                new(ErrorCategoria.Conflict, "DatosInvalidos", ex.Message));
         }
     }
 
@@ -189,7 +192,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (!validationResult.IsValid)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                new(ErrorCategoria.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                 BuildFieldErrors(validationResult.Errors));
         }
 
@@ -197,13 +200,13 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (ocupacion is null)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada", "La ocupación no existe."));
+                new(ErrorCategoria.NotFound, "OcupacionNoEncontrada", "La ocupación no existe."));
         }
 
         if (!ocupacion.EsVigente)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "OcupacionNoEditable", "La ocupación no está activa y no se puede modificar."));
+                new(ErrorCategoria.Conflict, "OcupacionNoEditable", "La ocupación no está activa y no se puede modificar."));
         }
 
         // Issue 1: Validation helpers return the loaded entity — no redundant fetch.
@@ -218,18 +221,23 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (await ocupacionRepository.ExistsActiveByPersonaYPuestoAsync(request.PersonaId, request.PuestoId, id, cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PersonaYPuestoOcupados", "Ya existe otra ocupación activa para la misma persona y puesto."));
+                new(ErrorCategoria.Conflict, "PersonaYPuestoOcupados", "Ya existe otra ocupación activa para la misma persona y puesto."));
         }
 
         if (await ocupacionRepository.ExistsActiveByPuestoAsync(request.PuestoId, id, cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe otra ocupación activa para el puesto especificado."));
+                new(ErrorCategoria.Conflict, "PuestoOcupado", "Ya existe otra ocupación activa para el puesto especificado."));
         }
 
         try
         {
-            ocupacion.Actualizar(request.PersonaId, request.PuestoId, request.FechaInicio, request.TipoAsignacion, request.Observaciones);
+            ocupacion.Actualizar(
+                request.PersonaId,
+                request.PuestoId,
+                request.FechaInicio,
+                OcupacionTipoAsignacionMapper.ToDomain(request.TipoAsignacion),
+                request.Observaciones);
 
             await ocupacionRepository.UpdateAsync(ocupacion, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -242,7 +250,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(ActualizarAsync), ex.Message);
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "DatosInvalidos", ex.Message));
+                new(ErrorCategoria.Conflict, "DatosInvalidos", ex.Message));
         }
     }
 
@@ -257,7 +265,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (!validationResult.IsValid)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                new(ErrorCategoria.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
                 BuildFieldErrors(validationResult.Errors));
         }
 
@@ -265,13 +273,13 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (ocupacion is null)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada", "La ocupación no existe."));
+                new(ErrorCategoria.NotFound, "OcupacionNoEncontrada", "La ocupación no existe."));
         }
 
         if (!ocupacion.EsVigente)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "OcupacionNoEditable", "La ocupación no está activa y no se puede finalizar."));
+                new(ErrorCategoria.Conflict, "OcupacionNoEditable", "La ocupación no está activa y no se puede finalizar."));
         }
 
         try
@@ -295,7 +303,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(FinalizarAsync), ex.Message);
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "FinalizacionInvalida", ex.Message));
+                new(ErrorCategoria.Conflict, "FinalizacionInvalida", ex.Message));
         }
     }
 
@@ -309,13 +317,13 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (ocupacion is null)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada", "La ocupación no existe."));
+                new(ErrorCategoria.NotFound, "OcupacionNoEncontrada", "La ocupación no existe."));
         }
 
         if (!ocupacion.EsVigente)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "OcupacionNoEditable", "La ocupación no está activa y no se puede eliminar."));
+                new(ErrorCategoria.Conflict, "OcupacionNoEditable", "La ocupación no está activa y no se puede eliminar."));
         }
 
         try
@@ -339,7 +347,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(EliminarAsync), ex.Message);
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "EliminacionInvalida", ex.Message));
+                new(ErrorCategoria.Conflict, "EliminacionInvalida", ex.Message));
         }
     }
 
@@ -353,13 +361,13 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (ocupacion is null)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada", "La ocupación no existe."));
+                new(ErrorCategoria.NotFound, "OcupacionNoEncontrada", "La ocupación no existe."));
         }
 
         if (ocupacion.EsVigente)
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "OcupacionYaActiva", "La ocupación ya está activa."));
+                new(ErrorCategoria.Conflict, "OcupacionYaActiva", "La ocupación ya está activa."));
         }
 
         // Issue 1: Validation helpers return the loaded entity — no redundant fetch.
@@ -374,13 +382,13 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (await ocupacionRepository.ExistsActiveByPersonaYPuestoAsync(ocupacion.PersonaId, ocupacion.PuestoId, id, cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PersonaYPuestoOcupados", "Ya existe una ocupación activa para la misma persona y puesto."));
+                new(ErrorCategoria.Conflict, "PersonaYPuestoOcupados", "Ya existe una ocupación activa para la misma persona y puesto."));
         }
 
         if (await ocupacionRepository.ExistsActiveByPuestoAsync(ocupacion.PuestoId, id, cancellationToken).ConfigureAwait(false))
         {
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoOcupado", "Ya existe una ocupación activa para el puesto especificado."));
+                new(ErrorCategoria.Conflict, "PuestoOcupado", "Ya existe una ocupación activa para el puesto especificado."));
         }
 
         try
@@ -398,7 +406,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(ReactivarAsync), ex.Message);
             return OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "ReactivacionInvalida", ex.Message));
+                new(ErrorCategoria.Conflict, "ReactivacionInvalida", ex.Message));
         }
     }
 
@@ -417,7 +425,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
                 [ToCamelCase(fieldName)] = ["La persona es obligatoria."]
             };
             return (OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Validation, "DatosInvalidos", "La persona no puede estar vacía."),
+                new(ErrorCategoria.Validation, "DatosInvalidos", "La persona no puede estar vacía."),
                 fieldErrors), null);
         }
 
@@ -425,12 +433,12 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (persona is null)
         {
             return (OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "PersonaNoEncontrada", "La persona referenciada no existe.")), null);
+                new(ErrorCategoria.NotFound, "PersonaNoEncontrada", "La persona referenciada no existe.")), null);
         }
         if (!persona.IsActive)
         {
             return (OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PersonaInactiva", "La persona referenciada no está activa.")), null);
+                new(ErrorCategoria.Conflict, "PersonaInactiva", "La persona referenciada no está activa.")), null);
         }
 
         return (null, persona);
@@ -449,7 +457,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
                 [ToCamelCase(fieldName)] = ["El puesto es obligatorio."]
             };
             return (OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Validation, "DatosInvalidos", "El puesto no puede estar vacío."),
+                new(ErrorCategoria.Validation, "DatosInvalidos", "El puesto no puede estar vacío."),
                 fieldErrors), null);
         }
 
@@ -457,12 +465,12 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         if (puesto is null)
         {
             return (OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.NotFound, "PuestoNoEncontrado", "El puesto referenciado no existe.")), null);
+                new(ErrorCategoria.NotFound, "PuestoNoEncontrado", "El puesto referenciado no existe.")), null);
         }
         if (!puesto.IsActive)
         {
             return (OcupacionCommandResult.Failure(
-                new(OcupacionErrorType.Conflict, "PuestoInactivo", "El puesto referenciado no está activo.")), null);
+                new(ErrorCategoria.Conflict, "PuestoInactivo", "El puesto referenciado no está activo.")), null);
         }
 
         return (null, puesto);
@@ -478,7 +486,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             puestoNombre,
             ocupacion.FechaInicio,
             ocupacion.FechaFin,
-            ocupacion.TipoAsignacion,
+            OcupacionTipoAsignacionMapper.ToContract(ocupacion.TipoAsignacion),
             ocupacion.Observaciones,
             OcupacionEstadoHelper.CalcularEstado(ocupacion));
     }

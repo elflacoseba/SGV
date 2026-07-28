@@ -5,11 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Infrastructure.Results;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
+using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Aplicacion.Habilidades.Comandos;
-using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using Xunit;
 
@@ -158,7 +158,7 @@ public class ApiResultsTests
     public void ToProblemResult_OcupacionConflict_Returns409ProblemDetails()
     {
         var actionResult = ApiResults.ToProblemResult(
-            new OcupacionError(OcupacionErrorType.Conflict, "PuestoYaOcupado", "El puesto ya está ocupado."));
+            new OcupacionError(ErrorCategoria.Conflict, "PuestoYaOcupado", "El puesto ya está ocupado."));
 
         var problem = Assert.IsType<ObjectResult>(actionResult).Value as ProblemDetails;
         Assert.NotNull(problem);
@@ -252,7 +252,7 @@ public class ApiResultsTests
             (ApiResults.ToValidationProblemResult(
                 new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "msg"), fieldErrors), "DatosInvalidos", "msg"),
             (ApiResults.ToValidationProblemResult(
-                new OcupacionError(OcupacionErrorType.Validation, "DatosInvalidos", "msg"), fieldErrors), "DatosInvalidos", "msg"),
+                new OcupacionError(ErrorCategoria.Validation, "DatosInvalidos", "msg"), fieldErrors), "DatosInvalidos", "msg"),
             (ApiResults.ToValidationProblemResult(
                 new PersonaError(PersonaErrorType.Validation, "DatosInvalidos", "msg"), fieldErrors), "DatosInvalidos", "msg"),
             (ApiResults.ToValidationProblemResult(

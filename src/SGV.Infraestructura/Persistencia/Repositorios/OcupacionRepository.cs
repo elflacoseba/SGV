@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Ocupaciones.Consultas;
+using SGV.Contracts.Ocupaciones;
+using SGV.Contracts.Ocupaciones.Consultas;
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Dominio.Ocupaciones;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;
@@ -53,42 +56,71 @@ public sealed class OcupacionRepository(SgvDbContext context)
     }
 
     /// <summary>
-    /// Lists active occupations with pagination.
+    /// Queries occupations by segment and optional filters before counting and paging.
     /// </summary>
-    public async Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(
-        int page, int pageSize, CancellationToken cancellationToken = default)
+    public async Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> QueryAsync(
+        OcupacionListQuery request,
+        CancellationToken cancellationToken = default)
     {
-        var query = Query.Where(o => o.FechaFin == null);
+        var query = Context.Set<OcupacionEntity>()
+            .AsNoTracking()
+            .Include(o => o.Persona)
+            .Include(o => o.Puesto)
+            .Where(o => request.Segmento == OcupacionSegmentoListado.Activas
+                ? !o.IsDeleted && o.FechaFin == null
+                : o.IsDeleted || o.FechaFin != null);
+
+        if (request.PersonaId is { } personaId)
+        {
+            query = query.Where(o => o.PersonaId == personaId);
+        }
+
+        if (request.PuestoId is { } puestoId)
+        {
+            query = query.Where(o => o.PuestoId == puestoId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim();
+            var likePattern = $"%{EscapeLikePattern(search)}%";
+            query = query.Where(o =>
+                EF.Functions.Like(o.Persona.Nombres, likePattern, "\\") ||
+                EF.Functions.Like(o.Persona.Apellidos, likePattern, "\\") ||
+                EF.Functions.Like(o.Puesto.Nombre, likePattern, "\\") ||
+                (o.Observaciones != null && EF.Functions.Like(o.Observaciones, likePattern, "\\")));
+        }
+
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+        query = request.Sort?.ToLowerInvariant() switch
+        {
+            OcupacionApiRoutes.SortFechaInicioAsc => query.OrderBy(o => o.FechaInicio),
+            OcupacionApiRoutes.SortPersonaAsc => query.OrderBy(o => o.Persona.Apellidos).ThenBy(o => o.Persona.Nombres),
+            OcupacionApiRoutes.SortPersonaDesc => query.OrderByDescending(o => o.Persona.Apellidos).ThenByDescending(o => o.Persona.Nombres),
+            OcupacionApiRoutes.SortPuestoAsc => query.OrderBy(o => o.Puesto.Nombre),
+            OcupacionApiRoutes.SortPuestoDesc => query.OrderByDescending(o => o.Puesto.Nombre),
+            _ => query.OrderByDescending(o => o.FechaInicio)
+        };
 
         var entities = await query
-            .OrderByDescending(o => o.FechaInicio)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         return (entities.Select(MapToDomain).ToArray(), totalCount);
     }
 
     /// <summary>
-    /// Lists all occupations including history with pagination.
+    /// Escapes LIKE wildcard characters so user-supplied '%' or '_' are matched
+    /// literally. MySQL uses backslash as the escape character by default.
     /// </summary>
-    public async Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(
-        int page, int pageSize, CancellationToken cancellationToken = default)
+    private static string EscapeLikePattern(string input)
     {
-        var query = Context.Set<OcupacionEntity>().AsNoTracking()
-            .Include(o => o.Persona)
-            .Include(o => o.Puesto);
-
-        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
-
-        var entities = await query
-            .OrderByDescending(o => o.FechaInicio)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
-
-        return (entities.Select(MapToDomain).ToArray(), totalCount);
+        return input
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
     }
 
     public async Task AddAsync(Ocupacion ocupacion, CancellationToken cancellationToken = default)

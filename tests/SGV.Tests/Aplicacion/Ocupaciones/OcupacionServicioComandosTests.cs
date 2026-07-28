@@ -5,6 +5,10 @@ using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Contracts.Comun;
+using SGV.Contracts.Ocupaciones.Comandos;
+using SGV.Contracts.Ocupaciones.Consultas;
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
@@ -35,7 +39,7 @@ public sealed class OcupacionServicioComandosTests
         PersonaId: personaId ?? PersonaIdActiva,
         PuestoId: puestoId ?? PuestoIdActivo,
         FechaInicio: new DateOnly(2025, 1, 1),
-        TipoAsignacion: TipoAsignacion.Permanente,
+        TipoAsignacion: OcupacionTipoAsignacion.Permanente,
         Observaciones: null);
 
     // ── CrearAsync ─────────────────────────────────────────────
@@ -55,7 +59,7 @@ public sealed class OcupacionServicioComandosTests
         Assert.NotNull(resultado.Value);
         Assert.Equal(PersonaIdActiva, resultado.Value!.PersonaId);
         Assert.Equal(PuestoIdActivo, resultado.Value.PuestoId);
-        Assert.Equal("Activo", resultado.Value.Estado);
+        Assert.Equal(OcupacionEstado.Vigente, resultado.Value.Estado);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -71,7 +75,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.CrearAsync(CrearRequest(personaId: PersonaIdInexistente), default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -87,7 +91,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.CrearAsync(CrearRequest(personaId: PersonaIdInactiva), default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -103,7 +107,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.CrearAsync(CrearRequest(puestoId: PuestoIdInexistente), default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -119,7 +123,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.CrearAsync(CrearRequest(puestoId: PuestoIdInactivo), default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -138,7 +142,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.CrearAsync(CrearRequest(), default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -157,7 +161,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.CrearAsync(CrearRequest(), default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -175,13 +179,13 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal, "Actualizado"),
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal, "Actualizado"),
             default);
 
         Assert.True(resultado.IsSuccess);
         Assert.NotNull(resultado.Value);
         Assert.Equal(new DateOnly(2025, 6, 1), resultado.Value!.FechaInicio);
-        Assert.Equal(TipoAsignacion.Temporal, resultado.Value.TipoAsignacion);
+        Assert.Equal(OcupacionTipoAsignacion.Temporal, resultado.Value.TipoAsignacion);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -196,11 +200,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             OcupacionIdInexistente,
-            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -216,11 +220,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -236,11 +240,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -258,11 +262,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdInexistente, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdInexistente, PuestoIdActivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -278,11 +282,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdInactiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdInactiva, PuestoIdActivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -298,11 +302,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdInexistente, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdInexistente, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -318,11 +322,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdInactivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdInactivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -342,11 +346,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal("PuestoOcupado", resultado.Error!.Code);
         Assert.Equal(0, uow.SaveChangesCount);
     }
@@ -367,11 +371,11 @@ public sealed class OcupacionServicioComandosTests
 
         var resultado = await servicio.ActualizarAsync(
             ocupacion.Id,
-            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), TipoAsignacion.Temporal),
+            new ActualizarOcupacionRequest(PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 6, 1), OcupacionTipoAsignacion.Temporal),
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal("PersonaYPuestoOcupados", resultado.Error!.Code);
         Assert.Equal(0, uow.SaveChangesCount);
     }
@@ -395,7 +399,7 @@ public sealed class OcupacionServicioComandosTests
 
         Assert.True(resultado.IsSuccess);
         Assert.NotNull(resultado.Value);
-        Assert.Equal("Finalizado", resultado.Value!.Estado);
+        Assert.Equal(OcupacionEstado.Finalizada, resultado.Value!.Estado);
         Assert.Equal(new DateOnly(2025, 12, 31), resultado.Value.FechaFin);
         Assert.Equal(1, uow.SaveChangesCount);
     }
@@ -415,7 +419,7 @@ public sealed class OcupacionServicioComandosTests
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -435,7 +439,7 @@ public sealed class OcupacionServicioComandosTests
             default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -470,7 +474,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.EliminarAsync(OcupacionIdInexistente, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -487,7 +491,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.EliminarAsync(ocupacion.Id, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -507,7 +511,7 @@ public sealed class OcupacionServicioComandosTests
 
         Assert.True(resultado.IsSuccess);
         Assert.NotNull(resultado.Value);
-        Assert.Equal("Activo", resultado.Value!.Estado);
+        Assert.Equal(OcupacionEstado.Vigente, resultado.Value!.Estado);
         Assert.Null(resultado.Value.FechaFin);
         Assert.Equal(1, uow.SaveChangesCount);
     }
@@ -526,7 +530,7 @@ public sealed class OcupacionServicioComandosTests
 
         Assert.True(resultado.IsSuccess);
         Assert.NotNull(resultado.Value);
-        Assert.Equal("Activo", resultado.Value!.Estado);
+        Assert.Equal(OcupacionEstado.Vigente, resultado.Value!.Estado);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -542,7 +546,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.ReactivarAsync(OcupacionIdInexistente, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -562,7 +566,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -579,7 +583,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -598,7 +602,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -615,7 +619,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -632,7 +636,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -649,7 +653,7 @@ public sealed class OcupacionServicioComandosTests
         var resultado = await servicio.ReactivarAsync(ocupacion.Id, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(OcupacionErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -805,18 +809,10 @@ internal sealed class FakeOcupacionWriteRepository : IOcupacionRepository
         return Task.FromResult<IReadOnlyList<Ocupacion>>(Datos.ToList());
     }
 
-    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListPagedAsync(
-        int page, int pageSize, CancellationToken cancellationToken = default)
-    {
-        var items = Datos.Where(o => o.EsVigente).ToList();
-        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((items, items.Count));
-    }
-
-    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(
-        int page, int pageSize, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<(IReadOnlyList<Ocupacion> Items, int TotalCount)>((Datos.ToList(), Datos.Count));
-    }
+    public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> QueryAsync(
+        OcupacionListQuery query,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Write fake does not support query operations.");
 }
 
 internal sealed class FakePersonaWriteRepository : IPersonaRepository

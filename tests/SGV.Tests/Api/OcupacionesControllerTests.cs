@@ -6,7 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
-using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Contracts.Comun;
+using SGV.Contracts.Ocupaciones.Comandos;
+using SGV.Contracts.Ocupaciones.Dtos;
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
 using Xunit;
@@ -25,13 +28,13 @@ public sealed class OcupacionesControllerTests
         FakeOcupacionServicioConsulta.PersonaId1,
         FakeOcupacionServicioConsulta.PuestoId1,
         new DateOnly(2024, 6, 1),
-        TipoAsignacion.Permanente);
+        OcupacionTipoAsignacion.Permanente);
 
     private static ActualizarOcupacionRequest DefaultUpdateRequest() => new(
         FakeOcupacionServicioConsulta.PersonaId1,
         FakeOcupacionServicioConsulta.PuestoId1,
         new DateOnly(2024, 6, 15),
-        TipoAsignacion.Interina);
+        OcupacionTipoAsignacion.Interina);
 
     private static FinalizarOcupacionRequest DefaultFinalizeRequest() => new(new DateOnly(2024, 12, 31));
 
@@ -71,7 +74,7 @@ public sealed class OcupacionesControllerTests
         var content = await response.Content.ReadFromJsonAsync<PagedResult<OcupacionDto>>();
         Assert.NotNull(content);
         Assert.NotEmpty(content!.Items);
-        Assert.All(content.Items, o => Assert.Equal("Activo", o.Estado));
+        Assert.All(content.Items, o => Assert.Equal(OcupacionEstado.Vigente, o.Estado));
     }
 
     [Fact]
@@ -185,7 +188,7 @@ public sealed class OcupacionesControllerTests
         {
             CrearHandler = (_, _) => Task.FromResult(
                 OcupacionCommandResult.Failure(
-                    new(OcupacionErrorType.Conflict, "PuestoOcupado",
+                    new(ErrorCategoria.Conflict, "PuestoOcupado",
                         "Ya existe una ocupación activa para el puesto especificado.")))
         };
         await using var factory = _fixture.RootFactory.WithOverrides(services =>
@@ -254,7 +257,7 @@ public sealed class OcupacionesControllerTests
         {
             ActualizarHandler = (_, _, _) => Task.FromResult(
                 OcupacionCommandResult.Failure(
-                    new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
+                    new(ErrorCategoria.NotFound, "OcupacionNoEncontrada",
                         "La ocupación no existe.")))
         };
         await using var factory = _fixture.RootFactory.WithOverrides(services =>
@@ -278,7 +281,7 @@ public sealed class OcupacionesControllerTests
         {
             ActualizarHandler = (_, _, _) => Task.FromResult(
                 OcupacionCommandResult.Failure(
-                    new(OcupacionErrorType.Conflict, "OcupacionNoEditable",
+                    new(ErrorCategoria.Conflict, "OcupacionNoEditable",
                         "La ocupación no está activa y no se puede modificar.")))
         };
         await using var factory = _fixture.RootFactory.WithOverrides(services =>
@@ -336,7 +339,7 @@ public sealed class OcupacionesControllerTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadFromJsonAsync<OcupacionDto>();
         Assert.NotNull(content);
-        Assert.Equal("Finalizado", content!.Estado);
+        Assert.Equal(OcupacionEstado.Finalizada, content!.Estado);
     }
 
     [Fact]
@@ -346,7 +349,7 @@ public sealed class OcupacionesControllerTests
         {
             FinalizarHandler = (_, _, _) => Task.FromResult(
                 OcupacionCommandResult.Failure(
-                    new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
+                    new(ErrorCategoria.NotFound, "OcupacionNoEncontrada",
                         "La ocupación no existe.")))
         };
         await using var factory = _fixture.RootFactory.WithOverrides(services =>
@@ -370,7 +373,7 @@ public sealed class OcupacionesControllerTests
         {
             FinalizarHandler = (_, _, _) => Task.FromResult(
                 OcupacionCommandResult.Failure(
-                    new(OcupacionErrorType.Conflict, "OcupacionNoEditable",
+                    new(ErrorCategoria.Conflict, "OcupacionNoEditable",
                         "La ocupación no está activa y no se puede finalizar.")))
         };
         await using var factory = _fixture.RootFactory.WithOverrides(services =>
@@ -428,7 +431,7 @@ public sealed class OcupacionesControllerTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = await response.Content.ReadFromJsonAsync<OcupacionDto>();
         Assert.NotNull(content);
-        Assert.Equal("Activo", content!.Estado);
+        Assert.Equal(OcupacionEstado.Vigente, content!.Estado);
     }
 
     [Fact]
@@ -438,7 +441,7 @@ public sealed class OcupacionesControllerTests
         {
             ReactivarHandler = (_, _) => Task.FromResult(
                 OcupacionCommandResult.Failure(
-                    new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
+                    new(ErrorCategoria.NotFound, "OcupacionNoEncontrada",
                         "La ocupación no existe.")))
         };
         await using var factory = _fixture.RootFactory.WithOverrides(services =>
@@ -461,7 +464,7 @@ public sealed class OcupacionesControllerTests
         {
             ReactivarHandler = (_, _) => Task.FromResult(
                 OcupacionCommandResult.Failure(
-                    new(OcupacionErrorType.Conflict, "PuestoOcupado",
+                    new(ErrorCategoria.Conflict, "PuestoOcupado",
                         "Ya existe una ocupación activa para el puesto especificado.")))
         };
         await using var factory = _fixture.RootFactory.WithOverrides(services =>
@@ -522,7 +525,7 @@ public sealed class OcupacionesControllerTests
         {
             EliminarHandler = (_, _) => Task.FromResult(
                 OcupacionCommandResult.Failure(
-                    new(OcupacionErrorType.NotFound, "OcupacionNoEncontrada",
+                    new(ErrorCategoria.NotFound, "OcupacionNoEncontrada",
                         "La ocupación no existe.")))
         };
         await using var factory = _fixture.RootFactory.WithOverrides(services =>

@@ -67,11 +67,10 @@ public sealed class PuestoServicioComandos(
         public Task<IReadOnlyList<global::SGV.Dominio.Ocupaciones.Ocupacion>> ListAllIncludingHistoryAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException("NullOcupacionRepository: ListAllIncludingHistoryAsync no soportado.");
 
-        public Task<(IReadOnlyList<global::SGV.Dominio.Ocupaciones.Ocupacion> Items, int TotalCount)> ListPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("NullOcupacionRepository: ListPagedAsync no soportado.");
-
-        public Task<(IReadOnlyList<global::SGV.Dominio.Ocupaciones.Ocupacion> Items, int TotalCount)> ListHistoryPagedAsync(int page, int pageSize, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("NullOcupacionRepository: ListHistoryPagedAsync no soportado.");
+        public Task<(IReadOnlyList<global::SGV.Dominio.Ocupaciones.Ocupacion> Items, int TotalCount)> QueryAsync(
+            global::SGV.Contracts.Ocupaciones.Consultas.OcupacionListQuery query,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("NullOcupacionRepository: QueryAsync no soportado.");
 
         public Task<bool> ExistsActiveByPuestoAsync(Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
             => Task.FromResult(false);

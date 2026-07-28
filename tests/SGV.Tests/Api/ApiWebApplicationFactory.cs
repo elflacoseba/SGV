@@ -19,7 +19,10 @@ using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
-using SGV.Aplicacion.Ocupaciones.Consultas.Dtos;
+using SGV.Contracts.Ocupaciones.Comandos;
+using SGV.Contracts.Ocupaciones.Consultas;
+using SGV.Contracts.Ocupaciones.Dtos;
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Comandos;
 using SGV.Aplicacion.Organizacion.Consultas;
@@ -783,17 +786,29 @@ internal sealed class FakeOcupacionServicioConsulta : IOcupacionServicioConsulta
     public static readonly Guid PuestoId1 = FakePuestoServicio.PuestoId1;
 
     private readonly IReadOnlyList<OcupacionDto> _data;
+    public OcupacionListQuery? LastQuery { get; private set; }
 
     public FakeOcupacionServicioConsulta(bool isEmpty = false)
     {
         _data = isEmpty
             ? []
             : [new(OcupacionId1, PersonaId1, "Juan Perez", PuestoId1, "Gerente General",
-                  new DateOnly(2024, 1, 15), null, TipoAsignacion.Permanente, null, "Activo")];
+                  new DateOnly(2024, 1, 15), null, OcupacionTipoAsignacion.Permanente, null, OcupacionEstado.Vigente)];
     }
 
-    public Task<PagedResult<OcupacionDto>> ListAsync(bool includeHistory = false, int page = 1, int pageSize = 20, CancellationToken ct = default)
-        => Task.FromResult(new PagedResult<OcupacionDto>(_data, _data.Count, page, pageSize));
+    public Task<PagedResult<OcupacionDto>> QueryAsync(
+        OcupacionListQuery query,
+        CancellationToken ct = default)
+    {
+        LastQuery = query;
+        var items = _data.Where(o => query.Segmento == OcupacionSegmentoListado.Activas
+                ? o.Estado == OcupacionEstado.Vigente
+                : o.Estado != OcupacionEstado.Vigente)
+            .Where(o => query.PersonaId is null || o.PersonaId == query.PersonaId)
+            .Where(o => query.PuestoId is null || o.PuestoId == query.PuestoId)
+            .ToList();
+        return Task.FromResult(new PagedResult<OcupacionDto>(items, items.Count, query.Page, query.PageSize));
+    }
 
     public Task<OcupacionDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => Task.FromResult(_data.FirstOrDefault(d => d.Id == id));
@@ -817,7 +832,7 @@ internal sealed class FakeOcupacionServicioComandos : IOcupacionServicioComandos
         return Task.FromResult(OcupacionCommandResult.Success(
             new OcupacionDto(DefaultOcupacionId, request.PersonaId, "Juan Perez",
                 request.PuestoId, "Gerente General", request.FechaInicio, null,
-                request.TipoAsignacion, request.Observaciones, "Activo")));
+                request.TipoAsignacion, request.Observaciones, OcupacionEstado.Vigente)));
     }
 
     public Task<OcupacionCommandResult> ActualizarAsync(
@@ -829,7 +844,7 @@ internal sealed class FakeOcupacionServicioComandos : IOcupacionServicioComandos
         return Task.FromResult(OcupacionCommandResult.Success(
             new OcupacionDto(id, request.PersonaId, "Juan Perez",
                 request.PuestoId, "Gerente General", request.FechaInicio, null,
-                request.TipoAsignacion, request.Observaciones, "Activo")));
+                request.TipoAsignacion, request.Observaciones, OcupacionEstado.Vigente)));
     }
 
     public Task<OcupacionCommandResult> FinalizarAsync(
@@ -841,8 +856,8 @@ internal sealed class FakeOcupacionServicioComandos : IOcupacionServicioComandos
         return Task.FromResult(OcupacionCommandResult.Success(
             new OcupacionDto(id, FakeOcupacionServicioConsulta.PersonaId1, "Juan Perez",
                 FakeOcupacionServicioConsulta.PuestoId1, "Gerente General",
-                new DateOnly(2024, 1, 15), request.FechaFin, TipoAsignacion.Permanente,
-                request.Observaciones, "Finalizado")));
+                new DateOnly(2024, 1, 15), request.FechaFin, OcupacionTipoAsignacion.Permanente,
+                request.Observaciones, OcupacionEstado.Finalizada)));
     }
 
     public Task<OcupacionCommandResult> EliminarAsync(
@@ -853,7 +868,7 @@ internal sealed class FakeOcupacionServicioComandos : IOcupacionServicioComandos
         return Task.FromResult(OcupacionCommandResult.Success(
             new OcupacionDto(id, FakeOcupacionServicioConsulta.PersonaId1, "Juan Perez",
                 FakeOcupacionServicioConsulta.PuestoId1, "Gerente General",
-                new DateOnly(2024, 1, 15), null, TipoAsignacion.Permanente, null, "Eliminado")));
+                new DateOnly(2024, 1, 15), null, OcupacionTipoAsignacion.Permanente, null, OcupacionEstado.Eliminada)));
     }
 
     public Task<OcupacionCommandResult> ReactivarAsync(
@@ -864,7 +879,7 @@ internal sealed class FakeOcupacionServicioComandos : IOcupacionServicioComandos
         return Task.FromResult(OcupacionCommandResult.Success(
             new OcupacionDto(id, FakeOcupacionServicioConsulta.PersonaId1, "Juan Perez",
                 FakeOcupacionServicioConsulta.PuestoId1, "Gerente General",
-                new DateOnly(2024, 1, 15), null, TipoAsignacion.Permanente, null, "Activo")));
+                new DateOnly(2024, 1, 15), null, OcupacionTipoAsignacion.Permanente, null, OcupacionEstado.Vigente)));
     }
 }
 

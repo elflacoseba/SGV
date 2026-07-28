@@ -1,3 +1,4 @@
+using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Dominio.Ocupaciones;
 
 namespace SGV.Aplicacion.Ocupaciones;
@@ -8,14 +9,17 @@ namespace SGV.Aplicacion.Ocupaciones;
 public static class OcupacionEstadoHelper
 {
     /// <summary>
-    /// Computes the display state string from the domain entity.
+    /// Computes the wire state from the domain entity.
     /// </summary>
-    public static string CalcularEstado(Ocupacion ocupacion)
+    public static OcupacionEstado CalcularEstado(Ocupacion ocupacion)
     {
         if (ocupacion.IsDeleted)
-            return "Eliminado";
-        if (ocupacion.FechaFin is not null)
-            return "Finalizado";
-        return "Activo";
+        {
+            return OcupacionEstado.Eliminada;
+        }
+
+        return ocupacion.FechaFin is not null
+            ? OcupacionEstado.Finalizada
+            : OcupacionEstado.Vigente;
     }
 }
