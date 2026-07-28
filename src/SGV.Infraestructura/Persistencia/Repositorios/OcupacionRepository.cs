@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SGV.Aplicacion.Ocupaciones.Consultas;
+using SGV.Contracts.Ocupaciones;
 using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Dominio.Ocupaciones;
@@ -82,21 +83,22 @@ public sealed class OcupacionRepository(SgvDbContext context)
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var search = request.Search.Trim();
+            var likePattern = $"%{EscapeLikePattern(search)}%";
             query = query.Where(o =>
-                o.Persona.Nombres.Contains(search) ||
-                o.Persona.Apellidos.Contains(search) ||
-                o.Puesto.Nombre.Contains(search) ||
-                (o.Observaciones != null && o.Observaciones.Contains(search)));
+                EF.Functions.Like(o.Persona.Nombres, likePattern, "\\") ||
+                EF.Functions.Like(o.Persona.Apellidos, likePattern, "\\") ||
+                EF.Functions.Like(o.Puesto.Nombre, likePattern, "\\") ||
+                (o.Observaciones != null && EF.Functions.Like(o.Observaciones, likePattern, "\\")));
         }
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
         query = request.Sort?.ToLowerInvariant() switch
         {
-            "fechainicio_asc" => query.OrderBy(o => o.FechaInicio),
-            "persona_asc" => query.OrderBy(o => o.Persona.Apellidos).ThenBy(o => o.Persona.Nombres),
-            "persona_desc" => query.OrderByDescending(o => o.Persona.Apellidos).ThenByDescending(o => o.Persona.Nombres),
-            "puesto_asc" => query.OrderBy(o => o.Puesto.Nombre),
-            "puesto_desc" => query.OrderByDescending(o => o.Puesto.Nombre),
+            OcupacionApiRoutes.SortFechaInicioAsc => query.OrderBy(o => o.FechaInicio),
+            OcupacionApiRoutes.SortPersonaAsc => query.OrderBy(o => o.Persona.Apellidos).ThenBy(o => o.Persona.Nombres),
+            OcupacionApiRoutes.SortPersonaDesc => query.OrderByDescending(o => o.Persona.Apellidos).ThenByDescending(o => o.Persona.Nombres),
+            OcupacionApiRoutes.SortPuestoAsc => query.OrderBy(o => o.Puesto.Nombre),
+            OcupacionApiRoutes.SortPuestoDesc => query.OrderByDescending(o => o.Puesto.Nombre),
             _ => query.OrderByDescending(o => o.FechaInicio)
         };
 
@@ -107,6 +109,18 @@ public sealed class OcupacionRepository(SgvDbContext context)
             .ConfigureAwait(false);
 
         return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
+    /// <summary>
+    /// Escapes LIKE wildcard characters so user-supplied '%' or '_' are matched
+    /// literally. MySQL uses backslash as the escape character by default.
+    /// </summary>
+    private static string EscapeLikePattern(string input)
+    {
+        return input
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
     }
 
     public async Task AddAsync(Ocupacion ocupacion, CancellationToken cancellationToken = default)

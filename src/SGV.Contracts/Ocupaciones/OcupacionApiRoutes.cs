@@ -15,4 +15,11 @@ public static class OcupacionApiRoutes
     public const string PageSizeQuery = "pageSize";
     public const string SearchQuery = "search";
     public const string SortQuery = "sort";
+
+    // Sort whitelist values for OcupacionRepository.QueryAsync.
+    public const string SortFechaInicioAsc = "fechainicio_asc";
+    public const string SortPersonaAsc = "persona_asc";
+    public const string SortPersonaDesc = "persona_desc";
+    public const string SortPuestoAsc = "puesto_asc";
+    public const string SortPuestoDesc = "puesto_desc";
 }

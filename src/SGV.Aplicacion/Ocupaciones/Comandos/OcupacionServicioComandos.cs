@@ -160,7 +160,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             var ocupacion = new Ocupacion(
                 request.PersonaId, request.PuestoId, request.FechaInicio,
-                (TipoAsignacion)request.TipoAsignacion, observaciones: request.Observaciones)
+                OcupacionTipoAsignacionMapper.ToDomain(request.TipoAsignacion), observaciones: request.Observaciones)
             {
                 Id = Guid.NewGuid()
             };
@@ -236,7 +236,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
                 request.PersonaId,
                 request.PuestoId,
                 request.FechaInicio,
-                (TipoAsignacion)request.TipoAsignacion,
+                OcupacionTipoAsignacionMapper.ToDomain(request.TipoAsignacion),
                 request.Observaciones);
 
             await ocupacionRepository.UpdateAsync(ocupacion, cancellationToken).ConfigureAwait(false);
@@ -486,7 +486,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             puestoNombre,
             ocupacion.FechaInicio,
             ocupacion.FechaFin,
-            (OcupacionTipoAsignacion)ocupacion.TipoAsignacion,
+            OcupacionTipoAsignacionMapper.ToContract(ocupacion.TipoAsignacion),
             ocupacion.Observaciones,
             OcupacionEstadoHelper.CalcularEstado(ocupacion));
     }

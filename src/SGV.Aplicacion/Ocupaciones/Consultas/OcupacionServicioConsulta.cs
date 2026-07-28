@@ -49,7 +49,7 @@ public sealed class OcupacionServicioConsulta(IOcupacionRepository repository)
             puestoNombre,
             ocupacion.FechaInicio,
             ocupacion.FechaFin,
-            (OcupacionTipoAsignacion)ocupacion.TipoAsignacion,
+            OcupacionTipoAsignacionMapper.ToContract(ocupacion.TipoAsignacion),
             ocupacion.Observaciones,
             OcupacionEstadoHelper.CalcularEstado(ocupacion));
     }

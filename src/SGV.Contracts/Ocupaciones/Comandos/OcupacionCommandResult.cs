@@ -12,6 +12,15 @@ public enum OcupacionErrorType
 }
 
 #pragma warning disable CS0618
+/// <summary>
+/// Error payload for OcupacionCommandResult.
+/// </summary>
+/// <remarks>
+/// The primary constructor that accepts <see cref="OcupacionErrorType"/> is
+/// obsolete and remains only for backward compatibility while the domain
+/// migrates to <see cref="ErrorCategoria"/>. New code must use the
+/// <see cref="OcupacionError(ErrorCategoria, string, string)"/> constructor.
+/// </remarks>
 public sealed record OcupacionError(
     OcupacionErrorType Type,
     string Code,

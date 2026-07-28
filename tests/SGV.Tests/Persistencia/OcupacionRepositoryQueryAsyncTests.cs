@@ -180,6 +180,43 @@ public sealed class OcupacionRepositoryQueryAsyncTests
         }
     }
 
+    [MySqlFact]
+    public async Task QueryAsync_MySql_SearchEscapaWildcardPorcentaje_RetornaSoloCoincidenciaLiteral()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var suffix = UniqueSuffix();
+        var persona = RepositoryTestData.CreatePersona($"OCUP-SRC-WLD-PER-{suffix}");
+        var unidad = RepositoryTestData.CreateUnidadOrganizativa($"OCUP-SRC-WLD-UO-{suffix}");
+        var cargo = RepositoryTestData.CreateCargo($"OCUP-SRC-WLD-CARGO-{suffix}");
+        var puestoX = RepositoryTestData.CreatePuesto($"OCUP-SRC-WLD-PUE-X-{suffix}", unidad, cargo);
+        var puestoY = RepositoryTestData.CreatePuesto($"OCUP-SRC-WLD-PUE-Y-{suffix}", unidad, cargo);
+        var conPorcentaje = CreateOcupacion(
+            persona.Id, puestoX.Id, $"OCUP-SRC-WLD-{suffix}-50%", fechaFin: null);
+        var sinPorcentaje = CreateOcupacion(
+            persona.Id, puestoY.Id, $"OCUP-SRC-WLD-{suffix}-50", fechaFin: null);
+
+        try
+        {
+            await SeedAsync(context, persona, unidad, cargo, puestoX, puestoY, conPorcentaje, sinPorcentaje);
+            var repo = new OcupacionRepository(context);
+            var result = await repo.QueryAsync(
+                new OcupacionListQuery(
+                    1, 20,
+                    Search: $"OCUP-SRC-WLD-{suffix}-50%",
+                    null,
+                    OcupacionSegmentoListado.Activas),
+                default);
+
+            Assert.Single(result.Items);
+            Assert.Equal(conPorcentaje.Id, result.Items[0].Id);
+            Assert.Equal(1, result.TotalCount);
+        }
+        finally
+        {
+            await CleanupAsync(context, persona, unidad, cargo, puestoX, puestoY, conPorcentaje, sinPorcentaje);
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
 
     private static OcupacionEntity CreateOcupacion(

@@ -82,6 +82,35 @@ PR-1 neto contra `origin/develop`: **35 archivos, +818 / -303** (incluye nuevos 
 
 ---
 
+## Post-review fixes aplicados
+
+Tras la revisión del PR #212 se aplicaron los siguientes cambios sobre la rama `feat/208-p1-contracts-api` (no amarra nuevos commits todavía; se incluirán en el próximo push):
+
+| Hallazgo | Severidad | Fix aplicado | Archivos |
+|---|---|---|---|
+| Cast inseguro `OcupacionTipoAsignacion` ↔ `TipoAsignacion` | 🟠 Importante | Mapper explícito name-based en `OcupacionTipoAsignacionMapper` ( lanza `ArgumentOutOfRangeException` si los enums divergen). | `src/SGV.Aplicacion/Ocupaciones/OcupacionTipoAsignacionMapper.cs` (nuevo), `OcupacionServicioComandos.cs`, `OcupacionServicioConsulta.cs` |
+| Búsqueda `Search` con `Contains` sin escapar wildcards SQL | 🟠 Importante | `EF.Functions.Like` con patrón escapado (`%`, `_`, `\`) y escape char `\` para MySQL. | `src/SGV.Infraestructura/Persistencia/Repositorios/OcupacionRepository.cs` |
+| Strings mágicos en sort whitelist | 🟡 Recomendación | Constantes `SortFechaInicioAsc`, `SortPersonaAsc/Desc`, `SortPuestoAsc/Desc` en `OcupacionApiRoutes`. | `src/SGV.Contracts/Ocupaciones/OcupacionApiRoutes.cs`, `OcupacionRepository.cs` |
+| Constructor legacy de `OcupacionError` expuesto | 🟡 Recomendación | XML remark enfatizando que el constructor con `OcupacionErrorType` es obsoleto y que el nuevo código debe usar el constructor con `ErrorCategoria`. | `src/SGV.Contracts/Ocupaciones/Comandos/OcupacionCommandResult.cs` |
+
+### Notas técnicas de los fixes
+
+- `OcupacionTipoAsignacionMapper` vive en `SGV.Aplicacion` porque es la única capa que conoce tanto `SGV.Contracts.Ocupaciones.Enums` como `SGV.Dominio.Ocupaciones`.
+- El escape de LIKE se hace antes de envolver el valor con `%`; el orden de reemplazo es `\` → `\\`, `%` → `\%`, `_` → `\_`, de modo que MySQL interprete cada backslash como escape literal.
+- Las constantes de sort permanecen en `SGV.Contracts` para que futuros clientes web (Slice 2+) puedan reutilizarlas sin referenciar infraestructura.
+
+### Verificación tras fixes
+
+- `dotnet build SGV.slnx --nologo` → **0 errors, warnings pre-existentes** (sin nuevos warnings introducidos por los fixes).
+- `dotnet test SGV.slnx --filter "Ocupacion" --no-build` → **155/157 passed**.
+- Los **2 tests fallidos** son los mismos de data pollution pre-existente documentados en R-Tests pre-existentes:
+  - `OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_SegmentoEliminadas_RetornaSoloEliminadasYFinalizadas` (row count esperado 2, DB contiene 3 por corridas previas).
+  - `OcupacionRepositoryTests.ListAllIncludingHistoryAsync_ReturnsAllRows` (row count esperado 3, DB contiene 5 por corridas previas).
+- El nuevo test `QueryAsync_MySql_SearchEscapaWildcardPorcentaje_RetornaSoloCoincidenciaLiteral` **pasa**, confirmando que `EF.Functions.Like` con escape escapa `%` literalmente.
+- El nuevo test `OcupacionTipoAsignacionMapperTests` **pasa** (4 casos), confirmando mapeo name-based y excepciones en valores desconocidos.
+
+---
+
 ## Estado actual
 
 - **PR 1**: ✅ Commits creados. `dotnet build SGV.slnx` → 0 errors / 4 warnings (todos pre-existentes). `dotnet test SGV.slnx --no-build` con `sgv_test` MySQL up → 3028/3028 (3 fallos pre-existentes fuera de scope de este change, documentados arriba).
