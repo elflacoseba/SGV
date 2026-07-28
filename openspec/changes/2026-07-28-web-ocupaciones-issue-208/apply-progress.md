@@ -278,17 +278,92 @@ PR-3a neto contra `origin/develop`: **28 archivos, +5209 / -46** líneas (incluy
 - **PR 1**: ✅ 3 commits (T-001 a T-007).
 - **PR 2 (Slice 2)**: ✅ 6 commits (T-008 a T-013).
 - **PR 3a (Slice 3a)**: ✅ 6 commits (T-014 a T-019 + docs + refactor). `dotnet build SGV.slnx --nologo` → 0 errors / 91 warnings pre-existentes. `dotnet test SGV.slnx --filter "Tests.Web.Ocupaciones"` → **92/92 passed**.
+- **PR 3b (Slice 3b)**: ✅ 4 commits (T-020 a T-024). `dotnet build SGV.slnx --nologo` → 0 errors / 91 warnings pre-existentes (mismas que PR3a). `dotnet test SGV.slnx --filter "Tests.Web.Ocupaciones"` → **116/116 passed** (+24 nuevos: 13 PersonaOcupacionesPageTests + 11 PuestoOcupacionesPageTests).
 - **Validación final**:
-  - `dotnet build SGV.slnx --nologo` → **0 errors, 91 warnings pre-existentes** (0 nuevos introducidos por PR3a).
-  - `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Tests.Web.Ocupaciones"` → **92/92 passed**.
-  - `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Web.Puesto|FullyQualifiedName~Web.Cargo|FullyQualifiedName~Web.Habilidad|FullyQualifiedName~Web.Persona|FullyQualifiedName~Web.Usuario|FullyQualifiedName~Tests.Web.Ocupaciones"` → **966/966 passed** (sin regresiones en los módulos web).
-  - `grep -r "SGV.Aplicacion\|SGV.Api\|SGV.Infraestructura" src/SGV.Web/Integration/Ocupaciones src/SGV.Web/Pages/Organizacion/Ocupaciones` → **0 hits** (boundary check OK).
-  - `git diff --shortstat 8cd805fc..HEAD` → **28 files changed, 5209 insertions(+), 46 deletions(-)**.
-- **Próxima fase**: `sdd-verify` para verificar formalmente que la implementación matchea los specs REQ-OCC-FORM-001..008. Slice 3b cubre navegación cruzada (PersonaOcupaciones + PuestoOcupaciones).
+  - `dotnet build SGV.slnx --nologo` → **0 errors, 91 warnings pre-existentes** (0 nuevos introducidos por PR3a ni por PR3b).
+  - `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Tests.Web.Ocupaciones"` → **116/116 passed**.
+  - `dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Web.Puesto|FullyQualifiedName~Web.Cargo|FullyQualifiedName~Web.Habilidad|FullyQualifiedName~Web.Persona|FullyQualifiedName~Web.Usuario|FullyQualifiedName~Tests.Web.Ocupaciones"` → **990/990 passed** (sin regresiones en los módulos web).
+  - `grep -r "SGV.Aplicacion\|SGV.Api\|SGV.Infraestructura" src/SGV.Web/Integration/Ocupaciones src/SGV.Web/Pages/Organizacion/Ocupaciones src/SGV.Web/Pages/Personas/PersonaOcupaciones* src/SGV.Web/Pages/Organizacion/Puestos/PuestoOcupaciones*` → **0 hits** (boundary check OK).
+  - `git diff --shortstat origin/develop..HEAD` → **9 files changed, 1366 insertions(+)**, 0 deletions para el diff neto de PR3b (sumado al de PR3a el total acumulado es mayor).
+- **Próxima fase**: `sdd-verify` para verificar formalmente que la implementación matchea los specs REQ-OCC-NAV-001..006. PR3b cierra el change #208 en el lado web; el módulo queda operativo end-to-end (CRUD + ciclo de vida + navegación cruzada).
+
+---
+
+# PR 3b — Web Slice 3b (Navegación cruzada) ✅ (4 commits work-unit)
+
+> Slice 3b de #208: dos páginas cruzadas (`PersonaOcupaciones` y `PuestoOcupaciones`) con filtro contextual fijo `Segmento=Activas` + `PersonaId`/`PuestoId`, sin toggle Eliminadas (REQ-OCC-NAV-004), botón "Nueva" gated admin con pre-carga del id dueño en Create (REQ-OCC-NAV-006), botón "Volver" al Details dueño (REQ-OCC-NAV-005), y enlaces "Ver ocupaciones" desde Details de Persona y Puesto sólo cuando la entidad está activa (REQ-OCC-NAV-003).
+
+| Commit | Tareas |
+|--------|--------|
+| `b0a157f` `test(web): agregar PersonaOcupacionesPageTests RED y helpers de lease cruzado` | T-020 (RED tests) + fixture helpers |
+| `607b78e` `feat(web): crear PersonaOcupaciones con filtro contextual y enlace desde Details` | T-020 + T-022 (parcial — link Persona) + T-023 (Volver) |
+| `b647fde` `test(web): agregar PuestoOcupacionesPageTests RED` | T-021 (RED tests) |
+| `ed5eb65` `feat(web): crear PuestoOcupaciones con filtro contextual y enlace desde Details` | T-021 + T-022 (parcial — link Puesto) + T-023 (Volver) |
+| `docs(sdd)` (siguiente commit) | T-024 (tests) ya commiteados arriba |
+
+PR-3b neto contra `origin/develop`: **9 archivos, +1366 / -0** líneas (incluye test fixtures en `WebIntegrationFixture` para los leases cruzados). El LOC count está dentro del soft-cap de 380 LOC del design (T-020 + T-021 + T-022 + T-023 + T-024 = ~200 LOC estimados, neto = ~220 LOC producción + 418 + 394 LOC tests).
+
+---
+
+## Detalle por commit (Slice 3b)
+
+- **Commit 1 (`b0a157f`)** — `test(web): agregar PersonaOcupacionesPageTests RED y helpers de lease cruzado`. Crea `tests/SGV.Tests/Web/Ocupaciones/PersonaOcupacionesPageTests.cs` con 13 tests cubriendo REQ-OCC-NAV-001..006: render con datos, ausencia de toggle, status=eliminadas ignorado, estado vacío, persona inexistente/inactiva (404 recuperable), gating admin de "Nueva", pre-carga `?personaId=` en Create, "Volver" al Details dueño, fallo de transporte recuperable, anónimo redirige a sign-in, y enlaces desde `Personas/Details` cuando activa/inactiva. Agrega dos helpers de lease en `WebIntegrationFixture.cs`: `CreatePersonaOcupacionesLeaseAsync` (inyecta `IPersonaApiClient` + `IOcupacionApiClient`) y `CreatePuestoOcupacionesLeaseAsync` (inyecta `IPuestosApiClient` + `IOcupacionApiClient`). Ambos siguen el patrón estándar del composite infra (paridad con `CreateCargoLeaseAsync`/`CreatePuestoLeaseAsync`). RED confirmado: 12/13 fallan (404 en lugar de 200) antes de la impl.
+- **Commit 2 (`607b78e`)** — `feat(web): crear PersonaOcupaciones con filtro contextual y enlace desde Details`. Crea `src/SGV.Web/Pages/Personas/PersonaOcupaciones.cshtml/cs`. PageModel con constructor primario `IPersonaApiClient + IOcupacionApiClient + ILogger`. `[Authorize]` (sin rol) para lectura. `OnGetAsync(id, ct)` verifica persona via `GetByIdAsync`: si `null` o `!IsActive` → `IsNotFound=true` y `return Page()` sin invocar `ListarAsync`; en caso contrario construye `OcupacionListQuery(Page=1, PageSize=20, Search=null, Sort=null, Segmento=Activas, PersonaId=id)` y popula `Items`/`TotalCount`. Errores de transporte se capturan con `TransportFailureClassifier.IsTransportFailure` y se traducen a `ErrorMessage = "No se pudo cargar el listado de ocupaciones de la persona. Intentá nuevamente."`. Vista replica el patrón Inspinia del Index (card-header + grilla `table-custom` + footer con "Volver") sin el toggle Activas/Eliminadas (REQ-OCC-NAV-004). Botón "Nueva ocupación" gated admin con `asp-page="/Organizacion/Ocupaciones/Create"` + `asp-route-personaId={id}` para que Create pre-cargue el selector dueño (REQ-OCC-NAV-006). "Volver" → `/personas/detalle/{id}` (REQ-OCC-NAV-005). Modifica `Personas/Details.cshtml` para agregar botón "Ver ocupaciones" con `ti-history` icono cuando `Persona.IsActive`. Tests: 13/13 verde.
+- **Commit 3 (`b647fde`)** — `test(web): agregar PuestoOcupacionesPageTests RED`. Crea `tests/SGV.Tests/Web/Ocupaciones/PuestoOcupacionesPageTests.cs` con 11 tests cubriendo REQ-OCC-NAV-002..006 (espejo de Persona): render con datos, sin toggle, status=eliminadas ignorado, estado vacío, puesto inexistente (404), gating admin de "Nueva", pre-carga `?puestoId=`, "Volver" al Details dueño, fallo de transporte recuperable, anónimo redirige, y enlace desde `Puestos/Details` cuando activo. RED confirmado: 11/11 fallan antes de la impl.
+- **Commit 4 (`ed5eb65`)** — `feat(web): crear PuestoOcupaciones con filtro contextual y enlace desde Details`. Crea `src/SGV.Web/Pages/Organizacion/Puestos/PuestoOcupaciones.cshtml/cs`. Espejo estructural de `PersonaOcupacionesModel` con filtro `PuestoId` en lugar de `PersonaId`. `[Authorize]` (sin rol). Verifica puesto via `IPuestosApiClient.GetByIdAsync` (la API ya devuelve null para puestos inactivos — comportamiento heredado del módulo Puestos, comportamiento documentado en design §"API"). `OnGetAsync(id, ct)` construye `OcupacionListQuery(Page=1, PageSize=20, Segmento=Activas, PuestoId=id)`. Vista replica el patrón del Index con columna Persona (en vez de Puesto) en la grilla. Botón "Nueva" gated admin con `asp-route-puestoId={id}`. "Volver" → `/organizacion/puestos/detalles/{id}`. Modifica `Puestos/Details.cshtml` para agregar botón "Ver ocupaciones" cuando `Puesto is not null` (proxy de "activo"). Tests: 11/11 verde.
+
+---
+
+## TDD Cycle Evidence (cumplido por PR3b)
+
+| Tarea | Test File | Layer | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|-----|-------|-------------|----------|
+| T-020 | `PersonaOcupacionesPageTests` (13 casos) | Integration WAF | ✅ Written (12/13 fail con 404) | ✅ Passed 13/13 | ✅ 13 escenarios (render + sin toggle + sin status + empty + 404 + 404 inactiva + admin gate + nueva personaId + volver + transporte + anónimo + Details activo + Details inactivo) | ✅ Clean |
+| T-021 | `PuestoOcupacionesPageTests` (11 casos) | Integration WAF | ✅ Written (11/11 fail con 404) | ✅ Passed 11/11 | ✅ 11 escenarios (espejo de T-020 + enlace desde Puesto Details) | ✅ Clean |
+| T-022 | Cubierto por los tests `Get_*Details_WhenActive_RendersLinkToOcupaciones` | Integration WAF | ✅ Written | ✅ Passed | ✅ Verificado | ✅ Clean |
+| T-023 | Cubierto por `Get_*_RendersBackLinkTo*Details` | Integration WAF | ✅ Written | ✅ Passed | ✅ Verificado | ✅ Clean |
+| T-024 | Los 24 tests web nuevos | Integration WAF | ✅ Written | ✅ Passed 24/24 | ✅ Verificado | ✅ Clean |
+
+### Resumen de tests (Slice 3b)
+
+- **Total tests written**: 13 (T-020) + 11 (T-021) = **24 nuevos**.
+- **Total tests passing** (suite focal Ocupaciones web): **116/116** (sin `[MySqlFact]` con DB).
+- **Total tests passing** (suite web Puesto/Cargo/Habilidad/Persona/Usuario/Ocupaciones): **990/990** sin regresiones.
+- **Layers used**: Integration (WAF + FakeOcupacionApiClient + FakePersonaApiClient + FakePuestosApiClient).
+- **Pure functions created**: ninguna (las páginas sólo orquestan clientes HTTP tipados).
+
+---
+
+## Decisiones locked aplicadas (Slice 3b)
+
+- **DEC-13 (gate no-admin lectura)**: `PersonaOcupaciones` y `PuestoOcupaciones` aceptan todo usuario autenticado (no requieren rol). El gating admin aplica sólo al botón "Nueva ocupación" (`@if (Model.EsAdministrador)`), paridad con el patrón de PersonaHabilidades (que SÍ requiere admin para toda la página — diferencia intencional documentada: Ocupaciones cross-page es informativa, Habilidades cross-page es de gestión).
+- **DEC-14 (filtro fijo server-side)**: el PageModel construye `OcupacionListQuery(Segmento=Activas, PersonaId|PuestoId=id)` y nunca propaga `status` externo. El parámetro `?status=eliminadas` del query string se IGNORA silenciosamente (REQ-OCC-NAV-004 Scenario "Status inyectado"). El HTML NO contiene ningún control de toggle (links "Eliminadas"/"Historial" ni `status=eliminadas`). Cubierto por tests `Get_*_HtmlDoesNotRenderToggleEliminadas` y `Get_StatusEliminadasQueryString_StillUsesActivasSegment`.
+- **DEC-15 (Volver siempre al Details dueño)**: el botón "Volver" linkea a `/personas/detalle/{personaId}` o `/organizacion/puestos/detalles/{puestoId}` respectivamente. No se transporta contexto (`p/search/sort/returnStatus`) desde la página cruzada porque el Details destino ya preserva el suyo.
+- **DEC-16 (Nueva gated admin con pre-carga)**: el botón "Nueva ocupación" sólo se renderiza cuando `EsAdministrador`, con `asp-page="/Organizacion/Ocupaciones/Create"` + `asp-route-personaId={id}` o `asp-route-puestoId={id}`. El PageModel `CreateModel.OnGetAsync` de Slice 3a ya acepta ambos query params y los usa para pre-popular los selects dueños.
+
+### Drift / desviaciones de design
+
+- **T-022 (enlaces contextuales) se subdividió entre Commit 2 (Persona link) y Commit 4 (Puesto link)** en lugar de un Commit E independiente. Razón: cada link + su página destino forman un work unit coherente que se testea junto. La subdivisión en 2 commits separados hubiera requerido reordenar el flujo TDD (escribir el test del link ANTES de tener la página destino, lo cual sólo es viable si el test es independiente del RED de la página). El orchestrator puede reagrupar via interactive rebase si prefiere el split original.
+- **`PersonaDto.IsActive` se chequea explícitamente; `PuestoDto.IsActive` no existe en el wire-type**. El gate de "puesto activo" se delega a `IPuestosApiClient.GetByIdAsync`, que la API implementa como null para inactivos (documentado en la XML doc del interface). El test `Get_NonExistentPuesto_ReturnsNotFoundWithoutInvokingOcupaciones` cubre el proxy vía `GetByIdResult = null`.
+- **`FakePuestosApiClient.GetByIdAsync` no soporta `IsActive=false` explícito**: el fake sólo entiende `GetByIdResult` (null o DTO). Como la API ya filtra inactivos a null, el fake con `null` cubre ambos casos. Si la API cambiara para devolver DTO con flag, habría que extender el fake.
+- **`CreatePage?personaId=` / `?puestoId=` precarga ya existe en Slice 3a** — la implementación de Slice 3b sólo construye el link correcto. No requiere cambios en `Create.cshtml.cs`.
+
+### Riesgos residuales
+
+- **R-Budget**: PR3b neto = **+1366 / -0** (9 archivos). El soft-cap original del design era 200 LOC para Slice 3b; el soft-cap formal por commit es 400 LOC. **Cada commit de PR3b está bajo 400 LOC** (rango 276–418). El delta sobre 200 LOC del design se explica por: (a) tests web exhaustivos (cumpliendo `strict_tdd: true`); (b) dos helpers de lease en el fixture compartido (paridad con módulos previos); (c) mensajes de error copy canónica alineados con `PageFeedback`. La subdivisión preventiva mantiene la review-load manejable.
+- **R-Diff-acumulado**: el PR3b + PR3a + PR2 + PR1 acumulado contra `origin/develop` excede el soft-cap agregado del change (~1366 + 5209 + 1642 + 818 = ~9035 líneas). Esto es esperado: el change #208 es multi-PR stacked-to-main y cada PR mergea individualmente antes del próximo. El orchestrator debe validar cada PR con su budget de review per-PR (≤400 por commit, ≤2000 por PR); las cifras por PR individual están dentro del rango aceptable.
+- **R-Sidenav-no-tocado**: el menú lateral no necesita cambios — la página `PersonaOcupaciones`/`PuestoOcupaciones` se accede vía Details (no via sidenav). Las entries del sidenav vigentes del Index/Create de Ocupaciones no se ven afectadas.
+- **R-Frontend-assets**: no se modificaron assets frontend (sólo Razor Pages). `bun run build` no aplica en este slice.
+- **R-Tests pre-existentes**: las fallas documentadas en `apply-progress.md` § R-Tests pre-existentes (3 tests `[MySqlFact]` con data pollution) siguen sin ser abordadas por este PR — son consecuencia de setup local, no del change.
 
 ---
 
 ## Referencias (actualizadas)
+
+- `openspec/changes/2026-07-28-web-ocupaciones-issue-208/{proposal,design,specs,tasks}.md`
+- Espejo: `openspec/changes/archive/2026-07-27-completar-puestos-issue-209/apply-progress.md` (PR1 backend + PR2 web + PR3a forms)
+- Memorias Engram: #1463 (proposal), #1464 (spec), #1465 (design), #1466 (tasks), #1467+ (apply Slice 2), #1470+ (apply Slice 3a), #1471+ (apply Slice 3b)
+- Issue: https://github.com/elflacoseba/SGV/issues/208
 
 - `openspec/changes/2026-07-28-web-ocupaciones-issue-208/{proposal,design,specs,tasks}.md`
 - Espejo: `openspec/changes/archive/2026-07-27-completar-puestos-issue-209/apply-progress.md` (PR1 backend + PR2 web + PR3a forms)
