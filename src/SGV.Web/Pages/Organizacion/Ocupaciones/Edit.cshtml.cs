@@ -1,12 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Ocupaciones.Dtos;
 using SGV.Contracts.Ocupaciones.Enums;
-using SGV.Contracts.Organizacion.Consultas.Dtos;
-using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Ocupaciones;
@@ -28,7 +25,9 @@ namespace SGV.Web.Pages.Organizacion.Ocupaciones;
 /// redirige al detalle (PRG) preservando contexto. Sobre 409
 /// <c>PuestoOcupado</c> (cuando el puesto cambió a ocupado por otro entre
 /// la carga y el POST) mapea el error al campo
-/// <see cref="OcupacionInputModel.PuestoId"/>.
+/// <see cref="OcupacionInputModel.PuestoId"/>. <c>PersonaId</c> es
+/// inmutable en Edit, así que <see cref="OcupacionFormPageModel.MapConflictToModelState"/>
+/// se llama con <c>mapPersonaId: false</c>.
 /// </remarks>
 [Authorize(Roles = RolesSgv.Administrador)]
 public sealed class EditModel(
@@ -36,19 +35,10 @@ public sealed class EditModel(
     IPersonaApiClient personaApiClient,
     IPuestosApiClient puestosApiClient,
     IAuthSessionRedirector authRedirector,
-    ILogger<EditModel> logger) : PageModel, IOcupacionForm
+    ILogger<EditModel> logger) : OcupacionFormPageModel
 {
-    [BindProperty]
-    public OcupacionInputModel Input { get; set; } = new();
-
     /// <summary>DTO wire de la ocupación que se está editando.</summary>
     public OcupacionDetailsViewModel? ViewModel { get; private set; }
-
-    public IReadOnlyList<PersonaDto> PersonaOptions { get; private set; } = [];
-
-    public IReadOnlyList<PuestoDto> PuestoOptions { get; private set; } = [];
-
-    public string? ErrorMessage { get; private set; }
 
     /// <summary><c>true</c> cuando el recurso no está disponible para edición.</summary>
     public bool IsRecoverable { get; private set; }
@@ -66,7 +56,7 @@ public sealed class EditModel(
     /// y pre-popula los campos del form. Si el estado es
     /// <see cref="OcupacionEstado.Finalizada"/> o
     /// <see cref="OcupacionEstado.Eliminada"/>, marca <see cref="IsRecoverable"/>
-    /// y bloquea el render del form (REH-OCC-FORM-002).
+    /// y bloquea el render del form (REQ-OCC-FORM-002).
     /// </summary>
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -107,7 +97,7 @@ public sealed class EditModel(
         Input.TipoAsignacion = current.TipoAsignacion;
         Input.Observaciones = current.Observaciones;
 
-        await LoadCatalogsAsync(cancellationToken);
+        await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
         return Page();
     }
 
@@ -156,7 +146,7 @@ public sealed class EditModel(
 
         if (!ModelState.IsValid)
         {
-            await LoadCatalogsAsync(cancellationToken);
+            await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
             return Page();
         }
 
@@ -177,7 +167,7 @@ public sealed class EditModel(
             logger.LogError(ex, "Ocupacion update transport failure.");
             ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
-            await LoadCatalogsAsync(cancellationToken);
+            await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
             return Page();
         }
 
@@ -202,28 +192,20 @@ public sealed class EditModel(
 
                 ErrorMessage = PageFeedback.UnauthorizedMessage;
                 ModelState.AddModelError(string.Empty, ErrorMessage);
-                await LoadCatalogsAsync(cancellationToken);
+                await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
                 return Page();
             }
 
             if (result.Error.Categoria == ErrorCategoria.Conflict)
             {
-                switch (result.Error.Code)
-                {
-                    case OcupacionErrorCodigo.PersonaYPuestoOcupados:
-                        ModelState.AddModelError(OcupacionFormKeys.PersonaIdKey, result.Error.Message);
-                        ModelState.AddModelError(OcupacionFormKeys.PuestoIdKey, result.Error.Message);
-                        break;
-                    case OcupacionErrorCodigo.PuestoOcupado:
-                        ModelState.AddModelError(OcupacionFormKeys.PuestoIdKey, result.Error.Message);
-                        break;
-                    default:
-                        ErrorMessage = result.Error.Message;
-                        ModelState.AddModelError(string.Empty, ErrorMessage);
-                        break;
-                }
+                // REQ-OCC-FORM-005: 409 mapea PersonaYPuestoOcupados a ambos
+                // campos y PuestoOcupado a PuestoId únicamente.
+                MapConflictToModelState(result.Error);
+                await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
+                return Page();
             }
-            else if (result.Error.Categoria == ErrorCategoria.Validation
+
+            if (result.Error.Categoria == ErrorCategoria.Validation
                 && result.FieldErrors is { Count: > 0 })
             {
                 ApplyFieldErrors(result.FieldErrors);
@@ -238,76 +220,7 @@ public sealed class EditModel(
             }
         }
 
-        await LoadCatalogsAsync(cancellationToken);
+        await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
         return Page();
-    }
-
-    private void ApplyFieldErrors(IReadOnlyDictionary<string, string[]> fieldErrors)
-    {
-        foreach (var entry in fieldErrors)
-        {
-            var key = entry.Key.StartsWith(OcupacionFormKeys.InputPrefix, StringComparison.Ordinal)
-                ? entry.Key
-                : OcupacionFormKeys.InputPrefix + entry.Key;
-            foreach (var message in entry.Value)
-            {
-                ModelState.AddModelError(key, message);
-            }
-        }
-    }
-
-    private async Task LoadCatalogsAsync(CancellationToken cancellationToken)
-    {
-        ErrorMessage = null;
-        var anyFailure = false;
-
-        var personasTask = SafeAsync(() => personaApiClient.GetAllAsync(cancellationToken));
-        var puestosTask = SafeAsync(() => puestosApiClient.GetAllAsync(cancellationToken));
-
-        try
-        {
-            await Task.WhenAll(personasTask, puestosTask);
-        }
-        catch
-        {
-            // Consolidamos por Task.Status abajo.
-        }
-
-        if (personasTask.Status == TaskStatus.RanToCompletion)
-        {
-            PersonaOptions = personasTask.Result;
-        }
-        else
-        {
-            PersonaOptions = [];
-            anyFailure = true;
-        }
-
-        if (puestosTask.Status == TaskStatus.RanToCompletion)
-        {
-            PuestoOptions = puestosTask.Result;
-        }
-        else
-        {
-            PuestoOptions = [];
-            anyFailure = true;
-        }
-
-        if (anyFailure)
-        {
-            ErrorMessage = "No se pudo cargar el catálogo necesario. Intentá nuevamente.";
-        }
-    }
-
-    private static async Task<T> SafeAsync<T>(Func<Task<T>> factory)
-    {
-        try
-        {
-            return await factory().ConfigureAwait(false);
-        }
-        catch
-        {
-            throw;
-        }
     }
 }

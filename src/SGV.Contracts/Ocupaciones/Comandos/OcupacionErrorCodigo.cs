@@ -7,4 +7,5 @@ public static class OcupacionErrorCodigo
     public const string PersonaInactiva = nameof(PersonaInactiva);
     public const string PuestoInactivo = nameof(PuestoInactivo);
     public const string FechaFinInvalida = nameof(FechaFinInvalida);
+    public const string OcupacionYaActiva = nameof(OcupacionYaActiva);
 }

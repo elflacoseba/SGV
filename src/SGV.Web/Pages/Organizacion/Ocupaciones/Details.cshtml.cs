@@ -268,7 +268,7 @@ public sealed class DetailsModel(
                 {
                     OcupacionErrorCodigo.PersonaYPuestoOcupados or
                     OcupacionErrorCodigo.PuestoOcupado or
-                    "OcupacionYaActiva" => $"{result.Error.Code}: {result.Error.Message}",
+                    OcupacionErrorCodigo.OcupacionYaActiva => $"{result.Error.Code}: {result.Error.Message}",
                     _ => result.Error.Message
                 };
                 PageFeedback.SetDanger(TempData, message);
