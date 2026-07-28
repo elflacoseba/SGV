@@ -1,5 +1,6 @@
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
+using ContractsPuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Web.Integration.Organizacion;
 
@@ -15,6 +16,14 @@ public interface IPuestosApiClient
 
     /// <summary>Obtiene un puesto activo por id o <c>null</c> si no existe.</summary>
     Task<PuestoDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Consulta puestos por segmento, búsqueda, orden y página usando el
+    /// endpoint server-side <c>GET /api/v1/puestos/consulta</c>.
+    /// </summary>
+    Task<PagedResult<PuestoDto>> QueryAsync(
+        ContractsPuestoListQuery query,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Crea un puesto. Devuelve éxito con DTO o fallo tipado

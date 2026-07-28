@@ -8,6 +8,7 @@ using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
 using RecordingHandler = SGV.Tests.Web._Shared.HttpClientExceptionScenarios.RecordingHandler;
+using PuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Tests.Web.Puesto;
 
@@ -244,8 +245,90 @@ public class PuestosApiClientTests
     }
 
     // ──────────────────────────────────────────────
-    // Reactivate
+    // Query (segmentación + paginación server-side)
     // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task QueryAsync_WithDeletedSegmentAndFilters_SerializesExpectedQueryAndMapsPagedResult()
+    {
+        var id = Guid.NewGuid();
+        var payload = new PagedResult<PuestoDto>(
+            [BuildDto(id, "DEL-001", "Analista sénior")],
+            TotalCount: 3,
+            Page: 2,
+            PageSize: 5);
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
+        var client = new PuestosApiClient(NewHttpClient(handler));
+        var query = new PuestoListQuery(
+            Page: 2,
+            PageSize: 5,
+            Search: "Analista sénior",
+            Sort: "nombre_asc",
+            Segmento: PuestoSegmentoListado.Eliminadas);
+
+        var result = await client.QueryAsync(query);
+
+        Assert.Single(result.Items);
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(2, result.Page);
+        Assert.Equal(5, result.PageSize);
+        Assert.Equal("/api/v1/puestos/consulta", handler.LastRequest?.RequestUri?.AbsolutePath);
+
+        var requestQuery = handler.LastRequest?.RequestUri?.Query ?? string.Empty;
+        Assert.Contains("page=2", requestQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pageSize=5", requestQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"search={Uri.EscapeDataString(query.Search!)}", requestQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=nombre_asc", requestQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("status=eliminadas", requestQuery, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WithActiveSegmentAndNoOptionalFilters_OmitsStatusAndOptionalParameters()
+    {
+        var payload = new PagedResult<PuestoDto>([], 0, 1, 20);
+        var handler = new RecordingHandler(_ => Json(HttpStatusCode.OK, payload));
+        var client = new PuestosApiClient(NewHttpClient(handler));
+
+        var result = await client.QueryAsync(
+            new PuestoListQuery(1, 20, null, null, PuestoSegmentoListado.Activas));
+
+        Assert.Empty(result.Items);
+        var requestQuery = handler.LastRequest?.RequestUri?.Query ?? string.Empty;
+        Assert.Contains("page=1", requestQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pageSize=20", requestQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("search=", requestQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("sort=", requestQuery, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("status=", requestQuery, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [MemberData(nameof(HttpClientExceptionScenarios.TransportExceptionData), MemberType = typeof(HttpClientExceptionScenarios))]
+    public async Task QueryAsync_TransportFails_PropagatesNativeException(
+        string _, Func<Exception> exceptionFactory, Type expectedExceptionType)
+    {
+        var handler = HttpClientExceptionScenarios.NewHandlerThrowing(exceptionFactory);
+        var client = new PuestosApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAsync(
+            expectedExceptionType,
+            async () => await client.QueryAsync(
+                new PuestoListQuery(1, 20, null, null, PuestoSegmentoListado.Activas)));
+    }
+
+    [Fact]
+    public async Task QueryAsync_CancellationAlreadyRequested_ThrowsAndDoesNotSendRequest()
+    {
+        var handler = new RecordingHandler();
+        var client = new PuestosApiClient(NewHttpClient(handler));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.QueryAsync(
+                new PuestoListQuery(1, 20, null, null, PuestoSegmentoListado.Activas),
+                new CancellationToken(canceled: true)));
+
+        Assert.Null(handler.LastRequest);
+    }
+
 
     [Fact]
     public async Task ReactivateAsync_Http200_ReturnsDtoAndHitsReactivarRoute()

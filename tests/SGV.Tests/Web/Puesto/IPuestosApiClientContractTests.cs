@@ -4,6 +4,7 @@ using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Web.Integration.Organizacion;
 using Xunit;
+using PuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Tests.Web.Puesto;
 
@@ -98,6 +99,23 @@ public class IPuestosApiClientContractTests
     }
 
     [Fact]
+    public void Interface_ExposesQueryAsyncWithExpectedSignature()
+    {
+        var method = typeof(IPuestosApiClient).GetMethod(nameof(IPuestosApiClient.QueryAsync));
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(Task<PagedResult<PuestoDto>>), method!.ReturnType);
+
+        var parameters = method.GetParameters();
+        Assert.Equal(2, parameters.Length);
+        Assert.Equal("query", parameters[0].Name);
+        Assert.Equal(typeof(PuestoListQuery), parameters[0].ParameterType);
+        Assert.Equal("cancellationToken", parameters[1].Name);
+        Assert.Equal(typeof(CancellationToken), parameters[1].ParameterType);
+        Assert.True(parameters[1].HasDefaultValue);
+    }
+
+    [Fact]
     public void Interface_ExposesReactivateAsyncWithExpectedSignature()
     {
         var method = typeof(IPuestosApiClient).GetMethod(nameof(IPuestosApiClient.ReactivateAsync));
@@ -114,7 +132,7 @@ public class IPuestosApiClientContractTests
     }
 
     [Fact]
-    public void Interface_ExposesExactlySixPublicMethods()
+    public void Interface_ExposesExactlySevenPublicMethods()
     {
         // Defensa contra refactors que sumen métodos fuera del contrato
         // documentado en design.md §3.1. El módulo de Puestos NO tiene
@@ -127,7 +145,7 @@ public class IPuestosApiClientContractTests
             .ToArray();
 
         Assert.Equal(
-            new[] { "CreateAsync", "DeleteAsync", "GetAllAsync", "GetByIdAsync", "ReactivateAsync", "UpdateAsync" },
+            new[] { "CreateAsync", "DeleteAsync", "GetAllAsync", "GetByIdAsync", "QueryAsync", "ReactivateAsync", "UpdateAsync" },
             methodNames);
     }
 }
