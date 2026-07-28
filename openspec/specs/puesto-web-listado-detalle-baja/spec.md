@@ -95,3 +95,44 @@ Páginas Razor protegidas para listado y detalle de `Puestos` dentro del shell a
 - GIVEN un usuario autenticado en `/organizacion/puestos` o subruta
 - WHEN se renderiza el sidenav
 - THEN `Puestos` MUST estar expandido y MUST reflejar estado `active` en el sub-item.
+
+### Requirement: Listado web paginado y segmentado con feedback 409 (REQ-PTO-020)
+
+`Puestos/Index.cshtml.cs` `LoadAsync` MUST usar `IPuestosApiClient.QueryAsync(PuestoListQuery)` server-side con `IsPaginated=true`. Toggle Eliminadas MUST estar funcional (ya no disabled). Paginación MUST incluir controles Primera/Anterior/Siguiente/Última. `OnPostDeleteAsync` MUST preservar el feedback específico del 409 vía `TempData["ErrorCode"]` (`PuestoConOcupacionesActivas`) sin confirmar éxito cuando el backend rechaza.
+
+#### Scenario: Carga inicial paginada
+- GIVEN un usuario autenticado abre el índice sin filtros
+- WHEN la página carga
+- THEN MUST consultar el endpoint segmentado para Activas, mostrar las filas de la página y los controles de paginación.
+
+#### Scenario: Toggle Eliminadas reinicia página y oculta Crear
+- GIVEN el usuario está en vista Activas con búsqueda y orden
+- WHEN selecciona Eliminadas
+- THEN MUST navegar con `status=eliminadas`, conservar búsqueda y orden, reiniciar `p=1`
+- AND MUST ocultar el botón Crear.
+
+#### Scenario: Cambio de página preserva contexto
+- GIVEN una vista segmentada con búsqueda y orden
+- WHEN el usuario selecciona otra página
+- THEN MUST conservar segmento, búsqueda y orden
+- AND MUST mostrar solo la página solicitada.
+
+#### Scenario: Baja rechazada 409 muestra mensaje específico
+- GIVEN un puesto visible cuya baja responde 409 con `PuestoConOcupacionesActivas`
+- WHEN el usuario confirma la eliminación
+- THEN MUST mostrar feedback específico sin confirmar éxito
+- AND MUST conservar el puesto visible.
+
+#### Scenario: Error de transporte es recuperable
+- GIVEN el cliente HTTP lanza `HttpRequestException` o `TaskCanceledException`
+- WHEN se carga el índice
+- THEN MUST mostrar un estado recuperable sin falsear éxito, conservando el contrato transversal de transporte.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-27-completar-puestos-issue-209/specs/web-puestos-paginacion/spec.md:9-41`
+
+#### Verification
+
+- Web: `Get_Index_WhenAuthenticated_RendersActivePuestosTable`, `Get_Index_ToggleEliminadas_RendersActiveLinkPreservingFilters`, `Get_Index_WithSearchSortAndPage_PreservesQueryContextAndRendersPagination`, `Post_Delete_WhenConflict_ShowsFeedbackAndKeepsRowVisible`, `Get_Index_WhenApiFails_ShowsVisibleError` (`tests/SGV.Tests/Web/Puesto/PuestoIndexPageTests.cs`).
+- Client: `QueryAsync_WithDeletedSegmentAndFilters_SerializesExpectedQueryAndMapsPagedResult`, `QueryAsync_TransportFails_PropagatesNativeException` (`tests/SGV.Tests/Web/Puesto/PuestosApiClientTests.cs`).

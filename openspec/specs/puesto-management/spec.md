@@ -41,3 +41,105 @@ Contrato durable de la API HTTP de `Puestos`: lectura autenticada del catálogo 
 - API (no-admin): `Create/Update/Delete/Reactivate_WithAuthenticatedNonAdmin_ReturnsForbidden`.
 - API (atributo presente): `Controller_HasAuthorizeAttribute`.
 - API (admin sigue verde): los tests `2xx` existentes en `PuestosControllerTests` corren con `factory.CreateAdminClient()` y permanecen `PASS`.
+
+### Requisito: Consulta segmentada paginada de puestos (REQ-PTO-001)
+
+`IPuestoServicioConsulta` e `IPuestoRepository` DEBEN soportar `QueryAsync(PuestoListQuery)` con filtros de segmento (activas/eliminadas), búsqueda LIKE sobre `Codigo`, `Nombre` y `Descripcion`, orden server-side (`codigo_asc`, `codigo_desc`, `nombre_asc`, `nombre_desc`) y paginación con `Skip`/`Take`. El segmento por defecto DEBE ser `Activas`.
+
+#### Escenario: Paginación por defecto Activas
+
+- **DADO** que existen puestos activos y eliminados
+- **CUANDO** se consulta sin especificar segmento
+- **ENTONCES** el sistema DEBE devolver solo los puestos activos con `TotalCount` correcto.
+
+#### Escenario: Búsqueda con filtros
+
+- **DADO** que existen puestos eliminados cuyo código, nombre o descripción coinciden con un término de búsqueda
+- **CUANDO** se consulta con `status=eliminadas`, término de búsqueda, orden explícito y página específica
+- **ENTONCES** el sistema DEBE devolver solo coincidencias del segmento Eliminadas, DEBE aplicar orden antes de `Skip`/`Take`, y DEBE retornar `TotalCount` del segmento filtrado.
+
+#### Escenario: Orden explícito
+
+- **DADO** que existen puestos en un segmento
+- **CUANDO** se especifica `sort=codigo_desc` o `sort=nombre_asc`
+- **ENTONCES** el sistema DEBE aplicar el orden solicitado antes de paginar, y `codigo_asc` DEBE ser el orden por defecto.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-27-completar-puestos-issue-209/specs/puestos-consulta-segmentada/spec.md:9-28`
+
+#### Verification
+
+- Repository: `PuestoRepositoryQueryAsyncTests.QueryAsync_MySql_SegmentoActivas_NoIncluyeEliminadas`, `QueryAsync_MySql_SearchFiltraPorCodigo_Nombre_Descripcion`, `QueryAsync_MySql_SortCodigoAsc_AplicaOrdenAntesDePaginar` (`tests/SGV.Tests/Persistencia/PuestoRepositoryQueryAsyncTests.cs`).
+- Service: `PuestoServicioConsultaTests.QueryAsync_ConSegmentoActivas_RetornaSoloActivos`, `QueryAsync_ConSortNombreDesc_OrdenaServidorAntesDePaginar` (`tests/SGV.Tests/Aplicacion/Organizacion/PuestoServicioConsultaTests.cs`).
+
+### Requisito: Endpoint HTTP `GET /api/v1/puestos/consulta` (REQ-PTO-002)
+
+`PuestosController` DEBE exponer `GET /api/v1/puestos/consulta` con `[Authorize]` y parámetros query string `page`, `pageSize`, `search`, `sort` y `status`. DEBE devolver `PagedResult<PuestoDto>`. El endpoint DEBE coexistir con `GET /api/v1/puestos` conservando su forma vigente.
+
+#### Escenario: Sin autenticación devuelve 401
+
+- **DADO** un cliente sin credenciales
+- **CUANDO** solicita `GET /api/v1/puestos/consulta`
+- **ENTONCES** la API DEBE responder `401 Unauthorized`.
+
+#### Escenario: Status eliminadas devuelve solo eliminados
+
+- **DADO** un cliente autenticado
+- **CUANDO** solicita `GET /api/v1/puestos/consulta?status=eliminadas&page=1&pageSize=10`
+- **ENTONCES** la API DEBE responder `200 OK` con `PagedResult<PuestoDto>` conteniendo solo puestos eliminados.
+
+#### Escenario: Preserva `GET /api/v1/puestos` sin cambios
+
+- **DADO** un consumidor que usa `GET /api/v1/puestos`
+- **CUANDO** solicita el listado existente
+- **ENTONCES** DEBE recibir `IReadOnlyList<PuestoDto>` sin cambios de forma ni semántica.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-27-completar-puestos-issue-209/specs/puestos-consulta-segmentada/spec.md:30-47`
+
+#### Verification
+
+- API: `GetConsulta_SinStatus_RetornaActivas`, `GetConsulta_ConSearchPageSize_DevuelvePagedResult`, `GetConsulta_WithoutCredentials_ReturnsUnauthorized`, `GetAll_NoModificaShape` (`tests/SGV.Tests/Api/PuestosControllerTests.cs`).
+- Authorization: `Controller_HasAuthorizeAttribute` (`tests/SGV.Tests/Api/PuestosControllerTests.cs`).
+
+### Requisito: Baja lógica protegida por ocupaciones vigentes (REQ-PTO-010)
+
+`PuestoServicioComandos.DesactivarAsync` DEBE consultar `IOcupacionRepository.ExistsActiveByPuestoAsync` antes de mutar el Puesto. Si existen ocupaciones vigentes, DEBE retornar `PuestoErrorType.Conflict` con código `PuestoConOcupacionesActivas` y `Categoria=Conflict` explícito. `DELETE /api/v1/puestos/{id}` DEBE devolver `409 Conflict` con `ProblemDetails` en ese caso; preserva `204 NoContent` sin ocupaciones y `404 NotFound` para puesto inexistente.
+
+#### Escenario: Ocupaciones bloquean baja
+
+- **DADO** un puesto activo con al menos una ocupación vigente
+- **CUANDO** un administrador solicita `DELETE /api/v1/puestos/{id}`
+- **ENTONCES** la API DEBE responder `409 Conflict` con código `PuestoConOcupacionesActivas` en `ProblemDetails.Title`
+- **Y** el puesto DEBE permanecer activo.
+
+#### Escenario: Sin ocupaciones se desactiva
+
+- **DADO** un puesto activo sin ocupaciones vigentes
+- **CUANDO** un administrador solicita `DELETE /api/v1/puestos/{id}`
+- **ENTONCES** la API DEBE responder `204 NoContent`
+- **Y** el puesto DEBE quedar inactivo.
+
+#### Escenario: Puesto inexistente devuelve 404
+
+- **DADO** un identificador que no corresponde a un puesto activo
+- **CUANDO** un administrador solicita `DELETE /api/v1/puestos/{id}`
+- **ENTONCES** la API DEBE responder `404 NotFound`
+- **Y** no DEBE modificar ningún puesto.
+
+#### Escenario: Sin autenticación devuelve 401
+
+- **DADO** un cliente sin credenciales
+- **CUANDO** solicita `DELETE /api/v1/puestos/{id}`
+- **ENTONCES** la API DEBE responder `401 Unauthorized`.
+
+#### Source
+
+- `openspec/changes/archive/2026-07-27-completar-puestos-issue-209/specs/puestos-proteccion-baja/spec.md:9-34`
+
+#### Verification
+
+- Command: `DesactivarAsync_ConOcupacionesVigentes_RetornaConflictSinGuardar`, `DesactivarAsync_SinOcupaciones_ProcedeConLaBaja`, `DesactivarAsync_PuestoInexistente_RetornaNoEncontradoYSinGuardar` (`tests/SGV.Tests/Aplicacion/Organizacion/PuestoServicioComandosTests.cs`).
+- API: `Delete_ConOcupacionesVigentes_Devuelve409ConProblemDetails`, `Delete_SinOcupaciones_Devuelve204NoContent`, `Delete_PuestoInexistente_Devuelve404ConProblemDetails`, `Delete_WithAuthenticatedNonAdmin_ReturnsForbidden` (`tests/SGV.Tests/Api/PuestosControllerTests.cs`).
