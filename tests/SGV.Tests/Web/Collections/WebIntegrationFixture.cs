@@ -98,6 +98,24 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             ocupacionApiClient: ocupacion));
 
+    /// <summary>
+    /// Lease autenticado contra los formularios de Ocupaciones (Create/Edit/Details).
+    /// Inyecta además los catálogos <see cref="IPersonaApiClient"/> y
+    /// <see cref="IPuestosApiClient"/> que requieren los formularios para
+    /// popular los selects de Persona y Puesto. Agregado en Slice 3a del
+    /// change <c>2026-07-28-web-ocupaciones-issue-208</c> (#208).
+    /// </summary>
+    public Task<WebClientLease> CreateOcupacionFormLeaseAsync(
+        IOcupacionApiClient ocupacion,
+        IPersonaApiClient persona,
+        IPuestosApiClient puestos,
+        bool adminRole = true)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            personaApiClient: persona,
+            puestosApiClient: puestos,
+            ocupacionApiClient: ocupacion));
+
     public Task<WebClientLease> CreateHabilidadLeaseAsync(
         FakeHabilidadApiClient habilidad, bool adminRole = false)
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(

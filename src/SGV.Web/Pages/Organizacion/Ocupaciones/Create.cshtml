@@ -1,0 +1,92 @@
+@page "/organizacion/ocupaciones/crear"
+@model SGV.Web.Pages.Organizacion.Ocupaciones.CreateModel
+
+@{
+    ViewBag.title = "Crear ocupación";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-12 col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Nueva ocupación</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    @Html.AntiForgeryToken()
+
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <select asp-for="Input.PersonaId" class="form-select"
+                                        asp-items="@(new SelectList(Model.PersonaOptions.Select(p => new { p.Id, NombreCompleto = $"{p.Apellidos}, {p.Nombres}" }), "Id", "NombreCompleto"))">
+                                    <option value="">Seleccionar persona...</option>
+                                </select>
+                                <label asp-for="Input.PersonaId">Persona</label>
+                                <span asp-validation-for="Input.PersonaId" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <select asp-for="Input.PuestoId" class="form-select"
+                                        asp-items="@(new SelectList(Model.PuestoOptions, "Id", "Nombre"))">
+                                    <option value="">Seleccionar puesto...</option>
+                                </select>
+                                <label asp-for="Input.PuestoId">Puesto</label>
+                                <span asp-validation-for="Input.PuestoId" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input asp-for="Input.FechaInicio" type="date" class="form-control" placeholder="Fecha de inicio" />
+                                <label asp-for="Input.FechaInicio">Fecha de inicio</label>
+                                <span asp-validation-for="Input.FechaInicio" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <select asp-for="Input.TipoAsignacion" class="form-select"
+                                        asp-items="@(new SelectList(Enum.GetValues<SGV.Contracts.Ocupaciones.Enums.OcupacionTipoAsignacion>().Cast<SGV.Contracts.Ocupaciones.Enums.OcupacionTipoAsignacion>().Select(v => new { Value = (int)v, Text = v.ToString() }), "Value", "Text"))">
+                                    <option value="">Seleccionar tipo...</option>
+                                </select>
+                                <label asp-for="Input.TipoAsignacion">Tipo de asignación</label>
+                                <span asp-validation-for="Input.TipoAsignacion" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-floating">
+                                <textarea asp-for="Input.Observaciones" class="form-control" placeholder="Observaciones" style="min-height: 80px"></textarea>
+                                <label asp-for="Input.Observaciones">Observaciones</label>
+                                <span asp-validation-for="Input.Observaciones" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <a class="btn btn-light" href="/organizacion/ocupaciones">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
