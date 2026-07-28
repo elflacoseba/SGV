@@ -358,6 +358,44 @@ PR-3b neto contra `origin/develop`: **9 archivos, +1366 / -0** líneas (incluye 
 
 ---
 
+# PR 3b — Refactor correctivo (post-review #215) ✅ (1 commit)
+
+> Refactor de cierre post-review del PR #215. Aplica dos recomendaciones del Senior Architect: extraer un partial compartido entre `PersonaOcupaciones` y `PuestoOcupaciones` para eliminar la duplicación estructural de ~250 LOC, y documentar la decisión de no exponer paginación en la vista cruzada. Cero cambios de comportamiento: los 116 tests Ocupaciones y 990 tests Web permanecen verdes sin necesidad de modificarlos.
+
+| Commit | Tareas |
+|--------|--------|
+| `98f6ce3` `refactor(web): extraer partial _CrossList compartido por páginas cruzadas de Ocupaciones` | Post-review #215 rec-1 (partial) + rec-2 (decision de paginación) |
+
+PR-3b refactor: **6 archivos, +388 / -271 = -129 LOC neto** (117 eliminados por la deduplicación, 12 por el contrato del interface que vive en el nuevo archivo). Cero archivos de test tocados.
+
+---
+
+## Detalle del commit (Refactor post-review)
+
+- **Commit `98f6ce3`** — `refactor(web): extraer partial _CrossList compartido por páginas cruzadas de Ocupaciones`. 
+  - Crea `src/SGV.Web/Pages/Organizacion/Ocupaciones/IOcupacionesCrossList.cs` con el contrato del partial (análogo a `IOcupacionForm`). Define un enum `CrossEntityColumn { Puesto, Persona }` para parametrizar la columna cruzada de la grilla; el `HeaderSubtitle` se descompone en `HeaderSubtitleLabel`/`Value`/`Badge`/`BadgeClass` para no usar `@Html.Raw` (las dos páginas seguían el patrón `@Html.Raw` indirecto vía `${<strong>}` antes, lo que forzaba HTML embebido en strings del PageModel). La nota XML doc del interface declara la decisión de no exponer paginación (volumen esperado ≤ 20 por entidad dueña).
+  - Crea `src/SGV.Web/Pages/Organizacion/Ocupaciones/_CrossList.cshtml` (~120 LOC). El partial renderiza el card completo con ambos branches (`IsNotFound` + main content), el alert de error, la grilla con la columna cruzada configurable, y el footer con el botón Volver. La columna cruzada alterna entre badge wrap (PersonaOcupaciones) y `fw-medium` plain text (PuestoOcupaciones) según el `RenderCrossEntityCellAsBadge` flag.
+  - Refactoriza `PersonaOcupaciones.cshtml.cs` para implementar `IOcupacionesCrossList` con implementación explícita de los miembros del contrato. Mantiene las propiedades públicas (`PersonaId`, `PersonaNombre`, `Items`, `TotalCount`, `IsNotFound`, `ErrorMessage`, `EsAdministrador`) para compatibilidad con consumidores existentes. El método `OnGetAsync` queda intacto.
+  - Refactoriza `PersonaOcupaciones.cshtml` de 122 → 6 LOC: la página se reduce a un header + un `await Html.PartialAsync("_CrossList.cshtml", Model)`.
+  - Refactoriza `PuestoOcupaciones.cshtml.cs` análogamente. La columna cruzada es Persona con `fw-medium` y `RenderCrossEntityCellAsBadge = false`. El header del badge muestra `Puesto.Codigo` cuando está presente.
+  - Refactoriza `PuestoOcupaciones.cshtml` de 120 → 6 LOC.
+  - **Verificación**: `dotnet build SGV.slnx` → 0 errors. `dotnet test --filter "Tests.Web.Ocupaciones"` → **116/116 passed** sin tocar los archivos de test. `dotnet test --filter "Web.*"` (suite web completa) → **990/990 passed** sin regresiones. `grep -r "SGV.Aplicacion\|SGV.Api\|SGV.Infraestructura" src/SGV.Web/Integration/Ocupaciones src/SGV.Web/Pages/Organizacion/Ocupaciones src/SGV.Web/Pages/Personas/PersonaOcupaciones* src/SGV.Web/Pages/Organizacion/Puestos/PuestoOcupaciones*` → **0 hits** (boundary check OK).
+
+### Decisiones aplicadas en este refactor
+
+- **DEC-17 (partial compartido para cross-pages)**: el partial `_CrossList.cshtml` consume `IOcupacionesCrossList` siguiendo el patrón espejo de `IOcupacionForm` / `_Form.cshtml` (PR 3a). Cualquier futura página cruzada (por ejemplo, `UnidadOcupaciones`) implementa el interface y la vista queda en ~6 LOC.
+- **DEC-18 (sin paginación en vistas cruzadas)**: la vista cruzada deliberadamente omite controles de paginación. El soft-cap esperado es ≤ 20 ocupaciones vigentes por persona o puesto. Si el volumen excede el soft-cap, el cambio se localiza en el partial (un único punto de extensión). Documentado en el XML doc del interface; no requiere change nuevo.
+- **DEC-19 (sin `@Html.Raw` en producción)**: el header subtitle se construye a partir de 4 strings separadas (`Label`, `Value`, `Badge`, `BadgeClass`) y se renderea con escape HTML nativo de Razor. Aunque el contenido viene de la base de datos (no de input directo del usuario), defense-in-depth dice que no se mezcla HTML en strings del PageModel.
+- **DEC-20 (tags `data-ocupaciones-*` unificados)**: las dos páginas usaban tags `data-ocupaciones-persona-*` y `data-ocupaciones-puesto-*` separados. El partial los unifica en `data-ocupaciones-cross-*` (card, error, empty, row). Los tests existentes no inspeccionan estos atributos (`grep -r "data-ocupaciones" tests/` retorna vacío), así que no hay regresión por este cambio.
+
+### Riesgos residuales del refactor
+
+- **R-Net-LOC**: -129 LOC netos. El refactor elimina duplicación y reduce la superficie de mantenimiento. Si en el futuro se rompe una de las dos páginas, se rompe la otra también (single source of truth).
+- **R-Compatibilidad API**: no se introdujeron cambios en wire-types, contratos, ni API. El refactor es puramente interno al shell web.
+- **R-Tests pre-existentes**: los 990 tests de la suite web permanencen verdes sin modificación. El refactor preserva el output HTML (los selectores de test que matchean contenido textual siguen alineados).
+
+---
+
 ## Referencias (actualizadas)
 
 - `openspec/changes/2026-07-28-web-ocupaciones-issue-208/{proposal,design,specs,tasks}.md`
