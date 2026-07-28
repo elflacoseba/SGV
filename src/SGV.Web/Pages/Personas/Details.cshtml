@@ -85,6 +85,15 @@ else
                     <i class="ti ti-stars me-1"></i>Habilidades
                 </a>
             }
+            @* Slice 3b (REQ-OCC-NAV-003): enlace "Ver ocupaciones" visible
+               para todo usuario autenticado cuando la persona está activa.
+               La página cruzada NO requiere admin para lectura. *@
+            @if (Model.Persona!.IsActive)
+            {
+                <a class="btn btn-primary" href="@Url.Page("/Personas/PersonaOcupaciones", new { id = Model.Persona!.Id })">
+                    <i class="ti ti-history me-1"></i>Ver ocupaciones
+                </a>
+            }
         }
         <a class="btn btn-outline-secondary" href="@Url.Page("/Personas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.Sort, status = Model.Status })">
             <i class="ti ti-arrow-left me-1"></i>Volver al listado
