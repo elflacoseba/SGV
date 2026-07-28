@@ -9,7 +9,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SGV.Tests.Web._Shared;
 using SGV.Web.Integration.Auth;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
+using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Setup;
@@ -34,6 +36,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly IPersonaApiClient? _personaApiClient;
     private readonly IUsuarioApiClient? _usuarioApiClient;
     private readonly ISetupApiClient? _setupApiClient;
+    private readonly IOcupacionApiClient? _ocupacionApiClient;
     private readonly RecordingLoggerProvider? _recordingLoggerProvider;
 
     public SgvWebApplicationFactory()
@@ -52,6 +55,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IPersonaApiClient? personaApiClient,
         IUsuarioApiClient? usuarioApiClient,
         ISetupApiClient? setupApiClient = null,
+        IOcupacionApiClient? ocupacionApiClient = null,
         RecordingLoggerProvider? recordingLoggerProvider = null)
     {
         _configureServices = configureServices;
@@ -65,6 +69,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         _personaApiClient = personaApiClient;
         _usuarioApiClient = usuarioApiClient;
         _setupApiClient = setupApiClient;
+        _ocupacionApiClient = ocupacionApiClient;
         _recordingLoggerProvider = recordingLoggerProvider;
     }
 
@@ -80,6 +85,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IPersonaApiClient? personaApiClient = null,
         IUsuarioApiClient? usuarioApiClient = null,
         ISetupApiClient? setupApiClient = null,
+        IOcupacionApiClient? ocupacionApiClient = null,
         RecordingLoggerProvider? recordingLoggerProvider = null)
     {
         return new SgvWebApplicationFactory(
@@ -94,6 +100,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             personaApiClient,
             usuarioApiClient,
             setupApiClient,
+            ocupacionApiClient,
             recordingLoggerProvider);
     }
 
@@ -141,6 +148,16 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     /// </summary>
     public SgvWebApplicationFactory WithPuestosApiClient(IPuestosApiClient fake)
         => WithOverrides(puestosApiClient: fake);
+
+    /// <summary>
+    /// Convenience helper to swap <see cref="IOcupacionApiClient"/> for a fake
+    /// without touching the rest of the configuration surface. Mirror de
+    /// <see cref="WithPuestosApiClient"/>; agregado en Slice 2 del change
+    /// <c>2026-07-28-web-ocupaciones-issue-208</c> (#208) para que la suite
+    /// web del módulo Ocupaciones no requiera un backend real.
+    /// </summary>
+    public SgvWebApplicationFactory WithOcupacionApiClient(IOcupacionApiClient fake)
+        => WithOverrides(ocupacionApiClient: fake);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -241,6 +258,12 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<ISetupApiClient>();
                 services.AddSingleton(_setupApiClient);
+            }
+
+            if (_ocupacionApiClient is not null)
+            {
+                services.RemoveAll<IOcupacionApiClient>();
+                services.AddSingleton(_ocupacionApiClient);
             }
 
             if (_recordingLoggerProvider is not null)

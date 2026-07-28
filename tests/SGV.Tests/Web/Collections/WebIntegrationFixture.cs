@@ -13,6 +13,7 @@ using SGV.Tests.Web.Puesto;
 using SGV.Tests.Web.Usuario;
 using SGV.Web.Integration.Auth;
 using SGV.Web.Integration.Habilidades;
+using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Usuarios;
@@ -82,6 +83,20 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             unidadOrganizativaApiClient: unidad ?? new FakeUnidadOrganizativaApiClient(),
             cargoApiClient: cargo ?? new FakeCargoApiClient(),
             puestosApiClient: puestos));
+
+    /// <summary>
+    /// Lease autenticado contra el módulo Ocupaciones. Toma un
+    /// <see cref="FakeOcupacionApiClient"/> y la inyecta en el contenedor
+    /// del host vía <see cref="SgvWebApplicationFactory.WithOcupacionApiClient"/>.
+    /// Agregado en Slice 2 del change <c>2026-07-28-web-ocupaciones-issue-208</c>
+    /// (#208); sigue la firma estándar de los otros módulos
+    /// (<see cref="CreatePuestoLeaseAsync"/>, etc.).
+    /// </summary>
+    public Task<WebClientLease> CreateOcupacionLeaseAsync(
+        IOcupacionApiClient ocupacion, bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            ocupacionApiClient: ocupacion));
 
     public Task<WebClientLease> CreateHabilidadLeaseAsync(
         FakeHabilidadApiClient habilidad, bool adminRole = false)

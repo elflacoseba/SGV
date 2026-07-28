@@ -47,6 +47,17 @@
     var puestosNuevoActive = string.Equals(currentPath, "/organizacion/puestos/crear", StringComparison.OrdinalIgnoreCase)
         ? "active"
         : string.Empty;
+    // Ocupaciones: grupo activo en /organizacion/ocupaciones(/...); "Listado" activo
+    // solo en la ruta exacta y "Nueva" solo en /crear (mismo criterio que Puestos
+    // y Habilidades). Los destinos resuelven a partir del Slice 2 (Index) y
+    // Slice 3a (Create/Edit/Details).
+    var ocupacionesGroupActive = currentPath.StartsWithSegments("/organizacion/ocupaciones") ? "active" : string.Empty;
+    var ocupacionesListadoActive = string.Equals(currentPath, "/organizacion/ocupaciones", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
+    var ocupacionesNuevaActive = string.Equals(currentPath, "/organizacion/ocupaciones/crear", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
 }
 
 <div class="sidenav-menu">
@@ -156,15 +167,45 @@
 <div class="collapse" id="puestos">
 <ul class="sub-menu">
 <li class="side-nav-item">
-<a class="side-nav-link @puestosListadoActive" href="/organizacion/puestos">
-<span class="menu-text">Listado</span>
-</a>
+    <a class="side-nav-link @puestosListadoActive" href="/organizacion/puestos">
+        <span class="menu-text">Listado</span>
+    </a>
 </li>
 <li class="side-nav-item">
-<a class="side-nav-link @puestosNuevoActive" href="/organizacion/puestos/crear">
-<span class="menu-text">Nuevo</span>
-</a>
+    <a class="side-nav-link @puestosNuevoActive" href="/organizacion/puestos/crear">
+        <span class="menu-text">Nuevo</span>
+    </a>
 </li>
+</ul>
+</div>
+</li>
+@* Issue #208 / Slice 2: nuevo colapsable Ocupaciones después del bloque
+   Puestos. El grupo padre OCUPACIONES se muestra a todo autenticado
+   (lectura vigente); el subítem "Nueva" se gated por Administrador.
+   El item sigue el patrón visual de Puestos (ícono ti ti-history) y
+   la autorización por acción se evalúa en cada Razor Page con
+   [Authorize(Roles=Administrador)] cuando corresponda (Slice 3a). *@
+<li class="side-nav-item">
+<a aria-controls="ocupaciones" aria-expanded="false" class="side-nav-link side-nav-link-toggle @ocupacionesGroupActive" data-bs-toggle="collapse" href="#ocupaciones">
+<span class="menu-icon"><i class="ti ti-history"></i></span>
+<span class="menu-text">Ocupaciones</span>
+<span class="menu-arrow"></span>
+</a>
+<div class="collapse" id="ocupaciones">
+<ul class="sub-menu">
+<li class="side-nav-item">
+    <a class="side-nav-link @ocupacionesListadoActive" href="/organizacion/ocupaciones">
+        <span class="menu-text">Listado</span>
+    </a>
+</li>
+@if (esAdministrador)
+{
+    <li class="side-nav-item">
+        <a class="side-nav-link @ocupacionesNuevaActive" href="/organizacion/ocupaciones/crear">
+            <span class="menu-text">Nueva</span>
+        </a>
+    </li>
+}
 </ul>
 </div>
 </li>

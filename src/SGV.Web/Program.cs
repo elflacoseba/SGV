@@ -14,6 +14,7 @@ using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Health;
+using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Setup;
 using SGV.Web.Integration.Usuarios;
@@ -215,6 +216,20 @@ builder.Services.AddHttpClient<IPersonaApiClient, PersonaApiClient>((serviceProv
     // crash de servidor y TaskCanceledException debe traducirse a un
     // error recuperable en la Razor Page (PR #3 lo rendereará con el
     // banner estándar de Transporte).
+    client.Timeout = TimeSpan.FromSeconds(10);
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+// Issue #208 / Slice 2: cliente HTTP tipado del módulo Ocupaciones. La
+// superficie actual es read-only (ListarAsync, ObtenerPorIdAsync); las
+// mutaciones Crear/Actualizar/Finalizar/Eliminar/Reactivar llegan en
+// Slice 3a. Mismo budget (10s) y bearer pipeline que el resto de los
+// clientes administrativos para mantener consistencia de fallos
+// recuperables en la Razor Page.
+builder.Services.AddHttpClient<IOcupacionApiClient, OcupacionApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
     client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
