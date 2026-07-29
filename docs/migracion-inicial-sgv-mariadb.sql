@@ -840,8 +840,6 @@ ALTER TABLE `AspNetUsers` ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId` FOR
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260621202540_VincularIdentityUsuariosAPersonas', '9.0.0');
 
-
-
 UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente';
 
 UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina';
@@ -857,8 +855,6 @@ INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad', '9.0.0');
 
 
-
-
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260711181615_FixActivePuestoIdUniqueType', '9.0.0');
 
@@ -866,10 +862,6 @@ ALTER TABLE `AspNetUsers`
   ADD COLUMN `IsDeleted` TINYINT(1) NOT NULL DEFAULT 0,
   ALGORITHM=INPLACE,
   LOCK=NONE;
-
--- MariaDB no permite CASE en GENERATED: ALTER TABLE `AspNetUsers`
-    COLLATE `utf8mb4_unicode_ci`
-  ALGORITHM=COPY;
 
 ALTER TABLE `AspNetUsers`
   ALGORITHM=INPLACE,
@@ -894,10 +886,6 @@ ALTER TABLE `AspNetUsers`
   ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
   FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
   ON DELETE RESTRICT,
-  ALGORITHM=COPY;
-
--- MariaDB no permite CASE en GENERATED: ALTER TABLE `AspNetUsers`
-    COLLATE `ascii_general_ci`
   ALGORITHM=COPY;
 
 ALTER TABLE `AspNetUsers`
@@ -1038,8 +1026,6 @@ CREATE INDEX `IX_Personas_TipoDocumentoId` ON `Personas` (`TipoDocumentoId`);
                 WHERE p.TipoDocumento IS NOT NULL;
             
 
-
-
 CREATE UNIQUE INDEX `IX_Personas_DocumentoUnique_IsDeleted` ON `Personas` (`TipoDocumentoId`, `NumeroDocumento`, `IsDeleted`);
 
 ALTER TABLE `Personas` ADD CONSTRAINT `FK_Personas_TiposDocumento_TipoDocumentoId` FOREIGN KEY (`TipoDocumentoId`) REFERENCES `TiposDocumento` (`Id`) ON DELETE RESTRICT;
@@ -1161,26 +1147,6 @@ ALTER TABLE `Habilidades` DROP COLUMN `Categoria`;
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260723203015_AddCategoriaHabilidadCatalog', '9.0.0');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
