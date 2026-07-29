@@ -1,0 +1,183 @@
+@* Partial unificada de la card de Persona. Reemplaza las 3
+   implementaciones inline (Usuarios/Details, Usuarios/_Form,
+   Ocupaciones/_Form) que existían antes del change
+   `reusable-persona-card` (issue #219). Slice 1 / PR 1 introduce
+   el partial + helper; Slice 2 migra Usuarios; Slice 3 migra
+   Ocupaciones. Modos:
+     - readonly (default): muestra datos, sin Quitar/Cambiar,
+       sin empty state.
+     - editable: agrega Quitar, Buscar (abre ModalId), empty
+       state con botón Buscar Persona, y el hidden
+       `data-usuario-persona-display-input` que el JS
+       `usuario-persona-buscador.js` lee/escribe.
+
+   Contrato ViewData (todos opcionales salvo `PersonaIdInputName`
+   si `Mode=editable` en los consumidores que bindean a un form):
+     Mode              : "readonly" | "editable"           (default "readonly")
+     ShowStatusBadge   : bool                              (default true)
+     ShowQuitarCambiar : bool                              (default: true cuando editable)
+     PersonaDetailUrl  : string?                           (readonly only)
+     FallbackDisplay   : string?                           (readonly only)
+     FallbackUrl       : string?                           (readonly only)
+     ModalId           : string                            (default "usuario-persona-buscador-modal")
+     PersonaIdInputName: string                            (default "Input.PersonaId")
+     DisplayContainerId: string                            (default "usuario-persona-display")
+
+   El helper PersonaFormatHelper.FormatDocumento centraliza la
+   composición del documento ("TipoDocumentoCodigo NumeroDocumento",
+   separador espacio — ver PERFMT-01/02). *@
+@using SGV.Contracts.Personas.Consultas.Dtos
+@using SGV.Web.Helpers
+@model PersonaDto?
+@{
+    var rawMode = ViewData["Mode"] as string;
+    var mode = string.IsNullOrWhiteSpace(rawMode) ? "readonly" : rawMode.Trim().ToLowerInvariant();
+    var isEditable = string.Equals(mode, "editable", StringComparison.Ordinal);
+    // Defaults: ShowStatusBadge=true, ShowQuitarCambiar=true (en editable).
+    // Pasar `false` desde el consumer los suprime. Pasar otro valor
+    // (null/missing) cae al default.
+    var showStatusBadge = ViewData["ShowStatusBadge"] is not false;
+    var showQuitarCambiar = isEditable && ViewData["ShowQuitarCambiar"] is not false;
+    var personaDetailUrl = ViewData["PersonaDetailUrl"] as string;
+    var fallbackDisplay = ViewData["FallbackDisplay"] as string;
+    var fallbackUrl = ViewData["FallbackUrl"] as string;
+    var modalId = ViewData["ModalId"] as string ?? "usuario-persona-buscador-modal";
+    var displayContainerId = ViewData["DisplayContainerId"] as string ?? "usuario-persona-display";
+    var hasPersona = Model is not null;
+    var documento = PersonaFormatHelper.FormatDocumento(Model);
+
+    // El partial NO renderiza nada si no hay persona y tampoco hay
+    // texto de fallback (caso degradado extremo). Mantiene la
+    // semántica de "no error visible" de PER-CARD-02.
+    if (!hasPersona && string.IsNullOrWhiteSpace(fallbackDisplay))
+    {
+        return;
+    }
+
+    var legajoEnCard = hasPersona && !string.IsNullOrWhiteSpace(Model!.Legajo);
+}
+@if (hasPersona)
+{
+    var persona = Model!;
+    <div id="@displayContainerId" data-usuario-persona-display>
+        <div class="card border mb-0" data-usuario-persona-card>
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                    <div>
+                        <h6 class="card-title mb-1" data-usuario-persona-display-text>
+                            @if (!string.IsNullOrWhiteSpace(personaDetailUrl))
+                            {
+                                <a href="@personaDetailUrl">@persona.Apellidos, @persona.Nombres</a>
+                            }
+                            else
+                            {
+                                <text>@persona.Apellidos, @persona.Nombres</text>
+                            }
+                        </h6>
+                        @if (isEditable && legajoEnCard)
+                        {
+                            <span class="text-muted small">Legajo: @persona.Legajo</span>
+                        }
+                    </div>
+                    @if (showQuitarCambiar)
+                    {
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    data-usuario-persona-quitar>
+                                Quitar
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    data-usuario-persona-buscar data-bs-toggle="modal"
+                                    data-bs-target="#@modalId">
+                                Cambiar
+                            </button>
+                        </div>
+                    }
+                </div>
+                <dl class="row mb-0">
+                    @if (!isEditable && legajoEnCard)
+                    {
+                        <dt class="col-sm-3 text-muted">Legajo</dt>
+                        <dd class="col-sm-9">@persona.Legajo</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(documento))
+                    {
+                        <dt class="col-sm-3 text-muted">Documento</dt>
+                        <dd class="col-sm-9">@documento</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(persona.Email))
+                    {
+                        <dt class="col-sm-3 text-muted">Email</dt>
+                        <dd class="col-sm-9">
+                            <a href="mailto:@persona.Email">@persona.Email</a>
+                        </dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(persona.Telefono))
+                    {
+                        <dt class="col-sm-3 text-muted">Teléfono</dt>
+                        <dd class="col-sm-9">@persona.Telefono</dd>
+                    }
+                    @if (showStatusBadge)
+                    {
+                        <dt class="col-sm-3 text-muted">Estado</dt>
+                        <dd class="col-sm-9">
+                            @if (persona.IsActive)
+                            {
+                                <span class="badge badge-soft-success">Activa</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-soft-secondary">Inactiva</span>
+                            }
+                        </dd>
+                    }
+                </dl>
+            </div>
+        </div>
+        @if (isEditable)
+        {
+            @* Empty alternative — sólo visible si NO hay persona
+               seleccionada. Cuando hay persona, queda oculto vía el
+               atributo hidden="hidden". El atributo hidden es leíble
+               por el JS (`empty.hidden = false/true`). *@
+            <div data-usuario-persona-empty hidden="hidden">
+                <button type="button" class="btn btn-outline-primary"
+                        data-usuario-persona-buscar data-bs-toggle="modal"
+                        data-bs-target="#@modalId">
+                    <i class="ti ti-search me-1"></i>Buscar Persona
+                </button>
+            </div>
+        }
+    </div>
+    @if (isEditable)
+    {
+        @* El JS lee este hidden via
+           `display.parentElement.querySelector('[data-usuario-persona-display-input]')`.
+           Contiene la etiqueta visible (Apellidos, Nombres + Doc)
+           que el form sincroniza con `PersonaDisplay` del
+           PageModel. *@
+        <input type="hidden" name="PersonaDisplay"
+               value="@persona.Apellidos, @persona.Nombres (@documento)"
+               data-usuario-persona-display-input />
+    }
+}
+else
+{
+    @* Rama fallback readonly: PersonaDto null pero tenemos
+       FallbackDisplay. Usado por Ocupaciones/Details cuando el
+       fetch de la persona falla — preserva el texto
+       `PersonaNombre` y, si llega FallbackUrl, lo envuelve en
+       <a>. NO emite botones mutables (es readonly). *@
+    <div id="@displayContainerId" data-usuario-persona-display>
+        <div class="card-body py-2">
+            @if (!string.IsNullOrWhiteSpace(fallbackUrl))
+            {
+                <a href="@fallbackUrl">@fallbackDisplay</a>
+            }
+            else
+            {
+                @fallbackDisplay
+            }
+        </div>
+    </div>
+}

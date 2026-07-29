@@ -1,0 +1,30 @@
+@page "/tests/persona-card-harness"
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using SGV.Contracts.Personas.Consultas.Dtos
+@using SGV.Web.Pages.Tests
+@model PersonaCardHarnessModel
+@{
+    ViewBag.title = "PersonaCard harness";
+}
+
+@* Harness de testing para la partial `Pages/Shared/Partials/_PersonaCard.cshtml`.
+   Construye un `PersonaDto?` desde query string y delega en la partial con los
+   `ViewData` solicitados. Existe sólo para que la suite de integración web
+   pueda ejercer la partial antes de que los consumers reales (Usuarios y
+   Ocupaciones — Slices 2/3) migren. Issue #219, Slice 1. *@
+
+@await Html.PartialAsync(
+    "~/Pages/Shared/Partials/_PersonaCard.cshtml",
+    Model.Persona,
+    new ViewDataDictionary(ViewData)
+    {
+        ["Mode"] = Model.Mode,
+        ["ShowStatusBadge"] = Model.ShowStatusBadge,
+        ["ShowQuitarCambiar"] = Model.ShowQuitarCambiar,
+        ["PersonaDetailUrl"] = Model.PersonaDetailUrl,
+        ["FallbackDisplay"] = Model.FallbackDisplay,
+        ["FallbackUrl"] = Model.FallbackUrl,
+        ["ModalId"] = Model.ModalId,
+        ["PersonaIdInputName"] = Model.PersonaIdInputName,
+        ["DisplayContainerId"] = Model.DisplayContainerId,
+    })
