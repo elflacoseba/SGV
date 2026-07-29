@@ -30,7 +30,7 @@ public sealed class UnidadOrganizativaConfiguracion : IEntityTypeConfiguration<U
             .HasDatabaseName("IX_UnidadesOrganizativas_TipoUnidadOrganizativaId");
 
         builder.Property<string?>("ActiveCodigoUnique")
-            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END")
+            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END", stored: true)
             .IsRequired(false);
         builder.HasIndex("ActiveCodigoUnique").IsUnique();
 

@@ -34,8 +34,21 @@ public sealed class SgvDbContextFactory : IDesignTimeDbContextFactory<SgvDbConte
               + "Nunca commitees credenciales reales en appsettings.");
         }
 
+        ServerVersion serverVersion;
+        try
+        {
+            serverVersion = ServerVersion.AutoDetect(connectionString);
+        }
+        catch (Exception ex) when (ex is System.Net.Sockets.SocketException
+                                    || ex is MySqlConnector.MySqlException
+                                    || ex is TimeoutException
+                                    || ex is InvalidOperationException)
+        {
+            serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
+        }
+
         var opciones = new DbContextOptionsBuilder<SgvDbContext>()
-            .UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36)))
+            .UseMySql(connectionString, serverVersion)
             .Options;
 
         return new SgvDbContext(opciones);

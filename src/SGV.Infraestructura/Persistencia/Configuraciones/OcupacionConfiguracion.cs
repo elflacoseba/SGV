@@ -42,12 +42,12 @@ public sealed class OcupacionConfiguracion : IEntityTypeConfiguration<OcupacionE
         builder.Property<string?>("ActivePuestoIdUnique")
             .HasMaxLength(36)
             .UseCollation("ascii_general_ci")
-            .HasComputedColumnSql("CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END")
+            .HasComputedColumnSql("CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END", stored: true)
             .IsRequired(false);
         builder.HasIndex("ActivePuestoIdUnique").IsUnique();
 
         builder.Property<string?>("ActivePersonaPuestoUnique")
-            .HasComputedColumnSql("CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(`PersonaId`, ':', `PuestoId`) ELSE NULL END")
+            .HasComputedColumnSql("CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(`PersonaId`, ':', `PuestoId`) ELSE NULL END", stored: true)
             .IsRequired(false)
             .HasMaxLength(100);
         builder.HasIndex("ActivePersonaPuestoUnique").IsUnique();

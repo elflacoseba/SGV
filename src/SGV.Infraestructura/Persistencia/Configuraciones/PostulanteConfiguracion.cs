@@ -27,7 +27,7 @@ public sealed class PostulanteConfiguracion : IEntityTypeConfiguration<Postulant
         // MySQL does not support filtered indexes. Use a generated column
         // that is NULL when PersonaId is NULL or the record is soft-deleted.
         builder.Property<Guid?>("ActivePersonaIdUnique")
-            .HasComputedColumnSql("CASE WHEN `PersonaId` IS NOT NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END")
+            .HasComputedColumnSql("CASE WHEN `PersonaId` IS NOT NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END", stored: true)
             .IsRequired(false);
         builder.HasIndex("ActivePersonaIdUnique").IsUnique();
 

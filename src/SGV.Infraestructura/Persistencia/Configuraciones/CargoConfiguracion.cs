@@ -29,7 +29,7 @@ public sealed class CargoConfiguracion : IEntityTypeConfiguration<CargoEntity>
         // that is NULL for soft-deleted rows so the unique index allows
         // multiple deleted records while enforcing uniqueness among active ones.
         builder.Property<string?>("ActiveCodigoUnique")
-            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END")
+            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END", stored: true)
             .IsRequired(false);
         builder.HasIndex("ActiveCodigoUnique").IsUnique();
 
