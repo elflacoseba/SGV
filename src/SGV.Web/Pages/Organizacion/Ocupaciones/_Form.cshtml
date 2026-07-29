@@ -1,19 +1,80 @@
 @* Shared field partial for create/edit of Ocupaciones. NOT a complete form. *@
 @* Expects a model that implements IOcupacionForm. *@
 @using SGV.Web.Pages.Organizacion.Ocupaciones
+@using SGV.Contracts.Personas.Consultas.Dtos
 @model IOcupacionForm
 
 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
+@* Issue #216 / OCC-PER-BUSC-01: el <select> PersonaId se reemplaza en WUG-3
+   por la card enriquecida + modal _PersonaBuscadorModal. Mientras tanto,
+   se conserva el binding (hidden input) para que el resto del flujo
+   (POST, ModelState) siga funcionando y los tests de WUG-2 puedan
+   verificar el contrato. *@
+@{
+    var personaVinculada = Model.PersonaVinculada;
+    var tienePersona = Model.Input.PersonaId.HasValue;
+    var documento = FormatearDocumento(personaVinculada);
+}
+
 <div class="row g-3">
+    <div class="col-12">
+        <label class="form-label" for="Input_PersonaId">Persona vinculada</label>
+        <input type="hidden" asp-for="Input.PersonaId" />
+        <input type="hidden" name="PersonaDisplay" value="@Model.PersonaDisplay" data-usuario-persona-display-input />
+        <div id="ocupacion-persona-display" data-usuario-persona-display>
+            <div class="card border mb-0" data-usuario-persona-card
+                 hidden="@(tienePersona ? null : "hidden")">
+                @if (personaVinculada is not null)
+                {
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                            <div>
+                                <h6 class="card-title mb-1" data-usuario-persona-display-text>
+                                    @(personaVinculada.Apellidos), @(personaVinculada.Nombres)
+                                </h6>
+                                @if (!string.IsNullOrWhiteSpace(personaVinculada.Legajo))
+                                {
+                                    <span class="text-muted small">Legajo: @personaVinculada.Legajo</span>
+                                }
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(documento))
+                        {
+                            <dl class="row mb-0">
+                                <dt class="col-sm-3 text-muted">Documento</dt>
+                                <dd class="col-sm-9">@documento</dd>
+                            </dl>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
+                        <span data-usuario-persona-display-text>@Model.PersonaDisplay</span>
+                    </div>
+                }
+            </div>
+            <div data-usuario-persona-empty
+                 hidden="@(tienePersona ? "hidden" : null)">
+                <button type="button" class="btn btn-outline-primary"
+                        data-usuario-persona-buscar data-bs-toggle="modal"
+                        data-bs-target="#ocupacion-persona-buscador-modal">
+                    <i class="ti ti-search me-1"></i>Buscar Persona
+                </button>
+            </div>
+        </div>
+        <span asp-validation-for="Input.PersonaId" class="text-danger"></span>
+    </div>
+
     <div class="col-md-6">
         <div class="form-floating">
-            <select asp-for="Input.PersonaId" class="form-select"
-                    asp-items="@(new SelectList(Model.PersonaOptions.Select(p => new { p.Id, NombreCompleto = $"{p.Apellidos}, {p.Nombres}" }), "Id", "NombreCompleto"))">
-                <option value="">Seleccionar persona...</option>
+            <select asp-for="Input.PuestoId" class="form-select"
+                    asp-items="@(new SelectList(Model.PuestoOptions, "Id", "Nombre"))">
+                <option value="">Seleccionar puesto...</option>
             </select>
-            <label asp-for="Input.PersonaId">Persona</label>
-            <span asp-validation-for="Input.PersonaId" class="text-danger"></span>
+            <label asp-for="Input.PuestoId">Puesto</label>
+            <span asp-validation-for="Input.PuestoId" class="text-danger"></span>
         </div>
     </div>
 
@@ -55,3 +116,35 @@
         </div>
     </div>
 </div>
+
+@functions {
+    private static string FormatearDocumento(PersonaDto? persona)
+    {
+        if (persona is null)
+        {
+            return string.Empty;
+        }
+
+        var tipo = persona.TipoDocumentoCodigo;
+        var numero = persona.NumeroDocumento;
+        var sinTipo = string.IsNullOrWhiteSpace(tipo);
+        var sinNumero = string.IsNullOrWhiteSpace(numero);
+
+        if (sinTipo && sinNumero)
+        {
+            return string.Empty;
+        }
+
+        if (sinTipo)
+        {
+            return numero!;
+        }
+
+        if (sinNumero)
+        {
+            return tipo!;
+        }
+
+        return $"{tipo} {numero}";
+    }
+}

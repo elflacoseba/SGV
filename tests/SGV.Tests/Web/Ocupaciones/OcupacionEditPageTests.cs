@@ -37,6 +37,9 @@ public sealed class OcupacionEditPageTests
     // Helpers
     // ──────────────────────────────────────────────────
 
+    private static PuestoDto SamplePuesto(string codigo = "P-001", string nombre = "Analista") =>
+        new(Guid.NewGuid(), codigo, nombre, null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null);
+
     private static OcupacionDto SampleDto(
         Guid? id = null,
         Guid? personaId = null,
@@ -94,18 +97,73 @@ public sealed class OcupacionEditPageTests
 
         // El form de edición se renderiza.
         Assert.Contains("Editar ocupación", content, StringComparison.OrdinalIgnoreCase);
-        // Los selects tienen las opciones pre-seleccionadas.
-        Assert.Contains(
-            $"<option selected=\"selected\" value=\"{personaId:D}\"",
-            content,
-            StringComparison.OrdinalIgnoreCase);
+
+        // Issue #216 (OCC-PER-BUSC-04): PersonaId se renderea como hidden
+        // input pre-poblado con el id de la persona vinculada (NO como
+        // option selected).
+        Assert.Matches(
+            $@"<input(?=[^>]*name=""{OcupacionFormKeys.PersonaIdKey}"")(?=[^>]*value=""{personaId:D}"")[^>]*type=""hidden""[^>]*>",
+            content);
+
+        // PuestoId sigue siendo un <select> (Issue #216 sólo toca PersonaId).
         Assert.Contains(
             $"<option selected=\"selected\" value=\"{puestoId:D}\"",
             content,
             StringComparison.OrdinalIgnoreCase);
 
+        // PersonaVinculada se enriquece vía GetByIdAsync — una sola
+        // invocación con el id resuelto.
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+        Assert.Empty(personaClient.GetAllCalls);
+
         var byIdCall = Assert.Single(ocupacionClient.ObtenerPorIdCalls);
         Assert.Equal(id, byIdCall);
+    }
+
+    // ──────────────────────────────────────────────────
+    // REQ-OCC-PER-BUSC-04 / REQ-OCC-PER-BUSC-02 — Edit enriquece la card
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Edit_WhenVigente_LoadCatalogsAsync_CallsPersonaGetByIdAsync()
+    {
+        var id = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+        var puestoId = Guid.NewGuid();
+        var current = SampleDto(id: id, personaId: personaId, puestoId: puestoId);
+
+        var personaClient = FakePersonaApiClient.WithPersonaList(
+            new PersonaDto(personaId, "L-001", "Ana", "García", null, Guid.NewGuid(), "DNI", "DNI", "12345678", null, true));
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = current };
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, puestosClient);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/editar/{id:D}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+        Assert.Empty(personaClient.GetAllCalls);
+    }
+
+    [Fact]
+    public async Task Get_Edit_WhenPersonaNotFound_FallsBackToEmpty()
+    {
+        var id = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+        var current = SampleDto(id: id, personaId: personaId, puestoId: Guid.NewGuid());
+
+        // Fake sin personas: GetByIdAsync devuelve null (no falla el render).
+        var personaClient = FakePersonaApiClient.WithPersonaList();
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = current };
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, puestosClient);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/editar/{id:D}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
     }
 
     // ──────────────────────────────────────────────────

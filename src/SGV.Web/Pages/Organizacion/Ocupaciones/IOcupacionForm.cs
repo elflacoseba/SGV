@@ -15,17 +15,41 @@ namespace SGV.Web.Pages.Organizacion.Ocupaciones;
 /// Espejo de <see cref="Organizacion.IPuestoForm"/> pero sin el flag
 /// <see cref="Organizacion.IPuestoForm.IsEdit"/> porque Ocupacion Create y
 /// Edit exponen los mismos cinco campos (no hay campos inmutables).
+/// <para>
+/// Issue #216 (OCC-PER-BUSC-02): el contrato se extiende con
+/// <see cref="PersonaDisplay"/> y <see cref="PersonaVinculada"/> para
+/// alimentar la card enriquecida del modal reutilizable
+/// (<c>_PersonaBuscadorModal</c>) cuando hay una persona precargada.
+/// <see cref="PersonaOptions"/> se elimina porque el catálogo completo ya
+/// no se carga: una persona puede tener múltiples ocupaciones y la
+/// búsqueda del modal aplica <c>soloSinUsuario=false</c> vía
+/// <c>data-solo-sin-usuario</c>.
+/// </para>
 /// </remarks>
 public interface IOcupacionForm
 {
     /// <summary>Estado del formulario bindable.</summary>
     SGV.Web.Integration.Ocupaciones.OcupacionInputModel Input { get; }
 
-    /// <summary>Opciones del catálogo de personas activas para popular el dropdown de <c>PersonaId</c>.</summary>
-    IReadOnlyList<PersonaDto> PersonaOptions { get; }
-
     /// <summary>Opciones del catálogo de puestos activos para popular el dropdown de <c>PuestoId</c>.</summary>
     IReadOnlyList<PuestoDto> PuestoOptions { get; }
+
+    /// <summary>
+    /// Texto visible de la persona precargada. Se formatea como
+    /// <c>Apellido, Nombre (TipoDoc: NroDoc)</c> cayendo a
+    /// <c>Legajo</c> cuando no hay documento. El partial lo proyecta
+    /// en la card del modal. <c>null</c> en estado vacío.
+    /// </summary>
+    string? PersonaDisplay { get; }
+
+    /// <summary>
+    /// DTO de la persona vinculada, traído vía <c>IPersonaApiClient.GetByIdAsync</c>
+    /// tras resolver <c>Input.PersonaId</c> (en Edit desde el DTO de la
+    /// ocupación; en Create desde el query string <c>?personaId</c>).
+    /// <c>null</c> cuando el id no existe, el API devolvió 404 o hubo
+    /// fallo de transporte. Issue #216 / OCC-PER-BUSC-02.
+    /// </summary>
+    PersonaDto? PersonaVinculada { get; }
 
     /// <summary>Mensaje de error general recuperable (catálogo caído, error de transporte en POST, etc.).</summary>
     string? ErrorMessage { get; }

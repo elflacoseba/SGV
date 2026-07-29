@@ -98,12 +98,79 @@ public sealed class OcupacionCreatePageTests
         Assert.Contains("name=\"Input.TipoAsignacion\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"Input.Observaciones\"", content, StringComparison.OrdinalIgnoreCase);
 
-        // El catálogo de personas debe popular el select con Apellido, Nombre.
-        Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
+        // Catálogo de puestos sigue siendo por dropdown (Issue #216 sólo
+        // toca el campo PersonaId).
         Assert.Contains("Analista", content, StringComparison.OrdinalIgnoreCase);
-
-        Assert.Single(personaClient.GetAllCalls);
         Assert.Single(puestosClient.GetAllCalls);
+
+        // Issue #216 (OCC-PER-BUSC-02): el catálogo completo de personas ya
+        // NO se carga; en su lugar la card se enriquece con GetByIdAsync
+        // cuando hay persona precargada. Sin query string, no se consulta.
+        Assert.Empty(personaClient.GetAllCalls);
+        Assert.Empty(personaClient.GetByIdCalls);
+    }
+
+    // ──────────────────────────────────────────────────
+    // REQ-OCC-PER-BUSC-02 / OCC-PER-BUSC-05 — IOcupacionForm enriquecido
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Create_LoadCatalogsAsync_NoLlamaPersonaGetAllAsync()
+    {
+        var personaClient = FakePersonaApiClient.WithPersonaList(SamplePersona());
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient);
+
+        var response = await lease.Client.GetAsync("/organizacion/ocupaciones/crear");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(personaClient.GetAllCalls);
+        Assert.Empty(personaClient.GetByIdCalls);
+    }
+
+    [Fact]
+    public async Task Get_Create_WithPersonaIdQuery_InvocaGetByIdYPopulaCard()
+    {
+        var personaId = Guid.NewGuid();
+        var persona = new PersonaDto(personaId, "L-001", "Ana", "García", "ana@example.com", Guid.NewGuid(), "DNI", "DNI", "12345678", null, true);
+        var personaClient = FakePersonaApiClient.WithPersonaList(persona);
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?personaId={personaId:D}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+        Assert.Empty(personaClient.GetAllCalls);
+    }
+
+    [Fact]
+    public async Task Get_Create_WithUnknownPersonaId_NoLanzaYQuedaVacia()
+    {
+        var unknownId = Guid.NewGuid();
+        var personaClient = FakePersonaApiClient.WithPersonaList();
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?personaId={unknownId:D}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(unknownId, Assert.Single(personaClient.GetByIdCalls));
+        Assert.Empty(personaClient.GetAllCalls);
     }
 
     // ──────────────────────────────────────────────────
@@ -128,15 +195,21 @@ public sealed class OcupacionCreatePageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        // El option de la persona pre-cargada debe estar marcado como selected.
-        Assert.Contains(
-            $"<option selected=\"selected\" value=\"{personaId:D}\"",
-            content,
-            StringComparison.OrdinalIgnoreCase);
+
+        // Issue #216 (OCC-PER-BUSC-05): PersonaId precargado por query
+        // string se renderea como hidden input, NO como option selected.
+        Assert.Matches(
+            $@"<input(?=[^>]*name=""{OcupacionFormKeys.PersonaIdKey}"")(?=[^>]*value=""{personaId:D}"")[^>]*type=""hidden""[^>]*>",
+            content);
+
+        // PuestoId sigue siendo un <select> (Issue #216 sólo toca PersonaId).
         Assert.Contains(
             $"<option selected=\"selected\" value=\"{puestoId:D}\"",
             content,
             StringComparison.OrdinalIgnoreCase);
+
+        // El API de personas se invoca exactamente una vez vía GetByIdAsync.
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
     }
 
     // ──────────────────────────────────────────────────
@@ -281,8 +354,10 @@ public sealed class OcupacionCreatePageTests
             Regex.IsMatch(content, $@"<span[^>]*data-valmsg-for=""{OcupacionFormKeys.PuestoIdKey}""[^>]*>[\s\S]*?{Regex.Escape(conflictMessage)}[\s\S]*?</span>", RegexOptions.IgnoreCase),
             "Expected PersonaYPuestoOcupados message to render in PuestoId field-validation span.");
 
-        // El catálogo se recarga para que el form siga siendo operativo.
-        Assert.Equal<int>(2, personaClient.GetAllCalls.Count);
+        // Issue #216 (OCC-PER-BUSC-02): la recarga post-conflict ya no
+        // invoca GetAllAsync de Persona. Puesto sí se recarga.
+        Assert.Empty(personaClient.GetAllCalls);
+        Assert.Equal<int>(2, puestosClient.GetAllCalls.Count);
     }
 
     // ──────────────────────────────────────────────────
@@ -434,8 +509,10 @@ public sealed class OcupacionCreatePageTests
         // El form debe seguir visible con los valores enviados (preserva input).
         Assert.Contains("Nueva ocupación", content, StringComparison.OrdinalIgnoreCase);
 
-        // El catálogo se recarga para que el form siga operativo.
-        Assert.Equal<int>(2, personaClient.GetAllCalls.Count);
+        // Issue #216 (OCC-PER-BUSC-02): la recarga post-transporte ya no
+        // invoca GetAllAsync de Persona. Puesto sí se recarga.
+        Assert.Empty(personaClient.GetAllCalls);
+        Assert.Equal<int>(2, puestosClient.GetAllCalls.Count);
     }
 
     // ──────────────────────────────────────────────────
@@ -524,50 +601,32 @@ public sealed class OcupacionCreatePageTests
     }
 
     // ──────────────────────────────────────────────────
-    // Catálogo caído → estado recuperable (REQ-OCC-FORM-001)
+    // Issue #216 (OCC-PER-BUSC-05): precarga con personaId que existe
+    // pero el API de GetByIdAsync lanza HttpRequestException — el form
+    // debe seguir visible y caer a card vacía sin error fatal.
     // ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task Get_Create_WhenPersonaCatalogFails_ShowsRecoverableErrorAndKeepsForm()
+    public async Task Get_Create_WithPersonaIdQueryAndGetByIdTransportFailure_FallsBackToEmpty()
     {
+        var personaId = Guid.NewGuid();
+        var personaClient = new FakePersonaApiClient
+        {
+            GetByIdException = new HttpRequestException("persona caído")
+        };
         var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
-        var personaClient = new FakePersonaApiClient();
-        // Inyectamos falla: el fake de Persona que devuelve [] es válido pero
-        // queremos forzar el path de error de catálogo.
-        var failingPersona = new FailingPersonaApiClient();
-        var ocupacionClient = new FakeOcupacionApiClient();
 
-        await using var lease = await CreateLeaseAsync(ocupacionClient, failingPersona, puestosClient);
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient);
 
-        var response = await lease.Client.GetAsync("/organizacion/ocupaciones/crear");
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?personaId={personaId:D}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
-
-        // El form sigue visible para permitir reintento manual.
         Assert.Contains("Nueva ocupación", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"Input.PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("No se pudo cargar el catálogo", content, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Fake mínimo de <see cref="IPersonaApiClient"/> que lanza
-    /// <see cref="HttpRequestException"/> en <see cref="GetAllAsync"/> para
-    /// simular un catálogo caído durante la carga inicial del Create.
-    /// </summary>
-    private sealed class FailingPersonaApiClient : IPersonaApiClient
-    {
-        public Task<IReadOnlyList<PersonaDto>> GetAllAsync(CancellationToken cancellationToken = default)
-            => throw new HttpRequestException("persona caído");
-        public Task<PersonaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PersonaDeleteResult> DesactivarAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PersonaCommandResult> CreateAsync(CrearPersonaRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PersonaCommandResult> UpdateAsync(Guid id, SGV.Contracts.Personas.Comandos.ActualizarPersonaRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<SGV.Contracts.Personas.Consultas.Dtos.PersonaListadoDto> QueryAsync(SGV.Contracts.Personas.Consultas.Dtos.PersonaListQuery query, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<PersonaCommandResult> ReactivarAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<IReadOnlyList<SGV.Contracts.Personas.Consultas.Dtos.TipoDocumentoDto>> GetTiposDocumentoAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<IReadOnlyList<SGV.Contracts.Personas.Consultas.Dtos.PersonaSkillDetailDto>> GetSkillsAsync(Guid personaId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<SGV.Contracts.Personas.Comandos.PersonaSkillCommandResult> UpsertSkillAsync(Guid personaId, Guid skillId, SGV.Contracts.Personas.Comandos.AsignarPersonaSkillRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<SGV.Contracts.Personas.Comandos.PersonaSkillDeleteResult> DeleteSkillAsync(Guid personaId, Guid skillId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

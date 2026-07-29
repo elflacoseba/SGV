@@ -38,6 +38,14 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
     /// <summary>Cantidad de invocaciones a <see cref="GetAllAsync"/>.</summary>
     public List<int> GetAllCalls { get; } = new();
 
+    /// <summary>
+    /// Identificadores enviados a <see cref="GetByIdAsync"/>. Issue #216:
+    /// agregado para que los tests de Ocupaciones puedan triangular la
+    /// carga de la persona precargada en Edit/Create sin acoplarse al
+    /// orden de invocaciones del fake.
+    /// </summary>
+    public List<Guid> GetByIdCalls { get; } = new();
+
     /// <summary>Identificadores enviados a <see cref="DesactivarAsync"/>.</summary>
     public List<Guid> DeleteCalls { get; } = new();
 
@@ -193,6 +201,8 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
 
     public Task<PersonaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        GetByIdCalls.Add(id);
+
         if (GetByIdException is not null)
         {
             throw GetByIdException;
