@@ -842,11 +842,11 @@ VALUES ('20260621202540_VincularIdentityUsuariosAPersonas', '9.0.0');
 
 
 
-UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente'
+UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente';
 
-UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina'
+UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina';
 
-UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Temporal'
+UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Temporal';
 
 ALTER TABLE `Ocupaciones` MODIFY COLUMN `TipoAsignacion` int NOT NULL;
 
