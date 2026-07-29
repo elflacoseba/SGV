@@ -108,6 +108,96 @@ public sealed class EditPageTests
         Assert.Empty(personaApiClient.QueryCalls);
     }
 
+    // ──────────────────────────────────────────────
+    // Slice 2 / PER-CARD-09: la migración a la partial preserva el
+    // contenedor `data-usuario-persona-display` y el hidden
+    // `data-usuario-persona-display-input` que el JS `usuario-persona-buscador.js`
+    // lee/escribe. Demuestra que Edit usa la partial, no markup inline.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Edit_ConPersonaVinculada_RenderizaPartialDisplayYBinding()
+    {
+        var personaId = Guid.NewGuid();
+        var usuario = BuildUsuario("u-edit-partial-binding", personaId, "Ana", "García");
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = FakePersonaApiClient.WithPersonaList(
+            new PersonaDto(personaId, "L-7777", "Ana", "García", "ana@example.com", null, "DNI", "DNI", "30123456", "+54 11 5555-0000", true));
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient,
+            personaApiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // El contenedor display del partial (binding JS por id).
+        Assert.Contains("id=\"usuario-persona-display\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        // El hidden editable que el JS lee/escribe con PersonaDisplay.
+        Assert.Contains("data-usuario-persona-display-input", content, StringComparison.OrdinalIgnoreCase);
+        // El hidden Input.PersonaId sigue presente para el model binder.
+        Assert.Contains("name=\"Input.PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
+        // El modal buscador de Persona está en la página.
+        Assert.Contains("id=\"usuario-persona-buscador-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        // ShowQuitarCambiar=true en Edit — el partial emite los botones mutables.
+        Assert.Contains("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-target=\"#usuario-persona-buscador-modal\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Edit_WhenPersonaIdIsEmpty_FallsBackToEditableFallbackCard()
+    {
+        // Slice 2: cuando UsuarioDto.PersonaId = Guid.Empty, el
+        // Guid? del Input queda HasValue=true pero igual sin persona
+        // cargada. El partial emite la card fallback editable (caso
+        // 5) con PersonaDisplay + Quitar/Cambiar, preservando el
+        // comportamiento histórico del _Form inline.
+        var usuario = new UsuarioDto(
+            Id: "u-edit-empty",
+            PersonaId: Guid.Empty,
+            UserName: "aempty",
+            Email: "empty@example.com",
+            Roles: new[] { "Consultor" },
+            Nombres: "Sin",
+            Apellidos: "Persona");
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = new FakePersonaApiClient();
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient,
+            personaApiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/editar/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Card fallback visible con el display plano derivado del UsuarioDto.
+        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-display-text", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Persona, Sin", content, StringComparison.OrdinalIgnoreCase);
+        // Acciones mutables Quitar/Cambiar con binding al modal.
+        Assert.Contains("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-target=\"#usuario-persona-buscador-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        // Hidden editable para el JS.
+        Assert.Contains("data-usuario-persona-display-input", content, StringComparison.OrdinalIgnoreCase);
+        // El empty state se emite con hidden="hidden" porque la card fallback ocupa la presentación.
+        var emptyMatch = System.Text.RegularExpressions.Regex.Match(
+            content, @"<div\s+data-usuario-persona-empty[^>]*hidden=""hidden""");
+        Assert.True(
+            emptyMatch.Success,
+            "El empty state editable debe emitirse con hidden=\"hidden\" cuando la fallback card ocupa la presentación visible.");
+        // El hidden Input.PersonaId sigue presente para el binder.
+        Assert.Contains("name=\"Input.PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task Post_Edit_SinPersonaSeleccionada_PermiteActualizarCamposEditables()
     {
