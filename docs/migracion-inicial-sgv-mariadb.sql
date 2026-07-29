@@ -28,6 +28,16 @@
 --     use los Seeders en src/SGV.Infraestructura/Persistencia/Seeds/.
 --   - DROP TABLE IF EXISTS + CREATE para re-ejecucion idempotente. NO usar
 --     contra una DB MySQL 8 preexistente.
+--   - Las columnas de unicidad "soft-delete" usan UNIQUE INDEX compuesto
+--     sobre (Col, IsDeleted) en lugar de columnas GENERATED ... STORED
+--     con UNIQUE INDEX (que es lo que usa el path de migracion C#). Esto
+--     permite a lo sumo UN registro activo + UN registro eliminado por
+--     clave. Implicancia: si el flujo requiere multiples borrados logicos
+--     del mismo codigo (A activo, B activo, B eliminado, C activo), el
+--     segundo borrado logico fallara con "Duplicate entry" al intentar
+--     crear C. Para ese caso, usar el path de migracion C# (`dotnet ef
+--     database update`), que SI permite ilimitados registros eliminados
+--     por clave gracias a las columnas GENERATED ... STORED.
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS `__EFMigrationsHistory` (
@@ -863,9 +873,7 @@ ALTER TABLE `AspNetUsers`
   ALGORITHM=INPLACE,
   LOCK=NONE;
 
-ALTER TABLE `AspNetUsers`
-  ALGORITHM=INPLACE,
-  LOCK=NONE;
+
 
 ALTER TABLE `AspNetUsers`
   DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
@@ -888,9 +896,7 @@ ALTER TABLE `AspNetUsers`
   ON DELETE RESTRICT,
   ALGORITHM=COPY;
 
-ALTER TABLE `AspNetUsers`
-  ALGORITHM=INPLACE,
-  LOCK=NONE;
+
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260715145121_AddSoftDeleteToAspNetUsers', '9.0.0');
