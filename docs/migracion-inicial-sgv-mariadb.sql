@@ -155,9 +155,9 @@ CREATE TABLE `Personas` (
     `NumeroDocumento` varchar(50) CHARACTER SET utf8mb4 NULL,
     `Telefono` varchar(50) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
-    `ActiveDocumentoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `TipoDocumento` <> '' AND `NumeroDocumento` <> '' AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumento`, ':', `NumeroDocumento`) ELSE NULL END) STORED,
-    `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Email` <> '' AND `IsDeleted` = 0 THEN `Email` ELSE NULL END) STORED,
-    `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Legajo` <> '' AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END) STORED,
+    `ActiveDocumentoUnique` varchar(255) CHARACTER SET utf8mb4 AS (IF(`IsDeleted` = 0, CONCAT(`TipoDocumento`, ':', `NumeroDocumento`), NULL)) STORED,
+    `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (IF(`IsDeleted` = 0, `Email`, NULL)) STORED,
+    `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (IF(`IsDeleted` = 0, `Legajo`, NULL)) STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -271,7 +271,7 @@ CREATE TABLE `Postulantes` (
     `Telefono` varchar(50) CHARACTER SET utf8mb4 NULL,
     `Fuente` varchar(100) CHARACTER SET utf8mb4 NULL,
     `Observaciones` varchar(1000) CHARACTER SET utf8mb4 NULL,
-    `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (CASE WHEN `PersonaId` <> '' AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED,
+    `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (IF(`IsDeleted` = 0, `PersonaId`, NULL)) STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -1071,7 +1071,7 @@ CREATE INDEX `IX_Personas_TipoDocumentoId` ON `Personas` (`TipoDocumentoId`);
 
 ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveDocumentoUnique`;
 
-ALTER TABLE `Personas` MODIFY COLUMN `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (CASE WHEN `TipoDocumentoId` <> '' AND `NumeroDocumento` <> '' AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END) STORED;
+ALTER TABLE `Personas` MODIFY COLUMN `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (IF(`IsDeleted` = 0, CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`), NULL)) STORED;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveDocumentoUnique` ON `Personas` (`ActiveDocumentoUnique`);
 
@@ -1215,7 +1215,7 @@ ALTER TABLE `Postulantes` DROP INDEX `IX_Postulantes_ActivePersonaIdUnique`;
 
 ALTER TABLE `Postulantes` DROP COLUMN `ActivePersonaIdUnique`;
 
-ALTER TABLE `Postulantes` ADD `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (CASE WHEN `PersonaId` <> '' AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED NULL;
+ALTER TABLE `Postulantes` ADD `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (IF(`IsDeleted` = 0, `PersonaId`, NULL)) STORED NULL;
 
 CREATE UNIQUE INDEX `IX_Postulantes_ActivePersonaIdUnique` ON `Postulantes` (`ActivePersonaIdUnique`);
 
@@ -1223,7 +1223,7 @@ ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveLegajoUnique`;
 
 ALTER TABLE `Personas` DROP COLUMN `ActiveLegajoUnique`;
 
-ALTER TABLE `Personas` ADD `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Legajo` <> '' AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END) STORED NULL;
+ALTER TABLE `Personas` ADD `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (IF(`IsDeleted` = 0, `Legajo`, NULL)) STORED NULL;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveLegajoUnique` ON `Personas` (`ActiveLegajoUnique`);
 
@@ -1231,7 +1231,7 @@ ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveEmailUnique`;
 
 ALTER TABLE `Personas` DROP COLUMN `ActiveEmailUnique`;
 
-ALTER TABLE `Personas` ADD `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Email` <> '' AND `IsDeleted` = 0 THEN `Email` ELSE NULL END) STORED NULL;
+ALTER TABLE `Personas` ADD `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (IF(`IsDeleted` = 0, `Email`, NULL)) STORED NULL;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveEmailUnique` ON `Personas` (`ActiveEmailUnique`);
 
@@ -1239,7 +1239,7 @@ ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveDocumentoUnique`;
 
 ALTER TABLE `Personas` DROP COLUMN `ActiveDocumentoUnique`;
 
-ALTER TABLE `Personas` ADD `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (CASE WHEN `TipoDocumentoId` <> '' AND `NumeroDocumento` <> '' AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END) STORED NULL;
+ALTER TABLE `Personas` ADD `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (IF(`IsDeleted` = 0, CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`), NULL)) STORED NULL;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveDocumentoUnique` ON `Personas` (`ActiveDocumentoUnique`);
 
