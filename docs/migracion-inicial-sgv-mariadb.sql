@@ -36,8 +36,26 @@
 --     Aun asi crea __EFMigrationsHistory con las 13 migraciones EF
 --     marcadas, para mantener consistencia si en el futuro se decide
 --     migrar a EF puro contra MariaDB.
---   - No incluye datos semilla (AgregarDatosSemillaBase). Si los necesita,
---     use los Seeders en src/SGV.Infraestructura/Persistencia/Seeds/.
+--   - SI incluye datos semilla hardcoded, en el mismo orden que las
+--     migraciones EF los aplicarian. Catalogos incluidos (10):
+--     AspNetRoles (3 finales via 5 iniciales + DELETE + INSERT 2 en la
+--     migracion VincularIdentityUsuariosAPersonas), NivelesHabilidad,
+--     EstadosVacante, EstadosPostulacion, NivelesCargo, Cargos (con
+--     NivelId via migracion CambiarNivelStringANivelId), Habilidades
+--     (con CategoriaId via migracion AddCategoriaHabilidadCatalog),
+--     TiposUnidadOrganizativa, TiposDocumento, CategoriasHabilidad.
+--     Single source of truth: src/SGV.Infraestructura/Persistencia/
+--     DatosSemilla.cs (referenciado desde el model snapshot EF Core
+--     via HasData). Migracion EF 'AgregarDatosSemillaBase' intencional-
+--     mente vacia: los seeds viven en DatosSemilla, no como InsertData
+--     de una migracion especifica. Cualquier drift entre los seeds
+--     hardcoded de este script y DatosSemilla.cs lo detectan los tests
+--     'DatosSemilla_*_SeedIdsMatchConstantes' (correr localmente con
+--     'dotnet test SGV.slnx --filter DatosSemilla').
+--   - No incluye: setup inicial de admin (issue #195). Ese se hace en
+--     runtime via POST /api/setup, no como INSERTs en este script.
+--     Para datos demo adicionales (UnidadOrganizativa raiz, Puesto demo,
+--     Persona demo) aplicar via la app o agregar manualmente.
 --   - DROP TABLE IF EXISTS + CREATE para re-ejecucion idempotente. NO usar
 --     contra una DB MySQL 8 preexistente.
 -- ============================================================================
