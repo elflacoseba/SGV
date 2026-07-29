@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Web;
 using Microsoft.Extensions.Logging;
 using SGV.Tests.Web._Shared;
@@ -75,6 +76,90 @@ public sealed class PersonaBuscadorModalTests
         Assert.Equal(2, query.Page);
         Assert.Equal(25, query.PageSize);
         Assert.True(query.SoloSinUsuario);
+    }
+
+    // ──────────────────────────────────────────────────
+    // REQ-USB-12: el modal de Usuarios NO declara
+    // `data-solo-sin-usuario`; el JS por defecto debe seguir enviando
+    // `soloSinUsuario=true` (back-compat estricta con PR-3 del change
+    // 2026-07-17-buscador-personas-modal).
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PersonaBuscadorModal_Usuarios_NoDeclaraDataSoloSinUsuarioYDefaultSigueSiendoTrue()
+    {
+        await using var lease = await CreateLeaseAsync();
+
+        var response = await lease.Client.GetAsync("/seguridad/usuarios/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El modal root NO debe declarar el atributo en Usuarios.
+        var modalMatch = Regex.Match(
+            content,
+            @"<div(?=[^>]*id=""usuario-persona-buscador-modal"")[^>]*>",
+            RegexOptions.IgnoreCase);
+        Assert.True(modalMatch.Success, "Modal root must be present in /seguridad/usuarios/crear.");
+        Assert.DoesNotContain("data-solo-sin-usuario", modalMatch.Value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Verifica que el source de <c>usuario-persona-buscador.js</c> ya no
+    /// hardcodea <c>searchParams.set('soloSinUsuario', 'true')</c> y que
+    /// lee el atributo <c>data-solo-sin-usuario</c> con parseo
+    /// case-insensitive. Esto protege REQ-USB-12 / OCC-PER-BUSC-03 sin
+    /// requerir jsdom.
+    /// </summary>
+    [Fact]
+    public void PersonaBuscadorModal_JsSource_NoHardcodeaSoloSinUsuarioYLeeAtributo()
+    {
+        var jsPath = ResolveJsPath(out _);
+
+        Assert.True(File.Exists(jsPath), $"JS source not found at {jsPath}.");
+        var source = File.ReadAllText(jsPath);
+
+        // El hardcode de `soloSinUsuario` con literal `'true'` debe haber
+        // desaparecido; el valor ahora se deriva del atributo del modal.
+        Assert.DoesNotContain(
+            "searchParams.set('soloSinUsuario', 'true')",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "searchParams.set(\"soloSinUsuario\", \"true\")",
+            source,
+            StringComparison.Ordinal);
+
+        // El JS debe leer el atributo case-insensitive contra `"true"`.
+        Assert.Contains("data-solo-sin-usuario", source, StringComparison.OrdinalIgnoreCase);
+        Assert.Matches(
+            new Regex(@"toLowerCase\(\)|toUpperCase\(\)", RegexOptions.IgnoreCase),
+            source);
+    }
+
+    /// <summary>
+    /// Resuelve la ruta absoluta al source de <c>usuario-persona-buscador.js</c>
+    /// buscando hacia arriba desde <see cref="AppContext.BaseDirectory"/>
+    /// hasta encontrar el archivo. Esto evita depender del output de build
+    /// del test (que copia wwwroot pero no siempre según la config del csproj).
+    /// </summary>
+    private static string ResolveJsPath(out string[] candidates)
+    {
+        var candidatesLocal = new List<string>();
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var path = Path.Combine(dir.FullName, "src", "SGV.Web", "wwwroot", "js", "pages", "usuario-persona-buscador.js");
+            candidatesLocal.Add(path);
+            if (File.Exists(path))
+            {
+                candidates = candidatesLocal.ToArray();
+                return path;
+            }
+            dir = dir.Parent;
+        }
+        candidates = candidatesLocal.ToArray();
+        return candidatesLocal[^1];
     }
 
     [Fact]

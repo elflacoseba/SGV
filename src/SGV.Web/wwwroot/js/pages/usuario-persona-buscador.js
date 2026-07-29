@@ -6,6 +6,17 @@
         return;
     }
 
+    // REQ-USB-12 / OCC-PER-BUSC-03: el filtro `soloSinUsuario` se deriva
+    // del atributo `data-solo-sin-usuario` del modal root. Default `true`
+    // preserva el back-compat estricto con Usuarios (issue #216).
+    // Valores ausentes, no-parseables o distintos de `"false"` caen al
+    // default `true`.
+    var rawSoloSinUsuario = modal.getAttribute('data-solo-sin-usuario');
+    var soloSinUsuarioValue = typeof rawSoloSinUsuario === 'string'
+        && rawSoloSinUsuario.toLowerCase() === 'false'
+        ? 'false'
+        : 'true';
+
     var searchInput = modal.querySelector('[data-usuario-persona-search]');
     var searchButton = modal.querySelector('[data-usuario-persona-search-button]');
     var rows = modal.querySelector('[data-usuario-persona-rows]');
@@ -151,7 +162,7 @@
         modal.querySelectorAll('.page-link').forEach(function (button) { button.disabled = true; });
         var url = new URL(modal.dataset.apiUrl, window.location.origin);
         url.searchParams.set('search', term);
-        url.searchParams.set('soloSinUsuario', 'true');
+        url.searchParams.set('soloSinUsuario', soloSinUsuarioValue);
         url.searchParams.set('p', page);
         url.searchParams.set('pageSize', '25');
 
