@@ -539,7 +539,6 @@ CREATE INDEX `IX_PersonaHabilidades_NivelHabilidadId` ON `PersonaHabilidades` (`
 
 CREATE UNIQUE INDEX `IX_PersonaHabilidades_PersonaId_HabilidadId` ON `PersonaHabilidades` (`PersonaId`, `HabilidadId`);
 
-CREATE UNIQUE INDEX `IX_Personas_DocumentoUnique_IsDeleted` ON `Personas` (`TipoDocumentoId`, `NumeroDocumento`, `IsDeleted`);
 
 CREATE UNIQUE INDEX `IX_Personas_EmailUnique_IsDeleted` ON `Personas` (`Email`, `IsDeleted`);
 
