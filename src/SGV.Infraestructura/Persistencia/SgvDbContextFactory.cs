@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
@@ -39,10 +40,10 @@ public sealed class SgvDbContextFactory : IDesignTimeDbContextFactory<SgvDbConte
         {
             serverVersion = ServerVersion.AutoDetect(connectionString);
         }
-        catch (Exception ex) when (ex is System.Net.Sockets.SocketException
-                                    || ex is MySqlConnector.MySqlException
-                                    || ex is TimeoutException
-                                    || ex is InvalidOperationException)
+        catch (Exception ex) when (ex is SocketException
+                                    or MySqlConnector.MySqlException
+                                    or TimeoutException
+                                    or InvalidOperationException)
         {
             serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
         }
