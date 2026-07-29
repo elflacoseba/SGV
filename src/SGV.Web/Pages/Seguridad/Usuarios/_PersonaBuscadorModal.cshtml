@@ -1,7 +1,11 @@
-@* Selector modal reutilizable de Personas para Create/Edit Usuario.
-   Contrato ViewData: ModalId, HiddenInputName, HiddenInputId y
-   DisplayContainerId son requeridos; CurrentPersonaId y
-   CurrentPersonaDisplay son opcionales. *@
+@* Selector modal reutilizable de Personas para Create/Edit Usuario y
+   módulos que lo reusen (Issue #216 / OCC-PER-BUSC-03 — Ocupaciones).
+   Contrato ViewData:
+     - Requeridos: ModalId, HiddenInputName, HiddenInputId, DisplayContainerId.
+     - Opcionales: CurrentPersonaId, CurrentPersonaDisplay.
+     - Opcional (REQ-USB-12): SoloSinUsuario (`false` → emite
+       `data-solo-sin-usuario="false"`; default/ausente/`true` →
+       no emite atributo y el JS defaultea a `true`). *@
 @{
     var modalId = ViewData["ModalId"] as string
         ?? throw new InvalidOperationException("_PersonaBuscadorModal: ViewData['ModalId'] es requerido.");
@@ -13,7 +17,9 @@
         ?? throw new InvalidOperationException("_PersonaBuscadorModal: ViewData['DisplayContainerId'] es requerido.");
     var currentPersonaId = ViewData["CurrentPersonaId"] is Guid personaId ? personaId : (Guid?)null;
     var currentPersonaDisplay = ViewData["CurrentPersonaDisplay"] as string;
+    var soloSinUsuarioFalse = ViewData["SoloSinUsuario"] is bool flag && flag == false;
     var titleId = $"{modalId}-label";
+    var soloSinUsuarioAttr = soloSinUsuarioFalse ? " data-solo-sin-usuario=\"false\"" : string.Empty;
 }
 
 <div class="modal fade" id="@modalId" tabindex="-1" role="dialog"
@@ -24,7 +30,7 @@
      data-hidden-input-id="@hiddenInputId"
      data-display-container-id="@displayContainerId"
      data-current-persona-id="@currentPersonaId"
-     data-current-persona-display="@currentPersonaDisplay">
+     data-current-persona-display="@currentPersonaDisplay"@Html.Raw(soloSinUsuarioAttr)>
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">

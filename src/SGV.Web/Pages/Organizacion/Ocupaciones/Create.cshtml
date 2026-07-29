@@ -39,3 +39,10 @@
         </div>
     </div>
 </div>
+
+@section scripts {
+    @* Issue #216 / OCC-PER-BUSC-01: el script compartido
+       `usuario-persona-buscador.js` se incluye desde Create.cshtml
+       (no desde el partial _Form) para no duplicarlo entre Create y Edit. *@
+    <script src="/js/pages/usuario-persona-buscador.js"></script>
+}

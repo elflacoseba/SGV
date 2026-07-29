@@ -58,4 +58,10 @@ else
             </div>
         </div>
     </div>
+
+    @* Issue #216 / OCC-PER-BUSC-01: el script compartido se incluye
+       SOLO cuando el form está renderizado (no en estado recuperable). *@
+    @section scripts {
+        <script src="/js/pages/usuario-persona-buscador.js"></script>
+    }
 }

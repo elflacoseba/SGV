@@ -6,11 +6,9 @@
 
 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-@* Issue #216 / OCC-PER-BUSC-01: el <select> PersonaId se reemplaza en WUG-3
-   por la card enriquecida + modal _PersonaBuscadorModal. Mientras tanto,
-   se conserva el binding (hidden input) para que el resto del flujo
-   (POST, ModelState) siga funcionando y los tests de WUG-2 puedan
-   verificar el contrato. *@
+@* Issue #216 / OCC-PER-BUSC-01: card enriquecida + modal reutilizable
+   _PersonaBuscadorModal en lugar del <select> PersonaId previo.
+   El binding a Input.PersonaId se conserva via hidden input. *@
 @{
     var personaVinculada = Model.PersonaVinculada;
     var tienePersona = Model.Input.PersonaId.HasValue;
@@ -66,6 +64,26 @@
         </div>
         <span asp-validation-for="Input.PersonaId" class="text-danger"></span>
     </div>
+
+@* Issue #216 / OCC-PER-BUSC-03: el modal reutilizado se invoca con
+   `data-solo-sin-usuario="false"` vía ViewData para que el JS compartido
+   condicional el flag. La vista del modal vive en
+   `Pages/Seguridad/Usuarios/_PersonaBuscadorModal.cshtml` y se importa
+   por path absoluto (precedente: `PersonaOcupaciones.cshtml` también
+   importa `_CrossList.cshtml` por path absoluto). *@
+@await Html.PartialAsync(
+    "~/Pages/Seguridad/Usuarios/_PersonaBuscadorModal.cshtml",
+    null,
+    new ViewDataDictionary(ViewData)
+    {
+        ["ModalId"] = "ocupacion-persona-buscador-modal",
+        ["HiddenInputName"] = "Input.PersonaId",
+        ["HiddenInputId"] = "Input_PersonaId",
+        ["DisplayContainerId"] = "ocupacion-persona-display",
+        ["CurrentPersonaId"] = Model.Input.PersonaId,
+        ["CurrentPersonaDisplay"] = Model.PersonaDisplay,
+        ["SoloSinUsuario"] = false
+    })
 
     <div class="col-md-6">
         <div class="form-floating">
