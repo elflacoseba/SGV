@@ -25,12 +25,12 @@ public sealed class PersonaConfiguracion : IEntityTypeConfiguration<PersonaEntit
         // MySQL does not support filtered indexes. Use generated columns that
         // are NULL when the value is absent or the record is soft-deleted.
         builder.Property<string?>("ActiveLegajoUnique")
-            .HasComputedColumnSql("CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END")
+            .HasComputedColumnSql("CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END", stored: true)
             .IsRequired(false);
         builder.HasIndex("ActiveLegajoUnique").IsUnique();
 
         builder.Property<string?>("ActiveEmailUnique")
-            .HasComputedColumnSql("CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END")
+            .HasComputedColumnSql("CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END", stored: true)
             .IsRequired(false);
         builder.HasIndex("ActiveEmailUnique").IsUnique();
 
@@ -40,8 +40,8 @@ public sealed class PersonaConfiguracion : IEntityTypeConfiguration<PersonaEntit
         // la regla MySQL InnoDB sobre columnas generadas indexadas).
         builder.Property<string?>("ActiveDocumentoUnique")
             .HasColumnType("varchar(120)")
-            .UseCollation("utf8mb4_0900_ai_ci")
-            .HasComputedColumnSql("CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END")
+            .UseCollation("utf8mb4_unicode_ci")
+            .HasComputedColumnSql("CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END", stored: true)
             .IsRequired(false);
         builder.HasIndex("ActiveDocumentoUnique").IsUnique();
 

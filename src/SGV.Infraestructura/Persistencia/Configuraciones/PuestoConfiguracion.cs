@@ -33,7 +33,7 @@ public sealed class PuestoConfiguracion : IEntityTypeConfiguration<PuestoEntity>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property<string?>("ActiveCodigoUnique")
-            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END")
+            .HasComputedColumnSql("CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END", stored: true)
             .IsRequired(false);
         builder.HasIndex("ActiveCodigoUnique").IsUnique();
 

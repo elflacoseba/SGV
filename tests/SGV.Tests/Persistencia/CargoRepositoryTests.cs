@@ -799,4 +799,59 @@ public sealed class CargoRepositoryTests
             await context.SaveChangesAsync();
         }
     }
+
+    // ===================== STORED soft-delete uniqueness =====================
+    //
+    // Regression para MariaDbStoredColumnsAndCollation. La columna computada
+    // Cargos.ActiveCodigoUnique materializa NULL cuando IsDeleted=1, y NULL no
+    // se considera en UNIQUE INDEX, por lo que pueden coexistir N registros
+    // soft-deleted con el mismo Codigo. Si alguien revierte a UNIQUE INDEX
+    // directo sobre Codigo (o a una columna VIRTUAL), este test rompe.
+
+    [MySqlFact]
+    public async Task AddAsync_MultiplesEliminadosConMismoCodigo_PermiteCreacionIlimitada()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new CargoRepository(context);
+        var nivelId = NivelCargoConstantes.DirectivoId;
+        var codigoCompartido = $"CRG-MULTIDEL-{Guid.NewGuid():N}".Substring(0, 22);
+
+        var cargo1 = new Cargo(codigoCompartido, "Cargo 1", nivelId);
+        var cargo2 = new Cargo(codigoCompartido, "Cargo 2", nivelId);
+        var cargo3 = new Cargo(codigoCompartido, "Cargo 3", nivelId);
+
+        try
+        {
+            await repo.AddAsync(cargo1, default);
+            await context.SaveChangesAsync();
+
+            await repo.DeleteAsync(cargo1.Id, default);
+            await context.SaveChangesAsync();
+
+            await repo.AddAsync(cargo2, default);
+            await context.SaveChangesAsync();
+
+            await repo.DeleteAsync(cargo2.Id, default);
+            await context.SaveChangesAsync();
+
+            await repo.AddAsync(cargo3, default);
+            await context.SaveChangesAsync();
+
+            var todos = await context.Set<CargoEntity>()
+                .Where(c => c.Codigo == codigoCompartido)
+                .ToListAsync();
+
+            Assert.Equal(3, todos.Count);
+            Assert.Single(todos, c => c.IsActive && !c.IsDeleted);
+            Assert.Equal(2, todos.Count(c => c.IsDeleted));
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(
+                await context.Set<CargoEntity>()
+                    .Where(c => c.Codigo == codigoCompartido)
+                    .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
 }
