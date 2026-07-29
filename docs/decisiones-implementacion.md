@@ -12,6 +12,50 @@ Los proyectos apuntan a `net10.0` (.NET 10). El archivo `global.json` fija el SD
 
 Se utiliza Pomelo Entity Framework Core 9.x como proveedor único para MySQL 8. Los paquetes `Microsoft.EntityFrameworkCore*`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore` y `Pomelo.EntityFrameworkCore.MySql` permanecen en versiones 9.x porque Pomelo 9 depende de EF Core relational `>= 9.0.0 && < 9.0.999`. SQL Server no se soporta como proveedor activo.
 
+## Dualidad de paths: MySQL local (EF Core) + MariaDB producción (script SQL standalone)
+
+El repo soporta dos servidores de base de datos según el ambiente:
+
+| Ambiente | Servidor | Mecanismo de provisionamiento |
+|---|---|---|
+| **Local / desarrollo** | MySQL 8.x | `dotnet ef database update` (con historial en `__EFMigrationsHistory`) |
+| **Producción** | MariaDB 10.11+ | `docs/migracion-inicial-sgv-mariadb.sql` (script standalone, hand-crafted) |
+
+### Por qué dualidad y no unificación
+
+MariaDB 10.11.x es más estricto que MySQL 8 con columnas generadas:
+
+- **No acepta `CASE WHEN ... ELSE NULL` dentro de columnas `GENERATED ALWAYS AS` cuando la columna fuente es `CHAR(N)`** (con cualquier collation). Devuelve `Function or expression 'case when ... else NULL end' cannot be used in the GENERATED ALWAYS AS clause`. Esto afecta a las columnas GUID que el modelo define como `char(36) COLLATE ascii_general_ci` (PK/FK de `Personas`, `Postulantes`, `Ocupaciones`, etc.).
+- **No permite `UNIQUE INDEX` sobre columnas `VIRTUAL`**. Solo sobre `STORED`. MySQL 8 también acepta STORED, así que el cambio no rompe el camino EF.
+
+El primer intento de unificar el camino (que `dotnet ef migrations script` generara un script que sirviera para ambos) falla porque los `Designer.cs` de las migraciones archivadas no reflejan `stored: true` del snapshot actual — los `CREATE TABLE` de las migraciones 1-12 generan columnas CASE WHEN **VIRTUAL**, no STORED. La migración correctiva `MariaDbStoredColumnsAndCollation` (la #13) hace la transición VIRTUAL→STORED al final del pipeline, pero en una base MariaDB virgen la primera migración revienta antes de llegar ahí.
+
+### Workaround aplicado al script MariaDB
+
+1. **Columnas fuente `CHAR(36) COLLATE ascii_general_ci` → `VARCHAR(36) COLLATE ascii_general_ci`** en `Postulantes.PersonaId`, `Ocupaciones.PersonaId`, `Ocupaciones.PuestoId` y `Personas.TipoDocumentoId` (esta última se crea via `ALTER TABLE ADD COLUMN` después de creada la tabla base). Esto destraba el `CASE WHEN STORED` sobre esas columnas.
+2. **Columnas CASE WHEN STORED generadas con `CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`** (en lugar de `COLLATE ascii_general_ci`). Evita conversiones automáticas de charset que MariaDB rechaza dentro de GENERATED ALWAYS AS.
+3. **`utf8mb4_0900_ai_ci` → `utf8mb4_unicode_ci` global** (collation MySQL 8 exclusiva que MariaDB no soporta).
+4. **`CONCAT()` con CAST explícito** en `Personas.ActiveDocumentoUnique`: `CONCAT(CAST(TipoDocumentoId AS CHAR CHARACTER SET utf8mb4), ':', NumeroDocumento)` para evitar el `convert(...)` automático que MariaDB rechaza.
+
+### Limitaciones del script MariaDB (a diferencia del camino MySQL/EF)
+
+- **No usa `__EFMigrationsHistory`** para trazabilidad. Aunque crea la tabla y registra las 13 migraciones, no se actualiza en reaplicaciones. La trazabilidad real vive en este archivo + el repo Git.
+- **No incluye datos semilla** (`AgregarDatosSemillaBase`). Los seeders viven en `src/SGV.Infraestructura/Persistencia/Seeds/`.
+- **`DROP TABLE IF EXISTS + CREATE` para re-ejecución idempotente**. NO usar contra una base MySQL 8 preexistente (cambia la collation).
+- **Stored procedures con `DELIMITER`**: el script incluye `DROP PROCEDURE IF EXISTS __sgvApplyD7` + bloque CREATE PROCEDURE para la migración `DropSoftDeleteFromAspNetUsers`. Si se aplica programáticamente (vía `MySqlConnector`/Python), el cliente debe parsear las directivas `DELIMITER` o usar `--delimiter` en el CLI. Conectar con `Allow User Variables=true` si se usa `MySqlConnector` (los `SET @var = ...` del script lo requieren).
+
+### Validación empírica
+
+Antes de mergear a develop, las pruebas se ejecutaron contra `sgvapi.elflacoseba.dev:3306` (MariaDB 10.11.13 real):
+
+- ✅ CREATE TABLE con 4 columnas CASE WHEN STORED (Cargos, Personas×3, Ocupaciones×3, Postulantes) → todas aceptadas
+- ✅ INSERT activo + 2 soft-deleted con mismo `Codigo`/`DNI` → conviven
+- ✅ INSERT 2do activo con mismo `Codigo` → rechazado por UNIQUE INDEX
+- ✅ Patrón con `FechaFin IS NULL AND IsDeleted = 0` (Ocupaciones) → funciona
+- ✅ Patrón con `CONCAT(CAST(... AS CHAR CHARACTER SET utf8mb4), ':', ...)` → funciona
+
+Si en el futuro el proyecto unifica el camino MariaDB al estilo EF puro, hay que regenerar los `Designer.cs` de las migraciones 1-12 (o agregar una mini-migración correctiva VIRTUAL→STORED al inicio del pipeline). No hay trabajo previo en esa dirección; el camino dual se mantiene por estabilidad de despliegues.
+
 ## Índices Únicos con Soft Delete
 
 MySQL no soporta índices filtrados como SQL Server. Para preservar las reglas de unicidad sobre registros activos (no eliminados), se utilizan columnas generadas (computed columns) con índices únicos. La columna generada devuelve el valor de la columna de negocio cuando el registro está activo (`IsDeleted = 0`) y `NULL` cuando está eliminado. MySQL permite múltiples `NULL` en índices únicos, lo que replica el comportamiento de los índices filtrados de SQL Server.
