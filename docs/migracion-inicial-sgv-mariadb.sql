@@ -897,9 +897,11 @@ VALUES ('20260715145121_AddSoftDeleteToAspNetUsers', '9.0.0');
 
 DROP PROCEDURE IF EXISTS __sgvApplyD7;
 
+DELIMITER $$
 CREATE PROCEDURE __sgvApplyD7()
 BEGIN
-    DECLARE _needsD7 INT DEFAULT (
+    DECLARE _needsD7 INT;
+    SET _needsD7 = (
         SELECT COUNT(*) FROM information_schema.COLUMNS
         WHERE table_schema = DATABASE()
           AND table_name = 'AspNetUsers'
@@ -959,8 +961,9 @@ BEGIN
           ON DELETE RESTRICT,
           ALGORITHM=COPY;
     END IF;
-END;
+END$$
 
+DELIMITER ;
 CALL __sgvApplyD7();
 DROP PROCEDURE __sgvApplyD7;
 
