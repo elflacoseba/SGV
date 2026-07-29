@@ -1,9 +1,13 @@
-@* Partial unificada de la card de Persona. Reemplaza las 3
+@* Partial unificada de la card de Persona. Reemplaza las 4
    implementaciones inline (Usuarios/Details, Usuarios/_Form,
-   Ocupaciones/_Form) que existían antes del change
-   `reusable-persona-card` (issue #219). Slice 1 / PR 1 introduce
-   el partial + helper; Slice 2 migra Usuarios; Slice 3 migra
-   Ocupaciones. Modos:
+   Ocupaciones/Details, Ocupaciones/_Form) que existían antes del
+   change `reusable-persona-card` (issue #219).
+
+   Slice 1 / PR 1 introdujo el partial + helper.
+   Slice 2 / PR 2 migra Usuarios (Details + _Form).
+   Slice 3 / PR 3 migrará Ocupaciones.
+
+   Modos:
      - readonly (default): muestra datos, sin Quitar/Cambiar,
        sin empty state.
      - editable: agrega Quitar, Buscar (abre ModalId), empty
@@ -11,14 +15,22 @@
        `data-usuario-persona-display-input` que el JS
        `usuario-persona-buscador.js` lee/escribe.
 
-   Contrato ViewData (todos opcionales salvo `PersonaIdInputName`
-   si `Mode=editable` en los consumidores que bindean a un form):
+   Ramas de render:
+     1. readonly + DTO poblado           → card enriquecida con link
+     2. readonly + DTO null + Fallback   → fallback readonly con link (o plano)
+     3. readonly + DTO null + sin Fallback → no renderiza nada
+     4. editable + DTO poblado           → card enriquecida con Quitar/Cambiar + empty oculto
+     5. editable + DTO null + Fallback   → card fallback editable con Quitar/Cambiar
+     6. editable + DTO null + sin Fallback → empty state con Buscar Persona
+
+   Contrato ViewData (todos opcionales salvo PersonaIdInputName si
+   Mode=editable en los consumidores que bindean a un form):
      Mode              : "readonly" | "editable"           (default "readonly")
      ShowStatusBadge   : bool                              (default true)
      ShowQuitarCambiar : bool                              (default: true cuando editable)
      PersonaDetailUrl  : string?                           (readonly only)
-     FallbackDisplay   : string?                           (readonly only)
-     FallbackUrl       : string?                           (readonly only)
+     FallbackDisplay   : string?                           (readonly + editable fallback)
+     FallbackUrl       : string?                           (readonly fallback only)
      ModalId           : string                            (default "usuario-persona-buscador-modal")
      PersonaIdInputName: string                            (default "Input.PersonaId")
      DisplayContainerId: string                            (default "usuario-persona-display")
@@ -46,18 +58,41 @@
     var hasPersona = Model is not null;
     var documento = PersonaFormatHelper.FormatDocumento(Model);
 
-    // El partial NO renderiza nada si no hay persona y tampoco hay
-    // texto de fallback (caso degradado extremo). Mantiene la
-    // semántica de "no error visible" de PER-CARD-02.
-    if (!hasPersona && string.IsNullOrWhiteSpace(fallbackDisplay))
+    // Caso 5 (editable + DTO null + FallbackDisplay): la card fallback
+    // cubre la presentación de "persona seleccionada pero sin DTO
+    // enriquecido" (típico de Edit cuando el API devuelve 404). El
+    // empty state se emite pero queda hidden — el JS lo usa cuando el
+    // usuario presiona Quitar.
+    // Caso 6 (editable + DTO null + sin FallbackDisplay): empty state
+    // puro, sin card, sólo "Buscar Persona".
+    var isEditableFallback = isEditable && !hasPersona && !string.IsNullOrWhiteSpace(fallbackDisplay);
+
+    // Caso 3 (readonly + sin persona + sin fallback): la partial no
+    // renderiza nada. Mantiene la semántica de "no error visible" de
+    // PER-CARD-02 y evita markup vacío. En editable siempre se emite
+    // el empty state (con hidden=true cuando hay persona/fallback)
+    // porque el JS lo lee vía `display.parentElement.querySelector`.
+    if (!hasPersona && string.IsNullOrWhiteSpace(fallbackDisplay) && !isEditable)
     {
         return;
     }
 
     var legajoEnCard = hasPersona && !string.IsNullOrWhiteSpace(Model!.Legajo);
+
+    // Valor del hidden que el JS sincroniza con PersonaDisplay del
+    // PageModel. Enriquecido cuando hay DTO, fallback cuando no.
+    var displayInputValue = hasPersona
+        ? $"{Model.Apellidos}, {Model.Nombres} ({documento})"
+        : fallbackDisplay!;
 }
+
+@* ────────────────────────────────────────────────────────────
+   Rama principal: render de la card según modo + disponibilidad.
+   ──────────────────────────────────────────────────────────── *@
+
 @if (hasPersona)
 {
+    @* Casos 1 y 4: card enriquecida (readonly / editable). *@
     var persona = Model!;
     <div id="@displayContainerId" data-usuario-persona-display>
         <div class="card border mb-0" data-usuario-persona-card>
@@ -134,40 +169,53 @@
                 </dl>
             </div>
         </div>
-        @if (isEditable)
-        {
-            @* Empty alternative — sólo visible si NO hay persona
-               seleccionada. Cuando hay persona, queda oculto vía el
-               atributo hidden="hidden". El atributo hidden es leíble
-               por el JS (`empty.hidden = false/true`). *@
-            <div data-usuario-persona-empty hidden="hidden">
-                <button type="button" class="btn btn-outline-primary"
-                        data-usuario-persona-buscar data-bs-toggle="modal"
-                        data-bs-target="#@modalId">
-                    <i class="ti ti-search me-1"></i>Buscar Persona
-                </button>
-            </div>
-        }
     </div>
-    @if (isEditable)
-    {
-        @* El JS lee este hidden via
-           `display.parentElement.querySelector('[data-usuario-persona-display-input]')`.
-           Contiene la etiqueta visible (Apellidos, Nombres + Doc)
-           que el form sincroniza con `PersonaDisplay` del
-           PageModel. *@
-        <input type="hidden" name="PersonaDisplay"
-               value="@persona.Apellidos, @persona.Nombres (@documento)"
-               data-usuario-persona-display-input />
-    }
+}
+else if (isEditableFallback)
+{
+    @* Caso 5: editable + DTO null + FallbackDisplay. La card lleva
+       PersonaDisplay + Quitar/Cambiar. Sin Legajo/Documento/Email
+       (no hay DTO). El empty state se emite abajo con hidden=true
+       (caso cubierto por el bloque editable general). *@
+    <div id="@displayContainerId" data-usuario-persona-display>
+        <div class="card border mb-0" data-usuario-persona-card>
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3 py-2">
+                <span data-usuario-persona-display-text>@fallbackDisplay</span>
+                @if (showQuitarCambiar)
+                {
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                data-usuario-persona-quitar>
+                            Quitar
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                data-usuario-persona-buscar data-bs-toggle="modal"
+                                data-bs-target="#@modalId">
+                            Cambiar
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+else if (isEditable)
+{
+    @* Caso 6: editable + DTO null + sin FallbackDisplay. La card NO
+       se renderiza — el empty state abajo (visible) cubre la
+       presentación con Buscar Persona. El contenedor display se
+       emite igual para que el JS pueda resolverlo vía
+       `displayContainerId`, pero queda vacío hasta que el modal
+       escriba la persona seleccionada. *@
+    <div id="@displayContainerId" data-usuario-persona-display></div>
 }
 else
 {
-    @* Rama fallback readonly: PersonaDto null pero tenemos
-       FallbackDisplay. Usado por Ocupaciones/Details cuando el
-       fetch de la persona falla — preserva el texto
-       `PersonaNombre` y, si llega FallbackUrl, lo envuelve en
-       <a>. NO emite botones mutables (es readonly). *@
+    @* Caso 2: readonly + DTO null + FallbackDisplay. Usado por
+       Usuarios/Details y Ocupaciones/Details cuando el fetch de la
+       persona falla — preserva el texto `PersonaNombre`/`PersonaDisplay`
+       y, si llega FallbackUrl, lo envuelve en <a>. NO emite botones
+       mutables (es readonly). *@
     <div id="@displayContainerId" data-usuario-persona-display>
         <div class="card-body py-2">
             @if (!string.IsNullOrWhiteSpace(fallbackUrl))
@@ -180,4 +228,38 @@ else
             }
         </div>
     </div>
+}
+
+@* ────────────────────────────────────────────────────────────
+   Empty alternative: en modo editable SIEMPRE se emite (hidden
+   cuando hay persona o fallback, visible cuando no hay nada).
+   El JS lo lee vía `display.parentElement.querySelector(...)` y
+   gestiona visibilidad según el botón Quitar pulse.
+   ──────────────────────────────────────────────────────────── *@
+
+@if (isEditable)
+{
+    <div data-usuario-persona-empty hidden="@(hasPersona || isEditableFallback ? "hidden" : null)">
+        <button type="button" class="btn btn-outline-primary"
+                data-usuario-persona-buscar data-bs-toggle="modal"
+                data-bs-target="@modalId">
+            <i class="ti ti-search me-1"></i>Buscar Persona
+        </button>
+    </div>
+}
+
+@* ────────────────────────────────────────────────────────────
+   Hidden editable: el JS lee este hidden via
+   `display.parentElement.querySelector('[data-usuario-persona-display-input]')`
+   y escribe el texto de la persona seleccionada tras elegir en
+   el modal. Sólo se emite cuando la presentación visible es
+   Quitar/Cambiar (casos 4 y 5); en empty state puro (caso 6) no
+   hay nada que sincronizar.
+   ──────────────────────────────────────────────────────────── *@
+
+@if (isEditable && (hasPersona || isEditableFallback))
+{
+    <input type="hidden" name="PersonaDisplay"
+           value="@displayInputValue"
+           data-usuario-persona-display-input />
 }

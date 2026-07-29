@@ -401,6 +401,79 @@ public sealed class PersonaCardPartialTests
         Assert.Contains("Legajo", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ──────────────────────────────────────────────
+    // Slice 2 / PER-CARD-01 extensión: editable + PersonaDto null +
+    // FallbackDisplay emite una card editable fallback con
+    // Quitar/Cambiar. Caso ejercido por Usuarios/_Form cuando el
+    // fetch del API falla pero el UsuarioDto tiene PersonaId
+    // asignado (Input.PersonaId.HasValue = true).
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task EditableWithPersonaNullAndFallbackDisplay_EmitsEditableFallbackCardWithQuitarCambiar()
+    {
+        var query = "mode=editable&fallbackDisplay=García%2C%20Ana";
+
+        await using var lease = await CreateAdminLeaseAsync();
+        var response = await lease.Client.GetAsync($"/tests/persona-card-harness?{query}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Card y display-text visibles con el texto fallback.
+        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-display-text", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
+        // Acciones mutables Quitar/Cambiar con binding al modal.
+        Assert.Contains("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-toggle=\"modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-bs-target=\"#usuario-persona-buscador-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cambiar", content, StringComparison.OrdinalIgnoreCase);
+        // El empty state se emite pero con hidden="hidden" porque la
+        // fallback card ya cubre la presentación visible. El JS lo
+        // necesita presente para `empty.hidden = false/true` cuando
+        // el usuario pulsa Quitar.
+        Assert.Contains("data-usuario-persona-empty", content, StringComparison.OrdinalIgnoreCase);
+        // El empty debe estar oculto vía atributo hidden cuando la
+        // fallback card ocupa el espacio visible.
+        var emptyMatch = System.Text.RegularExpressions.Regex.Match(
+            content, @"<div\s+data-usuario-persona-empty[^>]*hidden=""hidden""");
+        Assert.True(
+            emptyMatch.Success,
+            "El empty state editable debe emitirse con hidden=\"hidden\" cuando la fallback card ocupa la presentación visible.");
+        Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
+        // El hidden que el JS lee/escribe sigue presente con el valor fallback.
+        Assert.Contains("data-usuario-persona-display-input", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("value=\"García, Ana\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
+    // Slice 2 / PER-CARD-01: editable + PersonaDto null + sin
+    // FallbackDisplay emite el empty state con Buscar Persona.
+    // Caso del flujo "crear nuevo usuario sin persona asignada".
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task EditableWithPersonaNullAndNoFallback_EmitsEmptyStateWithBuscarPersona()
+    {
+        var query = "mode=editable";
+
+        await using var lease = await CreateAdminLeaseAsync();
+        var response = await lease.Client.GetAsync($"/tests/persona-card-harness?{query}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-usuario-persona-empty", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        // Sin card ni Quitar (no hay fallback ni persona).
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        // Sin hidden editable porque no hay nada que sincronizar.
+        Assert.DoesNotContain("data-usuario-persona-display-input", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string BuildQuery(
         string mode,
         Guid personaId,
