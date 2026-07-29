@@ -181,7 +181,7 @@ CREATE TABLE `UnidadesOrganizativas` (
     `DeletedAt` datetime(6) NULL,
     `DeletedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     CONSTRAINT `PK_UnidadesOrganizativas` PRIMARY KEY (`Id`),
-    CONSTRAINT `CK_UnidadesOrganizativas_UnidadPadre` CHECK (`UnidadPadreId` = '' OR `UnidadPadreId` <> `Id`),
+    CONSTRAINT `CK_UnidadesOrganizativas_UnidadPadre` CHECK (`UnidadPadreId` IS NULL OR `UnidadPadreId` <> `Id`),
     CONSTRAINT `FK_UnidadesOrganizativas_UnidadesOrganizativas_UnidadPadreId` FOREIGN KEY (`UnidadPadreId`) REFERENCES `UnidadesOrganizativas` (`Id`) ON DELETE RESTRICT
 ) CHARACTER SET=utf8mb4;
 
@@ -293,7 +293,7 @@ CREATE TABLE `Puestos` (
     `DeletedAt` datetime(6) NULL,
     `DeletedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     CONSTRAINT `PK_Puestos` PRIMARY KEY (`Id`),
-    CONSTRAINT `CK_Puestos_PuestoSuperior` CHECK (`PuestoSuperiorId` = '' OR `PuestoSuperiorId` <> `Id`),
+    CONSTRAINT `CK_Puestos_PuestoSuperior` CHECK (`PuestoSuperiorId` IS NULL OR `PuestoSuperiorId` <> `Id`),
     CONSTRAINT `FK_Puestos_Cargos_CargoId` FOREIGN KEY (`CargoId`) REFERENCES `Cargos` (`Id`) ON DELETE RESTRICT,
     CONSTRAINT `FK_Puestos_Puestos_PuestoSuperiorId` FOREIGN KEY (`PuestoSuperiorId`) REFERENCES `Puestos` (`Id`) ON DELETE RESTRICT,
     CONSTRAINT `FK_Puestos_UnidadesOrganizativas_UnidadOrganizativaId` FOREIGN KEY (`UnidadOrganizativaId`) REFERENCES `UnidadesOrganizativas` (`Id`) ON DELETE RESTRICT
@@ -371,7 +371,7 @@ CREATE TABLE `Postulaciones` (
     `DeletedAt` datetime(6) NULL,
     `DeletedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     CONSTRAINT `PK_Postulaciones` PRIMARY KEY (`Id`),
-    CONSTRAINT `CK_Postulaciones_PuntajeCompatibilidad` CHECK (`PuntajeCompatibilidad` = '' OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)),
+    CONSTRAINT `CK_Postulaciones_PuntajeCompatibilidad` CHECK (`PuntajeCompatibilidad` IS NULL OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)),
     CONSTRAINT `FK_Postulaciones_EstadosPostulacion_EstadoPostulacionId` FOREIGN KEY (`EstadoPostulacionId`) REFERENCES `EstadosPostulacion` (`Id`) ON DELETE RESTRICT,
     CONSTRAINT `FK_Postulaciones_Postulantes_PostulanteId` FOREIGN KEY (`PostulanteId`) REFERENCES `Postulantes` (`Id`) ON DELETE RESTRICT,
     CONSTRAINT `FK_Postulaciones_Vacantes_VacanteId` FOREIGN KEY (`VacanteId`) REFERENCES `Vacantes` (`Id`) ON DELETE RESTRICT
@@ -395,9 +395,9 @@ CREATE TABLE `EvaluacionesPostulacion` (
     `DeletedAt` datetime(6) NULL,
     `DeletedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     CONSTRAINT `PK_EvaluacionesPostulacion` PRIMARY KEY (`Id`),
-    CONSTRAINT `CK_EvaluacionesPostulacion_PuntajeCompatibilidad` CHECK (`PuntajeCompatibilidad` = '' OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)),
-    CONSTRAINT `CK_EvaluacionesPostulacion_PuntajeEntrevista` CHECK (`PuntajeEntrevista` = '' OR (`PuntajeEntrevista` >= 0 AND `PuntajeEntrevista` <= 100)),
-    CONSTRAINT `CK_EvaluacionesPostulacion_PuntajeTecnico` CHECK (`PuntajeTecnico` = '' OR (`PuntajeTecnico` >= 0 AND `PuntajeTecnico` <= 100)),
+    CONSTRAINT `CK_EvaluacionesPostulacion_PuntajeCompatibilidad` CHECK (`PuntajeCompatibilidad` IS NULL OR (`PuntajeCompatibilidad` >= 0 AND `PuntajeCompatibilidad` <= 100)),
+    CONSTRAINT `CK_EvaluacionesPostulacion_PuntajeEntrevista` CHECK (`PuntajeEntrevista` IS NULL OR (`PuntajeEntrevista` >= 0 AND `PuntajeEntrevista` <= 100)),
+    CONSTRAINT `CK_EvaluacionesPostulacion_PuntajeTecnico` CHECK (`PuntajeTecnico` IS NULL OR (`PuntajeTecnico` >= 0 AND `PuntajeTecnico` <= 100)),
     CONSTRAINT `FK_EvaluacionesPostulacion_Postulaciones_PostulacionId` FOREIGN KEY (`PostulacionId`) REFERENCES `Postulaciones` (`Id`) ON DELETE CASCADE
 ) CHARACTER SET=utf8mb4;
 
@@ -984,7 +984,7 @@ CREATE TABLE `TiposDocumento` (
     `LongitudMaxima` int NULL,
     CONSTRAINT `PK_TiposDocumento` PRIMARY KEY (`Id`),
     CONSTRAINT `CK_TiposDocumento_Codigo` CHECK (`Codigo` <> ''),
-    CONSTRAINT `CK_TiposDocumento_Longitudes` CHECK (`LongitudMinima` = '' OR `LongitudMaxima` = '' OR `LongitudMinima` <= `LongitudMaxima`)
+    CONSTRAINT `CK_TiposDocumento_Longitudes` CHECK (`LongitudMinima` IS NULL OR `LongitudMaxima` IS NULL OR `LongitudMinima` <= `LongitudMaxima`)
 ) CHARACTER SET=utf8mb4;
 
 INSERT INTO `TiposDocumento` (`Id`, `Codigo`, `Nombre`, `PatronValidacion`, `LongitudMinima`, `LongitudMaxima`)
