@@ -858,7 +858,6 @@ VALUES ('20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad', '9.0.0
 
 
 
-CREATE UNIQUE INDEX `IX_Ocupaciones_PuestoIdUnique_IsDeleted` ON `Ocupaciones` (`PuestoId`, `IsDeleted`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260711181615_FixActivePuestoIdUniqueType', '9.0.0');
@@ -1166,52 +1165,42 @@ VALUES ('20260723203015_AddCategoriaHabilidadCatalog', '9.0.0');
 
 
 
-CREATE UNIQUE INDEX `IX_UnidadesOrganizativas_CodigoUnique_IsDeleted` ON `UnidadesOrganizativas` (`Codigo`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Puestos_CodigoUnique_IsDeleted` ON `Puestos` (`Codigo`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Postulantes_PersonaIdUnique_IsDeleted` ON `Postulantes` (`PersonaId`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Personas_LegajoUnique_IsDeleted` ON `Personas` (`Legajo`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Personas_EmailUnique_IsDeleted` ON `Personas` (`Email`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Personas_DocumentoUnique_IsDeleted` ON `Personas` (`TipoDocumentoId`, `NumeroDocumento`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Ocupaciones_PuestoIdUnique_IsDeleted` ON `Ocupaciones` (`PuestoId`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Ocupaciones_PersonaPuestoUnique_IsDeleted` ON `Ocupaciones` (`PersonaId`, `PuestoId`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Habilidades_CodigoUnique_IsDeleted` ON `Habilidades` (`Codigo`, `IsDeleted`);
 
 
 
 
-CREATE UNIQUE INDEX `IX_Cargos_CodigoUnique_IsDeleted` ON `Cargos` (`Codigo`, `IsDeleted`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260729145632_MariaDbStoredColumnsAndCollation', '9.0.0');
