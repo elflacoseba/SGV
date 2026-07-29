@@ -94,6 +94,11 @@ public sealed class OcupacionCreatePageTests
 
         Assert.Contains("name=\"Input.PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"Input.PuestoId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(
+            Regex.Matches(
+                content,
+                @"<select\b[^>]*\bname=""Input\.PuestoId""",
+                RegexOptions.IgnoreCase));
         Assert.Contains("name=\"Input.FechaInicio\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"Input.TipoAsignacion\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"Input.Observaciones\"", content, StringComparison.OrdinalIgnoreCase);

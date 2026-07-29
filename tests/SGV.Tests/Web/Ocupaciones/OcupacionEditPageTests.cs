@@ -110,6 +110,11 @@ public sealed class OcupacionEditPageTests
             $"<option selected=\"selected\" value=\"{puestoId:D}\"",
             content,
             StringComparison.OrdinalIgnoreCase);
+        Assert.Single(
+            Regex.Matches(
+                content,
+                @"<select\b[^>]*\bname=""Input\.PuestoId""",
+                RegexOptions.IgnoreCase));
 
         // PersonaVinculada se enriquece vía GetByIdAsync — una sola
         // invocación con el id resuelto.

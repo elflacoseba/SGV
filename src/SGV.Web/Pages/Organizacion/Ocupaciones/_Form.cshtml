@@ -96,16 +96,6 @@
         </div>
     </div>
 
-    <div class="col-md-6">
-        <div class="form-floating">
-            <select asp-for="Input.PuestoId" class="form-select"
-                    asp-items="@(new SelectList(Model.PuestoOptions, "Id", "Nombre"))">
-                <option value="">Seleccionar puesto...</option>
-            </select>
-            <label asp-for="Input.PuestoId">Puesto</label>
-            <span asp-validation-for="Input.PuestoId" class="text-danger"></span>
-        </div>
-    </div>
 
     <div class="col-md-6">
         <div class="form-floating">
