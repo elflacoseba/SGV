@@ -382,6 +382,37 @@ public sealed class DetailsPageTests
     }
 
     // ──────────────────────────────────────────────
+    // Slice 2 / PER-CARD-09: la migración a la partial preserva el
+    // contenedor `data-usuario-persona-display` que el JS espera.
+    // Demuestra que Details usa la partial, no markup inline.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiReturnsDto_RendersPartialPersonaDisplayContainer()
+    {
+        var personaId = Guid.NewGuid();
+        var personaDto = new PersonaDto(personaId, "L-7777", "Ana", "García", "ana@example.com", null, "DNI", "DNI", "30123456", "+54 11 5555-0000", true);
+        var usuario = BuildUsuario("u-detail-partial-container", personaId);
+        var usuarioApiClient = FakeUsuarioApiClient.WithUsuarioList(usuario);
+        var personaApiClient = FakePersonaApiClient.WithPersonaList(personaDto);
+
+        await using var lease = await _fixture.CreateUsuarioLeaseAsync(
+            usuarioApiClient, personaApiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/seguridad/usuarios/detalle/{usuario.Id}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // El contenedor display del partial está presente (binding JS).
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        // El id del contenedor sigue siendo el default "usuario-persona-display".
+        Assert.Contains("id=\"usuario-persona-display\"", content, StringComparison.OrdinalIgnoreCase);
+        // ShowQuitarCambiar=false (Details es readonly) — el partial no emite estos selectores.
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────
     // REQ-ULD-04: ausencia de controles de selección en Details (read-only).
     // ──────────────────────────────────────────────
 
@@ -457,17 +488,22 @@ public sealed class DetailsPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        // Fallback plano: atributo neutral data-usuario-details-persona.
-        Assert.Contains("data-usuario-details-persona", content, StringComparison.OrdinalIgnoreCase);
-        // El display plano "García, Ana" derivado del UsuarioDto.
+        // Slice 2: el fallback del Details ahora sale del partial en
+        // modo readonly. El contenedor `data-usuario-persona-display`
+        // sigue presente (binding JS), con el display "García, Ana" y
+        // el link al detalle de Persona.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
-        // La card enriquecida NO debe renderizarse.
-        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
-        // El link al detalle de Persona se conserva como título.
         Assert.Contains(
             $"href=\"/personas/detalle/{personaId:D}\"",
             content,
             StringComparison.OrdinalIgnoreCase);
+        // La card enriquecida NO debe renderizarse (DTO null → rama fallback).
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        // Detalles es readonly — sin botones mutables ni modal buscador.
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("usuario-persona-buscador-modal", content, StringComparison.OrdinalIgnoreCase);
         // El Guid crudo ya NO debe aparecer como texto del fallback.
         Assert.DoesNotContain($">{personaId:D}</a>", content, StringComparison.OrdinalIgnoreCase);
         // El detalle del usuario debe renderizar completo, NO estado
@@ -498,10 +534,13 @@ public sealed class DetailsPageTests
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        // Fallback plano, mismo shape que el caso 404.
-        Assert.Contains("data-usuario-details-persona", content, StringComparison.OrdinalIgnoreCase);
+        // Fallback del partial readonly, mismo shape que el caso 404.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("García, Ana", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        // Detalles es readonly — sin botones mutables ni modal buscador.
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
         // El detalle del usuario debe renderizar completo. NO debe
         // aparecer el mensaje de estado recuperable "no está disponible".
         Assert.DoesNotContain("no está disponible", content, StringComparison.OrdinalIgnoreCase);

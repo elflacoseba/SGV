@@ -33,9 +33,9 @@ Chain strategy: stacked-to-main
 
 ## Slice 2: Usuarios (depende de Slice 1; base: `main` tras PR 1)
 
-- [ ] 2.1 RED: ampliar `tests/SGV.Tests/Web/Usuario/DetailsPageTests.cs` y `EditPageTests.cs` para paridad readonly, enlace, acciones editables y contrato JS.
-- [ ] 2.2 GREEN: migrar `src/SGV.Web/Pages/Seguridad/Usuarios/Details.cshtml` y `_Form.cshtml`; retirar ambos helpers Razor inline sin cambiar PageModels ni JS.
-- [ ] 2.3 Verificar ≤250 líneas, tests Usuario y commit `refactor(web): reuse persona card in usuarios`.
+- [x] 2.1 RED: ampliar `tests/SGV.Tests/Web/Usuario/DetailsPageTests.cs` y `EditPageTests.cs` para paridad readonly, enlace, acciones editables y contrato JS.
+- [x] 2.2 GREEN: migrar `src/SGV.Web/Pages/Seguridad/Usuarios/Details.cshtml` y `_Form.cshtml`; retirar ambos helpers Razor inline sin cambiar PageModels ni JS.
+- [x] 2.3 Verificar ≤250 líneas, tests Usuario y commit `refactor(web): reuse persona card in usuarios`.
 
 ## Slice 3: Ocupaciones (depende de Slice 1; base: `main` tras PR 2)
 
