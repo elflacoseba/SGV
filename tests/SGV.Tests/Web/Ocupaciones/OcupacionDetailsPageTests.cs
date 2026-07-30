@@ -153,7 +153,10 @@ public sealed class OcupacionDetailsPageTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Finalizar", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Eliminar", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"href=\"/organizacion/ocupaciones/editar/{id:D}\"", content, StringComparison.OrdinalIgnoreCase);
+        // REQ-DET-BTN-004: el href del botón Editar se genera vía Url.Page
+        // con parámetros de paginación preservados (p/search/sort).
+        Assert.Contains($"href=\"/organizacion/ocupaciones/editar/{id}", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("p=1", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────────
