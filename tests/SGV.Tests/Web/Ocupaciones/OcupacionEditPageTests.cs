@@ -487,4 +487,103 @@ public sealed class OcupacionEditPageTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("No se pudo contactar al servicio", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────────
+    // Slice 3 / issue #219 — Migración de Ocupaciones/_Form
+    // a la partial unificada `_PersonaCard` (modo editable) en
+    // el flujo Edit. El form gana Email, Teléfono, badge de
+    // Estado de Persona, además de los botones Quitar/Cambiar.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Edit_WhenVigenteWithPersonaDto_RendersEnrichedEditableCardWithQuitarCambiar()
+    {
+        var id = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+        var puestoId = Guid.NewGuid();
+        var current = SampleDto(id: id, personaId: personaId, puestoId: puestoId);
+        var personaDto = new PersonaDto(
+            Id: personaId,
+            Legajo: "L-8800",
+            Nombres: "Ana",
+            Apellidos: "García",
+            Email: "ana.garcia@example.com",
+            TipoDocumentoId: Guid.NewGuid(),
+            TipoDocumentoCodigo: "DNI",
+            TipoDocumentoNombre: "Documento Nacional de Identidad",
+            NumeroDocumento: "30123456",
+            Telefono: "+54 11 5555-8800",
+            IsActive: true);
+
+        var personaClient = FakePersonaApiClient.WithPersonaList(personaDto);
+        var puestosClient = FakePuestosApiClient.WithPuestoList(
+            new PuestoDto(puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null));
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = current };
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, puestosClient);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/editar/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // PER-CARD-01/02: card enriquecida presente en Edit.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ana.garcia@example.com", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("+54 11 5555-8800", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Activa", content, StringComparison.OrdinalIgnoreCase);
+
+        // PER-CARD-01/04: Quitar y Cambiar presentes en editable.
+        Assert.Contains("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        // Razor preserva whitespace entre el texto del botón y el cierre,
+        // así que el texto "Quitar" / "Cambiar" aparece antes de </button>
+        // con whitespace de por medio.
+        Assert.Matches(@"<button[^>]*data-usuario-persona-quitar[^>]*>\s*Quitar\s*</button>", content);
+        Assert.Matches(@"<button[^>]*data-usuario-persona-buscar[^>]*>\s*Cambiar\s*</button>", content);
+
+        // PER-CARD-05: botón Buscar apunta al modal compartido.
+        Assert.Contains("data-bs-target=\"#ocupacion-persona-buscador-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=\"ocupacion-persona-buscador-modal\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // El hidden de binding JS persiste con el display correcto.
+        Assert.Contains("data-usuario-persona-display-input", content, StringComparison.OrdinalIgnoreCase);
+
+        // PersonaVinculada se enriquece vía GetByIdAsync.
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+    }
+
+    [Fact]
+    public async Task Get_Edit_WhenPersonaNotFound_RendersEmptyStateWithoutQuitarCambiar()
+    {
+        // PersonaId resuelto en el DTO de la Ocupacion pero
+        // GetByIdAsync devuelve null. Como
+        // `EnriquecerPersonaAsync` setea `PersonaDisplay = null` cuando
+        // el DTO es null, el partial cae al "caso 6" (editable + DTO
+        // null + sin FallbackDisplay): empty state con Buscar Persona.
+        // Sin Quitar/Cambiar hasta que el DTO cargue.
+        var id = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+        var current = SampleDto(id: id, personaId: personaId, puestoId: Guid.NewGuid());
+        var personaClient = new FakePersonaApiClient(); // GetByIdAsync = null
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = current };
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, puestosClient);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/editar/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+
+        // Empty state con Buscar Persona, sin card ni Quitar.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-empty", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+    }
 }
