@@ -29,7 +29,7 @@
     var displayInput = display && display.parentElement.querySelector('[data-usuario-persona-display-input]');
     var card = display && display.querySelector('[data-usuario-persona-card]');
     var cardText = display && display.querySelector('[data-usuario-persona-display-text]');
-    var empty = display && display.querySelector('[data-usuario-persona-empty]');
+    var empty = display && display.parentElement.querySelector('[data-usuario-persona-empty]');
     var submit = root.querySelector('[data-usuario-persona-submit]');
     var debounceTimer;
     var lastTrigger;
