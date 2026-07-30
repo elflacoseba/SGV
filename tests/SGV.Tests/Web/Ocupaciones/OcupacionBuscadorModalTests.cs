@@ -115,10 +115,17 @@ public sealed class OcupacionBuscadorModalTests
             @"<input(?=[^>]*name=""Input\.PersonaId"")(?=[^>]*type=""hidden"")[^>]*>",
             content);
 
-        // La card y el botón Buscar Persona están visibles en estado vacío.
+        // Slice 3 / issue #219: la card sale de la partial unificada
+        // `_PersonaCard` (modo editable). En estado vacío sin PersonaId
+        // la partial cae al "caso 6" (editable + DTO null + sin
+        // FallbackDisplay): contenedor display vacío + empty state con
+        // botón Buscar Persona — sin card div ni Quitar hasta que el
+        // usuario seleccione una persona vía el modal.
         Assert.Contains("data-usuario-persona-empty", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
