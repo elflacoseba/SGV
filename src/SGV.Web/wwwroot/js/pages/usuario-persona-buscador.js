@@ -226,12 +226,23 @@
 
     root.querySelectorAll('[data-usuario-persona-quitar]').forEach(function (button) {
         button.addEventListener('click', function () {
+            // USBJS-03: limpiar hiddenInput y currentPersonaId siempre;
+            // abortar mutaciones del display si falta algún elemento del contrato.
             hiddenInput.value = '';
+            modal.dataset.currentPersonaId = '';
+
+            if (!displayInput || !cardText || !card || !empty) {
+                console.warn(
+                    '[usuario-persona-buscador] Quitar aborted: missing card contract elements. '
+                    + 'modalId=' + modal.id + ', displayContainerId=' + modal.dataset.displayContainerId
+                );
+                return;
+            }
+
             displayInput.value = '';
             cardText.textContent = '';
             card.hidden = true;
             empty.hidden = false;
-            modal.dataset.currentPersonaId = '';
             if (submit) {
                 submit.disabled = true;
             }
