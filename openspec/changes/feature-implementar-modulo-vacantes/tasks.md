@@ -37,10 +37,10 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2 — Data layer
 
-- [ ] 2.1 `src/SGV.Infraestructura/Persistencia/Repositorios/VacanteRepository.cs` con `GetByIdAsync`, `ListarAsync(segmento)`, `ExistsAbiertaByPuestoAsync`, `GetByIdForUpdateAsync`.
-- [ ] 2.2 `ToDomain`/`ToEntity` en `PersistenceToDomainMapper.cs` y `DomainToPersistenceMapper.cs`.
-- [ ] 2.3 RED `VacanteRepositoryQueryTests.Segmento_Abiertas_ExcluyeTerminales`.
-- [ ] 2.4 RED `VacanteRepositoryQueryTests.CambiarEstado_AtomicidadVacanteEHistorial`.
+- [x] 2.1 `src/SGV.Infraestructura/Persistencia/Repositorios/VacanteRepository.cs` con `GetByIdAsync`, `ListarAsync(segmento)`, `ExistsAbiertaByPuestoAsync`, `GetByIdForUpdateAsync`.
+- [x] 2.2 `ToDomain`/`ToEntity` en `PersistenceToDomainMapper.cs` y `DomainToPersistenceMapper.cs`.
+- [x] 2.3 RED `VacanteRepositoryQueryTests.Segmento_Abiertas_ExcluyeTerminales`.
+- [x] 2.4 RED `VacanteRepositoryQueryTests.CambiarEstado_AtomicidadVacanteEHistorial`.
 
 ## Phase 3 — Behavior
 
