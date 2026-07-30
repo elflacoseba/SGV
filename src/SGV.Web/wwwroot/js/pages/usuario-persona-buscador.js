@@ -53,12 +53,24 @@
 
     function choose(persona) {
         var text = personaDisplay(persona);
+        // USBJS-02: actualizar hiddenInput y currentPersonaId siempre (la
+        // selección del usuario es válida aunque el display no se pueda
+        // sincronizar). Solo el bloque de mutación del display es abortable.
         hiddenInput.value = persona.id;
+        modal.dataset.currentPersonaId = persona.id;
+
+        if (!displayInput || !cardText || !card || !empty) {
+            console.warn(
+                '[usuario-persona-buscador] choose() aborted: missing card contract elements. '
+                + 'modalId=' + modal.id + ', displayContainerId=' + modal.dataset.displayContainerId
+            );
+            return;
+        }
+
         displayInput.value = text;
         cardText.textContent = text;
         card.hidden = false;
         empty.hidden = true;
-        modal.dataset.currentPersonaId = persona.id;
         if (submit) {
             submit.disabled = false;
         }
