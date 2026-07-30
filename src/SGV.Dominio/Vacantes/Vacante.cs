@@ -53,4 +53,17 @@ public sealed record class Vacante : EntidadAuditable
         _historialEstados.Add(cambio);
         return cambio;
     }
+
+    /// <summary>
+    /// Updates the free-form observations for this <see cref="Vacante"/>.
+    /// </summary>
+    /// <param name="observaciones">
+    /// New observations text. <see langword="null"/>, empty or whitespace-only
+    /// values clear the existing observations. Values longer than
+    /// 500 characters after trimming throw <see cref="ArgumentException"/>.
+    /// </param>
+    public void ActualizarObservaciones(string? observaciones)
+    {
+        Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 500);
+    }
 }
