@@ -53,24 +53,31 @@
 
     function choose(persona) {
         var text = personaDisplay(persona);
-        // USBJS-02: actualizar hiddenInput y currentPersonaId siempre (la
-        // selección del usuario es válida aunque el display no se pueda
-        // sincronizar). Solo el bloque de mutación del display es abortable.
+        // USBJS-02 (revisión #226-followup 2026-07-30): la selección del
+        // usuario es siempre válida. El chequeo del contrato ya no aborta
+        // el flujo: si los elementos del contrato están presentes (casos
+        // 4/5), muta el display; si NO están (caso 6: empty state puro),
+        // renderiza una card mínima con Quitar/Cambiar. SIEMPRE cierra el
+        // modal, dispara el evento change sobre hiddenInput y habilita el
+        // submit (si existe) — la persona queda seleccionada y el
+        // PageModel se entera vía Input.PersonaId al guardar.
         hiddenInput.value = persona.id;
         modal.dataset.currentPersonaId = persona.id;
 
-        if (!displayInput || !cardText || !card || !empty) {
+        if (displayInput && cardText && card && empty) {
+            displayInput.value = text;
+            cardText.textContent = text;
+            card.hidden = false;
+            empty.hidden = true;
+        } else {
+            // Caso 6: render dinámico de card mínima en JS.
             console.warn(
-                '[usuario-persona-buscador] choose() aborted: missing card contract elements. '
+                '[usuario-persona-buscador] choose() en empty case: render dinámico. '
                 + 'modalId=' + modal.id + ', displayContainerId=' + modal.dataset.displayContainerId
             );
-            return;
+            renderDynamicCard(text);
         }
 
-        displayInput.value = text;
-        cardText.textContent = text;
-        card.hidden = false;
-        empty.hidden = true;
         if (submit) {
             submit.disabled = false;
         }
@@ -80,6 +87,77 @@
             currentFetchController = null;
         }
         window.bootstrap.Modal.getOrCreateInstance(modal).hide();
+    }
+
+    // USBJS-02 (render dinámico caso 6): cuando la partial no emite la
+    // card (Caso 6: editable + PersonaDto null + sin FallbackDisplay), el
+    // JS construye una card mínima con texto + Quitar + Cambiar dentro
+    // del contenedor display. Replica visualmente el Caso 5 (fallback
+    // card) sin requerir recargar la página ni fetch del DTO.
+    function renderDynamicCard(text) {
+        if (!display) {
+            return;
+        }
+
+        // Limpiar contenido previo del display (incluye el contenedor vacío
+        // emitido por la partial en el Caso 6).
+        display.replaceChildren();
+
+        // Wrapper de card.
+        var cardEl = root.createElement('div');
+        cardEl.className = 'card border mb-0';
+        cardEl.setAttribute('data-usuario-persona-card', '');
+
+        var cardBody = root.createElement('div');
+        cardBody.className = 'card-body d-flex flex-wrap justify-content-between align-items-center gap-3 py-2';
+
+        // Texto visible de la persona seleccionada.
+        var textEl = root.createElement('span');
+        textEl.setAttribute('data-usuario-persona-display-text', '');
+        textEl.textContent = text;
+        cardBody.appendChild(textEl);
+
+        // Botones Quitar / Cambiar.
+        var buttonsDiv = root.createElement('div');
+        buttonsDiv.className = 'd-flex gap-2';
+
+        var quitarBtn = root.createElement('button');
+        quitarBtn.type = 'button';
+        quitarBtn.className = 'btn btn-sm btn-outline-danger';
+        quitarBtn.setAttribute('data-usuario-persona-quitar', '');
+        quitarBtn.textContent = 'Quitar';
+        quitarBtn.addEventListener('click', handleQuitar);
+        buttonsDiv.appendChild(quitarBtn);
+
+        var cambiarBtn = root.createElement('button');
+        cambiarBtn.type = 'button';
+        cambiarBtn.className = 'btn btn-sm btn-outline-primary';
+        cambiarBtn.setAttribute('data-usuario-persona-buscar', '');
+        cambiarBtn.setAttribute('data-bs-toggle', 'modal');
+        cambiarBtn.setAttribute('data-bs-target', '#' + modal.id);
+        cambiarBtn.textContent = 'Cambiar';
+        buttonsDiv.appendChild(cambiarBtn);
+
+        cardBody.appendChild(buttonsDiv);
+        cardEl.appendChild(cardBody);
+        display.appendChild(cardEl);
+
+        // Hidden input que el JS sincroniza con el display (mismo nombre
+        // y atributo que emite la partial en el Caso 5, así la próxima
+        // invocación de choose() con persona nueva encuentra el contrato
+        // completo y entra al camino de mutación normal).
+        var hidden = root.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'PersonaDisplay';
+        hidden.setAttribute('data-usuario-persona-display-input', '');
+        hidden.value = text;
+        display.appendChild(hidden);
+
+        // Ocultar el empty state para que la card quede como única
+        // presentación visible.
+        if (empty) {
+            empty.hidden = true;
+        }
     }
 
     function appendCell(row, value) {
@@ -224,30 +302,41 @@
     });
     searchButton.addEventListener('click', function () { search(1); });
 
-    root.querySelectorAll('[data-usuario-persona-quitar]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            // USBJS-03: limpiar hiddenInput y currentPersonaId siempre;
-            // abortar mutaciones del display si falta algún elemento del contrato.
-            hiddenInput.value = '';
-            modal.dataset.currentPersonaId = '';
+    // USBJS-03 (revisión #226-followup 2026-07-30): el handler Quitar
+    // ahora es una función nombrada para poder reusarla desde el render
+    // dinámico del Caso 6 (los botones Quitar que crea renderDynamicCard
+    // bindean este mismo handler). SIEMPRE limpia hiddenInput +
+    // currentPersonaId + emite change. El camino de presentación depende
+    // del contrato disponible: caso 4/5 muta el display existente; caso 6
+    // limpia el render dinámico y muestra el empty state.
+    function handleQuitar() {
+        hiddenInput.value = '';
+        modal.dataset.currentPersonaId = '';
 
-            if (!displayInput || !cardText || !card || !empty) {
-                console.warn(
-                    '[usuario-persona-buscador] Quitar aborted: missing card contract elements. '
-                    + 'modalId=' + modal.id + ', displayContainerId=' + modal.dataset.displayContainerId
-                );
-                return;
-            }
-
+        if (displayInput && cardText && card && empty) {
+            // Caso 4/5: comportamiento original.
             displayInput.value = '';
             cardText.textContent = '';
             card.hidden = true;
             empty.hidden = false;
-            if (submit) {
-                submit.disabled = true;
+        } else {
+            // Caso 6: limpiar render dinámico y volver al empty state.
+            if (display) {
+                display.replaceChildren();
             }
-            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+            if (empty) {
+                empty.hidden = false;
+            }
+        }
+
+        if (submit) {
+            submit.disabled = true;
+        }
+        hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    root.querySelectorAll('[data-usuario-persona-quitar]').forEach(function (button) {
+        button.addEventListener('click', handleQuitar);
     });
 
     modal.addEventListener('show.bs.modal', function (event) { lastTrigger = event.relatedTarget; });
