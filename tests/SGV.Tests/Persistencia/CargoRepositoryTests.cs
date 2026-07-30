@@ -51,13 +51,40 @@ public sealed class CargoRepositoryTests
     {
         await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
 
-        var repo = new CargoRepository(context);
-        var entidades = await repo.ListAllAsync(default);
+        // Self-contained: insertamos 3 cargos con prefijo único para verificar
+        // el orden por Codigo asc sin depender de la semilla compartida de
+        // DatosSemilla en sgv_test (que puede perderse por limpiezas manuales).
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var e2 = RepositoryTestData.CreateCargo($"LST-ORD-{sufijo}-B", NivelIdValido, "Bravo");
+        var e1 = RepositoryTestData.CreateCargo($"LST-ORD-{sufijo}-A", NivelIdValido, "Alpha");
+        var e3 = RepositoryTestData.CreateCargo($"LST-ORD-{sufijo}-C", NivelIdValido, "Charlie");
+        var nuevos = new[] { e1, e2, e3 };
 
-        Assert.NotEmpty(entidades);
-        for (var i = 1; i < entidades.Count; i++)
+        await context.Set<CargoEntity>().AddRangeAsync(nuevos);
+        await context.SaveChangesAsync();
+
+        try
         {
-            Assert.True(string.Compare(entidades[i - 1].Codigo, entidades[i].Codigo, StringComparison.Ordinal) <= 0);
+            var repo = new CargoRepository(context);
+            var entidades = await repo.ListAllAsync(default);
+
+            // Filtramos a los recién insertados: la tabla puede contener
+            // otros cargos (semilla, tests paralelos) pero a nosotros solo
+            // nos importa el orden de los nuestros.
+            var propios = entidades
+                .Where(c => nuevos.Select(n => n.Id).Contains(c.Id))
+                .ToList();
+
+            Assert.Equal(3, propios.Count);
+            Assert.Equal(new[] { e1.Codigo, e2.Codigo, e3.Codigo }, propios.Select(c => c.Codigo));
+        }
+        finally
+        {
+            context.Set<CargoEntity>().RemoveRange(
+                await context.Set<CargoEntity>()
+                    .Where(c => c.Id == e1.Id || c.Id == e2.Id || c.Id == e3.Id)
+                    .ToListAsync());
+            await context.SaveChangesAsync();
         }
     }
 
