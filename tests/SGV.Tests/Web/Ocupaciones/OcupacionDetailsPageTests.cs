@@ -4,8 +4,11 @@ using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Ocupaciones.Dtos;
 using SGV.Contracts.Ocupaciones.Enums;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
+using SGV.Tests.Web.Persona;
 using SGV.Web.Integration.Ocupaciones;
+using SGV.Web.Integration.Personas;
 using Xunit;
 
 namespace SGV.Tests.Web.Ocupaciones;
@@ -17,6 +20,14 @@ namespace SGV.Tests.Web.Ocupaciones;
 /// Admin + estado, validación FechaFin (REQ-OCC-FORM-007), feedback de
 /// 409 por colisión al reactivar (REQ-OCC-FORM-008), 401, 404, transporte
 /// recuperable y gate de lectura anónimo.
+/// <para>
+/// Slice 3 del change <c>reusable-persona-card</c> (issue #219): extiende
+/// la cobertura para la migración de <c>Ocupaciones/Details.cshtml</c> a
+/// la partial unificada <c>_PersonaCard</c>. Cubre el enriquecimiento
+/// opcional vía <see cref="IPersonaApiClient.GetByIdAsync"/>, el fallback
+/// silencioso a <c>PersonaNombre</c> cuando el fetch falla, y la
+/// preservación del contrato <c>data-*</c> del binding JS.
+/// </para>
 /// </summary>
 [Collection("WebIntegration")]
 public sealed class OcupacionDetailsPageTests
@@ -25,8 +36,26 @@ public sealed class OcupacionDetailsPageTests
 
     public OcupacionDetailsPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
-    private async Task<WebClientLease> CreateLeaseAsync(IOcupacionApiClient ocupacion, bool adminRole = false)
-        => await _fixture.CreateOcupacionLeaseAsync(ocupacion, adminRole);
+    private async Task<WebClientLease> CreateLeaseAsync(
+        IOcupacionApiClient ocupacion,
+        IPersonaApiClient? persona = null,
+        bool adminRole = false)
+    {
+        if (persona is null)
+        {
+            return await _fixture.CreateOcupacionLeaseAsync(ocupacion, adminRole);
+        }
+
+        // Reutiliza el form lease (que ya inyecta persona/puestos) y le
+        // descarta los puestos. Slice 3 sólo necesita el cliente de
+        // persona para triangular el enriquecimiento de la card.
+        var puestos = new SGV.Tests.Web.Puesto.FakePuestosApiClient();
+        return await _fixture.CreateOcupacionFormLeaseAsync(
+            ocupacion,
+            persona,
+            puestos,
+            adminRole);
+    }
 
     private static OcupacionDto SampleDto(
         Guid? id = null,
@@ -365,5 +394,192 @@ public sealed class OcupacionDetailsPageTests
         var followUp = await lease.Client.GetAsync($"/organizacion/ocupaciones/detalles/{id:D}");
         var followContent = HttpUtility.HtmlDecode(await followUp.Content.ReadAsStringAsync());
         Assert.Contains("No se pudo contactar al servicio", followContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────────
+    // Slice 3 / issue #219 — Migración de Ocupaciones/Details
+    // a la partial unificada `_PersonaCard` (modo readonly). El
+    // PageModel inyecta IPersonaApiClient, llama
+    // GetByIdAsync(Ocupacion.PersonaId) y expone el resultado en
+    // OcupacionDetailsViewModel.Persona. Sobre 404 o falla de
+    // transporte cae al fallback PersonaNombre sin marcar IsNotFound.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiReturnsDto_RendersEnrichedPersonaCardWithLink()
+    {
+        // GIVEN: OcupacionDto con PersonaId válido y GetByIdAsync devuelve DTO completo.
+        var id = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+        var personaDto = new PersonaDto(
+            Id: personaId,
+            Legajo: "L-3210",
+            Nombres: "Ana",
+            Apellidos: "García",
+            Email: "ana.garcia@example.com",
+            TipoDocumentoId: Guid.NewGuid(),
+            TipoDocumentoCodigo: "DNI",
+            TipoDocumentoNombre: "Documento Nacional de Identidad",
+            NumeroDocumento: "30123456",
+            Telefono: "+54 11 5555-3210",
+            IsActive: true);
+
+        var dto = FakeOcupacionApiClient.BuildDto(
+            id: id,
+            personaId: personaId,
+            personaNombre: "Ana García");
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = dto };
+        var personaClient = FakePersonaApiClient.WithPersonaList(personaDto);
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // PER-CARD-01/02: la card enriquecida emite contenedor + card.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+
+        // PER-CARD-02: Email, Teléfono y badge de Estado están presentes.
+        Assert.Contains("ana.garcia@example.com", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("+54 11 5555-3210", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Activa", content, StringComparison.OrdinalIgnoreCase);
+
+        // PER-CARD-10: el Nombre se enlaza al detalle de Persona.
+        Assert.Contains(
+            $"href=\"/personas/detalle/{personaId:D}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+
+        // PER-CARD-03: ShowStatusBadge=true → el badge "Estado" está en la card.
+        Assert.Contains("Estado", content, StringComparison.OrdinalIgnoreCase);
+
+        // Details es readonly → sin botones mutables (PER-CARD-01/04).
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+
+        // El API de Persona se llamó exactamente una vez con el PersonaId resuelto.
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiReturns404_FallsBackToPersonaNombreWithLink()
+    {
+        // GIVEN: OcupacionDto con PersonaId válido pero GetByIdAsync devuelve null (404).
+        var id = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+        var dto = FakeOcupacionApiClient.BuildDto(
+            id: id,
+            personaId: personaId,
+            personaNombre: "Ana García");
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = dto };
+        // Fake vacío → GetByIdAsync devuelve null.
+        var personaClient = new FakePersonaApiClient();
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // PER-CARD-06: el PageModel cae al fallback con PersonaNombre, sin
+        // marcar IsNotFound (la ocupación sí existe; sólo se degrada la card).
+        Assert.DoesNotContain("La ocupación solicitada no está disponible", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Detalle de ocupación", content, StringComparison.OrdinalIgnoreCase);
+
+        // Fallback del partial readonly: contenedor display + PersonaNombre con link.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Ana García", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"href=\"/personas/detalle/{personaId:D}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+
+        // Sin card enriquecida (DTO null → rama fallback).
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Activa", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Inactiva", content, StringComparison.OrdinalIgnoreCase);
+
+        // Readonly → sin botones mutables.
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+
+        // El API de Persona se llamó exactamente una vez.
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaApiThrows_FallsBackToPersonaNombreWithoutIsNotFound()
+    {
+        // GIVEN: GetByIdAsync lanza HttpRequestException (falla de transporte).
+        var id = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+        var dto = FakeOcupacionApiClient.BuildDto(
+            id: id,
+            personaId: personaId,
+            personaNombre: "Ana García");
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = dto };
+        var personaClient = new FakePersonaApiClient
+        {
+            GetByIdException = new HttpRequestException("upstream persona unavailable")
+        };
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // PER-CARD-06: el PageModel degrada silenciosamente. NO marca
+        // IsNotFound — la ocupación sí existe, sólo se cae a PersonaNombre.
+        Assert.DoesNotContain("La ocupación solicitada no está disponible", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Detalle de ocupación", content, StringComparison.OrdinalIgnoreCase);
+
+        // Fallback visible con PersonaNombre + link al detalle de Persona.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Ana García", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"href=\"/personas/detalle/{personaId:D}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+
+        // El API de Persona se invocó una vez (la falla no aborta el render).
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+    }
+
+    [Fact]
+    public async Task Get_Details_WhenPersonaIdIsEmpty_FallsBackToPersonaNombreWithoutCallingApi()
+    {
+        // GIVEN: OcupacionDto con PersonaId = Guid.Empty. PageModel NO
+        // debe invocar IPersonaApiClient.GetByIdAsync y debe caer al
+        // fallback con PersonaNombre.
+        var id = Guid.NewGuid();
+        var dto = FakeOcupacionApiClient.BuildDto(
+            id: id,
+            personaId: Guid.Empty,
+            personaNombre: "Persona desconocida");
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = dto };
+        var personaClient = FakePersonaApiClient.WithPersonaList(
+            new PersonaDto(Guid.NewGuid(), "L-001", "Cualquiera", "Cualquiera", null, null, null, null, null, null, true));
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // PersonaId.Empty → no se consulta el API de Persona.
+        Assert.Empty(personaClient.GetByIdCalls);
+
+        // Render correcto con fallback y nombre del DTO wire.
+        Assert.Contains("Persona desconocida", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
     }
 }

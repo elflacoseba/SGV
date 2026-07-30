@@ -634,4 +634,130 @@ public sealed class OcupacionCreatePageTests
         Assert.Contains("Nueva ocupación", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"Input.PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────────
+    // Slice 3 / issue #219 — Migración de Ocupaciones/_Form
+    // a la partial unificada `_PersonaCard` (modo editable). El
+    // form gana Email, Teléfono y badge de Estado de Persona,
+    // además de los botones Quitar y Cambiar (binding JS vigente).
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Create_WithPreloadedPersonaDto_RendersEnrichedEditableCardWithQuitarCambiar()
+    {
+        var personaId = Guid.NewGuid();
+        var personaDto = new PersonaDto(
+            Id: personaId,
+            Legajo: "L-7711",
+            Nombres: "Ana",
+            Apellidos: "García",
+            Email: "ana.garcia@example.com",
+            TipoDocumentoId: Guid.NewGuid(),
+            TipoDocumentoCodigo: "DNI",
+            TipoDocumentoNombre: "Documento Nacional de Identidad",
+            NumeroDocumento: "30123456",
+            Telefono: "+54 11 5555-7711",
+            IsActive: true);
+        var personaClient = FakePersonaApiClient.WithPersonaList(personaDto);
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?personaId={personaId:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // PER-CARD-01/02: la card enriquecida emite contenedor + card.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+
+        // PER-CARD-02: Email, Teléfono y badge de Estado presentes.
+        Assert.Contains("ana.garcia@example.com", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("+54 11 5555-7711", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Activa", content, StringComparison.OrdinalIgnoreCase);
+
+        // PER-CARD-01/04: Quitar y Cambiar presentes en editable.
+        Assert.Contains("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-buscar", content, StringComparison.OrdinalIgnoreCase);
+        // Razor preserva whitespace entre el texto del botón y el cierre,
+        // así que el texto "Quitar" / "Cambiar" aparece antes de </button>
+        // con whitespace de por medio.
+        Assert.Matches(@"<button[^>]*data-usuario-persona-quitar[^>]*>\s*Quitar\s*</button>", content);
+        Assert.Matches(@"<button[^>]*data-usuario-persona-buscar[^>]*>\s*Cambiar\s*</button>", content);
+
+        // PER-CARD-05: el botón Buscar apunta al modal con id compartido.
+        Assert.Contains("data-bs-target=\"#ocupacion-persona-buscador-modal\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=\"ocupacion-persona-buscador-modal\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // El hidden del display (binding JS) está presente.
+        Assert.Contains("data-usuario-persona-display-input", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Create_WithoutPersonaId_RendersEditableEmptyCardWithBuscarPersona()
+    {
+        var personaClient = FakePersonaApiClient.WithPersonaList();
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient);
+
+        var response = await lease.Client.GetAsync("/organizacion/ocupaciones/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // PER-CARD-01 (caso 6): empty state puro → contenedor display
+        // vacío + empty visible con botón Buscar Persona.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-empty", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
+
+        // Empty state NO debe traer Quitar (es empty puro).
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Create_WithUnknownPersonaId_RendersEmptyStateWithoutQuitarCambiar()
+    {
+        // PersonaId precargado pero GetByIdAsync devuelve null. Como
+        // `EnriquecerPersonaAsync` setea `PersonaDisplay = null` cuando
+        // el DTO es null (no hay fallback display derivado para
+        // Ocupaciones como en Usuarios), el partial cae al "caso 6"
+        // (editable + DTO null + sin FallbackDisplay): empty state con
+        // Buscar Persona. Sin Quitar/Cambiar hasta que el DTO cargue.
+        var personaId = Guid.NewGuid();
+        var personaClient = new FakePersonaApiClient(); // sin DTOS → GetByIdAsync = null
+        var puestosClient = FakePuestosApiClient.WithPuestoList(SamplePuesto());
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?personaId={personaId:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El API de Persona se invocó con el id resuelto.
+        Assert.Equal(personaId, Assert.Single(personaClient.GetByIdCalls));
+
+        // Empty state con Buscar Persona, sin card ni Quitar.
+        Assert.Contains("data-usuario-persona-display", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-usuario-persona-empty", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Buscar Persona", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ana.garcia@example.com", content, StringComparison.OrdinalIgnoreCase);
+    }
 }

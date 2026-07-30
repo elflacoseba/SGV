@@ -5,9 +5,11 @@ using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Ocupaciones.Dtos;
 using SGV.Contracts.Ocupaciones.Enums;
+using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Ocupaciones;
+using SGV.Web.Integration.Personas;
 using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Ocupaciones;
@@ -24,10 +26,18 @@ namespace SGV.Web.Pages.Organizacion.Ocupaciones;
 /// Cumple REQ-OCC-FORM-003 (acciones por estado), REQ-OCC-FORM-007
 /// (FechaFin &gt;= FechaInicio, validación cliente+servidor) y
 /// REQ-OCC-FORM-008 (reactivación con feedback de colisión 409).
+/// <para>
+/// Slice 3 del change <c>reusable-persona-card</c> (issue #219): inyecta
+/// <see cref="IPersonaApiClient"/> para enriquecer la card readonly con el
+/// <see cref="PersonaDto"/> resuelto desde el backend. Sobre 404 o
+/// falla de transporte cae silenciosamente a <c>PersonaNombre</c> sin
+/// marcar <see cref="IsNotFound"/> (PER-CARD-06).
+/// </para>
 /// </remarks>
 [Authorize]
 public sealed class DetailsModel(
     IOcupacionApiClient ocupacionApiClient,
+    IPersonaApiClient personaApiClient,
     IAuthSessionRedirector authRedirector,
     ILogger<DetailsModel> logger) : PageModel
 {
@@ -48,7 +58,11 @@ public sealed class DetailsModel(
     /// <see cref="IOcupacionApiClient.ObtenerPorIdAsync"/> y popula
     /// <see cref="ViewModel"/>. Si el recurso no se encuentra o el
     /// endpoint falla, marca <see cref="IsNotFound"/> para que la vista
-    /// muestre un estado recuperable sin acciones de mutación.
+    /// muestre un estado recuperable sin acciones de mutación. Cuando la
+    /// ocupación está disponible, intenta enriquecer la card de Persona
+    /// vinculada vía <see cref="TryLoadPersonaVinculadaAsync"/>; sobre
+    /// 404 o falla de transporte, la card cae al fallback
+    /// <c>PersonaNombre</c> sin propagar error.
     /// </summary>
     public async Task OnGetAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -64,6 +78,7 @@ public sealed class DetailsModel(
 
             ViewModel = OcupacionDetailsViewModel.FromDto(dto);
             ViewModel.EsAdministrador = EsAdministrador;
+            await TryLoadPersonaVinculadaAsync(dto.PersonaId, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -73,6 +88,41 @@ public sealed class DetailsModel(
         {
             IsNotFound = true;
             logger.LogError(ex, "Failed to load ocupacion with Id {Id}.", id);
+        }
+    }
+
+    /// <summary>
+    /// Enriquece <see cref="OcupacionDetailsViewModel.Persona"/> vía
+    /// <see cref="IPersonaApiClient.GetByIdAsync"/>. 404, fallo de
+    /// transporte y <see cref="Guid.Empty"/> son no-bloqueantes: la vista
+    /// cae al fallback <c>PersonaNombre</c> del DTO wire sin marcar
+    /// <see cref="IsNotFound"/> (la ocupación sí existe; sólo se degrada
+    /// la card). Espejo 1-a-1 de
+    /// <c>Usuarios/DetailsModel.TryLoadPersonaVinculadaAsync</c>
+    /// (PR #168 / Slice 2).
+    /// </summary>
+    private async Task TryLoadPersonaVinculadaAsync(
+        Guid personaId,
+        CancellationToken cancellationToken)
+    {
+        if (personaId == Guid.Empty)
+        {
+            return;
+        }
+
+        try
+        {
+            ViewModel!.Persona = await personaApiClient
+                .GetByIdAsync(personaId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            logger.LogWarning(
+                ex,
+                "Failed to enrich linked persona {PersonaId} for ocupacion detail; falling back to PersonaNombre.",
+                personaId);
+            ViewModel!.Persona = null;
         }
     }
 

@@ -39,10 +39,10 @@ Chain strategy: stacked-to-main
 
 ## Slice 3: Ocupaciones (depende de Slice 1; base: `main` tras PR 2)
 
-- [ ] 3.1 RED: extender `OcupacionDetailsPageTests.cs` para DTO enriquecido, enlace, 404/transporte con `PersonaNombre`, y badge Ocupación independiente; extender Create/Edit para card editable completa.
-- [ ] 3.2 GREEN: agregar `PersonaDto? Persona` en `OcupacionDetailsViewModel.cs`; inyectar `IPersonaApiClient` y fallback clasificado en `Details.cshtml.cs`.
-- [ ] 3.3 GREEN: migrar `Ocupaciones/Details.cshtml` y `_Form.cshtml` a la partial, preservando modal/hidden y eliminando `FormatearDocumento`.
-- [ ] 3.4 Verificar ≤300 líneas, tests Ocupaciones y commit `refactor(web): reuse persona card in ocupaciones`.
+- [x] 3.1 RED: extender `OcupacionDetailsPageTests.cs` para DTO enriquecido, enlace, 404/transporte con `PersonaNombre`, y badge Ocupación independiente; extender Create/Edit para card editable completa.
+- [x] 3.2 GREEN: agregar `PersonaDto? Persona` en `OcupacionDetailsViewModel.cs`; inyectar `IPersonaApiClient` y fallback clasificado en `Details.cshtml.cs`.
+- [x] 3.3 GREEN: migrar `Ocupaciones/Details.cshtml` y `_Form.cshtml` a la partial, preservando modal/hidden y eliminando `FormatearDocumento`.
+- [x] 3.4 Verificar ≤300 líneas, tests Ocupaciones y commit `refactor(web): reuse persona card in ocupaciones`.
 
 ## Slice 4: Integración y cierre (depende de 1–3; base: `main` tras PR 3)
 

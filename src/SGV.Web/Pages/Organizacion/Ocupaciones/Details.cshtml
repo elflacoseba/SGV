@@ -5,6 +5,15 @@
     ViewBag.subtitle = "Organización";
     var showDetails = !Model.IsNotFound && Model.ViewModel is not null;
     var o = Model.ViewModel?.Ocupacion;
+    // Slice 3 / PR 3 / issue #219: la card enriquecida readonly y su
+    // fallback son provistos por la partial unificada
+    // `_PersonaCard.cshtml`. `PersonaDetailUrl` envuelve el nombre en
+    // <a> hacia `/personas/detalle/{PersonaId}` cuando hay DTO
+    // enriquecido. Sobre 404/transporte, el fallback usa
+    // `PersonaNombre` con el mismo link al detalle de Persona.
+    var personaDetailUrl = (o is not null && o.PersonaId != Guid.Empty)
+        ? Url.Page("/Personas/Details", new { id = o.PersonaId })
+        : null;
 }
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
@@ -42,8 +51,21 @@ else if (showDetails)
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
-                        <dt class="col-sm-3 text-muted">Persona</dt>
-                        <dd class="col-sm-9">@o.PersonaNombre</dd>
+                        <dt class="col-sm-3 text-muted">Persona vinculada</dt>
+                        <dd class="col-sm-9">
+                            @await Html.PartialAsync(
+                                "~/Pages/Shared/Partials/_PersonaCard.cshtml",
+                                Model.ViewModel!.Persona,
+                                new ViewDataDictionary(ViewData)
+                                {
+                                    ["Mode"] = "readonly",
+                                    ["ShowStatusBadge"] = true,
+                                    ["PersonaDetailUrl"] = personaDetailUrl,
+                                    ["FallbackDisplay"] = o.PersonaNombre,
+                                    ["FallbackUrl"] = personaDetailUrl,
+                                    ["DisplayContainerId"] = "ocupacion-persona-display"
+                                })
+                        </dd>
 
                         <dt class="col-sm-3 text-muted">Puesto</dt>
                         <dd class="col-sm-9">@o.PuestoNombre</dd>
