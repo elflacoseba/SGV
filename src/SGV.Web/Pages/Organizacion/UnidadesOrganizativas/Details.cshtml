@@ -31,9 +31,6 @@
             <button type="submit" class="btn btn-success me-2" formaction="?handler=Reactivate&id=@Model.CurrentId">Reactivar</button>
         </form>
     }
-    <a class="btn btn-primary" href="@Model.ReturnToListUrl">
-        Volver al listado
-    </a>
 }
 else if (Model.Unidad is not null)
 {
@@ -93,15 +90,21 @@ else if (Model.Unidad is not null)
                         </dd>
                     </dl>
                 </div>
-                <div class="card-footer d-flex gap-2">
-                    <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, returnPage = Model.ReturnPage, returnSearch = Model.ReturnSearch, returnSort = Model.ReturnSort, returnView = Model.ReturnView, returnStatus = Model.ReturnStatus })">
-                        <i class="ti ti-edit me-1"></i>Editar
-                    </a>
-                    <a class="btn btn-light" href="@Model.ReturnToListUrl">
-                        Volver al listado
-                    </a>
-                </div>
             </div>
         </div>
     </div>
 }
+
+<div class="row mt-3">
+    <div class="col-12 d-flex gap-2">
+        @if (!Model.IsNotFound && Model.Unidad is not null)
+        {
+            <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, returnPage = Model.ReturnPage, returnSearch = Model.ReturnSearch, returnSort = Model.ReturnSort, returnView = Model.ReturnView, returnStatus = Model.ReturnStatus })">
+                <i class="ti ti-pencil me-1"></i>Editar
+            </a>
+        }
+        <a class="btn btn-outline-secondary" href="@Model.ReturnToListUrl">
+            <i class="ti ti-arrow-left me-1"></i>Volver al listado
+        </a>
+    </div>
+</div>
