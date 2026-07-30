@@ -32,9 +32,6 @@
                     <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
                     <h5 class="text-muted">La ocupación solicitada no está disponible.</h5>
                     <p class="text-muted mb-3">Es posible que haya sido eliminada o que haya ocurrido un error al consultarla.</p>
-                    <a class="btn btn-primary" href="/organizacion/ocupaciones">
-                        <i class="ti ti-arrow-left me-1"></i>Volver al listado
-                    </a>
                 </div>
             </div>
         </div>
@@ -145,21 +142,21 @@ else if (showDetails)
             </div>
         </div>
     }
-
-    <div class="row mt-3">
-        <div class="col-12 d-flex gap-2">
-            @if (Model.ViewModel!.EsVigente && Model.EsAdministrador)
-            {
-                <a class="btn btn-outline-warning" href="/organizacion/ocupaciones/editar/@o.Id">
-                    <i class="ti ti-pencil me-1"></i>Editar
-                </a>
-            }
-            <a class="btn btn-outline-secondary" href="/organizacion/ocupaciones">
-                <i class="ti ti-arrow-left me-1"></i>Volver al listado
-            </a>
-        </div>
-    </div>
 }
+
+<div class="row mt-3">
+    <div class="col-12 d-flex gap-2">
+        @if (!Model.IsNotFound && Model.ViewModel!.EsVigente && Model.EsAdministrador)
+        {
+            <a class="btn btn-warning" href="@Url.Page("/Organizacion/Ocupaciones/Edit", new { id = o!.Id, p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })">
+                <i class="ti ti-pencil me-1"></i>Editar
+            </a>
+        }
+        <a class="btn btn-outline-secondary" href="@Url.Page("/Organizacion/Ocupaciones/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.Sort })">
+            <i class="ti ti-arrow-left me-1"></i>Volver al listado
+        </a>
+    </div>
+</div>
 
 @section Scripts {
     <script>
