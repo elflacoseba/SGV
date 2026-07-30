@@ -47,6 +47,24 @@ public sealed class DetailsModel(
     /// <summary>Bandera de estado no encontrado (404 o falla de carga).</summary>
     public bool IsNotFound { get; private set; }
 
+    /// <summary>
+    /// Página del listado desde la que se navegó al detalle (se preserva
+    /// en los enlaces Editar/Volver). Por defecto <c>1</c>.
+    /// </summary>
+    public int CurrentPage { get; private set; } = 1;
+
+    /// <summary>
+    /// Término de búsqueda activo al navegar al detalle (se preserva en
+    /// los enlaces Editar/Volver).
+    /// </summary>
+    public string? Search { get; private set; }
+
+    /// <summary>
+    /// Orden activo al navegar al detalle (se preserva en los enlaces
+    /// Editar/Volver).
+    /// </summary>
+    public string? Sort { get; private set; }
+
     public string? StatusMessage => PageFeedback.GetStatusMessage(TempData);
 
     public string StatusKind => PageFeedback.GetStatusKind(TempData);
@@ -64,8 +82,17 @@ public sealed class DetailsModel(
     /// 404 o falla de transporte, la card cae al fallback
     /// <c>PersonaNombre</c> sin propagar error.
     /// </summary>
-    public async Task OnGetAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task OnGetAsync(
+        Guid id,
+        [FromQuery(Name = "p")] int currentPage = 1,
+        string? search = null,
+        string? sort = null,
+        CancellationToken cancellationToken = default)
     {
+        CurrentPage = Math.Max(1, currentPage);
+        Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        Sort = string.IsNullOrWhiteSpace(sort) ? null : sort.Trim();
+
         try
         {
             var dto = await ocupacionApiClient.ObtenerPorIdAsync(id, cancellationToken);
