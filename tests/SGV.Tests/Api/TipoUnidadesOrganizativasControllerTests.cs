@@ -18,7 +18,7 @@ public sealed class TipoUnidadesOrganizativasControllerTests
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     [Fact]
-    public async Task GetAll_Returns200With7SeedDtos()
+    public async Task GetAll_Returns200With20SeedDtos()
     {
         var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
@@ -29,9 +29,10 @@ public sealed class TipoUnidadesOrganizativasControllerTests
         var json = await response.Content.ReadAsStringAsync();
         var dtos = JsonSerializer.Deserialize<List<TipoUnidadOrganizativaDto>>(json, JsonOptions);
         Assert.NotNull(dtos);
-        Assert.Equal(7, dtos.Count);
+        Assert.Equal(20, dtos.Count);
         Assert.Contains(dtos, d => d.Codigo == "Institucion");
         Assert.Contains(dtos, d => d.Codigo == "Area");
+        Assert.Contains(dtos, d => d.Codigo == "Gerencia");
     }
 
     [Fact]

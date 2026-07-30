@@ -1614,6 +1614,84 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                             Id = new Guid("60000000-0000-0000-0000-000000000007"),
                             Codigo = "Area",
                             Nombre = "Área"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000008"),
+                            Codigo = "Sede",
+                            Nombre = "Sede"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000009"),
+                            Codigo = "Region",
+                            Nombre = "Región"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-00000000000a"),
+                            Codigo = "Gerencia",
+                            Nombre = "Gerencia"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-00000000000b"),
+                            Codigo = "Vicepresidencia",
+                            Nombre = "Vicepresidencia"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-00000000000c"),
+                            Codigo = "Subgerencia",
+                            Nombre = "Subgerencia"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-00000000000d"),
+                            Codigo = "Coordinacion",
+                            Nombre = "Coordinación"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-00000000000e"),
+                            Codigo = "Seccion",
+                            Nombre = "Sección"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-00000000000f"),
+                            Codigo = "Oficina",
+                            Nombre = "Oficina"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000010"),
+                            Codigo = "Equipo",
+                            Nombre = "Equipo"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000011"),
+                            Codigo = "Celula",
+                            Nombre = "Célula"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000012"),
+                            Codigo = "Planta",
+                            Nombre = "Planta"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000013"),
+                            Codigo = "Sucursal",
+                            Nombre = "Sucursal"
+                        },
+                        new
+                        {
+                            Id = new Guid("60000000-0000-0000-0000-000000000014"),
+                            Codigo = "Escuela",
+                            Nombre = "Escuela"
                         });
                 });
 

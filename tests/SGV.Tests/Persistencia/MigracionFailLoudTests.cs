@@ -71,20 +71,20 @@ public sealed class MigracionFailLoudTests : IAsyncLifetime
     // ========================================================================
 
     [MySqlFact]
-    public async Task Migracion_DatosLimpios_TiposUnidadOrganizativaCreadosCon7Seeds()
+    public async Task Migracion_DatosLimpios_TiposUnidadOrganizativaCreadosCon20Seeds()
     {
         await using var ctx = await CreateFreshTestDatabaseAsync();
 
-        // Assert: TiposUnidadOrganizativa tiene 7 filas
+        // Assert: TiposUnidadOrganizativa tiene 20 filas
         var tiposCount = await ctx.Database.SqlQueryRaw<int>(
             "SELECT COUNT(*) AS Value FROM TiposUnidadOrganizativa").ToListAsync();
-        Assert.Equal(7, tiposCount.First());
+        Assert.Equal(20, tiposCount.First());
 
-        // Assert: Los 7 seeds tienen los Codigo correctos
+        // Assert: Los 20 seeds tienen los Codigo correctos
         var codigos = await ctx.Database.SqlQueryRaw<string>(
             "SELECT Codigo AS Value FROM TiposUnidadOrganizativa ORDER BY Codigo").ToListAsync();
         Assert.Equal(
-            new[] { "Area", "Departamento", "Direccion", "Division", "Facultad", "Institucion", "Secretaria" },
+            new[] { "Area", "Celula", "Coordinacion", "Departamento", "Direccion", "Division", "Equipo", "Escuela", "Facultad", "Gerencia", "Institucion", "Oficina", "Planta", "Region", "Seccion", "Secretaria", "Sede", "Subgerencia", "Sucursal", "Vicepresidencia" },
             codigos);
 
         // Assert: La columna TipoUnidad NO existe

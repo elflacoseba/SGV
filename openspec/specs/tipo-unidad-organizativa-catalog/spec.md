@@ -13,13 +13,13 @@ Document the read-only, immutable catalog of organizational unit types that clas
 
 The `TipoUnidadOrganizativa` catalog MUST be immutable at runtime. The system MUST NOT expose any write endpoint (`POST`, `PUT`, `PATCH`, `DELETE`) over HTTP for the `/api/v1/tipos-unidad-organizativa` collection or any item underneath. The catalog is seeded exclusively by an EF Core migration that uses static `Guid` constants; any modification of catalog contents requires a new migration.
 
-#### Scenario: Seed creates 7 static types
+#### Scenario: Seed creates 20 static types
 
 - **GIVEN** the `TiposUnidadOrganizativa` table is empty
 - **WHEN** the migration runs against a fresh database
-- **THEN** exactly 7 rows exist
+- **THEN** exactly 20 rows exist
 - **AND** each row has the seeded `Id`, `Codigo`, and `Nombre` values declared as constants in the migration and in `DatosSemilla.cs`
-- **AND** the 7 codes are `Institucion`, `Facultad`, `Secretaria`, `Direccion`, `Departamento`, `Division`, `Area`.
+- **AND** the 20 codes are `Area`, `Celula`, `Coordinacion`, `Departamento`, `Direccion`, `Division`, `Equipo`, `Escuela`, `Facultad`, `Gerencia`, `Institucion`, `Oficina`, `Planta`, `Region`, `Secretaria`, `Seccion`, `Sede`, `Subgerencia`, `Sucursal`, `Vicepresidencia`.
 
 #### Scenario: No write endpoints exposed
 
@@ -35,10 +35,10 @@ The system MUST expose `GET /api/v1/tipos-unidad-organizativa` that returns ever
 
 #### Scenario: Returns full list
 
-- **GIVEN** 7 seeded types exist in `TiposUnidadOrganizativa`
+- **GIVEN** 20 seeded types exist in `TiposUnidadOrganizativa`
 - **WHEN** an authenticated client calls `GET /api/v1/tipos-unidad-organizativa`
 - **THEN** the response status is `200 OK`
-- **AND** the response body is a JSON array of 7 elements
+- **AND** the response body is a JSON array of 20 elements
 - **AND** each element has the fields `id`, `codigo`, `nombre` and no other fields.
 
 #### Scenario: Empty database
@@ -86,14 +86,14 @@ The response DTO MUST contain exactly three fields: `id: Guid`, `codigo: string`
 
 ### REQ-TUO-005 — Deterministic seed Ids.
 
-The 7 seed Ids MUST be **static shared constants** referenced from a single source of truth (e.g. a `static class Catalogos` or `TipoUnidadOrganizativaCatalogo`), used by both the EF Core migration's `InsertData` and `DatosSemilla.cs`. The migration and the runtime seed MUST agree on the Ids to guarantee idempotency between a fresh migration and a runtime seed. A unit test asserts this equality.
+The 20 seed Ids MUST be **static shared constants** referenced from a single source of truth (e.g. a `static class Catalogos` or `TipoUnidadOrganizativaCatalogo`), used by both the EF Core migration's `InsertData` and `DatosSemilla.cs`. The migration and the runtime seed MUST agree on the Ids to guarantee idempotency between a fresh migration and a runtime seed. A unit test asserts this equality.
 
 #### Scenario: Seed Ids are stable
 
-- **GIVEN** the migration class and `DatosSemilla.cs` both reference the same 7 static Guid constants
+- **GIVEN** the migration class and `DatosSemilla.cs` both reference the same 20 static Guid constants
 - **WHEN** the test `DatosSemilla_SeedIdsMatchMigracionEstatica` runs
 - **THEN** it passes — every Id declared in the migration matches the corresponding Id declared in `DatosSemilla`
-- **AND** there are exactly 7 distinct Ids in both lists.
+- **AND** there are exactly 20 distinct Ids in both lists.
 
 ### REQ-TUO-006 — Autorización de lectura de TiposUnidadOrganizativa.
 

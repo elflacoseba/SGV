@@ -156,6 +156,7 @@ Para que los catálogos inmutables seedeados por migración tengan IDs estables 
 
 | Bloque GUID     | Catálogo                        | Ejemplo de uso            | Constantes                       |
 |-----------------|---------------------------------|---------------------------|----------------------------------|
+| `60000000-…`    | `TipoUnidadOrganizativa`        | `TipoUnidadOrganizativaConstantes` | `InstitucionId`, `AreaId`, `GerenciaId`, `SedeId` |
 | `70000000-…`    | `NivelCargo` (issue #141)       | `NivelCargoConstantes`    | `DirectivoId`, `OperativoId`     |
 | `71000000-…`    | `TipoDocumento` (issue #147)    | `TipoDocumentoConstantes` | `DniId`, `LeId`, `LcId`, `PasaporteId` |
 | `72000000-…`    | `CategoriaHabilidad` (issue migrar-campo-categoria-habilidades-a-tabla) | `CategoriaHabilidadConstantes` | `ConduccionId`, `TecnicaId`, `DominioId`, `AcademicaId` |

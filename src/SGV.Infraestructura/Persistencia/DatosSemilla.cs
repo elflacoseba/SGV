@@ -125,7 +125,20 @@ internal static class DatosSemilla
             new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.DireccionId, Codigo = "Direccion", Nombre = "Dirección" },
             new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.DepartamentoId, Codigo = "Departamento", Nombre = "Departamento" },
             new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.DivisionId, Codigo = "Division", Nombre = "División" },
-            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.AreaId, Codigo = "Area", Nombre = "Área" });
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.AreaId, Codigo = "Area", Nombre = "Área" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.SedeId, Codigo = "Sede", Nombre = "Sede" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.RegionId, Codigo = "Region", Nombre = "Región" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.GerenciaId, Codigo = "Gerencia", Nombre = "Gerencia" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.VicepresidenciaId, Codigo = "Vicepresidencia", Nombre = "Vicepresidencia" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.SubgerenciaId, Codigo = "Subgerencia", Nombre = "Subgerencia" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.CoordinacionId, Codigo = "Coordinacion", Nombre = "Coordinación" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.SeccionId, Codigo = "Seccion", Nombre = "Sección" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.OficinaId, Codigo = "Oficina", Nombre = "Oficina" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.EquipoId, Codigo = "Equipo", Nombre = "Equipo" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.CelulaId, Codigo = "Celula", Nombre = "Célula" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.PlantaId, Codigo = "Planta", Nombre = "Planta" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.SucursalId, Codigo = "Sucursal", Nombre = "Sucursal" },
+            new TipoUnidadOrganizativaEntity { Id = TipoUnidadOrganizativaConstantes.EscuelaId, Codigo = "Escuela", Nombre = "Escuela" });
 
         builder.Entity<TipoDocumentoEntity>().HasData(
             TipoDocumentoConstantes.Semilla

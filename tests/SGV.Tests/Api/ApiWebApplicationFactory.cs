@@ -63,13 +63,26 @@ internal sealed class FakeTipoUnidadOrganizativaServicio : ITipoUnidadOrganizati
 
     private static readonly IReadOnlyList<TipoUnidadOrganizativaDto> SeedData =
     [
-        new(TipoUnidadOrganizativaConstantes.InstitucionId, "Institucion", "Institución"),
-        new(TipoUnidadOrganizativaConstantes.FacultadId,    "Facultad",    "Facultad"),
-        new(TipoUnidadOrganizativaConstantes.SecretariaId,  "Secretaria",  "Secretaría"),
-        new(TipoUnidadOrganizativaConstantes.DireccionId,   "Direccion",   "Dirección"),
-        new(TipoUnidadOrganizativaConstantes.DepartamentoId,"Departamento","Departamento"),
-        new(TipoUnidadOrganizativaConstantes.DivisionId,    "Division",    "División"),
-        new(TipoUnidadOrganizativaConstantes.AreaId,        "Area",        "Área"),
+        new(TipoUnidadOrganizativaConstantes.InstitucionId,      "Institucion",     "Institución"),
+        new(TipoUnidadOrganizativaConstantes.FacultadId,         "Facultad",        "Facultad"),
+        new(TipoUnidadOrganizativaConstantes.SecretariaId,       "Secretaria",      "Secretaría"),
+        new(TipoUnidadOrganizativaConstantes.DireccionId,        "Direccion",       "Dirección"),
+        new(TipoUnidadOrganizativaConstantes.DepartamentoId,     "Departamento",    "Departamento"),
+        new(TipoUnidadOrganizativaConstantes.DivisionId,         "Division",        "División"),
+        new(TipoUnidadOrganizativaConstantes.AreaId,             "Area",            "Área"),
+        new(TipoUnidadOrganizativaConstantes.SedeId,             "Sede",            "Sede"),
+        new(TipoUnidadOrganizativaConstantes.RegionId,           "Region",          "Región"),
+        new(TipoUnidadOrganizativaConstantes.GerenciaId,         "Gerencia",        "Gerencia"),
+        new(TipoUnidadOrganizativaConstantes.VicepresidenciaId,  "Vicepresidencia", "Vicepresidencia"),
+        new(TipoUnidadOrganizativaConstantes.SubgerenciaId,      "Subgerencia",     "Subgerencia"),
+        new(TipoUnidadOrganizativaConstantes.CoordinacionId,     "Coordinacion",    "Coordinación"),
+        new(TipoUnidadOrganizativaConstantes.SeccionId,          "Seccion",         "Sección"),
+        new(TipoUnidadOrganizativaConstantes.OficinaId,          "Oficina",         "Oficina"),
+        new(TipoUnidadOrganizativaConstantes.EquipoId,           "Equipo",          "Equipo"),
+        new(TipoUnidadOrganizativaConstantes.CelulaId,           "Celula",          "Célula"),
+        new(TipoUnidadOrganizativaConstantes.PlantaId,           "Planta",          "Planta"),
+        new(TipoUnidadOrganizativaConstantes.SucursalId,         "Sucursal",        "Sucursal"),
+        new(TipoUnidadOrganizativaConstantes.EscuelaId,          "Escuela",         "Escuela"),
     ];
 
     private readonly IReadOnlyList<TipoUnidadOrganizativaDto> _data;

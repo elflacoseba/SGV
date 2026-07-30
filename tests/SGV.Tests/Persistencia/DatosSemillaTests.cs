@@ -26,11 +26,24 @@ public sealed class DatosSemillaTests
             TipoUnidadOrganizativaConstantes.DireccionId,
             TipoUnidadOrganizativaConstantes.DepartamentoId,
             TipoUnidadOrganizativaConstantes.DivisionId,
-            TipoUnidadOrganizativaConstantes.AreaId
+            TipoUnidadOrganizativaConstantes.AreaId,
+            TipoUnidadOrganizativaConstantes.SedeId,
+            TipoUnidadOrganizativaConstantes.RegionId,
+            TipoUnidadOrganizativaConstantes.GerenciaId,
+            TipoUnidadOrganizativaConstantes.VicepresidenciaId,
+            TipoUnidadOrganizativaConstantes.SubgerenciaId,
+            TipoUnidadOrganizativaConstantes.CoordinacionId,
+            TipoUnidadOrganizativaConstantes.SeccionId,
+            TipoUnidadOrganizativaConstantes.OficinaId,
+            TipoUnidadOrganizativaConstantes.EquipoId,
+            TipoUnidadOrganizativaConstantes.CelulaId,
+            TipoUnidadOrganizativaConstantes.PlantaId,
+            TipoUnidadOrganizativaConstantes.SucursalId,
+            TipoUnidadOrganizativaConstantes.EscuelaId
         };
 
-        Assert.Equal(7, seedIds.Length);
-        Assert.Equal(7, new HashSet<Guid>(seedIds).Count);
+        Assert.Equal(20, seedIds.Length);
+        Assert.Equal(20, new HashSet<Guid>(seedIds).Count);
         Assert.All(seedIds, id => Assert.NotEqual(Guid.Empty, id));
 
         // Verify specific known values

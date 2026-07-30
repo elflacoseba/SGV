@@ -4,7 +4,7 @@ using Xunit;
 namespace SGV.Tests.Persistencia;
 
 /// <summary>
-/// Verifies that TipoUnidadOrganizativaConstantes contains exactly 7 unique, non-empty Guids.
+/// Verifies that TipoUnidadOrganizativaConstantes contains exactly 20 unique, non-empty Guids.
 /// </summary>
 public sealed class TipoUnidadOrganizativaConstantesTests
 {
@@ -16,13 +16,26 @@ public sealed class TipoUnidadOrganizativaConstantesTests
         TipoUnidadOrganizativaConstantes.DireccionId,
         TipoUnidadOrganizativaConstantes.DepartamentoId,
         TipoUnidadOrganizativaConstantes.DivisionId,
-        TipoUnidadOrganizativaConstantes.AreaId
+        TipoUnidadOrganizativaConstantes.AreaId,
+        TipoUnidadOrganizativaConstantes.SedeId,
+        TipoUnidadOrganizativaConstantes.RegionId,
+        TipoUnidadOrganizativaConstantes.GerenciaId,
+        TipoUnidadOrganizativaConstantes.VicepresidenciaId,
+        TipoUnidadOrganizativaConstantes.SubgerenciaId,
+        TipoUnidadOrganizativaConstantes.CoordinacionId,
+        TipoUnidadOrganizativaConstantes.SeccionId,
+        TipoUnidadOrganizativaConstantes.OficinaId,
+        TipoUnidadOrganizativaConstantes.EquipoId,
+        TipoUnidadOrganizativaConstantes.CelulaId,
+        TipoUnidadOrganizativaConstantes.PlantaId,
+        TipoUnidadOrganizativaConstantes.SucursalId,
+        TipoUnidadOrganizativaConstantes.EscuelaId
     ];
 
     [Fact]
-    public void Constantes_TieneExactamente7Valores()
+    public void Constantes_TieneExactamente20Valores()
     {
-        Assert.Equal(7, AllGuids.Length);
+        Assert.Equal(20, AllGuids.Length);
     }
 
     [Fact]
