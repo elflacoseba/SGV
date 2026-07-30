@@ -2,6 +2,7 @@ using SGV.Dominio.Habilidades;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using SGV.Dominio.Personas;
+using SGV.Dominio.Vacantes;
 using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Mapeos;
@@ -256,6 +257,42 @@ internal static class DomainToPersistenceMapper
         entity.FechaInicio = domain.FechaInicio;
         entity.FechaFin = domain.FechaFin;
         entity.TipoAsignacion = domain.TipoAsignacion;
+        entity.Observaciones = domain.Observaciones;
+        entity.UpdatedAt = domain.UpdatedAt;
+        entity.UpdatedByUserId = domain.UpdatedByUserId;
+        entity.IsDeleted = domain.IsDeleted;
+        entity.DeletedAt = domain.DeletedAt;
+        entity.DeletedByUserId = domain.DeletedByUserId;
+    }
+
+    public static VacanteEntity ToEntity(Vacante domain)
+    {
+        return new VacanteEntity
+        {
+            Id = domain.Id,
+            PuestoId = domain.PuestoId,
+            EstadoVacanteId = domain.EstadoVacanteId,
+            FechaApertura = domain.FechaApertura,
+            FechaCierre = domain.FechaCierre,
+            Motivo = domain.Motivo,
+            Observaciones = domain.Observaciones,
+            CreatedAt = domain.CreatedAt,
+            CreatedByUserId = domain.CreatedByUserId,
+            UpdatedAt = domain.UpdatedAt,
+            UpdatedByUserId = domain.UpdatedByUserId,
+            IsDeleted = domain.IsDeleted,
+            DeletedAt = domain.DeletedAt,
+            DeletedByUserId = domain.DeletedByUserId
+        };
+    }
+
+    public static void UpdateEntity(VacanteEntity entity, Vacante domain)
+    {
+        entity.PuestoId = domain.PuestoId;
+        entity.EstadoVacanteId = domain.EstadoVacanteId;
+        entity.FechaApertura = domain.FechaApertura;
+        entity.FechaCierre = domain.FechaCierre;
+        entity.Motivo = domain.Motivo;
         entity.Observaciones = domain.Observaciones;
         entity.UpdatedAt = domain.UpdatedAt;
         entity.UpdatedByUserId = domain.UpdatedByUserId;

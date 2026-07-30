@@ -66,4 +66,66 @@ public sealed record class Vacante : EntidadAuditable
     {
         Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 500);
     }
+
+    /// <summary>
+    /// Factory de hidratación desde la capa de persistencia. Replica la
+    /// validación de <c>Motivo</c> del constructor primario y asigna todos
+    /// los campos persistibles con setters tipados (no reflexión), en
+    /// paridad con <c>Puesto.Reconstitute</c> y <c>Ocupacion.Reconstitute</c>.
+    /// </summary>
+    /// <remarks>
+    /// Orden canónico: id + audit + <c>IsDeleted</c> primero, luego los
+    /// datos primarios (incluyendo <c>FechaCierre</c> y <c>Motivo</c>), y
+    /// por último las nav properties. La colección
+    /// <c>_historialEstados</c> queda vacía en esta fase: la reconstrucción
+    /// desde la capa de persistencia se realiza vía EF tracking sobre la
+    /// entidad, no sobre el agregado de dominio. El bridge entre ambos
+    /// modelos es responsabilidad del servicio de comandos (work unit 3.x).
+    /// </remarks>
+    internal static Vacante Reconstitute(
+        Guid id,
+        Guid puestoId,
+        Guid estadoVacanteId,
+        DateTime fechaApertura,
+        DateTime? fechaCierre,
+        string motivo,
+        string? observaciones,
+        Puesto? puesto,
+        EstadoVacante? estadoVacante,
+        DateTime createdAt,
+        string? createdByUserId,
+        DateTime? updatedAt,
+        string? updatedByUserId,
+        bool isDeleted,
+        DateTime? deletedAt,
+        string? deletedByUserId)
+    {
+        if (motivo.Length > 500)
+        {
+            throw new InvalidOperationException("El motivo excede los 500 caracteres.");
+        }
+
+        var self = new Vacante
+        {
+            Id = id,
+            CreatedAt = createdAt,
+            CreatedByUserId = createdByUserId,
+            UpdatedAt = updatedAt,
+            UpdatedByUserId = updatedByUserId,
+            IsDeleted = isDeleted,
+            DeletedAt = deletedAt,
+            DeletedByUserId = deletedByUserId
+        };
+
+        self.PuestoId = puestoId;
+        self.EstadoVacanteId = estadoVacanteId;
+        self.FechaApertura = fechaApertura;
+        self.FechaCierre = fechaCierre;
+        self.Motivo = motivo;
+        self.Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 500);
+        self.Puesto = puesto!;
+        self.EstadoVacante = estadoVacante!;
+
+        return self;
+    }
 }
