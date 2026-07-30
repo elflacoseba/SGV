@@ -480,6 +480,18 @@ Una sola taxonomía `ErrorCategoria` definida como `enum` append-only en `src/SG
 - `OcupacionCommandResult` (vivía en `SGV.Aplicacion`): ✅ **Migrado a `ErrorCategoria` por el change `2026-07-28-web-ocupaciones-issue-208`** (PRs #212, #213, #214, #215). Ahora vive en `SGV.Contracts/Ocupaciones/Comandos/` con `Categoria: ErrorCategoria`. El enum legacy `OcupacionErrorType` queda `[Obsolete]` como compat hasta el archivado del change #125.
 - Los `ApiResults.Map*Status` de `SGV.Api/Infrastructure/Results/ApiResults.cs` se centralizan en un `MapCategoria(ErrorCategoria)` exhaustivo en el Slice 4 (issue #125, PR #4).
 
+## Frontend / JS compartido
+
+### Patrón defensivo en `usuario-persona-buscador.js` (issue #224)
+
+> Change: `fix-persona-card-empty-state-issue-224`. Artefactos SDD completos en `openspec/changes/fix-persona-card-empty-state-issue-224/`. Spec NEW: `usuario-persona-buscador-js` (USBJS-01..03).
+
+El script `wwwroot/js/pages/usuario-persona-buscador.js` se apega al patrón "lookup defensivo + mutación abortable": si los elementos del contrato `data-*` que la partial `_PersonaCard.cshtml` puede omitir (caso 6: `editable + PersonaDto=null + sin FallbackDisplay`) no están presentes en el DOM, las mutaciones abortan con `console.warn` en lugar de tirar `TypeError`. La selección del usuario se preserva siempre en `hiddenInput.value` y `modal.dataset.currentPersonaId` (USBJS-02).
+
+El lookup de `empty` se hace desde `display.parentElement` (no `display`) porque la partial emite el empty state como sibling del contenedor `display` (USBJS-01).
+
+**Decisión de no agregar Vitest/Jest**: el equipo excluye infraestructura de testing JS por scope (el fix es trivialmente detectable por inspección; los tests .NET del contrato markup son RED→GREEN verificables). Si en el futuro se introduce infra JS, será un change dedicado.
+
 ## Frontend CRUD de Personas
 
 > Change: `2026-07-14-frontend-crud-personas`. Artefactos SDD completos en `openspec/changes/2026-07-14-frontend-crud-personas/`. Chain strategy: `feature-branch-chain` con 4 PRs encadenados contra la tracker `feat/2026-07-14-frontend-crud-personas-tracker`.

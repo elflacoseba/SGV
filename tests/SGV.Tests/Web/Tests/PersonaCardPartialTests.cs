@@ -474,6 +474,32 @@ public sealed class PersonaCardPartialTests
         Assert.DoesNotContain("data-usuario-persona-display-input", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ──────────────────────────────────────────────
+    // USBJS-01..03 / contrato del caso 6 con JS: el JS asume que
+    // `displayInput`, `cardText`, `card` y `empty` son null en caso 6 y
+    // aborta limpiamente. Si la partial cambiara y empezara a emitir
+    // alguno de estos atributos en caso 6, el JS asumiría que el contrato
+    // está completo y trataría de escribir sobre ellos, rompiendo el flujo
+    // USBJS-02/03. Este test blinda el contrato negativo del caso 6.
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task EditableWithPersonaNullAndNoFallback_DoesNotEmitMutableCardContractAttributes()
+    {
+        var query = "mode=editable";
+
+        await using var lease = await CreateAdminLeaseAsync();
+        var response = await lease.Client.GetAsync($"/tests/persona-card-harness?{query}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // El JS aborta si encuentra estos nodos en caso 6 (causa raíz del bug #224).
+        Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-display-input", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-display-text", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string BuildQuery(
         string mode,
         Guid personaId,

@@ -29,7 +29,7 @@
     var displayInput = display && display.parentElement.querySelector('[data-usuario-persona-display-input]');
     var card = display && display.querySelector('[data-usuario-persona-card]');
     var cardText = display && display.querySelector('[data-usuario-persona-display-text]');
-    var empty = display && display.querySelector('[data-usuario-persona-empty]');
+    var empty = display && display.parentElement.querySelector('[data-usuario-persona-empty]');
     var submit = root.querySelector('[data-usuario-persona-submit]');
     var debounceTimer;
     var lastTrigger;
@@ -53,12 +53,24 @@
 
     function choose(persona) {
         var text = personaDisplay(persona);
+        // USBJS-02: actualizar hiddenInput y currentPersonaId siempre (la
+        // selección del usuario es válida aunque el display no se pueda
+        // sincronizar). Solo el bloque de mutación del display es abortable.
         hiddenInput.value = persona.id;
+        modal.dataset.currentPersonaId = persona.id;
+
+        if (!displayInput || !cardText || !card || !empty) {
+            console.warn(
+                '[usuario-persona-buscador] choose() aborted: missing card contract elements. '
+                + 'modalId=' + modal.id + ', displayContainerId=' + modal.dataset.displayContainerId
+            );
+            return;
+        }
+
         displayInput.value = text;
         cardText.textContent = text;
         card.hidden = false;
         empty.hidden = true;
-        modal.dataset.currentPersonaId = persona.id;
         if (submit) {
             submit.disabled = false;
         }
@@ -214,12 +226,23 @@
 
     root.querySelectorAll('[data-usuario-persona-quitar]').forEach(function (button) {
         button.addEventListener('click', function () {
+            // USBJS-03: limpiar hiddenInput y currentPersonaId siempre;
+            // abortar mutaciones del display si falta algún elemento del contrato.
             hiddenInput.value = '';
+            modal.dataset.currentPersonaId = '';
+
+            if (!displayInput || !cardText || !card || !empty) {
+                console.warn(
+                    '[usuario-persona-buscador] Quitar aborted: missing card contract elements. '
+                    + 'modalId=' + modal.id + ', displayContainerId=' + modal.dataset.displayContainerId
+                );
+                return;
+            }
+
             displayInput.value = '';
             cardText.textContent = '';
             card.hidden = true;
             empty.hidden = false;
-            modal.dataset.currentPersonaId = '';
             if (submit) {
                 submit.disabled = true;
             }
