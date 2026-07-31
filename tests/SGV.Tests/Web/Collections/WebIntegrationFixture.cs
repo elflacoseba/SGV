@@ -237,6 +237,22 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             unidadOrganizativaApiClient: unidad));
 
     /// <summary>
+    /// Lease autenticado contra el listado web de auditoría (Slice 3
+    /// del change <c>implementa-modulo-auditorias</c>). Toma un
+    /// <see cref="SGV.Web.Integration.Auditoria.IAuditoriaApiClient"/>
+    /// (helper interno del suite de tests web de Auditoría) y la
+    /// inyecta en el contenedor del host vía
+    /// <see cref="SgvWebApplicationFactory.WithAuditoriaApiClient"/>.
+    /// Sigue la firma estándar de los otros módulos
+    /// (<see cref="CreateCargoLeaseAsync"/>, <see cref="CreateHabilidadLeaseAsync"/>, etc.).
+    /// </summary>
+    public Task<WebClientLease> CreateAuditoriaLeaseAsync(
+        SGV.Web.Integration.Auditoria.IAuditoriaApiClient auditoria, bool adminRole = true)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            auditoriaApiClient: auditoria));
+
+    /// <summary>
     /// Lease anónimo para tests del módulo de setup inicial (issue #195
     /// / WU-4). No requiere autenticación porque el flujo de setup es
     /// la primera acción del sistema cuando <c>AspNetUsers</c> está
