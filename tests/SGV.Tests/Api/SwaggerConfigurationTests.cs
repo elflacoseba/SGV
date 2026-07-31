@@ -224,6 +224,11 @@ public sealed class SwaggerConfigurationTests
                 continue;
             if (path.Name.StartsWith("/api/v1/ocupaciones", StringComparison.OrdinalIgnoreCase))
                 continue;
+            // Vacantes expone POST + PATCH /{id}/estado (PR #231): ahora
+            // también es un recurso con escrituras, no encaja en la regla
+            // "no-org resources solo exponen GET".
+            if (path.Name.StartsWith("/api/v1/vacantes", StringComparison.OrdinalIgnoreCase))
+                continue;
             // Issue #195: el setup inicial es one-time y expone POST
             // anónimo para crear el primer Administrador. No encaja en
             // la regla "no-org resources solo exponen GET".
@@ -759,6 +764,50 @@ public sealed class SwaggerConfigurationTests
             reactivarOps.Add(op.Name.ToLowerInvariant());
 
         Assert.Contains("patch", reactivarOps);
+    }
+
+    [Fact]
+    public async Task Vacantes_ExposesWriteOperations()
+    {
+        // PR #231: el módulo de vacantes expone GET collection + GET item
+        // (lectura) más POST collection y PATCH /{id}/estado (escritura
+        // transaccional). No hay PUT/DELETE: la cancelación se modela
+        // como transición de estado a un EstadoVacante terminal.
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/swagger/v1/swagger.json");
+        var content = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(content);
+        var paths = doc.RootElement.GetProperty("paths");
+
+        // Collection path exposes POST and GET
+        var collectionPath = paths.GetProperty("/api/v1/vacantes");
+        var collectionOps = new HashSet<string>();
+        foreach (var op in collectionPath.EnumerateObject())
+            collectionOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("post", collectionOps);
+        Assert.Contains("get", collectionOps);
+
+        // Item path exposes GET only (no PUT/DELETE — las mutaciones se
+        // canalizan vía PATCH /{id}/estado).
+        var itemPath = paths.GetProperty("/api/v1/vacantes/{id}");
+        var itemOps = new HashSet<string>();
+        foreach (var op in itemPath.EnumerateObject())
+            itemOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("get", itemOps);
+        Assert.DoesNotContain("put", itemOps);
+        Assert.DoesNotContain("delete", itemOps);
+
+        // Estado path exposes PATCH (transición de estado + historial atómico).
+        var estadoPath = paths.GetProperty("/api/v1/vacantes/{id}/estado");
+        var estadoOps = new HashSet<string>();
+        foreach (var op in estadoPath.EnumerateObject())
+            estadoOps.Add(op.Name.ToLowerInvariant());
+
+        Assert.Contains("patch", estadoOps);
     }
 
     [Fact]
