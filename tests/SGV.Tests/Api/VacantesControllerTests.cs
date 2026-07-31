@@ -228,6 +228,41 @@ public sealed class VacantesControllerTests
         Assert.Contains("motivo", problem!.Errors.Keys);
     }
 
+    [Fact]
+    public async Task Create_EstadoInicialTerminal_Returns400WithValidationProblemDetails()
+    {
+        var fakeComandos = new FakeVacanteServicioComandos
+        {
+            CrearHandler = (_, _) => Task.FromResult(
+                VacanteCommandResult.Failure(
+                    new VacanteError(
+                        ErrorCategoria.Validation,
+                        VacanteErrorCodigo.EstadoTerminalInmutable,
+                        "El estado inicial de la vacante no puede ser un estado terminal (Cubierta, Cancelada)."),
+                    new Dictionary<string, string[]>
+                    {
+                        ["estadoVacanteId"] = ["El estado inicial de la vacante no puede ser un estado terminal (Cubierta, Cancelada)."]
+                    }))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IVacanteServicioComandos>();
+            services.AddSingleton<IVacanteServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var request = DefaultCreateRequest() with
+        {
+            EstadoVacanteId = Guid.Parse("20000000-0000-0000-0000-000000000003")
+        };
+
+        var response = await client.PostAsJsonAsync("/api/v1/vacantes", request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("estadoVacanteId", problem!.Errors.Keys);
+    }
+
     /// <summary>
     /// S-1: si el puesto ya tiene vacante abierta, el crear debe
     /// rechazar con 409 Conflict.
