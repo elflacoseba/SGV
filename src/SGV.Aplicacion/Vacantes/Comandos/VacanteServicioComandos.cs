@@ -129,6 +129,20 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
                     "El estado de vacante referenciado no existe."));
         }
 
+        // El estado inicial no puede ser terminal: "abrir vacante" requiere estado no terminal.
+        // Nota: el código es el mismo que CambiarEstadoAsync (409 Conflict); aquí es 400
+        // porque la solicitud es inválida antes de persistir. Ver design §Decisiones.
+        if (estadoVacante.EsTerminal)
+        {
+            const string mensaje = "El estado inicial de la vacante no puede ser un estado terminal (Cubierta, Cancelada).";
+            return VacanteCommandResult.Failure(
+                new VacanteError(
+                    ErrorCategoria.Validation,
+                    VacanteErrorCodigo.EstadoTerminalInmutable,
+                    mensaje),
+                new Dictionary<string, string[]> { ["estadoVacanteId"] = [mensaje] });
+        }
+
         if (await vacanteRepository.ExistsAbiertaByPuestoAsync(request.PuestoId, cancellationToken).ConfigureAwait(false))
         {
             return VacanteCommandResult.Failure(
