@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Web;
+using SGV.Contracts.Comun;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Vacantes.Comandos;
 using SGV.Tests.Web.Collections;
@@ -55,6 +56,27 @@ public sealed class VacantesCreateEditForbidTests
     }
 
     [Fact]
+    public async Task Get_Create_WhenCatalogLoadFails_ShowsRecoverableErrorAndDisablesSave()
+    {
+        var apiClient = new FakeVacanteApiClient
+        {
+            ListarEstadosException = new HttpRequestException("upstream returned 503")
+        };
+
+        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+            apiClient,
+            new FakePuestosApiClient(),
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("No se pudieron cargar los catálogos. Intentá nuevamente.", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("disabled=\"disabled\">Guardar", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Post_Create_WhenSuccessful_RedirectsToDetails()
     {
         var puestoId = Guid.NewGuid();
@@ -95,6 +117,92 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Equal(puestoId, request.PuestoId);
         Assert.Equal(estadoId, request.EstadoVacanteId);
         Assert.Equal("Urgente", request.Observaciones);
+    }
+
+    [Fact]
+    public async Task Post_Create_WhenApiReturnsFieldValidationError_ShowsFieldErrorAndPreservesInput()
+    {
+        var puestoId = Guid.NewGuid();
+        var states = FakeVacanteApiClient.BuildStates();
+        var estadoId = states[0].Id;
+        const string motivo = "Cobertura con datos inválidos";
+        const string fieldError = "El motivo no cumple las reglas de negocio.";
+        var apiClient = new FakeVacanteApiClient
+        {
+            CrearResult = VacanteCommandResult.Failure(
+                new VacanteError(ErrorCategoria.Validation, "ValidationFailed", "La vacante contiene datos inválidos."),
+                new Dictionary<string, string[]> { ["Motivo"] = [fieldError] }),
+            ListarEstadosResult = states
+        };
+
+        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+            apiClient,
+            FakePuestosApiClient.WithPuestoList(new PuestoDto(
+                puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)),
+            adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync("/organizacion/vacantes/crear");
+        var token = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+        var response = await lease.Client.PostAsync(
+            "/organizacion/vacantes/crear",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["Input.PuestoId"] = puestoId.ToString("D"),
+                ["Input.EstadoVacanteId"] = estadoId.ToString("D"),
+                ["Input.FechaApertura"] = "2026-02-01",
+                ["Input.Motivo"] = motivo,
+                ["Input.Observaciones"] = "Conservar observaciones"
+            }));
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("data-valmsg-for=\"Input.Motivo\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(fieldError, content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"value=\"{motivo}\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(apiClient.CrearCalls);
+    }
+
+    [Fact]
+    public async Task Post_Create_WhenApiReturnsConflict_ShowsMessageAndPreservesInput()
+    {
+        var puestoId = Guid.NewGuid();
+        var states = FakeVacanteApiClient.BuildStates();
+        var estadoId = states[0].Id;
+        const string motivo = "Cobertura del puesto conflictivo";
+        const string conflictMessage = "El puesto ya tiene una vacante abierta.";
+        var apiClient = new FakeVacanteApiClient
+        {
+            CrearResult = VacanteCommandResult.Failure(
+                new VacanteError(ErrorCategoria.Conflict, "PuestoConVacanteAbierta", conflictMessage)),
+            ListarEstadosResult = states
+        };
+
+        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+            apiClient,
+            FakePuestosApiClient.WithPuestoList(new PuestoDto(
+                puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)),
+            adminRole: true);
+
+        var getResponse = await lease.Client.GetAsync("/organizacion/vacantes/crear");
+        var token = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+        var response = await lease.Client.PostAsync(
+            "/organizacion/vacantes/crear",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["Input.PuestoId"] = puestoId.ToString("D"),
+                ["Input.EstadoVacanteId"] = estadoId.ToString("D"),
+                ["Input.FechaApertura"] = "2026-02-01",
+                ["Input.Motivo"] = motivo,
+                ["Input.Observaciones"] = "Conservar observaciones"
+            }));
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(conflictMessage, content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"value=\"{motivo}\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(apiClient.CrearCalls);
     }
 
     [Fact]
