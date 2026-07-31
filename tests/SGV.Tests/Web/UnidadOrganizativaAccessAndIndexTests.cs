@@ -35,7 +35,7 @@ public sealed partial class UnidadOrganizativaWebTests
         Assert.Contains("Unidades Organizativas", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<span class=\"menu-text\">Home</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<span class=\"menu-text\">Unidades Organizativas</span>", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<span class=\"menu-text\">Vacantes</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Postulantes</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span class=\"menu-text\">Catálogos</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span class=\"menu-text\">Reclutamiento</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("name=\"search\"", content, StringComparison.OrdinalIgnoreCase);

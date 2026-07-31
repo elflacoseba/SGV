@@ -177,7 +177,7 @@ public class PuestoWebSeamTests
         // vez de texto entre tags: "Vacantes" aparece en meta description y
         // footer del layout, lo que haría una aserción textual frágil.
         Assert.DoesNotContain(@"aria-controls=""reclutamiento""", content, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(@"aria-controls=""vacantes""", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(@"aria-controls=""seleccion""", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(@"aria-controls=""postulantes""", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(@"aria-controls=""catalogos""", content, StringComparison.OrdinalIgnoreCase);
     }
