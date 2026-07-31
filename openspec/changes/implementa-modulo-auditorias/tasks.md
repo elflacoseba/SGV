@@ -39,10 +39,10 @@ S1 base de S2/S3. `[MySqlFact]` skipea sin DB. Cada slice borra archivos nuevos 
 
 ## Phase 2: S2 — Controller API admin-only
 
-- [ ] 2.1 (RED) `AuditoriasControllerTests.cs`: GET sin creds → 401, sin Admin → 403, Admin → 200 `PagedResult`, paginación+filtros, detalle → 200/404, JSON sin old/new, `[Authorize]` por reflexión.
-- [ ] 2.2 (RED) Mismo archivo: `DateFrom>DateTo` → 400 con `ProblemDetails` y mensaje de rango invertido.
-- [ ] 2.3 (GREEN) `src/SGV.Api/Controllers/AuditoriasController.cs` (`[ApiController]`, `[Authorize(Roles=RolesSgv.Administrador)]`, `ArgumentException` → `ApiResults.ToValidationProblemResult`).
-- [ ] 2.4 (VERIFY) `dotnet build SGV.slnx` + suite API S2 verde.
+- [x] 2.1 (RED) `AuditoriasControllerTests.cs`: GET sin creds → 401, sin Admin → 403, Admin → 200 `PagedResult`, paginación+filtros, detalle → 200/404, JSON sin old/new, `[Authorize]` por reflexión.
+- [x] 2.2 (RED) Mismo archivo: `DateFrom>DateTo` → 400 con `ProblemDetails` y mensaje de rango invertido.
+- [x] 2.3 (GREEN) `src/SGV.Api/Controllers/AuditoriasController.cs` (`[ApiController]`, `[Authorize(Roles=RolesSgv.Administrador)]`, `ArgumentException` → `ApiResults.ToValidationProblemResult`).
+- [x] 2.4 (VERIFY) `dotnet build SGV.slnx` + suite API S2 verde.
 
 ## Phase 3: S3 — Web (cliente + Page + sidenav + docs)
 

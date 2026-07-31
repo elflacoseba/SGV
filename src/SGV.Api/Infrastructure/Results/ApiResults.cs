@@ -184,6 +184,22 @@ public static class ApiResults
     public static ActionResult ToProblemResult(UsuarioError error, HttpContext? httpContext = null)
         => BuildProblem(MapUsuarioStatus(error), error.Code, error.Message, httpContext);
 
+    /// <summary>
+    /// Builds a <see cref="ValidationProblemDetails"/> from a raw
+    /// <paramref name="code"/>/<paramref name="detail"/> pair. Reserved
+    /// for read-side controllers whose service throws a bare
+    /// <see cref="ArgumentException"/> (no typed error envelope) and
+    /// needs to surface the same wire shape as write endpoints without
+    /// inventing a domain error type just to fit the typed-overload
+    /// signature. Slice S2 (módulo de auditoría) es el primer consumidor.
+    /// </summary>
+    public static ActionResult ToValidationProblemResult(
+        string code,
+        string detail,
+        IReadOnlyDictionary<string, string[]>? fieldErrors,
+        HttpContext? httpContext = null)
+        => BuildValidationProblem(code, detail, fieldErrors, httpContext);
+
     // ---- Internal builders + per-enum mappers ----
 
     /// <summary>
