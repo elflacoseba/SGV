@@ -17,6 +17,7 @@ using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Usuarios;
+using SGV.Web.Integration.Vacantes;
 using Xunit;
 
 namespace SGV.Tests.Web.Collections;
@@ -97,6 +98,28 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
         => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             ocupacionApiClient: ocupacion));
+
+    /// <summary>
+    /// Lease autenticado contra el listado y los formularios de Vacantes.
+    /// </summary>
+    public Task<WebClientLease> CreateVacanteLeaseAsync(
+        IVacanteApiClient vacante, bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            vacanteApiClient: vacante));
+
+    /// <summary>
+    /// Lease autenticado para formularios de Vacantes con clientes tipados de
+    /// vacantes y puestos reemplazados por fakes de test.
+    /// </summary>
+    public Task<WebClientLease> CreateVacanteFormLeaseAsync(
+        IVacanteApiClient vacante,
+        IPuestosApiClient puestos,
+        bool adminRole = true)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            puestosApiClient: puestos,
+            vacanteApiClient: vacante));
 
     /// <summary>
     /// Lease autenticado contra los formularios de Ocupaciones (Create/Edit/Details).

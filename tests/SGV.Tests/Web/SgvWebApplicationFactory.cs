@@ -16,6 +16,7 @@ using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Setup;
 using SGV.Web.Integration.Usuarios;
+using SGV.Web.Integration.Vacantes;
 
 namespace SGV.Tests.Web;
 
@@ -37,6 +38,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     private readonly IUsuarioApiClient? _usuarioApiClient;
     private readonly ISetupApiClient? _setupApiClient;
     private readonly IOcupacionApiClient? _ocupacionApiClient;
+    private readonly IVacanteApiClient? _vacanteApiClient;
     private readonly RecordingLoggerProvider? _recordingLoggerProvider;
 
     public SgvWebApplicationFactory()
@@ -56,6 +58,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IUsuarioApiClient? usuarioApiClient,
         ISetupApiClient? setupApiClient = null,
         IOcupacionApiClient? ocupacionApiClient = null,
+        IVacanteApiClient? vacanteApiClient = null,
         RecordingLoggerProvider? recordingLoggerProvider = null)
     {
         _configureServices = configureServices;
@@ -70,6 +73,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         _usuarioApiClient = usuarioApiClient;
         _setupApiClient = setupApiClient;
         _ocupacionApiClient = ocupacionApiClient;
+        _vacanteApiClient = vacanteApiClient;
         _recordingLoggerProvider = recordingLoggerProvider;
     }
 
@@ -86,6 +90,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
         IUsuarioApiClient? usuarioApiClient = null,
         ISetupApiClient? setupApiClient = null,
         IOcupacionApiClient? ocupacionApiClient = null,
+        IVacanteApiClient? vacanteApiClient = null,
         RecordingLoggerProvider? recordingLoggerProvider = null)
     {
         return new SgvWebApplicationFactory(
@@ -101,6 +106,7 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             usuarioApiClient,
             setupApiClient,
             ocupacionApiClient,
+            vacanteApiClient,
             recordingLoggerProvider);
     }
 
@@ -158,6 +164,13 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
     /// </summary>
     public SgvWebApplicationFactory WithOcupacionApiClient(IOcupacionApiClient fake)
         => WithOverrides(ocupacionApiClient: fake);
+
+    /// <summary>
+    /// Convenience helper to swap <see cref="IVacanteApiClient"/> for a fake
+    /// without changing the rest of the web host configuration.
+    /// </summary>
+    public SgvWebApplicationFactory WithVacanteApiClient(IVacanteApiClient fake)
+        => WithOverrides(vacanteApiClient: fake);
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -264,6 +277,12 @@ public sealed class SgvWebApplicationFactory : WebApplicationFactory<SGV.Web.Pro
             {
                 services.RemoveAll<IOcupacionApiClient>();
                 services.AddSingleton(_ocupacionApiClient);
+            }
+
+            if (_vacanteApiClient is not null)
+            {
+                services.RemoveAll<IVacanteApiClient>();
+                services.AddSingleton(_vacanteApiClient);
             }
 
             if (_recordingLoggerProvider is not null)
