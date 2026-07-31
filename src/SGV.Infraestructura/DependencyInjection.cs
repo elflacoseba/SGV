@@ -14,6 +14,8 @@ using SGV.Aplicacion.Seguridad.PasswordChange;
 using SGV.Aplicacion.Seguridad.PasswordReset;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Aplicacion.Setup;
+using SGV.Aplicacion.Vacantes.Comandos;
+using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Infraestructura.Email;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
@@ -57,6 +59,8 @@ public static class DependencyInjection
         services.AddScoped<IOcupacionRepository, OcupacionRepository>();
         services.AddScoped<ISkillCargoRepository, SkillCargoRepository>();
         services.AddScoped<ISkillPersonaRepository, SkillPersonaRepository>();
+        services.AddScoped<IVacanteRepository, VacanteRepository>();
+        services.AddScoped<IEstadoVacanteRepository, EstadoVacanteRepository>();
 
         // Query services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioConsulta, UnidadOrganizativaServicioConsulta>();
@@ -72,6 +76,8 @@ public static class DependencyInjection
         services.AddScoped<IOcupacionServicioConsulta, OcupacionServicioConsulta>();
         services.AddScoped<ISkillCargoServicioConsulta, SkillCargoServicioConsulta>();
         services.AddScoped<ISkillPersonaServicioConsulta, SkillPersonaServicioConsulta>();
+        services.AddScoped<IVacanteServicioConsulta, VacanteServicioConsulta>();
+        services.AddScoped<IEstadoVacanteServicioConsulta, EstadoVacanteServicioConsulta>();
 
         // Command services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioComandos, UnidadOrganizativaServicioComandos>();
@@ -80,6 +86,7 @@ public static class DependencyInjection
         services.AddScoped<IHabilidadServicioComandos, HabilidadServicioComandos>();
         services.AddScoped<IPersonaServicioComandos, PersonaServicioComandos>();
         services.AddScoped<IOcupacionServicioComandos, OcupacionServicioComandos>();
+        services.AddScoped<IVacanteServicioComandos, VacanteServicioComandos>();
 
         // Skill assignment services (application layer)
         services.AddScoped<ICargoSkillServicio, CargoSkillServicio>();
