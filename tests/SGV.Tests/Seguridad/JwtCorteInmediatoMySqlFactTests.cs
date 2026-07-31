@@ -39,7 +39,7 @@ public sealed class JwtCorteInmediatoMySqlFactTests
     {
         await using var factory = await CreateFactoryAsync();
         var (adminToken, _) = await LoginAsAdminAsync(factory);
-        var (userToken, userId) = await CreateAndLoginTargetUserAsync(factory);
+        var (userToken, userId, targetUserName) = await CreateAndLoginTargetUserAsync(factory);
 
         // Verificar que el JWT funciona ANTES de bloquear
         using var preClient = factory.CreateClient();
@@ -48,8 +48,11 @@ public sealed class JwtCorteInmediatoMySqlFactTests
         Assert.Equal(HttpStatusCode.OK,
             (await preClient.GetAsync(ConsultaRoute)).StatusCode);
 
-        // Bloquear al usuario mediante UserManager
-        await using (var scope = factory.Services.CreateAsyncScope())
+        // Bloquear al usuario mediante UserManager.
+        // LockoutEnabled=true es necesario para que IsLockedOutAsync respete
+        // LockoutEnd (sin esto Identity ignora silenciosamente la fecha).
+        // SetLockoutEndDateAsync ya invoca UpdateAsync por dentro.
+        await using var scope = factory.Services.CreateAsyncScope();
         {
             var um = scope.ServiceProvider
                 .GetRequiredService<UserManager<SgvIdentityUser>>();
@@ -59,12 +62,12 @@ public sealed class JwtCorteInmediatoMySqlFactTests
             u.LockoutEnabled = true;
             var lr = await um.SetLockoutEndDateAsync(
                 u, new DateTimeOffset(9999, 12, 31, 23, 59, 59, TimeSpan.Zero));
-            Assert.True(lr.Succeeded);
-            await um.UpdateAsync(u);
+            Assert.True(lr.Succeeded,
+                $"SetLockoutEndDateAsync(block) falló: {string.Join(", ", lr.Errors.Select(e => e.Description))}");
         }
 
         // Verificación: revalidator rechaza al usuario bloqueado
-        await using (var rvScope = factory.Services.CreateAsyncScope())
+        await using var rvScope = factory.Services.CreateAsyncScope();
         {
             var rv = rvScope.ServiceProvider
                 .GetRequiredService<IRevalidatorCredenciales>();
@@ -89,20 +92,20 @@ public sealed class JwtCorteInmediatoMySqlFactTests
             (await adminClient.GetAsync(ConsultaRoute)).StatusCode);
 
         // Desbloquear → nuevo login funciona
-        await using (var scope = factory.Services.CreateAsyncScope())
+        await using var unlockScope = factory.Services.CreateAsyncScope();
         {
-            var um = scope.ServiceProvider
+            var um = unlockScope.ServiceProvider
                 .GetRequiredService<UserManager<SgvIdentityUser>>();
             var u = await um.FindByIdAsync(userId);
             Assert.NotNull(u);
             var ur = await um.SetLockoutEndDateAsync(u, null);
-            Assert.True(ur.Succeeded);
-            await um.UpdateAsync(u);
+            Assert.True(ur.Succeeded,
+                $"SetLockoutEndDateAsync(unlock) falló: {string.Join(", ", ur.Errors.Select(e => e.Description))}");
         }
 
         var newLogin = await factory.CreateClient().PostAsJsonAsync(
             LoginRoute,
-            new LoginRequest($"corte-user-{_lastMarker}", "Corte#12345"));
+            new LoginRequest(targetUserName, "Corte#12345"));
         Assert.Equal(HttpStatusCode.OK, newLogin.StatusCode);
         var newToken = (await newLogin.Content.ReadFromJsonAsync<LoginResponse>())!;
 
@@ -112,23 +115,22 @@ public sealed class JwtCorteInmediatoMySqlFactTests
         Assert.Equal(HttpStatusCode.OK,
             (await newClient.GetAsync(ConsultaRoute)).StatusCode);
 
-        // Nota: el diseño dice "desbloqueo NO revive tokens previos", pero
-        // la implementación actual de RevalidatorCredenciales solo verifica
-        // IsLockedOutAsync (que retorna false tras el desbloqueo) y existencia
-        // del usuario. No hay un mecanismo de SecurityStamp-based
-        // revocación. El JWT original emitido antes del bloqueo VUELVE a
-        // ser válido tras el desbloqueo — comportamiento actual aceptado.
-        // Si en el futuro se agrega revocación por SecurityStamp, este test
-        // debe actualizarse para verificar 401 en vez de 200.
+        // Documentación de comportamiento actual: el JWT original emitido
+        // antes del bloqueo VUELVE a ser válido tras el desbloqueo porque
+        // RevalidatorCredenciales sólo verifica IsLockedOutAsync y existencia
+        // del usuario. No hay revocación por SecurityStamp. Cuando se agregue,
+        // este test debe actualizarse para esperar 401 aquí en vez de 200.
+        using var oldClient = factory.CreateClient();
+        oldClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", userToken);
+        Assert.Equal(HttpStatusCode.OK,
+            (await oldClient.GetAsync(ConsultaRoute)).StatusCode);
     }
 
-    private string? _lastMarker;
-
-    private async Task<(string Token, string UserId)> CreateAndLoginTargetUserAsync(
+    private async Task<(string Token, string UserId, string UserName)> CreateAndLoginTargetUserAsync(
         JwtRealWebApplicationFactory factory)
     {
         var marker = $"corte-{Guid.NewGuid():N}"[..12];
-        _lastMarker = marker;
         var userName = $"corte-user-{marker}";
         var password = "Corte#12345";
 
@@ -161,7 +163,7 @@ public sealed class JwtCorteInmediatoMySqlFactTests
         Assert.Equal(HttpStatusCode.OK, loginResp.StatusCode);
         var body = await loginResp.Content.ReadFromJsonAsync<LoginResponse>();
         Assert.NotNull(body);
-        return (body!.AccessToken, user.Id);
+        return (body!.AccessToken, user.Id, userName);
     }
 
     private static async Task<(string Token, string UserId)> LoginAsAdminAsync(
