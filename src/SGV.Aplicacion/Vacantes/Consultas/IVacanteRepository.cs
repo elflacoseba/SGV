@@ -10,7 +10,10 @@ namespace SGV.Aplicacion.Vacantes.Consultas;
 /// (no contra <c>FechaCierre</c>) para mantener fidelidad con la spec
 /// (<c>design.md</c> §D-2). El método <c>GetByIdForUpdateAsync</c>
 /// devuelve la entidad rastreada por EF Core para que el cambio de estado
-/// (vacante + historial) se persista en una única transacción.
+/// (vacante + historial) se persista en una única transacción; el bridge
+/// explícito entre la colección de dominio y la colección EF se hace vía
+/// <see cref="RegistrarCambioEstadoAsync"/> para preservar la atomicidad
+/// sin filtrar tipos de infraestructura al application layer.
 /// </summary>
 public interface IVacanteRepository : IReadOnlyRepository<Vacante>
 {
@@ -25,9 +28,40 @@ public interface IVacanteRepository : IReadOnlyRepository<Vacante>
     /// Retrieves a vacante by id, tracked by EF Core, with eager loading of
     /// <c>Puesto</c> + <c>EstadoVacante</c> + <c>HistorialEstados</c>
     /// (and their inner navigation properties) so the caller can mutate the
-    /// aggregate and persist vacante + historial atomically.
+    /// aggregate via the domain methods. The persisted entity remains
+    /// tracked; the caller MUST follow with
+    /// <see cref="RegistrarCambioEstadoAsync"/> (for state transitions) or
+    /// <see cref="IUnitOfWork.SaveChangesAsync"/> (for plain field updates)
+    /// to commit changes inside a single EF transaction.
     /// </summary>
     Task<Vacante?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Persists a state transition in a single EF transaction. The caller
+    /// invokes <see cref="GetByIdForUpdateAsync"/> to load the tracked
+    /// domain aggregate, calls <c>vacante.CambiarEstado(...)</c> to mutate
+    /// it, and then forwards the returned <see cref="HistorialEstadoVacante"/>
+    /// through this method so the infrastructure layer can:
+    /// (a) re-fetch the tracked <c>VacanteEntity</c> and apply
+    /// <c>UpdateEntity</c> with the domain state; and
+    /// (b) map the new history entry to <c>HistorialEstadoVacanteEntity</c>
+    /// and add it to <c>entity.HistorialEstados</c>.
+    /// EF wraps both writes in one transaction at
+    /// <see cref="IUnitOfWork.SaveChangesAsync"/> time — see
+    /// <c>design.md</c> §D-5 (atomicidad).
+    /// </summary>
+    Task RegistrarCambioEstadoAsync(
+        Vacante vacante,
+        HistorialEstadoVacante historial,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Persists a plain field update (e.g. <c>ActualizarObservaciones</c>)
+    /// by re-fetching the tracked entity and applying
+    /// <c>UpdateEntity</c> with the mutated domain. No history row is
+    /// added; EF wraps the single UPDATE in its own transaction.
+    /// </summary>
+    Task UpdateAsync(Vacante vacante, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Lists vacantes filtered by <see cref="VacanteListQuery.Segmento"/>

@@ -63,6 +63,67 @@ public sealed class VacanteRepository(SgvDbContext context)
     }
 
     /// <summary>
+    /// Persists the atomic state transition. Re-fetches the tracked
+    /// <c>VacanteEntity</c>, applies the mutated domain state via
+    /// <see cref="DomainToPersistenceMapper.UpdateEntity(VacanteEntity, Vacante)"/>,
+    /// and adds the new <see cref="HistorialEstadoVacanteEntity"/> (mapped
+    /// from the domain <see cref="HistorialEstadoVacante"/>) to
+    /// <c>entity.HistorialEstados</c>. EF will wrap both writes in a
+    /// single transaction at <see cref="IUnitOfWork.SaveChangesAsync"/>
+    /// time (atomicidad, <c>design.md</c> §D-5).
+    /// </summary>
+    public async Task RegistrarCambioEstadoAsync(
+        Vacante vacante,
+        HistorialEstadoVacante historial,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(vacante);
+        ArgumentNullException.ThrowIfNull(historial);
+
+        var entity = await Context
+            .Set<VacanteEntity>()
+            .FirstOrDefaultAsync(v => v.Id == vacante.Id, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"No se encontró la entidad {nameof(VacanteEntity)} con id {vacante.Id}.");
+
+        DomainToPersistenceMapper.UpdateEntity(entity, vacante);
+
+        var historialEntity = new HistorialEstadoVacanteEntity
+        {
+            Id = historial.Id == Guid.Empty ? Guid.NewGuid() : historial.Id,
+            VacanteId = historial.VacanteId,
+            EstadoAnteriorId = historial.EstadoAnteriorId,
+            EstadoNuevoId = historial.EstadoNuevoId,
+            ChangedAt = historial.ChangedAt,
+            ChangedByUserId = historial.ChangedByUserId,
+            Motivo = historial.Motivo
+        };
+
+        entity.HistorialEstados.Add(historialEntity);
+    }
+
+    /// <summary>
+    /// Persists a plain field mutation (e.g. <c>ActualizarObservaciones</c>)
+    /// by re-fetching the tracked entity and applying
+    /// <see cref="DomainToPersistenceMapper.UpdateEntity(VacanteEntity, Vacante)"/>
+    /// with the mutated domain. No history row is added.
+    /// </summary>
+    public async Task UpdateAsync(Vacante vacante, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(vacante);
+
+        var entity = await Context
+            .Set<VacanteEntity>()
+            .FirstOrDefaultAsync(v => v.Id == vacante.Id, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"No se encontró la entidad {nameof(VacanteEntity)} con id {vacante.Id}.");
+
+        DomainToPersistenceMapper.UpdateEntity(entity, vacante);
+    }
+
+    /// <summary>
     /// Lists vacantes filtered by <see cref="VacanteListQuery.Segmento"/>.
     /// <list type="bullet">
     /// <item><description><see cref="VacanteSegmentoListado.Abiertas"/> →
