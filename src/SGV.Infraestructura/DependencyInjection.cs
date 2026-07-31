@@ -43,6 +43,11 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IAuditoriaServicio, AuditoriaServicio>();
 
+        // S1 — Read-side del módulo transversal de auditoría. Vive en
+        // Infraestructura porque depende de SgvDbContext; el puerto
+        // IAuditoriaServicioConsulta está en SGV.Aplicacion.
+        services.AddScoped<IAuditoriaServicioConsulta, AuditoriaServicioConsulta>();
+
         // Repositories
         services.AddScoped<IUnidadOrganizativaRepository, UnidadOrganizativaRepository>();
         services.AddScoped<ICargoRepository, CargoRepository>();
