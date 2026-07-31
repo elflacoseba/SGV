@@ -10,6 +10,13 @@ public static class VacanteApiRoutes
     public const string EstadosVacanteBase = "api/v1/estados-vacante";
     public const string EstadosVacanteRoot = "/" + EstadosVacanteBase;
 
+    // El dropdown de Puesto en Create consume el endpoint existente de
+    // Puestos (GET /api/v1/puestos). El cliente de Vacantes lo expone
+    // como ListarPuestosAsync para que la página no dependa de
+    // IPuestosApiClient cross-module (issue #235).
+    public const string PuestosBase = "api/v1/puestos";
+    public const string PuestosRoot = "/" + PuestosBase;
+
     public const string StatusQuery = "status";
     public const string PageQuery = "p";
     public const string PageSizeQuery = "pageSize";

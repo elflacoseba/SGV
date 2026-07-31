@@ -24,6 +24,15 @@ public interface IVacanteApiClient
     Task<IReadOnlyList<EstadoVacanteDto>> ListarEstadosAsync(
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Gets the active puestos available to populate the Create dropdown.
+    /// Backed by <c>GET /api/v1/puestos</c>; declared here so the Vacante
+    /// page does not depend on <see cref="SGV.Web.Integration.Organizacion.IPuestosApiClient"/>
+    /// cross-module (issue #235).
+    /// </summary>
+    Task<IReadOnlyList<PuestoDto>> ListarPuestosAsync(
+        CancellationToken cancellationToken = default);
+
     /// <summary>Creates a vacante and returns its persisted detail.</summary>
     Task<VacanteCommandResult> CrearAsync(
         CrearVacanteRequest request,

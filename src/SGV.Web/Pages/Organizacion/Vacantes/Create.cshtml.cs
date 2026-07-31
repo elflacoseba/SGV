@@ -5,7 +5,6 @@ using SGV.Contracts.Comun;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Vacantes.Comandos;
 using SGV.Web.Integration.Common;
-using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Vacantes;
 using SGV.Web.Pages.Common;
 
@@ -13,11 +12,15 @@ namespace SGV.Web.Pages.Organizacion.Vacantes;
 
 /// <summary>
 /// PageModel for creating a vacante from the Vacantes module.
+/// Carga los catálogos de Puesto y Estado a través de
+/// <see cref="IVacanteApiClient"/> (issue #235): la página no depende
+/// de <c>IPuestosApiClient</c> cross-module, sino del método
+/// <see cref="IVacanteApiClient.ListarPuestosAsync"/> declarado en el
+/// propio cliente de Vacantes.
 /// </summary>
 [Authorize]
 public sealed class CreateModel(
     IVacanteApiClient vacanteApiClient,
-    IPuestosApiClient puestosApiClient,
     IAuthSessionRedirector authRedirector,
     ILogger<CreateModel> logger) : PageModel
 {
@@ -164,7 +167,7 @@ public sealed class CreateModel(
 
         try
         {
-            var puestosTask = puestosApiClient.GetAllAsync(cancellationToken);
+            var puestosTask = vacanteApiClient.ListarPuestosAsync(cancellationToken);
             var estadosTask = vacanteApiClient.ListarEstadosAsync(cancellationToken);
             await Task.WhenAll(puestosTask, estadosTask);
             Puestos = await puestosTask;

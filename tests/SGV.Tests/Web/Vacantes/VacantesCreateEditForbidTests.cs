@@ -6,7 +6,6 @@ using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Vacantes.Comandos;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Common;
-using SGV.Tests.Web.Puesto;
 using Xunit;
 
 namespace SGV.Tests.Web.Vacantes;
@@ -21,9 +20,8 @@ public sealed class VacantesCreateEditForbidTests
     [Fact]
     public async Task Get_Create_WhenAuthenticatedWithoutMutationRole_RedirectsToAccessDenied()
     {
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             new FakeVacanteApiClient(),
-            new FakePuestosApiClient(),
             adminRole: false);
 
         var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
@@ -37,11 +35,14 @@ public sealed class VacantesCreateEditForbidTests
     {
         var states = FakeVacanteApiClient.BuildStates();
         var puesto = new PuestoDto(Guid.NewGuid(), "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null);
-        var apiClient = new FakeVacanteApiClient { ListarEstadosResult = states };
+        var apiClient = new FakeVacanteApiClient
+        {
+            ListarEstadosResult = states,
+            ListarPuestosResult = [puesto]
+        };
 
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             apiClient,
-            FakePuestosApiClient.WithPuestoList(puesto),
             adminRole: true);
 
         var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
@@ -53,6 +54,7 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Contains("Abierta", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Input.PuestoId", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Input.EstadoVacanteId", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(apiClient.ListarPuestosCalls);
     }
 
     [Fact]
@@ -63,9 +65,28 @@ public sealed class VacantesCreateEditForbidTests
             ListarEstadosException = new HttpRequestException("upstream returned 503")
         };
 
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             apiClient,
-            new FakePuestosApiClient(),
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("No se pudieron cargar los catálogos. Intentá nuevamente.", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("disabled=\"disabled\">Guardar", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Create_WhenPuestoCatalogLoadFails_ShowsRecoverableErrorAndDisablesSave()
+    {
+        var apiClient = new FakeVacanteApiClient
+        {
+            ListarPuestosException = new HttpRequestException("upstream returned 503")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
+            apiClient,
             adminRole: true);
 
         var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
@@ -88,13 +109,13 @@ public sealed class VacantesCreateEditForbidTests
         var apiClient = new FakeVacanteApiClient
         {
             CrearResult = VacanteCommandResult.Success(created),
-            ListarEstadosResult = FakeVacanteApiClient.BuildStates()
+            ListarEstadosResult = FakeVacanteApiClient.BuildStates(),
+            ListarPuestosResult = [new PuestoDto(
+                puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
         };
 
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             apiClient,
-            FakePuestosApiClient.WithPuestoList(new PuestoDto(
-                puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)),
             adminRole: true);
 
         var getResponse = await lease.Client.GetAsync("/organizacion/vacantes/crear");
@@ -132,13 +153,13 @@ public sealed class VacantesCreateEditForbidTests
             CrearResult = VacanteCommandResult.Failure(
                 new VacanteError(ErrorCategoria.Validation, "ValidationFailed", "La vacante contiene datos inválidos."),
                 new Dictionary<string, string[]> { ["Motivo"] = [fieldError] }),
-            ListarEstadosResult = states
+            ListarEstadosResult = states,
+            ListarPuestosResult = [new PuestoDto(
+                puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
         };
 
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             apiClient,
-            FakePuestosApiClient.WithPuestoList(new PuestoDto(
-                puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)),
             adminRole: true);
 
         var getResponse = await lease.Client.GetAsync("/organizacion/vacantes/crear");
@@ -175,13 +196,13 @@ public sealed class VacantesCreateEditForbidTests
         {
             CrearResult = VacanteCommandResult.Failure(
                 new VacanteError(ErrorCategoria.Conflict, "PuestoConVacanteAbierta", conflictMessage)),
-            ListarEstadosResult = states
+            ListarEstadosResult = states,
+            ListarPuestosResult = [new PuestoDto(
+                puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
         };
 
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             apiClient,
-            FakePuestosApiClient.WithPuestoList(new PuestoDto(
-                puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)),
             adminRole: true);
 
         var getResponse = await lease.Client.GetAsync("/organizacion/vacantes/crear");
@@ -208,9 +229,8 @@ public sealed class VacantesCreateEditForbidTests
     [Fact]
     public async Task Get_Edit_WhenAuthenticatedWithoutMutationRole_RedirectsToAccessDenied()
     {
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             new FakeVacanteApiClient(),
-            new FakePuestosApiClient(),
             adminRole: false);
 
         var response = await lease.Client.GetAsync($"/organizacion/vacantes/editar/{Guid.NewGuid():D}");
@@ -234,9 +254,8 @@ public sealed class VacantesCreateEditForbidTests
             ListarEstadosResult = FakeVacanteApiClient.BuildStates()
         };
 
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             apiClient,
-            new FakePuestosApiClient(),
             adminRole: true);
 
         var response = await lease.Client.GetAsync($"/organizacion/vacantes/editar/{id:D}");
@@ -247,6 +266,7 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Contains("Observación actual", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("En selección", content, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(id, Assert.Single(apiClient.ObtenerPorIdCalls));
+        Assert.Empty(apiClient.ListarPuestosCalls);
     }
 
     [Fact]
@@ -272,9 +292,8 @@ public sealed class VacantesCreateEditForbidTests
             ListarEstadosResult = FakeVacanteApiClient.BuildStates()
         };
 
-        await using var lease = await _fixture.CreateVacanteFormLeaseAsync(
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
             apiClient,
-            new FakePuestosApiClient(),
             adminRole: true);
 
         var getResponse = await lease.Client.GetAsync($"/organizacion/vacantes/editar/{id:D}");

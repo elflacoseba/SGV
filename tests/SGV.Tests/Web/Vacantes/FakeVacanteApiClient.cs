@@ -13,12 +13,14 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
     public Func<VacanteListQuery, PagedResult<VacanteDto>>? ListarHandler { get; set; }
     public VacanteDetailDto? ObtenerPorIdResult { get; set; }
     public IReadOnlyList<EstadoVacanteDto> ListarEstadosResult { get; set; } = [];
+    public IReadOnlyList<PuestoDto> ListarPuestosResult { get; set; } = [];
     public VacanteCommandResult CrearResult { get; set; } = new(false, null, null);
     public VacanteCommandResult CambiarEstadoResult { get; set; } = new(false, null, null);
 
     public Exception? ListarException { get; set; }
     public Exception? ObtenerPorIdException { get; set; }
     public Exception? ListarEstadosException { get; set; }
+    public Exception? ListarPuestosException { get; set; }
     public Exception? CrearException { get; set; }
     public Exception? CambiarEstadoException { get; set; }
 
@@ -26,6 +28,7 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
     public List<Guid> ObtenerPorIdCalls { get; } = [];
     public List<CrearVacanteRequest> CrearCalls { get; } = [];
     public List<(Guid Id, CambiarEstadoVacanteRequest Request)> CambiarEstadoCalls { get; } = [];
+    public List<int> ListarPuestosCalls { get; } = [];
 
     public Task<PagedResult<VacanteDto>> ListarAsync(
         VacanteListQuery query,
@@ -62,6 +65,19 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
         }
 
         return Task.FromResult(ListarEstadosResult);
+    }
+
+    public Task<IReadOnlyList<PuestoDto>> ListarPuestosAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ListarPuestosCalls.Add(1);
+
+        if (ListarPuestosException is not null)
+        {
+            throw ListarPuestosException;
+        }
+
+        return Task.FromResult(ListarPuestosResult);
     }
 
     public Task<VacanteCommandResult> CrearAsync(

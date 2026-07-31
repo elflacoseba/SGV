@@ -109,19 +109,6 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             vacanteApiClient: vacante));
 
     /// <summary>
-    /// Lease autenticado para formularios de Vacantes con clientes tipados de
-    /// vacantes y puestos reemplazados por fakes de test.
-    /// </summary>
-    public Task<WebClientLease> CreateVacanteFormLeaseAsync(
-        IVacanteApiClient vacante,
-        IPuestosApiClient puestos,
-        bool adminRole = true)
-        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
-            ConfigureBaseUrl, BuildAuthHandler(adminRole),
-            puestosApiClient: puestos,
-            vacanteApiClient: vacante));
-
-    /// <summary>
     /// Lease autenticado contra los formularios de Ocupaciones (Create/Edit/Details).
     /// Inyecta además los catálogos <see cref="IPersonaApiClient"/> y
     /// <see cref="IPuestosApiClient"/> que requieren los formularios para
