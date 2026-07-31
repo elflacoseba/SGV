@@ -2,12 +2,12 @@
 
 ## Intent
 
-Habilitar la gestión completa de vacantes de puestos a través de API REST y界面 web, permitiendo abrir, consultar, cambiar estado y cerrar vacantes. El dominio y la persistencia ya existen; falta la capa de aplicación, contratos wire, controller, repository y páginas web.
+Habilitar la gestión de vacantes de puestos a través de API REST y interfaz web, permitiendo crear, consultar, cambiar estado y cerrar vacantes. El dominio y la persistencia ya existen; falta la capa de aplicación, contratos wire, controller, repository y páginas web.
 
 ## Scope
 
 ### In Scope
-- CRUD completo de vacantes via API REST (`VacantesController`)
+- CRU de vacantes vía API REST: creación y consultas; el cambio de estado y cierre se realizan mediante PATCH de estado (`VacantesController`)
 - Cambio de estado de vacante con registro en `HistorialEstadoVacante`
 - Endpoint de catálogo `GET /api/v1/estados-vacante` (solo lectura, autenticado)
 - Query segmentada: `abiertas | cerradas | todas`
@@ -30,7 +30,7 @@ Habilitar la gestión completa de vacantes de puestos a través de API REST y界
 ## Capabilities
 
 ### New Capabilities
-- `vacante-management`: CRUD de vacantes, cambio de estado con historial, query segmentada, catálogo de estados. Cada capability genera `openspec/specs/vacante-management/spec.md`.
+- `vacante-management`: creación y consultas de vacantes, cambio de estado con historial, query segmentada y catálogo de estados. Cada capability genera `openspec/specs/vacante-management/spec.md`.
 - `vacante-web`: UI web para gestión de vacantes (Index, Create, Edit, Details) +ApiClient.
 
 ### Modified Capabilities
@@ -93,7 +93,7 @@ Habilitar la gestión completa de vacantes de puestos a través de API REST y界
 - [ ] `dotnet build SGV.slnx` compila sin errores
 - [ ] `dotnet test SGV.slnx` pasa (todos los layers)
 - [ ] `GET /api/v1/estados-vacante` retorna los 4 estados seed
-- [ ] CRUD completo de vacante vía API funciona con autenticación
+- [ ] Creación, consultas y cambio de estado de vacantes vía API funcionan con autenticación
 - [ ] Cambio de estado registra en `HistorialEstadoVacante`
 - [ ] Query segmentada (`abiertas|cerradas|todas`) excluye mezclas de segmento
 - [ ] Páginas web Index/Create/Edit/Details cargan y persistén correctamente

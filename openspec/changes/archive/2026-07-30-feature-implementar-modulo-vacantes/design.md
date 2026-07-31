@@ -2,9 +2,11 @@
 
 ## Technical Approach
 
-Slice C (API + Web básico) siguiendo el patrón de `Ocupaciones`: capa Contracts (leaf) → Aplicación (servicios + validadores) → Infra (repository + mappers) → API (controllers) → Web (Integration ApiClient + páginas). Dominio (`Vacante`, `EstadoVacante`, `HistorialEstadoVacante`), persistencia (`*Entity`, `*Configuracion`, `DbSet`s) y seed (`DatosSemilla` bloque `20000000-…`) ya existen — este change crea la capa de aplicación, contratos y UI. Sin migración EF (las tablas `Vacantes`, `HistorialEstadosVacante`, `EstadosVacante` ya están en el `ModelSnapshot`). Se respeta `ErrorCategoria` canon (sin enum legacy `[Obsolete]`).
+Slice C (API + Web básico) siguiendo el patrón de `Ocupaciones`: capa Contracts (leaf) → Aplicación (servicios + validadores) → Infra (repository + mappers) → API (controllers) → Web (Integration ApiClient + páginas). Dominio (`Vacante`, `EstadoVacante`, `HistorialEstadoVacante`), persistencia (`*Entity`, `*Configuracion`, `DbSet`s) y seed (`DatosSemilla` bloque `20000000-…`) ya existen — este change crea la capa de aplicación, contratos y UI. El alcance operativo de Vacantes es CRU: creación y consultas, con cambio de estado y cierre mediante PATCH de estado. Sin migración EF (las tablas `Vacantes`, `HistorialEstadosVacante`, `EstadosVacante` ya están en el `ModelSnapshot`). Se respeta `ErrorCategoria` canon (sin enum legacy `[Obsolete]`).
 
 ## Architecture Decisions
+
+- **D-0 — Sin endpoints PUT/DELETE**: el alcance implementado es CRU (creación y consultas); el cambio de estado y cierre se realizan mediante `PATCH /{id}/estado`.
 
 | ID | Opción | Tradeoff | Decisión |
 |----|--------|----------|----------|
@@ -13,7 +15,7 @@ Slice C (API + Web básico) siguiendo el patrón de `Ocupaciones`: capa Contract
 | D-3 | `EstadosVacanteController` dedicado | Endpoint dentro de `VacantesController` | **Dedicado** — patrón `NivelesCargoController`/`TiposDocumentoController` |
 | D-4 | Constante rol mutación `RolesSgvMutacion = Administrador,GestorVacantes` |Solo `Administrador` (Ocupaciones) | **Ambos roles** — PB-1 asumida; parametrizable en una sola constante |
 | D-5 | Historial como owned navigation en misma `SaveChangesAsync` | Tabla independiente con UoW manual | **Mismo `DbContext`/UoW** — `Vacante.CambiarEstado` agrega a `_historialEstados` (EF tracked); atomicidad provista por EF en una transacción |
-| D-6 | Catálogo `EstadoVacante` solo lectura vía `IEstadoVacanteServicioConsulta` | CRUD completo | **Solo lectura** — catálogo inmutable; `GET /api/v1/estados-vacante` ordenado por `Orden` |
+| D-6 | Catálogo `EstadoVacante` solo lectura vía `IEstadoVacanteServicioConsulta` | Gestión de catálogo | **Solo lectura** — catálogo inmutable; `GET /api/v1/estados-vacante` ordenado por `Orden` |
 
 ## Data Flow
 
