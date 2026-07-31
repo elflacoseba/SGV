@@ -29,6 +29,13 @@ namespace SGV.Api.Controllers;
 [Authorize]
 public class VacantesController : ControllerBase
 {
+    /// <summary>
+    /// Tope máximo de <c>pageSize</c> aceptado por el listado. Protege
+    /// contra requests que pidan miles de filas en una sola página y
+    /// mantiene latencia predecible.
+    /// </summary>
+    private const int MaxPageSize = 100;
+
     private readonly IVacanteServicioConsulta _servicio;
     private readonly IVacanteServicioComandos _comandos;
 
@@ -53,8 +60,12 @@ public class VacantesController : ControllerBase
     /// </remarks>
     /// <param name="status">Filtro de segmento: <c>abiertas</c> (default),
     /// <c>cerradas</c> o <c>todas</c>.</param>
-    /// <param name="page">Número de página (default: 1).</param>
-    /// <param name="pageSize">Tamaño de página (default: 20).</param>
+    /// <param name="page">Número de página (default: 1, mínimo: 1).
+    /// Valores ≤ 0 se normalizan a 1.</param>
+    /// <param name="pageSize">Tamaño de página (default: 20, rango: 1..100).
+    /// Valores fuera de rango se clampan. Esto evita respuestas
+    /// impredecibles si el cliente envía <c>pageSize=-1</c> o
+    /// <c>pageSize=10000</c>.</param>
     /// <param name="search">Búsqueda por nombre de puesto, motivo u observaciones.</param>
     /// <param name="sort">Expresión de orden server-side (e.g.
     /// <c>fechaapertura_desc</c>, <c>puesto_asc</c>). Cualquier otro valor
@@ -76,7 +87,9 @@ public class VacantesController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var segmento = NormalizeSegmento(status);
-        var query = new VacanteListQuery(page, pageSize, search, sort, segmento, puestoId);
+        var pageValida = Math.Max(1, page);
+        var pageSizeValido = Math.Clamp(pageSize, 1, MaxPageSize);
+        var query = new VacanteListQuery(pageValida, pageSizeValido, search, sort, segmento, puestoId);
         var result = await _servicio.ListarAsync(query, cancellationToken);
         return Ok(result);
     }
@@ -143,6 +156,18 @@ public class VacantesController : ControllerBase
     /// PB-3: <c>Motivo</c> opcional. PB-1: requires
     /// <see cref="RolesSgv.RolesSgvMutacion"/>.
     /// </summary>
+    /// <remarks>
+    /// <para><b>Observaciones:</b> Pasar <c>null</c>, string vacío o solo
+    /// espacios en <c>request.Observaciones</c> <b>limpia</b> el campo
+    /// <c>Observaciones</c> de la vacante (no las deja intactas). El
+    /// dominio normaliza estos valores a <c>null</c> vía
+    /// <c>ValidacionesDominio.Opcional</c>. Para mantener el valor
+    /// actual, omitir el campo no es suficiente (la deserialización lo
+    /// setea a <c>null</c>); la API siempre escribe lo que reciba.</para>
+    /// <para><b>Atomicidad:</b> la mutación del estado + el insert del
+    /// historial + la actualización de <c>Observaciones</c> se commitean
+    /// en una sola transacción EF (<c>design.md</c> §D-5).</para>
+    /// </remarks>
     /// <param name="id">Identificador único de la vacante.</param>
     /// <param name="request">Estado destino + motivo opcional + observaciones opcionales.</param>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>

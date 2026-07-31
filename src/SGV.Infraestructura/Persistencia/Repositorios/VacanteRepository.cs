@@ -89,18 +89,11 @@ public sealed class VacanteRepository(SgvDbContext context)
 
         DomainToPersistenceMapper.UpdateEntity(entity, vacante);
 
-        var historialEntity = new HistorialEstadoVacanteEntity
-        {
-            Id = historial.Id == Guid.Empty ? Guid.NewGuid() : historial.Id,
-            VacanteId = historial.VacanteId,
-            EstadoAnteriorId = historial.EstadoAnteriorId,
-            EstadoNuevoId = historial.EstadoNuevoId,
-            ChangedAt = historial.ChangedAt,
-            ChangedByUserId = historial.ChangedByUserId,
-            Motivo = historial.Motivo
-        };
-
-        entity.HistorialEstados.Add(historialEntity);
+        // Construye la entidad de historial vía mapper (paridad con
+        // `DomainToPersistenceMapper.ToEntity(Vacante)`). Esto centraliza
+        // el mapeo dominio → entidad y evita que un campo nuevo en
+        // `HistorialEstadoVacanteEntity` pase inadvertido.
+        entity.HistorialEstados.Add(DomainToPersistenceMapper.ToEntity(historial));
     }
 
     /// <summary>
@@ -213,9 +206,13 @@ public sealed class VacanteRepository(SgvDbContext context)
     /// </summary>
     public async Task<bool> ExistsAbiertaByPuestoAsync(Guid puestoId, CancellationToken cancellationToken = default)
     {
+        // EF Core resuelve `v.EstadoVacante.EsTerminal` como JOIN a partir
+        // del filtro en el `Where`; no es necesario el `Include` para
+        // `AnyAsync` porque la query no materializa entidades. El escaneo
+        // se acelera con `IX_Vacantes_PuestoId` (filtro aplicado antes del
+        // JOIN al catálogo, según `design.md` §D-2).
         return await Context
             .Set<VacanteEntity>()
-            .Include(v => v.EstadoVacante)
             .AnyAsync(v =>
                 v.PuestoId == puestoId &&
                 !v.IsDeleted &&

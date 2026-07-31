@@ -300,4 +300,27 @@ internal static class DomainToPersistenceMapper
         entity.DeletedAt = domain.DeletedAt;
         entity.DeletedByUserId = domain.DeletedByUserId;
     }
+
+    /// <summary>
+    /// Construye la entidad de persistencia de un historial de estado de
+    /// vacante a partir del dominio. Usado por
+    /// <c>VacanteRepository.RegistrarCambioEstadoAsync</c> cuando el
+    /// servicio <c>VacanteServicioComandos.CambiarEstadoAsync</c> emite
+    /// un nuevo <see cref="HistorialEstadoVacante"/> tras la mutación del
+    /// agregado. El <c>Id</c> se genera nuevo porque el dominio crea el
+    /// historial sin un ID explícito (la PK es autogenerada por EF).
+    /// </summary>
+    public static HistorialEstadoVacanteEntity ToEntity(HistorialEstadoVacante domain)
+    {
+        return new HistorialEstadoVacanteEntity
+        {
+            Id = Guid.NewGuid(),
+            VacanteId = domain.VacanteId,
+            EstadoAnteriorId = domain.EstadoAnteriorId,
+            EstadoNuevoId = domain.EstadoNuevoId,
+            ChangedAt = domain.ChangedAt,
+            ChangedByUserId = domain.ChangedByUserId,
+            Motivo = domain.Motivo
+        };
+    }
 }

@@ -329,12 +329,15 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
             await vacanteRepository.UpdateAsync(vacante, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            var estadoActual = await estadoVacanteRepository
-                .GetByIdAsync(vacante.EstadoVacanteId, cancellationToken)
-                .ConfigureAwait(false);
+            // `GetByIdForUpdateAsync` carga `EstadoVacante` eager-loaded,
+            // por lo que el nombre ya está disponible en la nav property.
+            // Esto evita un round-trip extra a BD; si la navegación viniera
+            // null (caso anómalo de FK rota), caemos a string.Empty como
+            // hace el resto del módulo.
+            var estadoNombre = vacante.EstadoVacante?.Nombre ?? string.Empty;
             var detailDto = MapToDetailDto(
                 vacante,
-                estadoNombre: estadoActual?.Nombre ?? string.Empty,
+                estadoNombre: estadoNombre,
                 historial: []);
             return VacanteCommandResult.Success(detailDto);
         }
