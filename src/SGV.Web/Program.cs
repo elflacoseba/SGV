@@ -19,6 +19,7 @@ using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Setup;
 using SGV.Web.Integration.Usuarios;
 using SGV.Web.Integration.Vacantes;
+using SGV.Web.Integration.Auditoria;
 
 [assembly: InternalsVisibleTo("SGV.Tests")]
 
@@ -252,6 +253,25 @@ builder.Services.AddHttpClient<IUsuarioApiClient, UsuarioApiClient>((serviceProv
     // pueden esperar el HttpClient default (100s). El timeout acotado
     // convierte TaskCanceledException en feedback recuperable vía
     // TransportFailureClassifier, análogo a Persona/Cargo/Habilidad.
+    client.Timeout = TimeSpan.FromSeconds(10);
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+// Slice 3 del change `implementa-modulo-auditorias`: cliente HTTP
+// tipado del listado admin-only de auditoría. Acceso restringido al
+// rol Administrador (D-1); el backend exige `[Authorize(Roles =
+// RolesSgv.Administrador)]` en el controller S2, así que el bearer
+// del cookie de sesión debe adjuntarse en cada request saliente
+// (mismo patrón que el resto de los clientes tipados). 10s budget
+// paralelo a Puestos/Ocupación: el listado paginado de auditoría
+// no puede esperar el HttpClient default (100s); un timeout largo
+// se confunde con un crash y TaskCanceledException debe traducirse
+// a feedback recuperable vía TransportFailureClassifier en la
+// Razor Page.
+builder.Services.AddHttpClient<IAuditoriaApiClient, AuditoriaApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
     client.Timeout = TimeSpan.FromSeconds(10);
 })
 .AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());

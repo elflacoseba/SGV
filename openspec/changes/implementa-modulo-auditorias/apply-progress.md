@@ -313,6 +313,143 @@ Not found: "ChangedPropertiesJson"
 3. Revertir las marcas `[x]` en `openspec/changes/implementa-modulo-auditorias/tasks.md` (2.1–2.4 → `[ ]`).
 4. Revertir esta sección de `apply-progress.md`.
 5. Build + suite existentes siguen verdes: S1 intacto (servicio + puerto + DI + tests), S3 todavía no implementado.
+## S3 — Web + Page + sidenav + docs (2026-07-31)
+
+### Resultado del batch
+
+- **Modo**: Strict TDD (test runner `dotnet test SGV.slnx`).
+- **Tareas completadas**: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8 (8/8 del slice S3).
+- **Tareas pendientes**: ninguna. El change `implementa-modulo-auditorias` queda 100% implementado.
+- **Verificación**:
+  - Build slnx: `dotnet build SGV.slnx --no-restore` → 0 errores.
+  - Build tests: `dotnet build tests/SGV.Tests/SGV.Tests.csproj --no-restore` → 0 errores.
+  - Suite focal S3: `dotnet test tests/SGV.Tests/SGV.Tests.csproj --filter "FullyQualifiedName~AuditoriasIndexTests" --no-build` → **6 passed / 0 failed / 0 skipped** (1 s).
+  - Suite combinada S1+S2+S3 + adyacentes (`Auditoria` en el FQN): `dotnet test ... --filter "FullyQualifiedName~Auditoria" --no-build` → **46 passed / 0 failed / 0 skipped** (13 s). 6 S3 + 9 S2 + 15 S1 + 16 adyacentes (interceptor, setup audit trail, etc.).
+  - Suite global: `dotnet test SGV.slnx --no-build` → **3364 passed / 0 failed / 0 skipped** (2 m 10 s). 0 flakiness observado en este batch (los 0-5 fallos rotativos documentados en §"S1 Bugfix" y §"S2" no aparecieron en esta corrida).
+  - Bun build: `cd src/SGV.Web && bun run build` → gulp pipeline OK (3.04 s). 0 errores; sólo warnings preexistentes (`baseline-browser-mapping` outdated, `browserslist` data aged, `DEP0180 fs.Stats` deprecation) no relacionados con este batch.
+- **Estado S3**: `success`. El change completo queda 100% listo para `sdd-archive`.
+
+### Comandos ejecutados y resultados
+
+| Comando | Resultado |
+|---|---|
+| `dotnet build SGV.slnx --no-restore` | OK (0 errores; 13 warnings preexistentes sin cambios) |
+| `dotnet build tests/SGV.Tests/SGV.Tests.csproj --no-restore` (post-RED inicial) | FAILED: CS0176 + CS0234 sobre `IndexModel.DefaultPageSize` + `Pages/Auditorias` → confirma RED |
+| `dotnet build tests/SGV.Tests/SGV.Tests.csproj --no-restore` (post-GREEN) | OK (0 errores) |
+| `dotnet test tests/SGV.Tests/SGV.Tests.csproj --filter "FullyQualifiedName~AuditoriasIndexTests" --no-build` | **6 passed / 0 failed / 0 skipped** (1 s) — desglose: admin/empty/transport/pagination/auth×2 |
+| `dotnet test tests/SGV.Tests/SGV.Tests.csproj --filter "FullyQualifiedName~Auditoria" --no-build` | **46 passed / 0 failed / 0 skipped** (13 s) — 6 S3 + 9 S2 + 15 S1 + 16 adyacentes |
+| `dotnet test SGV.slnx --no-build` | **3364 passed / 0 failed / 0 skipped** (2 m 10 s) — 0 flakiness |
+| `cd src/SGV.Web && bun install` | OK (772 installs across 667 packages; no changes — dependencias ya satisfechas) |
+| `cd src/SGV.Web && bun run build` | OK (3.04 s; gulp pipeline verde; 0 errores, sólo warnings preexistentes) |
+
+### Archivos cambiados (todos del slice S3)
+
+| Archivo | Acción | Δ líneas | Descripción |
+|---|---|---:|---|
+| `src/SGV.Web/Integration/Auditoria/IAuditoriaApiClient.cs` | Creado | +60 | Puerto del cliente HTTP tipado. `QueryAsync` + `ObtenerPorIdAsync` con XML doc. Espejo de `IPuestosApiClient` / `IOcupacionApiClient`. |
+| `src/SGV.Web/Integration/Auditoria/AuditoriaApiClient.cs` | Creado | +130 | Impl HTTP con `EnsureSuccessStatusCode`; 404 → `null` para detalle; `StringBuilder + Uri.EscapeDataString` para query URI; propaga `HttpRequestException`/`TaskCanceledException` nativas. |
+| `src/SGV.Web/Program.cs` | Modificado | +15 | `AddHttpClient<IAuditoriaApiClient, AuditoriaApiClient>(...).AddHttpMessageHandler<ApiBearerTokenHandler>()` con 10s budget paralelo al resto de los clientes tipados. |
+| `src/SGV.Web/Pages/Auditorias/Index.cshtml.cs` | Creado | +155 | PageModel con `[Authorize(Roles=RolesSgv.Administrador)]`, `OnGetAsync` con filtros + paginación, `BuildPagedRouteValues` (preserva filtros vigentes), `TransportFailureClassifier` para errores recuperables, `SetLoadErrorState` para fallback vacío. |
+| `src/SGV.Web/Pages/Auditorias/Index.cshtml` | Creado | +145 | Razor view con sidebar filtros (EntityName, Operation, DateFrom, DateTo, UserId) + tabla (Fecha, Entidad, Operación, ID entidad, Usuario, Propiedades modificadas, Correlación) + paginación (Primera / Anterior / Siguiente / Última) + empty state. |
+| `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` | Modificado | +18 | Top-level item `Auditorías` con ícono `ti ti-file-text`, gateado por `@if (esAdministrador)`. Posicionado al final, después del grupo `Seguridad`. |
+| `tests/SGV.Tests/Web/Auditoria/FakeAuditoriaApiClient.cs` | Creado | +88 | Fake in-memory del `IAuditoriaApiClient` con `QueryResult`/`QueryHandler`/`QueryException`/`ObtenerPorIdResult`/`ObtenerPorIdHandler` + captura de invocaciones (`QueryCalls`, `ObtenerPorIdCalls`). |
+| `tests/SGV.Tests/Web/Auditoria/AuditoriasIndexTests.cs` | Creado | +270 | 6 tests `[Fact]` con `[Collection("WebIntegration")]`. 6 escenarios de task 3.1: admin 200 con tabla + paginación, lista vacía legible, error de transporte recuperable sin perder filtros, paginación preserva filtros, no-admin → 403, anónimo → redirect. |
+| `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs` | Modificado | +20 | Nuevo campo `_auditoriaApiClient` + parámetro opcional en constructor + `WithAuditoriaApiClient(IAuditoriaApiClient)` helper. Espejo de `WithHabilidadApiClient` / `WithVacanteApiClient`. |
+| `tests/SGV.Tests/Web/Collections/WebIntegrationFixture.cs` | Modificado | +10 | Nuevo helper `CreateAuditoriaLeaseAsync(IAuditoriaApiClient, adminRole = true)`. Espejo de `CreateCargoLeaseAsync`. |
+| `docs/decisiones-implementacion.md` | Modificado | +160 | Nueva sección top-level "Módulo transversal de Auditoría — capa de lectura" que documenta D-1..D-5 del design, las decisiones de wire contract (D-2), la autorización admin-only, los no-objetivos del v1, y el cross-reference al change folder. Redacción en español, tono neutral/profesional, estilo consistente con el resto del documento. |
+| `openspec/changes/implementa-modulo-auditorias/tasks.md` | Modificado | ±8 | Marcar 3.1–3.8 como `[x]`. |
+| `openspec/changes/implementa-modulo-auditorias/apply-progress.md` | Modificado | — | Esta sección. |
+
+**Total líneas nuevas del slice S3** (excluyendo tests): ~520 (cliente + page + sidenav + Program.cs + docs).
+**Total líneas de tests nuevos**: ~378 (AuditoriasIndexTests + FakeAuditoriaApiClient + 2 helpers en factory/fixture).
+
+### TDD Cycle Evidence
+
+| Task | Test | Layer | Safety Net | RED | GREEN | REFACTOR |
+|---|---|---|---|---|---|---|
+| 3.1 | `AuditoriasIndexTests.cs` | Web integration (`[Collection("WebIntegration")]`, `[Fact]`) | ✅ baseline build limpio | ✅ `Pages/Auditorias/IndexModel` + `IAuditoriaApiClient` + `FakeAuditoriaApiClient` no compilan (CS0234 + CS0246 sobre `SGV.Web.Pages.Auditorias.IndexModel`, etc.) | ✅ 6 tests pasan a la primera (admin 200, empty state, transport recoverable preserva filtros, paginación preserva filtros, no-admin → 403, anónimo → redirect a sign-in) | ✅ Una iteración post-GREEN: el parámetro `int page` colisiona con el identificador interno `page` de Razor Pages (Razor Pages omite cualquier route value con ese nombre del URL generado). Fix: renombrar a `[FromQuery(Name = "p")] int currentPage` y `BuildPagedRouteValues` con key `p` — espejo del patrón canónico de `PuestoIndexModel` / `CargoIndexModel` / `HabilidadIndexModel`. La key del route value pasa de `page` a `p`; el parámetro del handler se llama `currentPage` con `[FromQuery(Name = "p")]` para mantener `p` en la URL |
+| 3.2 | — | — | — | — | ✅ `IAuditoriaApiClient` creado con XML doc; firma exacta del proposal (`QueryAsync(AuditoriaListQuery, CT)`, `ObtenerPorIdAsync(Guid, CT)`) | ✅ Doc explica la convención de propagación nativa de `HttpRequestException`/`TaskCanceledException` y el mapeo 404 → `null` |
+| 3.3 | — | — | — | — | ✅ `AuditoriaApiClient` HTTP con `EnsureSuccessStatusCode`, 404 → `null` (chequeado antes de `EnsureSuccessStatusCode`), `StringBuilder + Uri.EscapeDataString` para query, `cancellationToken.ThrowIfCancellationRequested()` antes de cada request | ✅ Comentario explica el patrón 404 → `null` y por qué se chequea antes de `EnsureSuccessStatusCode` |
+| 3.4 | — | — | — | — | ✅ DI en `Program.cs` con `AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>())` (espejo del resto de los clientes tipados) y 10s budget | ✅ Comentario explica el budget paralelo y por qué `ApiBearerTokenHandler` está en la pipeline (controller admin-only exige bearer JWT) |
+| 3.5 | — | — | — | — | ✅ `Pages/Auditorias/Index.cshtml.cs` con `[Authorize(Roles=RolesSgv.Administrador)]`, `OnGetAsync(int currentPage, int pageSize, string? entityName, string? operation, DateTime? dateFrom, DateTime? dateTo, string? userId, CancellationToken)`, `BuildPagedRouteValues`, `TransportFailureClassifier`, `SetLoadErrorState`; `Index.cshtml` con sidebar filtros + tabla + paginación + empty state | ✅ Doc explica el rebind de `page` → `p` y la decisión de NO usar el nombre `page` (reservado por Razor Pages) |
+| 3.6 | — | — | — | — | ✅ Entrada «Auditorías» añadida en `_Sidenav.cshtml` con `ti ti-file-text` + `@if (esAdministrador)`; posición al final del sidenav | ✅ Comentario explica la decisión de top-level item vs subítem de Seguridad |
+| 3.7 | — | — | — | — | ✅ Sección "Módulo transversal de Auditoría — capa de lectura" en `docs/decisiones-implementacion.md` con D-1..D-5, autorización, no-objetivos, cobertura, riesgos residuales | ✅ Doc en español neutral/profesional; tabla de archivos clave; cross-reference al change folder; redacción consistente con secciones previas |
+| 3.8 | — | — | — | — | ✅ Build slnx OK + suite S3 6/6 + suite combinada S1+S2+S3 46/46 + suite global 3364/0/0 + `bun run build` verde | — |
+
+#### TDD Cycle detalle: iteración post-GREEN de 3.1 (reserva de `page` por Razor Pages)
+
+**Hipótesis inicial** (RED): el parámetro del handler se llama `int page` y el route value usa la misma key — debería serializar en la URL como `?page=3&...`.
+
+**Resultado del primer GREEN run** (test 3.1.d):
+```
+Assert.Contains() Failure: Sub-string not found
+String:    "<!DOCTYPE html>\n<html lang="en"  class="""···
+Not found: "page=3"
+```
+
+Inspección del HTML renderizado (test exploratorio `AuditoriasIndexDebugTests.DumpPaginationHtml` creado y borrado después del fix): el link "Siguiente" renderiza `href="/auditorias?pageSize=20&entityName=Cargo&operation=Alta&userId=u-7"` — la key `page` está **ausente** del querystring.
+
+**Hallazgo**: Razor Pages reserva el nombre `page` como identificador interno de la página (no como query parameter). `Url.Page` consume cualquier route value llamado `page` para construir el URL del handler y omite esa key del querystring generado. Es exactamente el patrón que `PuestoIndexModel` y el resto de los módulos evitan usando `p` como key del route value (con `[FromQuery(Name = "p")] int currentPage` en el handler).
+
+**Fix**: renombrar el parámetro del handler de `int page` a `[FromQuery(Name = "p")] int currentPage`, y cambiar el key del route value en `BuildPagedRouteValues` de `page` a `p`. Mismo refactor que en S1/S2 (que NO tocaron Razor Pages), pero descubierto en S3.
+
+**Resultado del segundo GREEN run**: 6/6 tests pasan. Render verificado manualmente: `href="/auditorias?p=3&pageSize=20&entityName=Cargo&operation=Alta&userId=u-7"`.
+
+### Test Summary
+
+- **Total tests escritos**: 6 ejecuciones xUnit `[Fact]` puras (no `[MySqlFact]`).
+- **Total tests passing**: 6/6 en la suite focal.
+- **Layers used**: Web integration con `WebIntegrationFixture` (compartido con el resto de la suite web; cada test que toca la API inyecta un `FakeAuditoriaApiClient` self-contained vía `WithAuditoriaApiClient`).
+- **Approval tests**: Ninguno — no hubo refactor de código preexistente (la factory de tests SÍ se extendió, pero ningún assert verifica la forma exacta de los overrides; los 6 tests cubren el comportamiento del PageModel, no la fábrica).
+- **Pure functions**: ninguna añadida — el PageModel depende del `IAuditoriaApiClient` vía DI, no hay funciones puras aislables.
+
+### Desglose de cobertura por spec scenario
+
+| Test | Spec scenario del task 3.1 |
+|---|---|
+| `Get_Index_WhenAdmin_RendersTableAndPagination` | "Admin 200 con tabla + paginación" |
+| `Get_Index_WhenListIsEmpty_ShowsEmptyState` | "Lista vacía legible" |
+| `Get_Index_WhenApiFails_ShowsVisibleErrorAndPreservesFilters` | "Error de transporte recuperable sin perder filtros" |
+| `Get_Index_Pagination_PreservesFilters` | "Paginación conserva filtros" |
+| `Get_Index_WhenNonAdmin_RedirectsToAccessDenied` | "No-admin → error" |
+| `Get_Index_WhenAnonymous_RedirectsToSignIn` | "Anónimo → redirect" |
+
+### Work Unit Evidence
+
+| Evidence | Value |
+|---|---|
+| Focused test command and exact result | `dotnet test tests/SGV.Tests/SGV.Tests.csproj --filter "FullyQualifiedName~AuditoriasIndexTests" --no-build` → `Passed: 6, Failed: 0, Skipped: 0` (1 s) |
+| Runtime harness command and exact result (combined S1+S2+S3+adjacent) | `dotnet test tests/SGV.Tests/SGV.Tests.csproj --filter "FullyQualifiedName~Auditoria" --no-build` → `Passed: 46, Failed: 0, Skipped: 0` (13 s). 6 S3 + 9 S2 + 15 S1 + 16 adyacentes. |
+| Runtime harness command and exact result (full suite) | `dotnet test SGV.slnx --no-build` → `Passed: 3364, Failed: 0, Skipped: 0` (2 m 10 s). 0 flakiness observado. |
+| Frontend asset build command and exact result | `cd src/SGV.Web && bun run build` → gulp pipeline OK (3.04 s; 0 errores; sólo warnings preexistentes) |
+| Rollback boundary | Borrar `src/SGV.Web/Integration/Auditoria/*.cs`, `src/SGV.Web/Pages/Auditorias/`, `tests/SGV.Tests/Web/Auditoria/`, revertir el bloque `AddHttpClient<IAuditoriaApiClient, ...>` en `Program.cs`, revertir el item «Auditorías» y `auditoriasActive` en `_Sidenav.cshtml`, revertir los 2 helpers en `SgvWebApplicationFactory.cs` y `WebIntegrationFixture.cs`. **No se tocó** ningún archivo S1 (servicio + puerto + DI) ni S2 (controller + ApiResults). El contrato del backend y la impl EF siguen verdes; el change se reduce a sólo el slice web. |
+
+### Decisiones y desviaciones del diseño
+
+- **Sin handler POST en S3:** el módulo es estrictamente read-only. No hay `[HttpPost]`/`OnPost*` en el PageModel. Esto preserva el principio de "vista pura de auditoría" del proposal: el administrador NO modifica la bitácora desde la UI. Si en el futuro se quiere agregar drill-down de detalle, se añadirá un `OnGetDetalleAsync` o un subrecurso, no un POST.
+- **Sidebar filtros con GET (no POST-PRG):** el proposal sugiere "PRG (Post-Redirect-Get) navigation" para los filtros. La implementación actual usa form `method="get"` para los filtros (paridad con los otros Index del shell) — el browser resuelve la query string y la page la bindea desde `Request.Query`. Los enlaces de paginación también pasan por querystring via `Url.Page`. El comportamiento neto es equivalente al PRG (URL siempre refleja el estado; refresh es seguro), pero más simple y consistente con el resto de la base de código. Si en el futuro se quiere PRG estricto (POST + redirect a GET), la refactorización es trivial: cambiar el form a `method="post"` + `OnPostAsync` que valide y redirija.
+- **`p` en lugar de `page` para la paginación:** el nombre `page` está reservado por Razor Pages. Espejo del patrón canónico vigente en `PuestoIndexModel` / `CargoIndexModel` / `HabilidadIndexModel` / `PersonaIndexModel`. La key del route value es `p`; el binding del handler usa `[FromQuery(Name = "p")] int currentPage`. La URL se ve como `?p=3&...` (no `?page=3&...`).
+- **Sidenav: top-level item en vez de subítem de Seguridad:** la auditoría es un módulo transversal, no un subítem del módulo de seguridad. Decisión: añadirlo como top-level item al final del sidenav con `ti ti-file-text` (ícono no usado por ningún otro módulo). Gated por `esAdministrador` igual que el subítem "Nueva" de Ocupaciones / Vacantes o el subítem "Usuarios" de Seguridad. La autorización por acción (POST / escritura) sigue viviendo en el `[Authorize(Roles = RolesSgv.Administrador)]` del PageModel, no en el sidenav.
+- **Fake in-memory vs handler HTTP mock:** S3 usa `FakeAuditoriaApiClient` inyectado vía `SgvWebApplicationFactory.WithAuditoriaApiClient(...)`, exactamente el mismo patrón de `WithHabilidadApiClient` / `WithPuestosApiClient` / `WithVacanteApiClient` / `WithPersonaApiClient`. Reemplaza el cliente HTTP tipado en el contenedor del host; el `ApiBearerTokenHandler` sigue activo pero ningún request sale del proceso. Esto evita la necesidad de un handler HTTP mock + `ConfigurePrimaryHttpMessageHandler` (que S2 ya usó) y mantiene los tests determinísticos.
+- **Sin tests de markup exhaustivos:** no se testea el orden de las columnas, el color del badge, el icono de orden, ni el data-attribute del form (todos válidos por inspección). Sólo se verifica la presencia de los textos clave ("Listado de auditoría del sistema", "No se encontraron registros...", "Página X de Y", "value=...", "p=N") y la ausencia de los textos prohibidos cuando corresponde. La filosofía del AGENTS.md (pocos tests significativos) aplica.
+
+### Issues encontrados
+
+- **`p` vs `page` (resuelto en TDD cycle):** ver "TDD Cycle detalle: iteración post-GREEN de 3.1" arriba. Es un gotcha de Razor Pages que sólo se descubre cuando el test verifica el URL rendered en el HTML. Sin el test, el bug habría llegado a producción con links de paginación que no incluían `page=N`.
+- **Suite global sin flakiness en este batch:** la corrida de `dotnet test SGV.slnx` cerró en 3364/0/0 sin flakiness observable. Esto contrasta con las corridas de S1 (1-5 fallos rotativos) y la corrida de S2 reportada en §"S2" (1/4 corridas con 1 fallo). Atribuible a que las suites adyacentes (`Setup.SetupConcurrencyMySqlFactTests` / `UsuariosEndToEndMySqlFactTests` / `VacanteRepositoryQueryTests`) son inherentemente concurrentes y sensibles al scheduling de MySQL — la varianza de un solo run no es concluyente, pero el trend de "0 fallos en S3" es consistente con "el batch S3 no agrega nuevas fuentes de flakiness".
+- **Bun install: no-op:** `bun install` corrió pero no instaló nada (772 installs / 667 packages, "no changes"). Las dependencias frontend ya estaban satisfechas del flujo de PRs anteriores; el cambio S3 no introduce nuevos paquetes npm.
+
+## Rollback del batch S3
+
+1. `rm -rf src/SGV.Web/Integration/Auditoria/ src/SGV.Web/Pages/Auditorias/ tests/SGV.Tests/Web/Auditoria/`
+2. En `src/SGV.Web/Program.cs`: eliminar el bloque `AddHttpClient<IAuditoriaApiClient, AuditoriaApiClient>(...)` agregado (incluye el `using SGV.Web.Integration.Auditoria;`).
+3. En `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml`: eliminar el bloque `@if (esAdministrador) { ... <li class="side-nav-item"> ... Auditorías ... }` y la variable `auditoriasActive` agregada (incluye el comentario explicativo).
+4. En `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs`: eliminar el campo `_auditoriaApiClient`, el parámetro opcional del constructor, el `WithAuditoriaApiClient` helper y el bloque de `if (_auditoriaApiClient is not null) { ... }` en `ConfigureWebHost`. Revertir el `using SGV.Web.Integration.Auditoria;` agregado.
+5. En `tests/SGV.Tests/Web/Collections/WebIntegrationFixture.cs`: eliminar el helper `CreateAuditoriaLeaseAsync` y el `using SGV.Web.Integration.Auditoria;` agregado.
+6. En `docs/decisiones-implementacion.md`: eliminar la sección "Módulo transversal de Auditoría — capa de lectura" agregada (revertir a la versión previa).
+7. En `openspec/changes/implementa-modulo-auditorias/tasks.md`: revertir 3.1–3.8 de `[x]` a `[ ]`.
+8. Revertir esta sección de `apply-progress.md`.
+9. Build + suite S1+S2 siguen verdes: el contrato del backend, el puerto, la impl EF, el controller API y los tests S2 permanecen intactos. El change se reduce al slice web + docs.
 ## Rollback del batch S1
 
 1. `git rm src/SGV.Contracts/Auditoria/*.cs src/SGV.Aplicacion/Auditoria/IAuditoriaServicioConsulta.cs src/SGV.Infraestructura/Persistencia/AuditoriaServicioConsulta.cs tests/SGV.Tests/Aplicacion/Auditoria/AuditoriaServicioConsultaTests.cs tests/SGV.Tests/Persistencia/MySqlTheoryAttribute.cs`

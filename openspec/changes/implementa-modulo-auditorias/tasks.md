@@ -46,14 +46,14 @@ S1 base de S2/S3. `[MySqlFact]` skipea sin DB. Cada slice borra archivos nuevos 
 
 ## Phase 3: S3 — Web (cliente + Page + sidenav + docs)
 
-- [ ] 3.1 (RED) `AuditoriasIndexTests.cs` con `WithAuditoriaApiClient(fake)`: admin 200 con tabla y paginación, lista vacía legible, error de transporte recuperable sin perder filtros, paginación conserva filtros, no-admin → error, anónimo → redirect.
-- [ ] 3.2 (GREEN) `src/SGV.Web/Integration/Auditoria/IAuditoriaApiClient.cs`.
-- [ ] 3.3 (GREEN) `src/SGV.Web/Integration/Auditoria/AuditoriaApiClient.cs` (`EnsureSuccessStatusCode`, 404 → `null`).
-- [ ] 3.4 (GREEN) `AddHttpClient<IAuditoriaApiClient, AuditoriaApiClient>(...).AddHttpMessageHandler<ApiBearerTokenHandler>()` en `Program.cs`.
-- [ ] 3.5 (GREEN) `src/SGV.Web/Pages/Auditorias/Index.cshtml` + `.cs` (`[Authorize(Roles=RolesSgv.Administrador)]`, `OnGetAsync`, sidebar filtros, PRG).
-- [ ] 3.6 (GREEN) Entrada «Auditorías» en `_Sidenav.cshtml` gateada por `@if (esAdministrador)`.
-- [ ] 3.7 (GREEN) Documentar módulo transversal en `docs/decisiones-implementacion.md`.
-- [ ] 3.8 (VERIFY) `dotnet build SGV.slnx` + suite Web S3 + `bun run build` en `src/SGV.Web`.
+- [x] 3.1 (RED) `AuditoriasIndexTests.cs` con `WithAuditoriaApiClient(fake)`: admin 200 con tabla y paginación, lista vacía legible, error de transporte recuperable sin perder filtros, paginación conserva filtros, no-admin → error, anónimo → redirect.
+- [x] 3.2 (GREEN) `src/SGV.Web/Integration/Auditoria/IAuditoriaApiClient.cs`.
+- [x] 3.3 (GREEN) `src/SGV.Web/Integration/Auditoria/AuditoriaApiClient.cs` (`EnsureSuccessStatusCode`, 404 → `null`).
+- [x] 3.4 (GREEN) `AddHttpClient<IAuditoriaApiClient, AuditoriaApiClient>(...).AddHttpMessageHandler<ApiBearerTokenHandler>()` en `Program.cs`.
+- [x] 3.5 (GREEN) `src/SGV.Web/Pages/Auditorias/Index.cshtml` + `.cs` (`[Authorize(Roles=RolesSgv.Administrador)]`, `OnGetAsync`, sidebar filtros, PRG).
+- [x] 3.6 (GREEN) Entrada «Auditorías» en `_Sidenav.cshtml` gateada por `@if (esAdministrador)`.
+- [x] 3.7 (GREEN) Documentar módulo transversal en `docs/decisiones-implementacion.md`.
+- [x] 3.8 (VERIFY) `dotnet build SGV.slnx` + suite Web S3 + `bun run build` en `src/SGV.Web`.
 
 ## Notas
 

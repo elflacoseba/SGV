@@ -1,5 +1,208 @@
 # Decisiones de Implementación
 
+## Módulo transversal de Auditoría — capa de lectura (issue `implementa-modulo-auditorias`)
+
+> Change: `implementa-modulo-auditorias`. Artefactos SDD completos en
+> `openspec/changes/implementa-modulo-auditorias/`. Chain strategy:
+> `stacked-to-main` con 3 PRs encadenados cuyo target operativo es
+> `develop`. S1 (servicio de consulta) y S2 (controller API admin-only)
+> ya mergeados; este documento resume el módulo completo (S1 + S2 + S3)
+> y consolida D-1..D-5 del `design.md` para referencia de futuros PRs.
+
+### Contexto y problema
+
+La tabla `Auditorias` ya se persiste desde `S1` mediante
+`AuditoriaSaveChangesInterceptor` + `IAuditoriaServicio.RegistrarAsync`,
+pero el sistema carecía por completo de capacidad de **consulta**.
+Sin una vista de auditoría transversal, los administradores no
+podían rastrear quién creó/modificó/eliminó entidades del sistema.
+Este change agrega la **capa de lectura pura** sin tocar la
+escritura existente (interceptor, servicio de escritura, entidad,
+tabla, seeders, gateway de Identity) — el módulo es puramente
+aditivo y de solo lectura.
+
+### D-1 — Implementación del servicio de consulta en Infraestructura, no en Aplicación
+
+`SGV.Aplicacion` declara el puerto `IAuditoriaServicioConsulta`
+(`QueryAsync` + `GetByIdAsync`); la impl EF directa vive en
+`SGV.Infraestructura/Persistencia/AuditoriaServicioConsulta.cs`
+como `sealed class (SgvDbContext context) : IAuditoriaServicioConsulta`.
+Replica el par `IAuditoriaServicio` (escritura) sin repositorio
+intermedio. `Aplicacion` queda libre de EF/`SgvDbContext`, preservando
+la separación de capas del grafo
+`Dominio ← Aplicacion ← Infraestructura` (proposal original ubicaba
+la impl en Aplicación; se corrige acá para preservar Clean
+Architecture). Registrada en DI con
+`services.AddScoped<IAuditoriaServicioConsulta, AuditoriaServicioConsulta>()`.
+
+### D-2 — Proyección wire-safe (sin old/new values)
+
+`AuditoriaDto` (`SGV.Contracts/Auditoria/AuditoriaDto.cs`) expone 8
+campos: `Id, EntityName, EntityId, Operation, OccurredAt, UserId,
+ChangedPropertiesJson, CorrelationId`. Por construcción NO incluye
+`OldValuesJson` ni `NewValuesJson` — el riesgo de fuga de PII a
+través del wire es HIGH en el proposal original; se cierra con un
+`Select` explícito campo-a-campo en el `IQueryable` de EF:
+
+```csharp
+.Select(a => new AuditoriaDto(
+    a.Id, a.EntityName, a.EntityId, a.Operation, a.OccurredAt,
+    a.UserId, a.ChangedPropertiesJson, a.CorrelationId))
+```
+
+El compilador garantiza que `OldValuesJson`/`NewValuesJson` jamás se
+copian. No hay AutoMapper/`ProjectTo` que pudiera arrastrarlos. La
+proyección se hace **antes** de materializar la lista, así que EF
+emite sólo las columnas del wire contract en el `SELECT` SQL. El
+test `[Fact]` puro `AuditoriaDto_NoExponeOldValuesJsonNiNewValuesJson`
+verifica por reflexión que los campos prohibidos no existen en el
+record. Los tests `[MySqlFact]` `QueryAsync_Proyeccion_NoContieneOldNewValuesEnSerializacion`
+y `GetByIdAsync_Proyeccion_NoContieneOldNewValuesEnSerializacion`
+verifican a través de `JsonSerializer.Serialize` (PascalCase) y
+JSON HTTP (camelCase) que el body del listado y del detalle tampoco
+contiene las variantes `oldValuesJson` / `newValuesJson` —
+defense-in-depth contra un futuro `AddJsonOptions(...).UseCamelCase()`.
+
+### D-3 — Orden determinista, paginación, validación de rangos
+
+| Aspecto | Decisión |
+|---|---|
+| Orden por defecto | `ORDER BY OccurredAt DESC, Id DESC` (Id como tiebreaker determinista — el índice PK cubre) |
+| Paginación | `Page >= 1`, `PageSize` clampeado a `[1, 100]` en el servicio |
+| Rango fechas | `DateFrom <= DateTo`; si `DateFrom > DateTo` el servicio lanza `ArgumentException` con mensaje explícito de rango invertido, NO devuelve conjunto vacío. El controller (S2) lo mapea a `400 Validation` con `ProblemDetails` (`ApiResults.ToValidationProblemResult` con sobrecarga string-based agregada en S2). |
+| Filtros | `EntityName`, `Operation`, `DateFrom`, `DateTo`, `UserId` (todos opcionales) |
+| Default query | `Page=1, PageSize=20` |
+
+### D-4 — No-auditoría de consultas
+
+Las consultas no invocan `SaveChanges`/`SaveChangesAsync`; el
+`AuditoriaSaveChangesInterceptor.SavingChanges` no se dispara en
+lecturas `AsNoTracking()`. Verificado por el test
+`QueryAsync_NoInsertaAuditoriasNuevas` (cuenta filas antes/después
+y exige igualdad). No se requiere lógica especial: el diseño
+garantiza por construcción que leer `Auditorias` no genera
+registros nuevos. **No hay recursión de auditoría**.
+
+### D-5 — `UserId` crudo en v1; enriquecimiento con nombre fuera de alcance
+
+`AuditoriaDto.UserId` se expone tal cual vive en la entidad (string
+sin JOIN contra `AspNetUsers`). El enriquecimiento con nombre
+legible queda explícitamente fuera de alcance del v1 y se reserva
+para una evolución posterior (v2+), donde se evaluará JOIN, caché
+o proyección desnormalizada. Esta decisión cierra la pregunta
+previa del proposal y mantiene el alcance de lectura sin tocar
+la escritura ni el esquema de Identity.
+
+### Capas y archivos clave
+
+| Capa | Tipo | Archivo | Rol |
+|---|---|---|---|
+| Wire contract (DTO) | `record` | `src/SGV.Contracts/Auditoria/AuditoriaDto.cs` | Wire contract seguro (D-2). |
+| Wire contract (Query) | `record` | `src/SGV.Contracts/Auditoria/AuditoriaListQuery.cs` | Filtros + paginación. |
+| Puerto (S1) | `interface` | `src/SGV.Aplicacion/Auditoria/IAuditoriaServicioConsulta.cs` | `QueryAsync` + `GetByIdAsync`; lanza `ArgumentException` en rango invertido (D-3). |
+| Impl EF (S1) | `sealed class` | `src/SGV.Infraestructura/Persistencia/AuditoriaServicioConsulta.cs` | EF directa con `AsNoTracking` + `Select` seguro (D-1, D-2, D-4). |
+| DI (S1) | extension | `src/SGV.Infraestructura/DependencyInjection.cs` | `AddScoped<IAuditoriaServicioConsulta, AuditoriaServicioConsulta>()`. |
+| Controller (S2) | `sealed class` | `src/SGV.Api/Controllers/AuditoriasController.cs` | `[Authorize(Roles=RolesSgv.Administrador)]`; mapea `ArgumentException` → `400 Validation`. |
+| Helper 4xx (S2) | `static class` | `src/SGV.Api/Infrastructure/Results/ApiResults.cs` | Sobrecarga additive `ToValidationProblemResult(string code, string detail, fieldErrors, httpContext)`. |
+| Cliente HTTP (S3) | `interface` | `src/SGV.Web/Integration/Auditoria/IAuditoriaApiClient.cs` | `QueryAsync` + `ObtenerPorIdAsync`. |
+| Cliente HTTP impl (S3) | `sealed class` | `src/SGV.Web/Integration/Auditoria/AuditoriaApiClient.cs` | `EnsureSuccessStatusCode`; 404 → `null`; propaga `HttpRequestException`/`TaskCanceledException` nativas. |
+| DI Web (S3) | extension | `src/SGV.Web/Program.cs` | `AddHttpClient<IAuditoriaApiClient, AuditoriaApiClient>(...).AddHttpMessageHandler<ApiBearerTokenHandler>()`. |
+| Razor Page (S3) | `sealed class` | `src/SGV.Web/Pages/Auditorias/Index.cshtml.cs` | `[Authorize(Roles=RolesSgv.Administrador)]`; sidebar filtros + paginación; `TransportFailureClassifier` para recuperables. |
+| Razor View (S3) | `.cshtml` | `src/SGV.Web/Pages/Auditorias/Index.cshtml` | Sidebar filtros (EntityName, Operation, DateFrom, DateTo, UserId) + tabla + paginación. |
+| Sidenav (S3) | `.cshtml` | `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` | Top-level item `Auditorías` (ícono `ti ti-file-text`) gateado por `esAdministrador`. |
+| Tests S1 | `[MySqlFact]` + `[Fact]` | `tests/SGV.Tests/Aplicacion/Auditoria/AuditoriaServicioConsultaTests.cs` | 15 tests: filtros, orden determinista, clamps, `DateFrom>DateTo`, JSON sin old/new, no-inserta-tras-query. |
+| Tests S2 | `[Fact]` | `tests/SGV.Tests/Api/AuditoriasControllerTests.cs` | 9 tests: 401, 403, 200 shape, paginación+filtros, detalle 200/404, JSON sin old/new, `[Authorize]` reflexión, 400 rango invertido. |
+| Tests S3 | `[Fact]` | `tests/SGV.Tests/Web/Auditoria/AuditoriasIndexTests.cs` | 6 tests: admin 200 con tabla+paginación, lista vacía legible, error de transporte recuperable sin perder filtros, paginación preserva filtros, no-admin → 403, anónimo → redirect. |
+| Helper tests S3 | `sealed class` | `tests/SGV.Tests/Web/Auditoria/FakeAuditoriaApiClient.cs` | Fake in-memory del `IAuditoriaApiClient` para la suite seam PageModel. |
+| Helper tests S3 | `sealed class` | `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs` | `WithAuditoriaApiClient(IAuditoriaApiClient fake)` — espejo de `WithHabilidadApiClient` / `WithVacanteApiClient`. |
+| Helper tests S3 | `sealed class` | `tests/SGV.Tests/Web/Collections/WebIntegrationFixture.cs` | `CreateAuditoriaLeaseAsync(IAuditoriaApiClient, adminRole)` — espejo de `CreateCargoLeaseAsync`. |
+
+### Autorización
+
+`[Authorize(Roles = RolesSgv.Administrador)]` se aplica en **tres
+frentes**:
+
+1. **Controller API (S2):** atributo a nivel de clase en
+   `AuditoriasController`. Verificado por reflexión en
+   `AuditoriasControllerTests.AuditoriasController_TieneAuthorizeAttribute`
+   (D-1 a nivel HTTP). No-admin recibe `403 Forbidden`; anónimo
+   recibe `401 Unauthorized`.
+2. **Razor Page Web (S3):** atributo a nivel de clase en
+   `IndexModel` (`/auditorias`). No-admin es redirigido a
+   `/error/403`; anónimo a `/auth/sign-in` (mismo comportamiento
+   que el resto de las páginas protegidas del shell). Verificado
+   en `AuditoriasIndexTests.Get_Index_WhenNonAdmin_RedirectsToAccessDenied`
+   y `Get_Index_WhenAnonymous_RedirectsToSignIn`.
+3. **Sidenav (S3):** el item «Auditorías» se gated con
+   `@if (esAdministrador)` en `_Sidenav.cshtml`. Usuarios no-admin
+   NO ven el link; aun si escriben la URL `/auditorias` en el
+   browser, el `[Authorize]` del PageModel los redirige a 403.
+
+### No-objetivos del v1 (siguiendo el proposal)
+
+- **No escritura:** el módulo es estrictamente read-only. La
+  tabla `Auditorias` sigue siendo escrita por
+  `AuditoriaSaveChangesInterceptor` + `IAuditoriaServicio` con
+  los mismos contratos existentes. **No se modificaron** la
+  escritura existente, el interceptor, el servicio de escritura,
+  la entidad, los seeders ni los consumidores (`SetupServicio`,
+  `PersonaServicioComandos`, `UsuarioServicioComandos`, etc.).
+- **No recursión:** las consultas no disparan el interceptor (D-4
+  verificado por test). El listado paginado nunca genera filas
+  nuevas en `Auditorias`.
+- **No enriquecimiento de UserId:** v1 expone el `UserId` crudo
+  (string). El JOIN con `AspNetUsers` para resolver el nombre
+  legible queda explícitamente fuera de alcance; ver D-5.
+- **Sin endpoint web de detalle individual:** v1 entrega sólo el
+  listado con drill-down parcial (futuro PR podrá agregar un
+  modal o página de detalle que reuse `IAuditoriaApiClient.ObtenerPorIdAsync`,
+  ya implementado pero no consumido por la Razor Page actual).
+- **Sin exportación CSV/Excel.**
+- **Sin retención, purga o archival** de registros.
+- **Sin re-uso del `[MySqlFact]`** en S2 ni S3: el puerto EF ya
+  está cubierto por S1 contra MySQL real; S2 y S3 corren contra
+  fakes en memoria (controller y PageModel seam).
+
+### Cobertura nueva
+
+- **S1 (servicio + unit + integration):** 15 tests contra MySQL
+  real + 1 `[Fact]` puro de reflexión. Atributos correctos
+  (`[MySqlFact]`/`[MySqlTheory]` heredan el skip-on-unavailable
+  de `MySqlTestDatabaseBootstrap.GetAvailability()`).
+- **S2 (controller + API integration):** 9 tests `[Fact]`
+  self-contained vía `FakeAuditoriaServicioConsulta`; corre 100%
+  sin MySQL. Incluye `[Authorize]` por reflexión, ausencia de
+  old/new en JSON HTTP (defense-in-depth en PascalCase +
+  camelCase), `DateFrom>DateTo` → 400 con `ProblemDetails`.
+- **S3 (web + Page + sidenav):** 6 tests `[Fact]` con
+  `FakeAuditoriaApiClient` inyectado vía
+  `SgvWebApplicationFactory.WithAuditoriaApiClient`. Cubre
+  filtros preservados, paginación preservada, transporte
+  recuperable, auth pipeline (admin/no-admin/anónimo).
+- **Total tests añadidos en el change completo:** 30
+  (15 S1 + 9 S2 + 6 S3).
+- **Total suite verde al cierre del change:** 3364 / 3364
+  (suite focal + combinada + global).
+
+### Riesgos residuales
+
+1. **OFFSET degrada en tablas grandes** (Likelihood High en
+   proposal original). Mitigación: cursor pagination reservado
+   para v2+; v1 acepta OFFSET por ser MVP.
+2. **Flakiness preexistente** de la suite global: 0-5 fallos
+   rotativos en `Setup.SetupConcurrencyMySqlFactTests.*` /
+   `UsuariosEndToEndMySqlFactTests.*` / `VacanteRepositoryQueryTests.*`
+   que NO están relacionados con este change (ver
+   `apply-progress.md` §"S1 Bugfix" y §"S2"). La suite focal de
+   Auditoría (S1 + S2 + S3) corre 100% estable.
+3. **Sidenav no-admin visible pero el link se gated:** decisión
+   de UX consistente con Usuarios (subítem dentro del grupo
+   Seguridad). Si en el futuro se quiere ocultar el grupo entero
+   a no-admin, basta con cambiar `@if (esAdministrador)` en
+   `_Sidenav.cshtml` por una condición más amplia (e.g.,
+   `esAdministrador || User.IsInRole("Auditor")` si se introduce
+   un rol futuro).
+
 ## Integración Continua
 
 No se utiliza GitHub CI. El repo es unipersonal en etapa de desarrollo activo; los tests que requieren MySQL (`[MySqlFact]`) no pueden ejecutarse en runners de GitHub sin una base de datos real y la suite completa tarda más de lo razonable para feedback iterativo. La validación se hace localmente con `dotnet test SGV.slnx`. Los tests `[MySqlFact]` se skipean automáticamente cuando no hay conexión MySQL disponible. El workflow `.github/workflows/ci.yml` existe como referencia pero está desactivado.
