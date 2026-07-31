@@ -210,6 +210,44 @@ public sealed class VacanteServicioComandosTests
         Assert.Single(repo.Datos); // sin nueva inserción
     }
 
+    /// <summary>
+    /// T1.1 (issue #238): cuando el <c>SaveChangesAsync</c> del
+    /// <see cref="IUnitOfWork"/> lanza <see cref="DbUpdateException"/> por
+    /// una constraint violation (e.g. unique index
+    /// <c>IX_Vacantes_ActivePuestoIdUnique</c> rechaza la inserción por
+    /// la ventana TOCTOU entre el pre-check y la persistencia), el
+    /// servicio DEBE mapearla a <c>409 Conflict</c> con código
+    /// <see cref="VacanteErrorCodigo.PuestoConVacanteAbierta"/> — el mismo
+    /// código que el pre-check ya usa en la línea 152. Defense-in-depth:
+    /// la BD es la fuente de verdad final; el catch traduce la
+    /// <see cref="DbUpdateException"/> al código de negocio correcto.
+    /// </summary>
+    [Fact]
+    public async Task Crear_SaveChangesFallaPorConstraint_DevuelveConflictoPuestoConVacanteAbierta()
+    {
+        var repo = new FakeVacanteWriteRepository();
+        var estadoRepo = new FakeEstadoVacanteRepository();
+        // El fake detector devuelve true, simulando que el detector real
+        // detectó MySqlException.Number 1062 (ER_DUP_ENTRY) en el
+        // InnerException. El catch de CrearAsync:177 dispara y mapea.
+        var uow = new FakeUnitOfWork
+        {
+            ThrowOnSaveChanges = new DbUpdateException(
+                "Duplicate entry for key 'IX_Vacantes_ActivePuestoIdUnique'")
+        };
+        var servicio = CrearServicio(repo, estadoRepo, uow);
+
+        var resultado = await servicio.CrearAsync(CrearRequestValido(), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
+        Assert.Equal(
+            VacanteErrorCodigo.PuestoConVacanteAbierta,
+            resultado.Error.Code);
+        Assert.Equal(1, uow.SaveChangesCount); // intentó persistir
+        Assert.Equal(1, repo.AddCallCount);     // AddAsync se invocó
+    }
+
     // ── CambiarEstadoAsync ─────────────────────────────────────
 
     [Fact]

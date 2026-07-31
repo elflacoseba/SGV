@@ -180,8 +180,8 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
             return VacanteCommandResult.Failure(
                 new VacanteError(
                     ErrorCategoria.Conflict,
-                    VacanteErrorCodigo.DatosInvalidos,
-                    ex.Message));
+                    VacanteErrorCodigo.PuestoConVacanteAbierta,
+                    "Ya existe una vacante abierta para el puesto especificado."));
         }
     }
 

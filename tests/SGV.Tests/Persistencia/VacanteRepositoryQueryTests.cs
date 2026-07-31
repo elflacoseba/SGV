@@ -33,20 +33,31 @@ public sealed class VacanteRepositoryQueryTests
         var suffix = UniqueSuffix();
         var unidad = RepositoryTestData.CreateUnidadOrganizativa($"VAC-SEG-UO-{suffix}");
         var cargo = RepositoryTestData.CreateCargo($"VAC-SEG-CARGO-{suffix}");
-        var puesto = RepositoryTestData.CreatePuesto($"VAC-SEG-PUE-{suffix}", unidad, cargo);
+        // Cada vacante usa un puesto distinto: la constraint
+        // IX_Vacantes_ActivePuestoIdUnique (issue #238) prohíbe dos
+        // vacantes activas para el mismo PuestoId, así que el setup
+        // necesita 4 puestos independientes. La invariante probada es
+        // "segmento=Abiertas incluye solo estados no-terminales",
+        // independientemente del puesto.
+        var puesto1 = RepositoryTestData.CreatePuesto($"VAC-SEG-PUE1-{suffix}", unidad, cargo);
+        var puesto2 = RepositoryTestData.CreatePuesto($"VAC-SEG-PUE2-{suffix}", unidad, cargo);
+        var puesto3 = RepositoryTestData.CreatePuesto($"VAC-SEG-PUE3-{suffix}", unidad, cargo);
+        var puesto4 = RepositoryTestData.CreatePuesto($"VAC-SEG-PUE4-{suffix}", unidad, cargo);
         var abierta = CrearEstadoVacante($"VAC-SEG-EST-ABIERTA-{suffix}", "Abierta", orden: 1, esTerminal: false);
         var enSeleccion = CrearEstadoVacante($"VAC-SEG-EST-ENSEL-{suffix}", "EnSeleccion", orden: 2, esTerminal: false);
         var cubierta = CrearEstadoVacante($"VAC-SEG-EST-CUBIERTA-{suffix}", "Cubierta", orden: 3, esTerminal: true);
         var cancelada = CrearEstadoVacante($"VAC-SEG-EST-CANCEL-{suffix}", "Cancelada", orden: 4, esTerminal: true);
 
-        var vacAbierta1 = CrearVacante(puesto.Id, abierta.Id, $"VAC-SEG-VAC-AB1-{suffix}");
-        var vacAbierta2 = CrearVacante(puesto.Id, enSeleccion.Id, $"VAC-SEG-VAC-AB2-{suffix}");
-        var vacCubierta = CrearVacante(puesto.Id, cubierta.Id, $"VAC-SEG-VAC-CUB-{suffix}");
-        var vacCancelada = CrearVacante(puesto.Id, cancelada.Id, $"VAC-SEG-VAC-CAN-{suffix}");
+        var vacAbierta1 = CrearVacante(puesto1.Id, abierta.Id, $"VAC-SEG-VAC-AB1-{suffix}");
+        var vacAbierta2 = CrearVacante(puesto2.Id, enSeleccion.Id, $"VAC-SEG-VAC-AB2-{suffix}");
+        var vacCubierta = CrearVacante(puesto3.Id, cubierta.Id, $"VAC-SEG-VAC-CUB-{suffix}");
+        var vacCancelada = CrearVacante(puesto4.Id, cancelada.Id, $"VAC-SEG-VAC-CAN-{suffix}");
 
         try
         {
-            await SeedAsync(context, unidad, cargo, puesto, abierta, enSeleccion, cubierta, cancelada,
+            await SeedAsync(context, unidad, cargo,
+                puesto1, puesto2, puesto3, puesto4,
+                abierta, enSeleccion, cubierta, cancelada,
                 vacAbierta1, vacAbierta2, vacCubierta, vacCancelada);
 
             var repo = new VacanteRepository(context);
@@ -72,7 +83,8 @@ public sealed class VacanteRepositoryQueryTests
         finally
         {
             await CleanupAsync(context, vacAbierta1, vacAbierta2, vacCubierta, vacCancelada,
-                abierta, enSeleccion, cubierta, cancelada, puesto, cargo, unidad);
+                abierta, enSeleccion, cubierta, cancelada,
+                puesto1, puesto2, puesto3, puesto4, cargo, unidad);
         }
     }
 
@@ -84,16 +96,22 @@ public sealed class VacanteRepositoryQueryTests
         var suffix = UniqueSuffix();
         var unidad = RepositoryTestData.CreateUnidadOrganizativa($"VAC-CER-UO-{suffix}");
         var cargo = RepositoryTestData.CreateCargo($"VAC-CER-CARGO-{suffix}");
-        var puesto = RepositoryTestData.CreatePuesto($"VAC-CER-PUE-{suffix}", unidad, cargo);
+        // Cada vacante usa un puesto distinto para satisfacer la constraint
+        // IX_Vacantes_ActivePuestoIdUnique (issue #238) — la fórmula
+        // ActivePuestoIdUnique depende de FechaCierre/IsDeleted y no del
+        // nombre del estado, así que vacAbierta y vacCubierta computarían
+        // ambas al mismo PuestoId.
+        var puesto1 = RepositoryTestData.CreatePuesto($"VAC-CER-PUE1-{suffix}", unidad, cargo);
+        var puesto2 = RepositoryTestData.CreatePuesto($"VAC-CER-PUE2-{suffix}", unidad, cargo);
         var abierta = CrearEstadoVacante($"VAC-CER-AB-{suffix}", "Abierta", orden: 1, esTerminal: false);
         var cubierta = CrearEstadoVacante($"VAC-CER-CUB-{suffix}", "Cubierta", orden: 2, esTerminal: true);
 
-        var vacAbierta = CrearVacante(puesto.Id, abierta.Id, $"VAC-CER-VAC-AB-{suffix}");
-        var vacCubierta = CrearVacante(puesto.Id, cubierta.Id, $"VAC-CER-VAC-CUB-{suffix}");
+        var vacAbierta = CrearVacante(puesto1.Id, abierta.Id, $"VAC-CER-VAC-AB-{suffix}");
+        var vacCubierta = CrearVacante(puesto2.Id, cubierta.Id, $"VAC-CER-VAC-CUB-{suffix}");
 
         try
         {
-            await SeedAsync(context, unidad, cargo, puesto, abierta, cubierta, vacAbierta, vacCubierta);
+            await SeedAsync(context, unidad, cargo, puesto1, puesto2, abierta, cubierta, vacAbierta, vacCubierta);
 
             var repo = new VacanteRepository(context);
             var query = new VacanteListQuery(1, 20, null, null, VacanteSegmentoListado.Cerradas);
@@ -107,7 +125,7 @@ public sealed class VacanteRepositoryQueryTests
         }
         finally
         {
-            await CleanupAsync(context, vacAbierta, vacCubierta, abierta, cubierta, puesto, cargo, unidad);
+            await CleanupAsync(context, vacAbierta, vacCubierta, abierta, cubierta, puesto1, puesto2, cargo, unidad);
         }
     }
 
