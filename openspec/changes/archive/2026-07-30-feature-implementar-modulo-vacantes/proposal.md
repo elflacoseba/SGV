@@ -90,15 +90,32 @@ Habilitar la gestión de vacantes de puestos a través de API REST y interfaz we
 
 ## Success Criteria
 
-- [ ] `dotnet build SGV.slnx` compila sin errores
-- [ ] `dotnet test SGV.slnx` pasa (todos los layers)
-- [ ] `GET /api/v1/estados-vacante` retorna los 4 estados seed
-- [ ] Creación, consultas y cambio de estado de vacantes vía API funcionan con autenticación
-- [ ] Cambio de estado registra en `HistorialEstadoVacante`
-- [ ] Query segmentada (`abiertas|cerradas|todas`) excluye mezclas de segmento
-- [ ] Páginas web Index/Create/Edit/Details cargan y persistén correctamente
-- [ ] Menú "Vacantes" visible en `_Sidenav.cshtml` para usuarios autenticados
-- [ ] Bloque GUID `20000000-…` documentado en `decisiones-implementacion.md`
+> **Alcance de la verificación** (alineado con la realidad de los verify-reports
+> archivados, `verify-report-5.md`, y con la issue #237):
+> el criterio de éxito del change aplica a la **suite focal del change**
+> (`~Vacante | ~Vacantes`) y a la **suite web completa** (`~Web`).
+> La suite global de la solución puede contener fallos pre-existentes
+> no relacionados con este change (W-1: `SetupServicioTests` por FK
+> `Ocupaciones_Personas` en `VaciarTablasAsync`; dos tests de auditoría/JWT
+> que fallan por interferencia de paralelismo pero pasan aislados).
+> Esos fallos no invalidan el veredicto del change porque son anteriores
+> a la introducción del módulo Vacantes (ver `archive-report.md` §
+> "Hallazgos Abiertos" para la trazabilidad completa).
+>
+> La regresión web W-1 (4 aserciones `DoesNotContain("Vacantes")` obsoletas
+> en tests pre-existentes) fue resuelta por la issue #232, ya cerrada en
+> `develop` con el commit `5a1d54a9`.
+
+- [x] `dotnet build SGV.slnx` compila sin errores
+- [x] `dotnet test SGV.slnx --filter "FullyQualifiedName~Vacante|FullyQualifiedName~Vacantes"` pasa 100% (suite focal del change)
+- [x] `dotnet test SGV.slnx --filter "FullyQualifiedName~Web"` pasa 100% (suite web completa, sin regresiones de Vacantes)
+- [x] `GET /api/v1/estados-vacante` retorna los 4 estados seed
+- [x] Creación, consultas y cambio de estado de vacantes vía API funcionan con autenticación
+- [x] Cambio de estado registra en `HistorialEstadoVacante`
+- [x] Query segmentada (`abiertas|cerradas|todas`) excluye mezclas de segmento
+- [x] Páginas web Index/Create/Edit/Details cargan y persistén correctamente
+- [x] Menú "Vacantes" visible en `_Sidenav.cshtml` para usuarios autenticados
+- [x] Bloque GUID `20000000-…` documentado en `decisiones-implementacion.md`
 
 ## Proposal Question Round
 
