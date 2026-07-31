@@ -56,20 +56,20 @@ Chain strategy: feature-branch-chain
 
 ## Phase 4 — Web read
 
-- [ ] 4.1 `src/SGV.Web/Integration/Vacantes/{IVacanteApiClient,VacanteApiClient,VacanteListItemViewModel}.cs`.
-- [ ] 4.2 `src/SGV.Web/Pages/Organizacion/Vacantes/{Index.cshtml,Index.cshtml.cs}` (filtros segmento, estado recuperable).
-- [ ] 4.3 `AddHttpClient<IVacanteApiClient,VacanteApiClient>` en `src/SGV.Web/Program.cs`.
-- [ ] 4.4 RED `VacantesIndexSmokeTests` (Index 200 con `SgvWebApplicationFactory`).
+- [x] 4.1 `src/SGV.Web/Integration/Vacantes/{IVacanteApiClient,VacanteApiClient,VacanteListItemViewModel}.cs`.
+- [x] 4.2 `src/SGV.Web/Pages/Organizacion/Vacantes/{Index.cshtml,Index.cshtml.cs}` (filtros segmento, estado recuperable).
+- [x] 4.3 `AddHttpClient<IVacanteApiClient,VacanteApiClient>` en `src/SGV.Web/Program.cs`.
+- [x] 4.4 RED `VacantesIndexSmokeTests` (Index 200 con `SgvWebApplicationFactory`).
 
 ## Phase 5 — Web write
 
-- [ ] 5.1 `VacanteInputModel`, `VacanteDetailViewModel` en `src/SGV.Web/Integration/Vacantes/`.
-- [ ] 5.2 `Create.cshtml(.cs)` (catálogos, `Forbid()` sin rol, PRG).
-- [ ] 5.3 `Edit.cshtml(.cs)` (prellenar estado+observaciones; invoca `ActualizarObservaciones`).
-- [ ] 5.4 `Details.cshtml(.cs)` (historial cronológico).
-- [ ] 5.5 Modificar `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` (grupo "Vacantes", "Nueva" gated por `esAdministrador || User.IsInRole(GestorVacantes)`).
-- [ ] 5.6 RED `VacantesCreateEditForbidTests` (sin rol→Forbid).
-- [ ] 5.7 GREEN cobertura segmento no mezclado en Index.
+- [x] 5.1 `VacanteInputModel`, `VacanteDetailViewModel` en `src/SGV.Web/Integration/Vacantes/`.
+- [x] 5.2 `Create.cshtml(.cs)` (catálogos, `Forbid()` sin rol, PRG).
+- [x] 5.3 `Edit.cshtml(.cs)` (prellenar estado+observaciones; invoca `ActualizarObservaciones`).
+- [x] 5.4 `Details.cshtml(.cs)` (historial cronológico).
+- [x] 5.5 Modificar `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` (grupo "Vacantes", "Nueva" gated por `esAdministrador || User.IsInRole(GestorVacantes)`).
+- [x] 5.6 RED `VacantesCreateEditForbidTests` (sin rol→Forbid).
+- [x] 5.7 GREEN cobertura segmento no mezclado en Index.
 
 ## PB-1 a PB-5 — Mapeo y confirmación
 

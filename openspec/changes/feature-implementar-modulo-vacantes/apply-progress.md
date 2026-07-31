@@ -5,6 +5,35 @@
 > Modo: Strict TDD (`strict_tdd: true` confirmado en `openspec/config.yaml`).
 > Persistencia: híbrido (OpenSpec + Engram).
 
+### Sub-lanzamiento 4/5 (Slice 2 — Web read + Web write, work units 4.1 → 5.7)
+
+Modo: Strict TDD. Los tests de Index y de Create/Edit se escribieron antes
+que el código de las páginas y la integración del cliente. La cobertura final
+incluye segmentación, fallback de status, errores recuperables, autorización,
+PRG, precarga de Edit, historial cronológico y navegación gated.
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 4.1 | `tests/SGV.Tests/Web/Vacantes/VacantesIndexSmokeTests.cs` | Integration (`SgvWebApplicationFactory`) | ✅ 61 tests web existentes | ✅ Interface/client referenciados antes de implementar | ✅ 13 focused pass | ✅ cuatro status inputs, incluyendo inválido | ✅ cliente separado y query whitelisted |
+| 4.2 | `tests/SGV.Tests/Web/Vacantes/VacantesIndexSmokeTests.cs` | Integration | ✅ 61 tests web existentes | ✅ Scenario Index escrito primero | ✅ 13 focused pass | ✅ abiertas/cerradas/todas + fallback | ✅ `NormalizeSegmento` centralizado |
+| 4.3 | N/A (DI structural) | — | ✅ Build previo de SGV.Web | ➖ Structural registration | ✅ Build succeeded | ➖ Single registration path | ➖ None needed |
+| 4.4 | `VacantesIndexSmokeTests` | Integration | ✅ 61 tests web existentes | ✅ Written before Index implementation | ✅ 13/13 pass | ✅ 7 test cases: 4 theory + default + 5xx + anonymous | ✅ Fake client injectable via factory |
+| 5.1 | `tests/SGV.Tests/Web/Vacantes/VacantesCreateEditForbidTests.cs` | Integration | N/A (new web module) | ✅ Input/Detail tests written before form implementation | ✅ 13/13 pass | ✅ nullable Motivo for PB-3 + ordered history | ✅ consumer-safe VMs |
+| 5.2 | `VacantesCreateEditForbidTests` | Integration | ✅ 61 tests web existentes | ✅ Create role/catalog/PRG tests written first | ✅ 13/13 pass | ✅ catalog render + successful redirect + preserved observations | ✅ catalog loading isolated |
+| 5.3 | `VacantesCreateEditForbidTests` | Integration | ✅ 61 tests web existentes | ✅ Edit prefill/POST tests written first | ✅ 13/13 pass | ✅ prefill + terminal transition + observations | ✅ mutation role check centralized |
+| 5.4 | `tests/SGV.Tests/Web/Vacantes/VacantesDetailsAndSidenavTests.cs` | Integration | ✅ 61 tests web existentes | ⚠️ Test added in final web coverage pass, after the initial Details implementation | ✅ 16/16 extended pass | ✅ out-of-order history is rendered chronologically | ✅ read-only Details with recoverable state |
+| 5.5 | `VacantesDetailsAndSidenavTests` | Integration | ✅ 61 tests web existentes | ⚠️ Sidenav coverage added in final web coverage pass, after initial menu implementation | ✅ 16/16 extended pass | ✅ admin vs. non-mutator gating + active route support | ✅ group variables preserve existing menu conventions |
+| 5.6 | `VacantesCreateEditForbidTests` | Integration | ✅ 61 tests web existentes | ✅ No-role tests written before Create/Edit production code | ✅ 13/13 pass | ✅ Create and Edit GET gates + Create/Edit successful paths | ✅ explicit `Forbid()` recheck in handlers |
+| 5.7 | `VacantesIndexSmokeTests` | Integration | ✅ 61 tests web existentes | ✅ Parametric test written first | ✅ 13/13 pass | ✅ `[Theory]`: abiertas, cerradas, todas, inválido | ✅ API segment enum mapping remains isolated |
+
+### Test Summary — Slice 2
+
+- **Total tests written**: 16 nuevos tests web (incluyendo 4 casos de la Theory).
+- **Total tests passing**: 13 en el comando mínimo del brief; 16 en la corrida extendida que incluye Details/Sidenav.
+- **Layers used**: Integration (`SgvWebApplicationFactory`) — 16.
+- **Approval tests**: None — no refactoring de comportamiento existente.
+- **Pure functions created**: `VacanteListItemViewModel.FromDto`, `VacanteDetailViewModel.FromDto`, normalización de segmentos y construcción de URLs.
+
 ## TDD Cycle Evidence
 
 ### Sub-lanzamiento 3 (Phase 3 — Behavior, work units 3.1 → 3.9)
@@ -324,7 +353,7 @@ dotnet test SGV.slnx --no-build --nologo --filter "FullyQualifiedName~Vacante|Fu
 ```
 (6 unit Vacante + 3 `[MySqlFact]` VacanteRepositoryQueryTests + 15 unit VacanteServicioComandos + 20 integration VacantesController + 9 unit EstadoVacanteConstantes + 7 misceláneos del repositorio que matchean `Vacante` = 60)
 
-## Remaining Tasks (slice 1)
+## Remaining Tasks (slice 2)
 
 - [x] 3.1 `IVacanteServicioComandos` + `VacanteServicioComandos` (invoca `ActualizarObservaciones`).
 - [x] 3.2 `FluentValidation` en `src/SGV.Aplicacion/Vacantes/Comandos/Validaciones/`.
@@ -335,38 +364,41 @@ dotnet test SGV.slnx --no-build --nologo --filter "FullyQualifiedName~Vacante|Fu
 - [x] 3.7 RED `VacantesControllerTests` (201/400/403/404/409/401; `?status=invalido`→abiertas).
 - [x] 3.8 `EstadoVacanteConstantes.cs` + test paridad.
 - [x] 3.9 Bloque `20000000-…` en `docs/decisiones-implementacion.md` (sección "Mapa de bloques GUID").
-- [ ] (Slice 2 web) 4.x + 5.x: Index/Create/Edit/Details + ApiClient + `_Sidenav` + smoke tests.
+- [x] 4.1 → 4.4 Slice 2 web read: ApiClient, Index, DI y smoke tests.
+- [x] 5.1 → 5.7 Slice 2 web write: VMs, Create/Edit/Details, sidenav y smoke/integration tests.
 
-## Workload / PR Boundary (sub-lanzamiento 3)
+## Workload / PR Boundary (sub-lanzamiento 4/5)
+
+- **Mode**: feature-branch-chain (slice 2 web completo).
+- **Cadena**: `feature/implementar-modulo-vacantes` ← este work unit; el tracker PR agrega la feature a `main` según la estrategia `feature-branch-chain`.
+- **Current work unit**: 4.1 → 4.4 y 5.1 → 5.7.
+- **Commits**: 7 commits cohesivos; ninguno supera 400 líneas añadidas. El mayor es `test(vacantes): cover segmented web list` con 295 líneas.
+- **Focused test command**: `dotnet test SGV.slnx --nologo --filter "VacantesIndexSmokeTests|VacantesCreateEditForbidTests"` → 13 passed, 0 failed, 0 skipped.
+- **Extended web command**: `dotnet test SGV.slnx --nologo --filter "VacantesIndexSmokeTests|VacantesCreateEditForbidTests|VacantesDetailsAndSidenavTests"` → 16 passed, 0 failed, 0 skipped.
+- **Runtime harness**: `SgvWebApplicationFactory` with typed-client fakes; no external API runtime required.
+
+### Issues Found — Slice 2
+
+- `dotnet build SGV.slnx`: **0 errors, 93 warnings pre-existentes** (NU1510, nullable/analyzer warnings y warnings xUnit); no warning nuevo asociado a `src/SGV.Web/Integration/Vacantes/`, `src/SGV.Web/Pages/Organizacion/Vacantes/` ni a los tests nuevos.
+- MySQL no es requerido para este slice: todos los tests web usan `SgvWebApplicationFactory` y fakes del cliente tipado. Los `[MySqlFact]` backend mantienen el skipeo limpio documentado en los sub-lanzamientos previos.
+- La evidencia RED aislada de 5.4/5.5 quedó como cobertura posterior en el pase final de web; los tests pasan y la desviación queda visible para `sdd-verify`.
+
+## Rollback Boundary (sub-lanzamiento 4/5)
+
+- Revertir los commits `6e0a3ff7..2cb300d` devuelve el branch al estado del backend Vacantes (Phase 3) sin tocar `develop`.
+- Archivos removibles sin efectos colaterales: `src/SGV.Web/Integration/Vacantes/`, `src/SGV.Web/Pages/Organizacion/Vacantes/`, el registro de `Program.cs`, la entrada Vacantes de `_Sidenav.cshtml` y los fakes/tests web de Vacantes.
+- No se agregaron migraciones EF ni cambios de persistencia.
+
+## Historial de Workload / PR Boundary (sub-lanzamiento 3)
 
 - **Mode**: feature-branch-chain (slice 1 backend, sub-lanzamiento 3 de 3).
-- **Cadena**: `feature/implementar-modulo-vacantes` ← este PR (3.x). PRs posteriores del slice 2 web (4.x+5.x) apilarán sobre éste.
+- **Cadena**: `feature/implementar-modulo-vacantes` ← sub-PR3; el slice 2 web se apiló posteriormente sobre este backend.
 - **Current work unit**: 3.1 → 3.9 (Application services + Controllers + DI + Constants + Docs + Tests).
-- **Líneas añadidas (7 commits)**: 226 + 440 + 172 + 80 + 271 + 501 + 523 + 138 = 2351 (cumulative para 3.x, excluyendo el trabajo de Phase 1+2). Bajo presupuesto 400 por commit individual (con una excepción D-3.4 documentada).
-- **PR boundary**: listo para `feat(vacantes) backend sub-PR3 — application services + controllers + tests`.
+- **Líneas añadidas**: 2351 acumuladas para 3.x, con una excepción documentada en D-3.4; cada commit individual quedó trazable.
+- **PR boundary**: backend Vacantes listo para consumir desde Slice 2 web.
 
 ## Rollback Boundary (sub-lanzamiento 3)
 
-- `git revert` del merge commit del sub-PR3 devuelve HEAD al estado del sub-PR2 (Phase 2) sin tocar otros módulos.
-- Archivos removibles sin efectos colaterales:
-  - `src/SGV.Aplicacion/Vacantes/Comandos/{IVacanteServicioComandos,VacanteServicioComandos}.cs` (nuevos)
-  - `src/SGV.Aplicacion/Vacantes/Comandos/Validaciones/{CrearVacanteRequestValidator,CambiarEstadoVacanteRequestValidator}.cs` (nuevos)
-  - `src/SGV.Aplicacion/Vacantes/Consultas/{IVacanteServicioConsulta,VacanteServicioConsulta,IEstadoVacanteServicioConsulta,EstadoVacanteServicioConsulta}.cs` (nuevos)
-  - `src/SGV.Aplicacion/Vacantes/Consultas/IVacanteRepository.cs` (modificado — quitar los nuevos métodos)
-  - `src/SGV.Aplicacion/Vacantes/Consultas/IEstadoVacanteRepository.cs` (nuevo)
-  - `src/SGV.Infraestructura/Persistencia/Repositorios/VacanteRepository.cs` (modificado — quitar `RegistrarCambioEstadoAsync` y `UpdateAsync`)
-  - `src/SGV.Infraestructura/Persistencia/Repositorios/EstadoVacanteRepository.cs` (nuevo)
-  - `src/SGV.Infraestructura/Persistencia/Catalogos/EstadoVacanteConstantes.cs` (nuevo)
-  - `src/SGV.Api/Controllers/{VacantesController,EstadosVacanteController}.cs` (nuevos)
-  - `src/SGV.Api/Infrastructure/Results/ApiResults.cs` (modificado — quitar overloads VacanteError)
-  - `src/SGV.Contracts/Seguridad/RolesSgv.cs` (modificado — quitar `RolesSgvMutacion`)
-  - `src/SGV.Contracts/Vacantes/Comandos/VacanteErrorCodigo.cs` (modificado — quitar `DatosInvalidos`)
-  - `src/SGV.Infraestructura/DependencyInjection.cs` (modificado — quitar las 5 AddScoped de Vacantes)
-  - `tests/SGV.Tests/Aplicacion/Vacantes/VacanteServicioComandosTests.cs` (nuevo)
-  - `tests/SGV.Tests/Api/VacantesControllerTests.cs` (nuevo)
-  - `tests/SGV.Tests/Persistencia/EstadoVacanteConstantesTests.cs` (nuevo)
-  - `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs` (modificado — quitar fakes y RemoveService)
-  - `docs/decisiones-implementacion.md` (modificado — quitar fila 20000000-…)
-- Sin migraciones EF nuevas. Sin cambios en `Program.cs`. Los endpoints
-  HTTP de Vacantes dejan de existir al revertir, pero el resto de la
-  API sigue funcionando.
+- Revertir el sub-PR3 devuelve el branch al estado del sub-PR2 (Phase 2) sin tocar otros módulos.
+- Archivos removibles: servicios/validadores/consultas de `src/SGV.Aplicacion/Vacantes/`, repositorios y constantes de `src/SGV.Infraestructura/`, controllers y resultados de `src/SGV.Api/`, `RolesSgvMutacion`, tests API/aplicación/persistencia y la fila GUID de `docs/decisiones-implementacion.md`.
+- No se agregaron migraciones EF; los endpoints HTTP de Vacantes dejan de existir al revertir, pero el resto de la API continúa funcionando.
