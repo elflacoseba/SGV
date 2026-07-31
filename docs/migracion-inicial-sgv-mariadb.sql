@@ -1219,5 +1219,35 @@ VALUES ('20260723203015_AddCategoriaHabilidadCatalog', '9.0.0');
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260729145632_MariaDbStoredColumnsAndCollation', '9.0.0');
 
+-- ============================================================================
+-- Migración: 20260731173842_AddActivePuestoIdUniqueToVacantes
+-- Forward-only (precedente FixActivePuestoIdUniqueType).
+-- Issue #238 — TOCTOU de CrearAsync de vacantes (issue paralelo al patrón
+-- ya vigente en Ocupaciones desde la migración MariaDbStoredColumnsAndCollation).
+-- Patrón: columna calculada STORED `ActivePuestoIdUnique` + UNIQUE INDEX
+-- parcial sobre la misma. La columna evalúa a NULL cuando la vacante está
+-- cerrada o soft-deleted — MariaDB ignora NULL en UNIQUE INDEX, permitiendo
+-- múltiples filas con la constraint satisfecha.
+--
+-- Source-of-truth C#: src/SGV.Infraestructura/Persistencia/
+--   Migraciones/20260731173842_AddActivePuestoIdUniqueToVacantes.cs
+-- Configuración EF: src/SGV.Infraestructura/Persistencia/Configuraciones/
+--   VacanteConfiguracion.cs (shadow property "ActivePuestoIdUnique").
+--
+-- Notas MariaDB:
+--   * STORED es obligatorio para UNIQUE INDEX sobre columna generada
+--     (mismo motivo que MariaDbStoredColumnsAndCollation).
+--   * Collation `ascii_general_ci` matches el snapshot de modelo EF y la
+--     FixActivePuestoIdUniqueType previa para Ocupaciones. PuestoId es
+--     Guid de 36 chars → solo ASCII 0-9 a-f '-'; utf8mb4_unicode_ci
+--     funciona pero es más caro en comparaciones.
+-- ============================================================================
+ALTER TABLE `Vacantes` ADD COLUMN `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci GENERATED ALWAYS AS (CASE WHEN `FechaCierre` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) STORED;
+
+CREATE UNIQUE INDEX `IX_Vacantes_ActivePuestoIdUnique` ON `Vacantes` (`ActivePuestoIdUnique`);
+
+INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260731173842_AddActivePuestoIdUniqueToVacantes', '9.0.0');
+
 COMMIT;
 
