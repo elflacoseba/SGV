@@ -44,15 +44,15 @@ Chain strategy: feature-branch-chain
 
 ## Phase 3 — Behavior
 
-- [ ] 3.1 `src/SGV.Aplicacion/Vacantes/Comandos/{IVacanteServicioComandos,VacanteServicioComandos}.cs` (invoca `ActualizarObservaciones`).
-- [ ] 3.2 `FluentValidation` en `src/SGV.Aplicacion/Vacantes/Comandos/Validaciones/`.
-- [ ] 3.3 `src/SGV.Aplicacion/Vacantes/Consultas/{IVacanteServicioConsulta,IEstadoVacanteServicioConsulta,IVacanteRepository}.cs` + impls.
-- [ ] 3.4 `src/SGV.Api/Controllers/VacantesController.cs` y `EstadosVacanteController.cs` con `[Authorize]` y `RolesSgvMutacion=Administrador,GestorVacantes`.
-- [ ] 3.5 Registrar en `src/SGV.Infraestructura/DependencyInjection.cs`.
-- [ ] 3.6 RED `VacanteServicioComandosTests` (conflict PuestoId-abierta, terminal inmutable, atomicidad).
-- [ ] 3.7 RED `VacantesControllerTests` (201/400/403/404/409/401; `?status=invalido`→abiertas).
-- [ ] 3.8 `src/SGV.Infraestructura/Persistencia/Catalogos/EstadoVacanteConstantes.cs` + test paridad.
-- [ ] 3.9 Bloque `20000000-…` en `docs/decisiones-implementacion.md` (sección "Mapa de bloques GUID").
+- [x] 3.1 `src/SGV.Aplicacion/Vacantes/Comandos/{IVacanteServicioComandos,VacanteServicioComandos}.cs` (invoca `ActualizarObservaciones`).
+- [x] 3.2 `FluentValidation` en `src/SGV.Aplicacion/Vacantes/Comandos/Validaciones/`.
+- [x] 3.3 `src/SGV.Aplicacion/Vacantes/Consultas/{IVacanteServicioConsulta,IEstadoVacanteServicioConsulta,IVacanteRepository}.cs` + impls.
+- [x] 3.4 `src/SGV.Api/Controllers/VacantesController.cs` y `EstadosVacanteController.cs` con `[Authorize]` y `RolesSgvMutacion=Administrador,GestorVacantes`.
+- [x] 3.5 Registrar en `src/SGV.Infraestructura/DependencyInjection.cs`.
+- [x] 3.6 RED `VacanteServicioComandosTests` (conflict PuestoId-abierta, terminal inmutable, atomicidad).
+- [x] 3.7 RED `VacantesControllerTests` (201/400/403/404/409/401; `?status=invalido`→abiertas).
+- [x] 3.8 `src/SGV.Infraestructura/Persistencia/Catalogos/EstadoVacanteConstantes.cs` + test paridad.
+- [x] 3.9 Bloque `20000000-…` en `docs/decisiones-implementacion.md` (sección "Mapa de bloques GUID").
 
 ## Phase 4 — Web read
 
