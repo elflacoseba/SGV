@@ -2,6 +2,7 @@ using SGV.Dominio.Habilidades;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using SGV.Dominio.Personas;
+using SGV.Dominio.Vacantes;
 using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Mapeos;
@@ -262,5 +263,64 @@ internal static class DomainToPersistenceMapper
         entity.IsDeleted = domain.IsDeleted;
         entity.DeletedAt = domain.DeletedAt;
         entity.DeletedByUserId = domain.DeletedByUserId;
+    }
+
+    public static VacanteEntity ToEntity(Vacante domain)
+    {
+        return new VacanteEntity
+        {
+            Id = domain.Id,
+            PuestoId = domain.PuestoId,
+            EstadoVacanteId = domain.EstadoVacanteId,
+            FechaApertura = domain.FechaApertura,
+            FechaCierre = domain.FechaCierre,
+            Motivo = domain.Motivo,
+            Observaciones = domain.Observaciones,
+            CreatedAt = domain.CreatedAt,
+            CreatedByUserId = domain.CreatedByUserId,
+            UpdatedAt = domain.UpdatedAt,
+            UpdatedByUserId = domain.UpdatedByUserId,
+            IsDeleted = domain.IsDeleted,
+            DeletedAt = domain.DeletedAt,
+            DeletedByUserId = domain.DeletedByUserId
+        };
+    }
+
+    public static void UpdateEntity(VacanteEntity entity, Vacante domain)
+    {
+        entity.PuestoId = domain.PuestoId;
+        entity.EstadoVacanteId = domain.EstadoVacanteId;
+        entity.FechaApertura = domain.FechaApertura;
+        entity.FechaCierre = domain.FechaCierre;
+        entity.Motivo = domain.Motivo;
+        entity.Observaciones = domain.Observaciones;
+        entity.UpdatedAt = domain.UpdatedAt;
+        entity.UpdatedByUserId = domain.UpdatedByUserId;
+        entity.IsDeleted = domain.IsDeleted;
+        entity.DeletedAt = domain.DeletedAt;
+        entity.DeletedByUserId = domain.DeletedByUserId;
+    }
+
+    /// <summary>
+    /// Construye la entidad de persistencia de un historial de estado de
+    /// vacante a partir del dominio. Usado por
+    /// <c>VacanteRepository.RegistrarCambioEstadoAsync</c> cuando el
+    /// servicio <c>VacanteServicioComandos.CambiarEstadoAsync</c> emite
+    /// un nuevo <see cref="HistorialEstadoVacante"/> tras la mutación del
+    /// agregado. El <c>Id</c> se genera nuevo porque el dominio crea el
+    /// historial sin un ID explícito (la PK es autogenerada por EF).
+    /// </summary>
+    public static HistorialEstadoVacanteEntity ToEntity(HistorialEstadoVacante domain)
+    {
+        return new HistorialEstadoVacanteEntity
+        {
+            Id = Guid.NewGuid(),
+            VacanteId = domain.VacanteId,
+            EstadoAnteriorId = domain.EstadoAnteriorId,
+            EstadoNuevoId = domain.EstadoNuevoId,
+            ChangedAt = domain.ChangedAt,
+            ChangedByUserId = domain.ChangedByUserId,
+            Motivo = domain.Motivo
+        };
     }
 }

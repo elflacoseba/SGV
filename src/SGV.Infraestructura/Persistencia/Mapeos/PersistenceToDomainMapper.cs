@@ -3,6 +3,7 @@ using SGV.Dominio.Habilidades;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using SGV.Dominio.Personas;
+using SGV.Dominio.Vacantes;
 using SGV.Infraestructura.Persistencia.Entidades;
 
 namespace SGV.Infraestructura.Persistencia.Mapeos;
@@ -215,5 +216,48 @@ entity.UpdatedAt,
              entity.IsDeleted,
              entity.DeletedAt,
              entity.DeletedByUserId);
+    }
+
+    public static Vacante ToDomain(VacanteEntity entity)
+    {
+        return Vacante.Reconstitute(
+            entity.Id,
+            entity.PuestoId,
+            entity.EstadoVacanteId,
+            entity.FechaApertura,
+            entity.FechaCierre,
+            entity.Motivo,
+            entity.Observaciones,
+            entity.Puesto is null ? null : ToDomain(entity.Puesto),
+            entity.EstadoVacante is null ? null : ToDomain(entity.EstadoVacante),
+            entity.CreatedAt,
+            entity.CreatedByUserId,
+            entity.UpdatedAt,
+            entity.UpdatedByUserId,
+            entity.IsDeleted,
+            entity.DeletedAt,
+            entity.DeletedByUserId);
+    }
+
+    public static EstadoVacante ToDomain(EstadoVacanteEntity entity)
+    {
+        return new EstadoVacante(entity.Codigo, entity.Nombre, entity.Orden, entity.EsTerminal)
+        {
+            Id = entity.Id
+        };
+    }
+
+    public static HistorialEstadoVacante ToDomain(HistorialEstadoVacanteEntity entity)
+    {
+        return new HistorialEstadoVacante(
+            entity.VacanteId,
+            entity.EstadoAnteriorId,
+            entity.EstadoNuevoId,
+            entity.ChangedAt,
+            entity.ChangedByUserId,
+            entity.Motivo)
+        {
+            Id = entity.Id
+        };
     }
 }

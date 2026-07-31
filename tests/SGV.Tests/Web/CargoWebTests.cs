@@ -57,7 +57,7 @@ public sealed class CargoWebTests
         Assert.Contains("<span class=\"menu-text\">Cargos</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("href=\"/organizacion/cargos\"", content, StringComparison.OrdinalIgnoreCase);
 
-        Assert.DoesNotContain("<span class=\"menu-text\">Vacantes</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Postulantes</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span class=\"menu-text\">Reclutamiento</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span class=\"menu-text\">Cat&aacute;logos</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span class=\"menu-text\">Catálogos</span>", content, StringComparison.OrdinalIgnoreCase);
@@ -80,7 +80,7 @@ public sealed class CargoWebTests
         Assert.Contains("ti ti-star", content, StringComparison.OrdinalIgnoreCase);
 
         // Y NO debe mostrar placeholders no especificados.
-        Assert.DoesNotContain("<span class=\"menu-text\">Vacantes</span>", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<span class=\"menu-text\">Postulantes</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span class=\"menu-text\">Reclutamiento</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span class=\"menu-text\">Cat&aacute;logos</span>", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span class=\"menu-text\">Catálogos</span>", content, StringComparison.OrdinalIgnoreCase);

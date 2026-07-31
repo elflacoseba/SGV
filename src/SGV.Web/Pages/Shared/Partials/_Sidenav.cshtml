@@ -15,6 +15,15 @@
         ? "active"
         : string.Empty;
     var esAdministrador = User.IsInRole(SGV.Contracts.Seguridad.RolesSgv.Administrador);
+    var vacantesGroupActive = currentPath.StartsWithSegments("/organizacion/vacantes") ? "active" : string.Empty;
+    var vacantesListadoActive = string.Equals(currentPath, "/organizacion/vacantes", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
+    var vacantesNuevaActive = string.Equals(currentPath, "/organizacion/vacantes/crear", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
+    var puedeMutarVacantes = esAdministrador
+        || User.IsInRole(SGV.Contracts.Seguridad.RolesSgv.GestorVacantes);
     // Personas: PR #2 expone el ítem pero la Razor Page llega en PR #3.
     // El groupActive aplica a /personas(/...); "Listado" se marca activo
     // sólo en la ruta exacta y "Nueva" sólo en /personas/crear (mismo
@@ -210,8 +219,32 @@
 </div>
 </li>
 <li class="side-nav-item">
+<a aria-controls="vacantes" aria-expanded="false" class="side-nav-link side-nav-link-toggle @vacantesGroupActive" data-bs-toggle="collapse" href="#vacantes">
+<span class="menu-icon"><i class="ti ti-clipboard-check"></i></span>
+<span class="menu-text">Vacantes</span>
+<span class="menu-arrow"></span>
+</a>
+<div class="collapse" id="vacantes">
+<ul class="sub-menu">
+<li class="side-nav-item">
+    <a class="side-nav-link @vacantesListadoActive" href="/organizacion/vacantes">
+        <span class="menu-text">Listado</span>
+    </a>
+</li>
+@if (puedeMutarVacantes)
+{
+    <li class="side-nav-item">
+        <a class="side-nav-link @vacantesNuevaActive" href="/organizacion/vacantes/crear">
+            <span class="menu-text">Nueva</span>
+        </a>
+    </li>
+}
+</ul>
+</div>
+</li>
+<li class="side-nav-item">
 <a aria-controls="personas" aria-expanded="false" class="side-nav-link side-nav-link-toggle @personasGroupActive" data-bs-toggle="collapse" href="#personas">
-<span class="menu-icon"><i class="ti ti-user"></i></span>
+ <span class="menu-icon"><i class="ti ti-user"></i></span>
 <span class="menu-text">Personas</span>
 <span class="menu-arrow"></span>
 </a>

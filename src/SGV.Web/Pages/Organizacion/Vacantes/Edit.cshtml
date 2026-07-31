@@ -1,0 +1,80 @@
+@page "/organizacion/vacantes/editar/{id:guid}"
+@model SGV.Web.Pages.Organizacion.Vacantes.EditModel
+
+@{
+    ViewBag.title = "Editar vacante";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+@if (Model.IsRecoverable)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card"><div class="card-body text-center py-5">
+                <h5 class="text-muted">La vacante no está disponible para edición.</h5>
+                <p class="text-muted mb-3">Es posible que haya sido eliminada o que haya ocurrido un error al consultarla.</p>
+                <a class="btn btn-primary" href="/organizacion/vacantes">Volver al listado</a>
+            </div></div>
+        </div>
+    </div>
+}
+else if (Model.ViewModel is not null)
+{
+    <div class="row">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Editar vacante</h5>
+                    <p class="text-muted mb-0">Puesto: @Model.ViewModel.PuestoNombre</p>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                        <input asp-for="Input.PuestoId" type="hidden" />
+                        <input asp-for="Input.FechaApertura" type="hidden" />
+
+                        <div class="mb-3">
+                            <label asp-for="Input.EstadoVacanteId" class="form-label"></label>
+                            <select asp-for="Input.EstadoVacanteId" class="form-select" disabled="@(Model.CatalogsReady ? null : "disabled")">
+                                @foreach (var estado in Model.EstadosVacante)
+                                {
+                                    <option value="@estado.Id">@estado.Nombre</option>
+                                }
+                            </select>
+                            <span asp-validation-for="Input.EstadoVacanteId" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Input.Motivo" class="form-label"></label>
+                            <input asp-for="Input.Motivo" class="form-control" />
+                            <span asp-validation-for="Input.Motivo" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Input.Observaciones" class="form-label"></label>
+                            <textarea asp-for="Input.Observaciones" class="form-control" rows="4"></textarea>
+                            <span asp-validation-for="Input.Observaciones" class="text-danger"></span>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary" disabled="@(Model.CatalogsReady ? null : "disabled")">Guardar cambios</button>
+                            <a class="btn btn-light" href="/organizacion/vacantes">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}

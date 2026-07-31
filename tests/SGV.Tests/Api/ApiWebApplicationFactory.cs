@@ -10,8 +10,14 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using SGV.Aplicacion.Seguridad.Usuarios;
 using SGV.Aplicacion.Setup;
+using SGV.Aplicacion.Vacantes.Comandos;
+using SGV.Aplicacion.Vacantes.Consultas;
+using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Contracts.Vacantes.Comandos;
+using SGV.Contracts.Vacantes.Consultas;
+using SGV.Contracts.Vacantes.Consultas.Dtos;
 using SGV.Dominio.Ocupaciones;
 using SGV.Aplicacion.Habilidades.Comandos;
 using SGV.Aplicacion.Habilidades.Consultas;
@@ -1143,6 +1149,9 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.RemoveService<IAuthServicio>();
             services.RemoveService<IOcupacionServicioConsulta>();
             services.RemoveService<IOcupacionServicioComandos>();
+            services.RemoveService<IVacanteServicioConsulta>();
+            services.RemoveService<IVacanteServicioComandos>();
+            services.RemoveService<IEstadoVacanteServicioConsulta>();
             services.RemoveService<ISetupServicio>();
 
             // Add default fake services with test data
@@ -1167,6 +1176,9 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             services.AddSingleton<IAuthServicio>(new FakeAuthServicio());
             services.AddSingleton<IOcupacionServicioConsulta>(new FakeOcupacionServicioConsulta());
             services.AddSingleton<IOcupacionServicioComandos>(new FakeOcupacionServicioComandos());
+            services.AddSingleton<IVacanteServicioConsulta>(new FakeVacanteServicioConsulta());
+            services.AddSingleton<IVacanteServicioComandos>(new FakeVacanteServicioComandos());
+            services.AddSingleton<IEstadoVacanteServicioConsulta>(new FakeEstadoVacanteServicioConsulta());
             services.AddSingleton<ISetupServicio>(new SGV.Tests.Setup.FakeSetupServicio());
 
             services.AddAuthentication(FakeAuthenticationDefaults.Scheme)
@@ -1176,5 +1188,126 @@ public class ApiWebApplicationFactory : WebApplicationFactory<SGV.Api.Program>
             // Apply additional overrides (e.g. empty collections)
             _configureServices?.Invoke(services);
         });
+    }
+}
+
+internal sealed class FakeVacanteServicioConsulta : IVacanteServicioConsulta
+{
+    public static readonly Guid VacanteId1 = Guid.Parse("90000000-0000-0000-0000-000000000001");
+
+    public VacanteListQuery? LastQuery { get; private set; }
+
+    public Task<PagedResult<VacanteDto>> ListarAsync(VacanteListQuery query, CancellationToken ct = default)
+    {
+        LastQuery = query;
+        var dto = new VacanteDto(
+            VacanteId1,
+            Guid.Parse("c0000000-0000-0000-0000-000000000001"),
+            "Gerente General",
+            Guid.Parse("20000000-0000-0000-0000-000000000001"),
+            "Abierta",
+            new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+            null,
+            "Apertura inicial",
+            null);
+        return Task.FromResult(new PagedResult<VacanteDto>([dto], 1, query.Page, query.PageSize));
+    }
+
+    public Task<VacanteDetailDto?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default)
+    {
+        if (id != VacanteId1) return Task.FromResult<VacanteDetailDto?>(null);
+        var dto = new VacanteDetailDto(
+            VacanteId1,
+            Guid.Parse("c0000000-0000-0000-0000-000000000001"),
+            "Gerente General",
+            Guid.Parse("20000000-0000-0000-0000-000000000001"),
+            "Abierta",
+            new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+            null,
+            "Apertura inicial",
+            null,
+            []);
+        return Task.FromResult<VacanteDetailDto?>(dto);
+    }
+}
+
+internal sealed class FakeVacanteServicioComandos : IVacanteServicioComandos
+{
+    public static readonly Guid DefaultVacanteId = Guid.Parse("90000000-0000-0000-0000-000000000002");
+
+    public Func<CrearVacanteRequest, CancellationToken, Task<VacanteCommandResult>>? CrearHandler { get; set; }
+    public Func<Guid, CambiarEstadoVacanteRequest, CancellationToken, Task<VacanteCommandResult>>? CambiarEstadoHandler { get; set; }
+
+    public Task<VacanteCommandResult> CrearAsync(
+        CrearVacanteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
+        return Task.FromResult(VacanteCommandResult.Success(
+            new VacanteDetailDto(
+                DefaultVacanteId,
+                request.PuestoId,
+                "Gerente General",
+                request.EstadoVacanteId,
+                "Abierta",
+                request.FechaApertura,
+                null,
+                request.Motivo,
+                request.Observaciones,
+                [])));
+    }
+
+    public Task<VacanteCommandResult> CambiarEstadoAsync(
+        Guid id,
+        CambiarEstadoVacanteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CambiarEstadoHandler is not null) return CambiarEstadoHandler(id, request, cancellationToken);
+        return Task.FromResult(VacanteCommandResult.Success(
+            new VacanteDetailDto(
+                id,
+                Guid.Parse("c0000000-0000-0000-0000-000000000001"),
+                "Gerente General",
+                request.EstadoVacanteId,
+                "Cubierta",
+                new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+                DateTime.UtcNow,
+                "Motivo inicial",
+                request.Observaciones,
+                [])));
+    }
+
+    public Task<VacanteCommandResult> ActualizarObservacionesAsync(
+        Guid id,
+        string? observaciones,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(VacanteCommandResult.Success(
+            new VacanteDetailDto(
+                id,
+                Guid.Parse("c0000000-0000-0000-0000-000000000001"),
+                "Gerente General",
+                Guid.Parse("20000000-0000-0000-0000-000000000001"),
+                "Abierta",
+                new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+                null,
+                "Motivo inicial",
+                observaciones,
+                [])));
+    }
+}
+
+internal sealed class FakeEstadoVacanteServicioConsulta : IEstadoVacanteServicioConsulta
+{
+    public Task<IReadOnlyList<EstadoVacanteDto>> ListarAsync(CancellationToken ct = default)
+    {
+        IReadOnlyList<EstadoVacanteDto> seed =
+        [
+            new(Guid.Parse("20000000-0000-0000-0000-000000000001"), "Abierta", "Abierta", 1, false),
+            new(Guid.Parse("20000000-0000-0000-0000-000000000002"), "EnSeleccion", "En Selección", 2, false),
+            new(Guid.Parse("20000000-0000-0000-0000-000000000003"), "Cubierta", "Cubierta", 3, true),
+            new(Guid.Parse("20000000-0000-0000-0000-000000000004"), "Cancelada", "Cancelada", 4, true)
+        ];
+        return Task.FromResult(seed);
     }
 }

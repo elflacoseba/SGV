@@ -160,6 +160,7 @@ Para que los catálogos inmutables seedeados por migración tengan IDs estables 
 | `70000000-…`    | `NivelCargo` (issue #141)       | `NivelCargoConstantes`    | `DirectivoId`, `OperativoId`     |
 | `71000000-…`    | `TipoDocumento` (issue #147)    | `TipoDocumentoConstantes` | `DniId`, `LeId`, `LcId`, `PasaporteId` |
 | `72000000-…`    | `CategoriaHabilidad` (issue migrar-campo-categoria-habilidades-a-tabla) | `CategoriaHabilidadConstantes` | `ConduccionId`, `TecnicaId`, `DominioId`, `AcademicaId` |
+| `20000000-…`   | `EstadoVacante` (change `feature/implementar-modulo-vacantes`) | `EstadoVacanteConstantes` | `AbiertaId`, `EnSeleccionId`, `CubiertaId`, `CanceladaId` |
 | (libre)         | Próximos catálogos              | reservado                 | —                                |
 
 **Por qué bloques y no IDs al azar.** Los seed values se persisten tanto en `DatosSemilla.HasData` (model snapshot path) como en `InsertData` dentro de la migración EF. Un test de paridad (`DatosSemilla_*_SeedIdsMatchConstantes`) asserta que ambos lugares usen la misma source-of-truth. Si los IDs se generaran con `Guid.NewGuid()`, ese test sería frágil: cualquier `add migration` accidental movería los IDs en el snapshot sin tocar la fila viva. Con bloques reservados por catálogo, los IDs quedan explícitos en el código de constantes y el bloque de 16 bits sirve como una "etiqueta" legible del catálogo dueño.

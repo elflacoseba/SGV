@@ -1,0 +1,121 @@
+@page "/organizacion/vacantes"
+@model SGV.Web.Pages.Organizacion.Vacantes.IndexModel
+
+@{
+    ViewBag.title = "Vacantes";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.LoadErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @Model.LoadErrorMessage
+        <a class="alert-link" href="@Url.Page("/Organizacion/Vacantes/Index", Model.BuildPagedRouteValues(Model.CurrentPage))">Reintentar</a>
+    </div>
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card" data-table>
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h4 class="card-title mb-1">
+                        @(Model.IsCerradasView ? "Listado de vacantes cerradas" : Model.IsTodasView ? "Listado de todas las vacantes" : "Listado de vacantes abiertas")
+                    </h4>
+                    <p class="text-muted mb-0">Consulta segmentada del módulo de Vacantes.</p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+                    <div class="btn-group" role="group" aria-label="Filtrar por estado">
+                        <a class="btn btn-sm @(Model.Segmento == "abiertas" ? "btn-primary" : "btn-light")"
+                           href="@Url.Page("/Organizacion/Vacantes/Index", Model.BuildToggleSegmentoRouteValues("abiertas"))">Abiertas</a>
+                        <a class="btn btn-sm @(Model.Segmento == "cerradas" ? "btn-primary" : "btn-light")"
+                           href="@Url.Page("/Organizacion/Vacantes/Index", Model.BuildToggleSegmentoRouteValues("cerradas"))">Cerradas</a>
+                        <a class="btn btn-sm @(Model.Segmento == "todas" ? "btn-primary" : "btn-light")"
+                           href="@Url.Page("/Organizacion/Vacantes/Index", Model.BuildToggleSegmentoRouteValues("todas"))">Todas</a>
+                    </div>
+                    <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
+                    @if (Model.CanMutate)
+                    {
+                        <a class="btn btn-primary btn-sm" href="/organizacion/vacantes/crear">
+                            <i class="ti ti-plus me-1"></i>Nueva
+                        </a>
+                    }
+                </div>
+            </div>
+            <div class="card-header border-0">
+                <form class="row g-2 align-items-center w-100" method="get">
+                    <div class="col-md-6 col-xl-4">
+                        <div class="app-search">
+                            <input class="form-control" name="search" placeholder="Buscar..." type="search" value="@Model.Search" />
+                            <i class="ti ti-search app-search-icon text-muted"></i>
+                        </div>
+                    </div>
+                    <input name="sort" type="hidden" value="@Model.Sort" />
+                    <input name="status" type="hidden" value="@Model.Segmento" />
+                    <div class="col-auto">
+                        <button class="btn btn-primary" type="submit">Buscar</button>
+                    </div>
+                </form>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-custom table-centered table-hover w-100 mb-0">
+                    <thead class="bg-light align-middle bg-opacity-25 thead-sm">
+                        <tr class="text-uppercase fs-xxs">
+                            <th>Puesto</th>
+                            <th>Estado</th>
+                            <th>Apertura</th>
+                            <th>Cierre</th>
+                            <th>Motivo</th>
+                            <th class="text-center" style="width: 1%">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items.Count == 0)
+                        {
+                            <tr>
+                                <td class="text-center text-muted py-4" colspan="6">No se encontraron vacantes en este segmento.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td class="fw-medium">@item.PuestoNombre</td>
+                                    <td><span class="badge @(item.EsCerrada ? "badge-soft-secondary" : "badge-soft-success") fs-xs">@item.EstadoVacanteNombre</span></td>
+                                    <td>@item.FechaApertura.ToString("dd/MM/yyyy")</td>
+                                    <td>@(item.FechaCierre?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                    <td>@item.Motivo</td>
+                                    <td>
+                                        <div class="d-flex justify-content-center gap-1">
+                                            <a class="btn btn-info btn-icon btn-sm rounded-circle"
+                                               href="@Model.BuildDetailsUrl(item.Id)" data-bs-toggle="tooltip" data-bs-title="Ver detalle"
+                                               aria-label="Detalle de @item.PuestoNombre"><i class="ti ti-eye fs-lg"></i></a>
+                                            @if (Model.CanMutate && !item.EsCerrada)
+                                            {
+                                                <a class="btn btn-warning btn-icon btn-sm rounded-circle"
+                                                   href="@Model.BuildEditUrl(item.Id)" data-bs-toggle="tooltip" data-bs-title="Editar"
+                                                   aria-label="Editar @item.PuestoNombre"><i class="ti ti-edit fs-lg"></i></a>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <span class="text-muted">Página @Model.CurrentPage de @Model.TotalPages</span>
+                <nav aria-label="Paginación de vacantes">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)"><a class="page-link" href="@Url.Page("/Organizacion/Vacantes/Index", Model.BuildPagedRouteValues(Math.Max(1, Model.CurrentPage - 1)))">Anterior</a></li>
+                        <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)"><a class="page-link" href="@Url.Page("/Organizacion/Vacantes/Index", Model.BuildPagedRouteValues(Model.CurrentPage + 1))">Siguiente</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,102 @@
+@page "/organizacion/vacantes/detalles/{id:guid}"
+@model SGV.Web.Pages.Organizacion.Vacantes.DetailsModel
+
+@{
+    ViewBag.title = "Detalle de vacante";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+@if (Model.IsNotFound || Model.ViewModel is null)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card"><div class="card-body text-center py-5">
+                <h5 class="text-muted">La vacante solicitada no está disponible.</h5>
+                <p class="text-muted mb-3">Es posible que haya sido eliminada o que haya ocurrido un error al consultarla.</p>
+                <a class="btn btn-primary" href="@Model.BuildBackUrl()">Volver al listado</a>
+            </div></div>
+        </div>
+    </div>
+}
+else
+{
+    var vacante = Model.ViewModel;
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-1">@vacante.PuestoNombre</h4>
+                    <p class="text-muted mb-0">Detalle de vacante</p>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3 text-muted">Puesto</dt>
+                        <dd class="col-sm-9">@vacante.PuestoNombre</dd>
+                        <dt class="col-sm-3 text-muted">Estado</dt>
+                        <dd class="col-sm-9"><span class="badge @(vacante.EsCerrada ? "badge-soft-secondary" : "badge-soft-success")">@vacante.EstadoVacanteNombre</span></dd>
+                        <dt class="col-sm-3 text-muted">Fecha de apertura</dt>
+                        <dd class="col-sm-9">@vacante.FechaApertura.ToString("dd/MM/yyyy")</dd>
+                        <dt class="col-sm-3 text-muted">Fecha de cierre</dt>
+                        <dd class="col-sm-9">@(vacante.FechaCierre?.ToString("dd/MM/yyyy") ?? "—")</dd>
+                        <dt class="col-sm-3 text-muted">Motivo</dt>
+                        <dd class="col-sm-9">@vacante.Motivo</dd>
+                        <dt class="col-sm-3 text-muted">Observaciones</dt>
+                        <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(vacante.Observaciones) ? "—" : vacante.Observaciones)</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Historial de estados</h5></div>
+                <div class="card-body">
+                    @if (vacante.Historial.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No hay historial previo.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-custom table-centered mb-0">
+                                <thead><tr><th>Estado anterior</th><th>Estado nuevo</th><th>Fecha</th><th>Motivo</th></tr></thead>
+                                <tbody>
+                                    @foreach (var entry in vacante.Historial)
+                                    {
+                                        <tr>
+                                            <td>@(entry.EstadoAnteriorNombre ?? "—")</td>
+                                            <td>@entry.EstadoNuevoNombre</td>
+                                            <td>@entry.ChangedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                            <td>@(string.IsNullOrWhiteSpace(entry.Motivo) ? "—" : entry.Motivo)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3"><div class="col-12 d-flex gap-2">
+        @if (Model.CanMutate && !vacante.EsCerrada)
+        {
+            <a class="btn btn-warning" href="@Model.BuildEditUrl()">Editar</a>
+        }
+        <a class="btn btn-outline-secondary" href="@Model.BuildBackUrl()">Volver al listado</a>
+    </div></div>
+}

@@ -10,6 +10,7 @@ using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Contracts.Vacantes.Comandos;
 
 namespace SGV.Api.Infrastructure.Results;
 
@@ -141,6 +142,17 @@ public static class ApiResults
     /// <summary>Builds a <see cref="ValidationProblemDetails"/> for an <see cref="OcupacionError"/>.</summary>
     public static ActionResult ToValidationProblemResult(
         OcupacionError error,
+        IReadOnlyDictionary<string, string[]>? fieldErrors,
+        HttpContext? httpContext = null)
+        => BuildValidationProblem(error.Code, error.Message, fieldErrors, httpContext);
+
+    /// <summary>Builds a <see cref="ProblemDetails"/> for a <see cref="VacanteError"/>.</summary>
+    public static ActionResult ToProblemResult(VacanteError error, HttpContext? httpContext = null)
+        => BuildProblem(MapCategoria(error.Categoria), error.Code, error.Message, httpContext);
+
+    /// <summary>Builds a <see cref="ValidationProblemDetails"/> for a <see cref="VacanteError"/>.</summary>
+    public static ActionResult ToValidationProblemResult(
+        VacanteError error,
         IReadOnlyDictionary<string, string[]>? fieldErrors,
         HttpContext? httpContext = null)
         => BuildValidationProblem(error.Code, error.Message, fieldErrors, httpContext);
