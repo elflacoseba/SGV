@@ -1,0 +1,79 @@
+@page "/organizacion/vacantes/crear"
+@model SGV.Web.Pages.Organizacion.Vacantes.CreateModel
+
+@{
+    ViewBag.title = "Nueva vacante";
+    ViewBag.subtitle = "Organización";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-@Model.StatusKind" role="alert">@Model.StatusMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-12 col-lg-8">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">Nueva vacante</h5></div>
+            <div class="card-body">
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.PuestoId" class="form-label"></label>
+                        <select asp-for="Input.PuestoId" class="form-select" disabled="@(Model.CatalogsReady ? null : "disabled")">
+                            <option value="">Seleccione un puesto</option>
+                            @foreach (var puesto in Model.Puestos)
+                            {
+                                <option value="@puesto.Id">@puesto.Nombre (@puesto.Codigo)</option>
+                            }
+                        </select>
+                        <span asp-validation-for="Input.PuestoId" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.EstadoVacanteId" class="form-label"></label>
+                        <select asp-for="Input.EstadoVacanteId" class="form-select" disabled="@(Model.CatalogsReady ? null : "disabled")">
+                            <option value="">Seleccione un estado</option>
+                            @foreach (var estado in Model.EstadosVacante)
+                            {
+                                <option value="@estado.Id">@estado.Nombre</option>
+                            }
+                        </select>
+                        <span asp-validation-for="Input.EstadoVacanteId" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.FechaApertura" class="form-label"></label>
+                        <input asp-for="Input.FechaApertura" class="form-control" type="date" />
+                        <span asp-validation-for="Input.FechaApertura" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.Motivo" class="form-label"></label>
+                        <input asp-for="Input.Motivo" class="form-control" />
+                        <span asp-validation-for="Input.Motivo" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.Observaciones" class="form-label"></label>
+                        <textarea asp-for="Input.Observaciones" class="form-control" rows="4"></textarea>
+                        <span asp-validation-for="Input.Observaciones" class="text-danger"></span>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary" disabled="@(Model.CatalogsReady ? null : "disabled")">Guardar</button>
+                        <a class="btn btn-light" href="/organizacion/vacantes">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
