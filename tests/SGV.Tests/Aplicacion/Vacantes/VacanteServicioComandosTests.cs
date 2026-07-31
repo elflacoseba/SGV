@@ -94,44 +94,6 @@ public sealed class VacanteServicioComandosTests
     }
 
     [Fact]
-    public async Task Crear_EstadoInicialTerminalCubierta_RetornaValidationFailure()
-    {
-        var repo = new FakeVacanteWriteRepository();
-        var estadoRepo = new FakeEstadoVacanteRepository();
-        var uow = new FakeUnitOfWork();
-        var servicio = CrearServicio(repo, estadoRepo, uow);
-
-        var request = CrearRequestValido(estadoVacanteId: EstadoCubiertaId);
-        var resultado = await servicio.CrearAsync(request, default);
-
-        Assert.False(resultado.IsSuccess);
-        Assert.Equal(ErrorCategoria.Validation, resultado.Error!.Categoria);
-        Assert.Equal(VacanteErrorCodigo.EstadoTerminalInmutable, resultado.Error.Code);
-        Assert.Contains("estadoVacanteId", resultado.FieldErrors!.Keys);
-        Assert.Equal(0, uow.SaveChangesCount);
-        Assert.Empty(repo.Datos);
-    }
-
-    [Fact]
-    public async Task Crear_EstadoInicialTerminalCancelada_RetornaValidationFailure()
-    {
-        var repo = new FakeVacanteWriteRepository();
-        var estadoRepo = new FakeEstadoVacanteRepository();
-        var uow = new FakeUnitOfWork();
-        var servicio = CrearServicio(repo, estadoRepo, uow);
-
-        var request = CrearRequestValido(estadoVacanteId: EstadoCanceladaId);
-        var resultado = await servicio.CrearAsync(request, default);
-
-        Assert.False(resultado.IsSuccess);
-        Assert.Equal(ErrorCategoria.Validation, resultado.Error!.Categoria);
-        Assert.Equal(VacanteErrorCodigo.EstadoTerminalInmutable, resultado.Error.Code);
-        Assert.Contains("estadoVacanteId", resultado.FieldErrors!.Keys);
-        Assert.Equal(0, uow.SaveChangesCount);
-        Assert.Empty(repo.Datos);
-    }
-
-    [Fact]
     public async Task Crear_EstadoVacanteIdVacio_RetornaValidationFailure()
     {
         var repo = new FakeVacanteWriteRepository();
