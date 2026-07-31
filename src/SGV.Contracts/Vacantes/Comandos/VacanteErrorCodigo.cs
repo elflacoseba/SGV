@@ -9,4 +9,10 @@ public static class VacanteErrorCodigo
     public const string EstadoTerminalInmutable = nameof(EstadoTerminalInmutable);
     public const string MotivoObligatorio = nameof(MotivoObligatorio);
     public const string ObservacionesMuyLargas = nameof(ObservacionesMuyLargas);
+
+    /// <summary>
+    /// Generic validation error code used when FluentValidation fails
+    /// without a per-field mapping (parity with Ocupaciones/Cargos).
+    /// </summary>
+    public const string DatosInvalidos = nameof(DatosInvalidos);
 }
