@@ -17,7 +17,7 @@ Gestión del ciclo de vida de vacantes de puestos vía API REST: abrir, consulta
 
 ### Requisito: Crear Vacante
 
-El sistema DEBE permitir abrir una vacante indicando `PuestoId`, `EstadoVacanteId` (inicial), `FechaApertura`, `Motivo` y opcionalmente `Observaciones`. Solo el rol `Administrador` o `GestorVacantes` DEBE poder invocar la mutación. El `EstadoVacanteId` inicial NO DEBE referenciar un estado terminal (`EsTerminal = true`); si lo hace, la operación DEBE ser rechazada con `400 Bad Request`.
+El sistema DEBE permitir abrir una vacante indicando `PuestoId`, `EstadoVacanteId` (inicial), `FechaApertura`, `Motivo` y opcionalmente `Observaciones`. Solo el rol `Administrador` o `GestorVacantes` DEBE poder invocar la mutación. El `EstadoVacanteId` inicial NO DEBE referenciar un estado terminal (`EsTerminal = true`); si lo hace, la operación DEBE ser rechazada con `400 Bad Request`. La unicidad "una sola vacante abierta por puesto" DEBE reforzarse con unique constraint parcial en BD sobre `PuestoId` filtrado por `FechaCierre IS NULL` y `IsDeleted = 0`; ante carrera concurrente la BD es fuente de verdad, y la aplicación DEBE mapear la `DbUpdateException` de constraint violation al código `VacanteErrorCodigo.PuestoConVacanteAbierta` respondiendo `409 Conflict`.
 
 #### Escenario: Creación exitosa
 
@@ -53,6 +53,21 @@ El sistema DEBE permitir abrir una vacante indicando `PuestoId`, `EstadoVacanteI
 - **Y** DEBE incluir `ErrorCategoria.Validation` y código `VacanteErrorCodigo.EstadoTerminalInmutable`
 - **Y** DEBE poblar `FieldErrors["estadoVacanteId"]` con el mensaje `"El estado inicial de la vacante no puede ser un estado terminal (Cubierta, Cancelada)."`
 - **Y** la vacante NO DEBE persistirse.
+
+#### Escenario: Puesto con vacante abierta
+
+- **DADO** que ya existe una vacante abierta (`FechaCierre IS NULL`, `IsDeleted = 0`) para el `PuestoId`
+- **CUANDO** se solicita `POST /api/v1/vacantes` para el mismo `PuestoId`
+- **ENTONCES** el sistema DEBE responder `409 Conflict` con código `VacanteErrorCodigo.PuestoConVacanteAbierta`
+- **Y** la nueva vacante NO DEBE persistirse.
+
+#### Escenario: Carrera concurrente para el mismo PuestoId
+
+- **DADO** que no existe vacante abierta para un `PuestoId`
+- **CUANDO** dos solicitudes `POST /api/v1/vacantes` concurren simultáneamente para ese `PuestoId`
+- **ENTONCES** exactamente una DEBE recibir `201 Created`
+- **Y** la otra DEBE recibir `409 Conflict` con código `VacanteErrorCodigo.PuestoConVacanteAbierta`
+- **Y** NO DEBE persistirse más de una vacante abierta para ese `PuestoId`.
 
 ### Requisito: Consultar Vacantes (query segmentada)
 
@@ -173,3 +188,34 @@ Las respuestas de vacantes DEBEN exponer `id`, `puestoId`, `puestoNombre` (denor
 - **CUANDO** la ejecuta un usuario sin rol `Administrador` ni `GestorVacantes`
 - **ENTONCES** la API DEBE responder `403 Forbidden`
 - **Y** si la ejecuta un rol permitido, DEBE responder `2xx`.
+
+### Requisito: Unicidad de vacante abierta por puesto (defense-in-depth en BD)
+
+El sistema DEBE garantizar, mediante unique constraint parcial en BD sobre `PuestoId` filtrado por `FechaCierre IS NULL` y `IsDeleted = 0`, que nunca coexistan dos vacantes abiertas para el mismo puesto. La columna calculada que soporta la constraint DEBE evaluar a `NULL` para vacantes cerradas o soft-deleted, de modo que MySQL las ignore del unique index.
+
+#### Escenario: Una vacante abierta por puesto no viola la constraint
+
+- **DADO** que no existe vacante abierta para un `PuestoId`
+- **CUANDO** se persiste una nueva vacante abierta para ese puesto
+- **ENTONCES** la constraint DEBE aceptar la inserción sin regresión observable.
+
+#### Escenario: Vacante cerrada deja de violar la constraint
+
+- **DADO** una vacante abierta con `FechaCierre IS NULL` para un `PuestoId`
+- **CUANDO** se transiciona a estado terminal seteando `FechaCierre`
+- **ENTONCES** la columna calculada DEBE evaluar a `NULL`
+- **Y** DEBE ser posible abrir una nueva vacante para el mismo `PuestoId`.
+
+#### Escenario: Vacante soft-deleted deja de violar la constraint
+
+- **DADO** una vacante abierta con `IsDeleted = 0` para un `PuestoId`
+- **CUANDO** se elimina lógicamente seteando `IsDeleted = 1`
+- **ENTONCES** la columna calculada DEBE evaluar a `NULL`
+- **Y** DEBE ser posible abrir una nueva vacante para el mismo `PuestoId`.
+
+#### Escenario: Reabrir vacante cerrada con puesto abierto es rechazado por la BD
+
+- **DADO** una vacante cerrada para un `PuestoId` que ya posee otra vacante abierta
+- **CUANDO** por error se reabre seteando `FechaCierre = NULL`
+- **ENTONCES** la BD DEBE rechazar por violación de unique constraint
+- **Y** el rechazo DEBE mapearse a `VacanteErrorCodigo.PuestoConVacanteAbierta`.
