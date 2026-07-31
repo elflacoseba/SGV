@@ -18,6 +18,7 @@ using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Personas;
 using SGV.Web.Integration.Setup;
 using SGV.Web.Integration.Usuarios;
+using SGV.Web.Integration.Vacantes;
 
 [assembly: InternalsVisibleTo("SGV.Tests")]
 
@@ -227,6 +228,14 @@ builder.Services.AddHttpClient<IPersonaApiClient, PersonaApiClient>((serviceProv
 // clientes administrativos para mantener consistencia de fallos
 // recuperables en la Razor Page.
 builder.Services.AddHttpClient<IOcupacionApiClient, OcupacionApiClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(10);
+})
+.AddHttpMessageHandler(sp => sp.GetRequiredService<ApiBearerTokenHandler>());
+
+builder.Services.AddHttpClient<IVacanteApiClient, VacanteApiClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SgvApiOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
