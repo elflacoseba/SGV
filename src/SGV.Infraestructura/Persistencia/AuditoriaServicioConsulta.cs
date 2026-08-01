@@ -62,18 +62,20 @@ public sealed class AuditoriaServicioConsulta(SgvDbContext context)
             ? MinPageSize
             : (query.PageSize > MaxPageSize ? MaxPageSize : query.PageSize);
 
-        // LEFT JOIN contra AspNetUsers para resolver UserName. El
-        // DefaultIfEmpty() preserva la fila de auditoría cuando el
-        // usuario no existe en Identity; la proyección coalesces a
-        // UserNameFallback (D-5 bis). El tipo anónimo {a, u} se
-        // mantiene hasta el Select final para que EF traduzca la
-        // query sin tropezar con la creación de records arbitrarios.
-        var origen = (
-            from a in context.Auditorias.AsNoTracking()
-            join u in context.Users.AsNoTracking()
-                on a.UserId equals u.Id into uj
-            from u in uj.DefaultIfEmpty()
-            select new { a, u });
+        // LEFT JOIN contra AspNetUsers para resolver UserName (D-5 bis).
+        // Duplicado intencionalmente con GetDetalleDtoAsync: en C#
+        // los tipos anónimos no se pueden devolver desde un helper
+        // privado manteniendo la inferencia LINQ encadenable, y los
+        // value-tuple de C# no entran en expression trees de EF
+        // (CS8143). Si la duplicación crece en el futuro, extraer a
+        // un record nominal (AuditoriaJoinUsuario) con
+        // propiedad-proyección EF. Por ahora, ~6 líneas duplicadas
+        // son aceptables y mantienen la compilación simple.
+        var origen = from a in context.Auditorias.AsNoTracking()
+                     join u in context.Users.AsNoTracking()
+                         on a.UserId equals u.Id into uj
+                     from u in uj.DefaultIfEmpty()
+                     select new { a, u };
 
         if (!string.IsNullOrWhiteSpace(query.EntityName))
         {
@@ -120,6 +122,12 @@ public sealed class AuditoriaServicioConsulta(SgvDbContext context)
         // través del switch (todas las ramas son IOrderedQueryable
         // del mismo tipo). EF traduce la query sin tropezar con la
         // creación de tipos no soportados.
+        //
+        // La clave "usuario" ordena por el nombre legible del
+        // usuario (UserName vía LEFT JOIN con AspNetUsers), no por
+        // el UserId técnico. Coincide con lo que ve el operador en
+        // la columna "Usuario" de la grilla; los huérfanos caen a
+        // UserNameFallback ("—") y se ordenan con el resto.
         var ordenado = query.Sort switch
         {
             "fecha_asc" => origen.OrderBy(x => x.a.OccurredAt),
@@ -128,8 +136,8 @@ public sealed class AuditoriaServicioConsulta(SgvDbContext context)
             "entidad_desc" => origen.OrderByDescending(x => x.a.EntityName),
             "operacion_asc" => origen.OrderBy(x => x.a.Operation),
             "operacion_desc" => origen.OrderByDescending(x => x.a.Operation),
-            "usuario_asc" => origen.OrderBy(x => x.a.UserId),
-            "usuario_desc" => origen.OrderByDescending(x => x.a.UserId),
+            "usuario_asc" => origen.OrderBy(x => x.u != null ? x.u.UserName : UserNameFallback),
+            "usuario_desc" => origen.OrderByDescending(x => x.u != null ? x.u.UserName : UserNameFallback),
             "correlacion_asc" => origen.OrderBy(x => x.a.CorrelationId),
             "correlacion_desc" => origen.OrderByDescending(x => x.a.CorrelationId),
             _ => origen.OrderByDescending(x => x.a.OccurredAt)
@@ -162,11 +170,13 @@ public sealed class AuditoriaServicioConsulta(SgvDbContext context)
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        // Mismo patrón LEFT JOIN + DefaultIfEmpty que el listado,
-        // pero con la proyección COMPLETA del DTO enriquecido
-        // (incluye EntityId + OldValuesJson + NewValuesJson). Esta
-        // es la única vía del sistema para arrastrar esos campos al
-        // wire (D-2 cerrado por separación de tipos).
+        // Proyección COMPLETA del DTO enriquecido (incluye
+        // EntityId + OldValuesJson + NewValuesJson). Esta es la
+        // única vía del sistema para arrastrar esos campos al wire
+        // (D-2 cerrado por separación de tipos). LEFT JOIN contra
+        // AspNetUsers: ver nota de duplicación intencional con
+        // QueryAsync arriba — helper compartido pendiente de
+        // evolución a record nominal.
         var dto = await (
             from a in context.Auditorias.AsNoTracking()
             join u in context.Users.AsNoTracking()

@@ -93,14 +93,8 @@
                                                 <td>@item.EntityName</td>
                                                 <td>@item.Operation</td>
                                                 <td>
-                                                    @if (!string.IsNullOrWhiteSpace(item.UserName))
-                                                    {
-                                                        <span class="text-muted">@item.UserName</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-muted">—</span>
-                                                    }
+                                                    @* El servicio ya coalesce UserName a "—" cuando el usuario no existe, por contrato (D-5 bis). *@
+                                                    <span class="text-muted">@item.UserName</span>
                                                 </td>
                                                 <td>
                                                     @if (!string.IsNullOrWhiteSpace(item.ChangedPropertiesJson))

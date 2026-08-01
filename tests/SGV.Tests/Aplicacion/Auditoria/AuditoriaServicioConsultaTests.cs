@@ -486,7 +486,7 @@ public sealed class AuditoriaServicioConsultaTests
     /// spec <c>auditoria-sort</c>.
     /// </summary>
     [MySqlFact]
-    public async Task QueryAsync_SortInvalido_CaeAFechadefaultSinError()
+    public async Task QueryAsync_SortInvalido_CaeAFechaDefaultSinError()
     {
         await using var scope = await AuditoriaTestScope.CreateAsync();
 
@@ -521,6 +521,66 @@ public sealed class AuditoriaServicioConsultaTests
         // Default = fecha_desc → el más reciente primero.
         Assert.Equal(idReciente, resultado.Items[0].Id);
         Assert.Equal(idViejo, resultado.Items[1].Id);
+    }
+
+    /// <summary>
+    /// 1.A.3 — <c>Sort=usuario_asc</c> ordena por el nombre legible
+    /// del usuario (<c>UserName</c> vía LEFT JOIN con AspNetUsers),
+    /// NO por el <c>UserId</c> técnico. Coincide con lo que ve el
+    /// operador en la columna "Usuario" de la grilla. Caso de
+    /// revisión #249: la intención de UX es ordenar por el nombre
+    /// visible, no por el GUID interno.
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_SortUsuarioAsc_OrdenaPorUserName()
+    {
+        await using var scope = await AuditoriaTestScope.CreateAsync();
+
+        // Crear dos usuarios con UserName y UserId específicos.
+        // Importante: que el orden alfabético por UserName NO
+        // coincida con el orden por UserId (para validar que se
+        // ordena por nombre, no por id).
+        const string userId1 = "zzz-id";
+        const string userName1 = "Alpha";   // alfabéticamente primero
+        await scope.InsertarUsuarioIdentityAsync(userId1, userName1);
+
+        const string userId2 = "aaa-id";
+        const string userName2 = "Zulu";    // alfabéticamente último
+        await scope.InsertarUsuarioIdentityAsync(userId2, userName2);
+
+        // Si ordenara por UserId, "aaa-id" iría primero.
+        // Si ordena por UserName, "Alpha" (zzz-id) va primero.
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "Persona",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "Alta",
+            UserId = userId2, // "aaa-id"
+            ChangedPropertiesJson = "[]"
+        });
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "Persona",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "Alta",
+            UserId = userId1, // "zzz-id" → UserName "Alpha"
+            ChangedPropertiesJson = "[]"
+        });
+
+        var servicio = new AuditoriaServicioConsulta(scope.Context);
+        var resultado = await servicio.QueryAsync(
+            new AuditoriaListQuery(Page: 1, PageSize: 20, Sort: "usuario_asc"));
+
+        Assert.Equal(2, resultado.Items.Count);
+        Assert.Equal(userName1, resultado.Items[0].UserName); // "Alpha" primero
+        Assert.Equal(userName2, resultado.Items[1].UserName); // "Zulu" segundo
+        // Blindaje explícito: el primer UserId NO es "aaa-id" (eso
+        // sería la ordenación por UserId que queremos descartar).
+        Assert.NotEqual(userId2, resultado.Items[0].UserId);
     }
 
     // ====================================================================

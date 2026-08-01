@@ -218,8 +218,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CorrelationId");
-
                     b.HasIndex("CorrelationId", "OccurredAt");
 
                     b.HasIndex("UserId", "OccurredAt");
