@@ -22,5 +22,12 @@ public sealed class AuditoriaConfiguracion : IEntityTypeConfiguration<AuditoriaE
         builder.HasIndex(e => new { e.EntityName, e.EntityId, e.OccurredAt });
         builder.HasIndex(e => new { e.UserId, e.OccurredAt });
         builder.HasIndex(e => e.CorrelationId);
+        // Índice compuesto covering (CorrelationId, OccurredAt) para
+        // sostener el filtro por CorrelationId + orden por OccurredAt
+        // (sort=correlacion_desc de la spec auditoria-sort) sin
+        // filesort. La columna CorrelationId es nullable; el índice
+        // acepta NULL en su leading column y EF Core lo traduce a un
+        // índice BTREE estándar de MySQL.
+        builder.HasIndex(e => new { e.CorrelationId, e.OccurredAt });
     }
 }

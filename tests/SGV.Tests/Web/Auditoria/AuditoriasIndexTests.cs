@@ -62,10 +62,10 @@ public sealed class AuditoriasIndexTests
         new(
             id ?? Guid.NewGuid(),
             entityName,
-            Guid.NewGuid().ToString(),
             operation,
             occurredAt ?? new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc),
             userId,
+            "u-test-name",
             "[\"Nombre\"]",
             Guid.NewGuid());
 
@@ -100,15 +100,15 @@ public sealed class AuditoriasIndexTests
         Assert.Contains("Listado de auditoría del sistema", content, StringComparison.OrdinalIgnoreCase);
 
         // Filas visibles: la tabla debe mostrar el nombre de la
-        // entidad, la operación, el id de la entidad y el userId
-        // configurado en el fake. Como la auditoría es read-only
+        // entidad, la operación y el UserName (resultado del LEFT JOIN
+        // contra AspNetUsers). Como la auditoría es read-only
         // (no expone old/new), el contenido de la fila viene del
         // wire contract seguro (D-2).
         Assert.Contains("Cargo", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Persona", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Alta", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Modificacion", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("u-test", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("u-test-name", content, StringComparison.OrdinalIgnoreCase);
 
         // Paginación: cuando TotalCount=2 y PageSize=20, TotalPages=1
         // y los enlaces de paginación se renderizan en estado

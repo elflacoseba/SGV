@@ -333,10 +333,10 @@ public sealed class AuditoriasControllerTests
         new(
             id ?? Guid.NewGuid(),
             entityName,
-            Guid.NewGuid().ToString(),
             operation,
             occurredAt,
             userId,
+            $"{userId}-name",
             "[\"Nombre\"]",
             Guid.NewGuid());
 
@@ -345,10 +345,10 @@ public sealed class AuditoriasControllerTests
         yield return new AuditoriaDto(
             id,
             "Persona",
-            Guid.NewGuid().ToString(),
             "Modificacion",
             new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc),
             "u1",
+            "u1-name",
             "[\"Nombre\"]",
             Guid.NewGuid());
     }
@@ -404,14 +404,31 @@ public sealed class AuditoriasControllerTests
                 filtered = filtered.Where(a => a.OccurredAt <= query.DateTo.Value);
             if (!string.IsNullOrWhiteSpace(query.UserId))
                 filtered = filtered.Where(a => a.UserId == query.UserId);
+            if (query.CorrelationId.HasValue)
+                filtered = filtered.Where(a => a.CorrelationId == query.CorrelationId.Value);
 
-            var ordered = filtered
-                .OrderByDescending(a => a.OccurredAt)
-                .ThenByDescending(a => a.Id)
-                .ToList();
+            // Sort dinámico server-side (espejo del switch del servicio
+            // real). Default fecha_desc; valor no reconocido cae al
+            // default sin error.
+            IOrderedEnumerable<AuditoriaDto> ordered = query.Sort switch
+            {
+                "fecha_asc" => filtered.OrderBy(a => a.OccurredAt),
+                "fecha_desc" => filtered.OrderByDescending(a => a.OccurredAt),
+                "entidad_asc" => filtered.OrderBy(a => a.EntityName),
+                "entidad_desc" => filtered.OrderByDescending(a => a.EntityName),
+                "operacion_asc" => filtered.OrderBy(a => a.Operation),
+                "operacion_desc" => filtered.OrderByDescending(a => a.Operation),
+                "usuario_asc" => filtered.OrderBy(a => a.UserId),
+                "usuario_desc" => filtered.OrderByDescending(a => a.UserId),
+                "correlacion_asc" => filtered.OrderBy(a => a.CorrelationId),
+                "correlacion_desc" => filtered.OrderByDescending(a => a.CorrelationId),
+                _ => filtered.OrderByDescending(a => a.OccurredAt)
+            };
+            ordered = ordered.ThenByDescending(a => a.Id);
 
-            var totalCount = ordered.Count;
-            var items = ordered
+            var materialized = ordered.ToList();
+            var totalCount = materialized.Count;
+            var items = materialized
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToList();
@@ -419,12 +436,34 @@ public sealed class AuditoriasControllerTests
             return Task.FromResult(new PagedResult<AuditoriaDto>(items, totalCount, page, pageSize));
         }
 
-        public Task<AuditoriaDto?> GetByIdAsync(
+        public Task<AuditoriaDetalleDto?> GetDetalleDtoAsync(
             Guid id,
             CancellationToken cancellationToken = default)
         {
             var dto = _data.FirstOrDefault(a => a.Id == id);
-            return Task.FromResult(dto);
+            if (dto is null)
+            {
+                return Task.FromResult<AuditoriaDetalleDto?>(null);
+            }
+
+            // Proyecta al DTO enriquecido preservando los metadatos del
+            // wire contract de listado y rellenando EntityId +
+            // OldValuesJson + NewValuesJson con valores plausibles (los
+            // tests existentes no inspeccionan estos campos, sólo la
+            // presencia del id).
+            var detalle = new AuditoriaDetalleDto(
+                dto.Id,
+                dto.EntityName,
+                Guid.NewGuid().ToString(),
+                dto.Operation,
+                dto.OccurredAt,
+                dto.UserId,
+                dto.UserName,
+                dto.CorrelationId,
+                dto.ChangedPropertiesJson,
+                OldValuesJson: "{\"old\":1}",
+                NewValuesJson: "{\"new\":2}");
+            return Task.FromResult<AuditoriaDetalleDto?>(detalle);
         }
     }
 }
