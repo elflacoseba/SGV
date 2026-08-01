@@ -37,7 +37,7 @@ namespace SGV.Tests.Web.Auditoria;
 /// (<c>CreateCargoLeaseAsync</c>, <c>CreateHabilidadLeaseAsync</c>).
 /// El fake respeta el contrato del <c>IAuditoriaApiClient</c>
 /// real: <c>QueryAsync</c> devuelve <see cref="PagedResult{T}"/>;
-/// <c>ObtenerPorIdAsync</c> devuelve <c>null</c> cuando el
+/// <c>GetDetalleAsync</c> devuelve <c>null</c> cuando el
 /// backend responde 404 (no se usa acá porque la página actual
 /// es read-only de listado).
 /// </para>
