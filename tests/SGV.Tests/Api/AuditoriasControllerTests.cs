@@ -278,6 +278,157 @@ public sealed class AuditoriasControllerTests
     }
 
     // ====================================================================
+    // 1.A.7 — Auth/role del detalle + shape del detalle
+    // ====================================================================
+
+    /// <summary>
+    /// 1.A.7 — Anónimo en el endpoint de detalle recibe
+    /// <c>401 Unauthorized</c> (sin credenciales válidas). El atributo
+    /// <c>[Authorize]</c> del controller cubre toda la clase, incluido
+    /// <c>GetById</c>.
+    /// </summary>
+    [Fact]
+    public async Task GetById_Anonymous_Returns401()
+    {
+        var client = _fixture.RootFactory.CreateClient();
+
+        var response = await client.GetAsync($"{BasePath}/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// 1.A.7 — Usuario autenticado sin rol <c>Administrador</c>
+    /// recibe <c>403 Forbidden</c> en el detalle. El atributo
+    /// <c>[Authorize(Roles = Administrador)]</c> rechaza el acceso
+    /// antes de llegar al servicio.
+    /// </summary>
+    [Fact]
+    public async Task GetById_NonAdmin_Returns403()
+    {
+        var client = _fixture.RootFactory.CreateNonAdminClient();
+
+        var response = await client.GetAsync($"{BasePath}/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>
+    /// 1.A.7 — El detalle del endpoint admin expone
+    /// <c>AuditoriaDetalleDto</c> enriquecido: el body serializado
+    /// contiene <c>entityId</c>, <c>oldValuesJson</c>,
+    /// <c>newValuesJson</c> y <c>userName</c> (la única vía del
+    /// sistema para arrastrar esos campos al wire — D-2 cerrado por
+    /// separación de tipos).
+    /// </summary>
+    [Fact]
+    public async Task GetById_Admin_Existe_RetornaDetalleConEntityIdOldNewYUserName()
+    {
+        var id = Guid.NewGuid();
+        var entityId = Guid.NewGuid().ToString();
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(MakeSeedAuditoriaDto(id))
+                {
+                    DetalleHandler = _ => new AuditoriaDetalleDto(
+                        id,
+                        "Persona",
+                        entityId,
+                        "Modificacion",
+                        new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc),
+                        "u1",
+                        "u1-name",
+                        Guid.NewGuid(),
+                        "[\"Nombre\"]",
+                        "{\"old\":1}",
+                        "{\"new\":2}")
+                });
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync($"{BasePath}/{id}");
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var fake = (FakeAuditoriaServicioConsulta)clienteDisposable
+            .Services.GetRequiredService<IAuditoriaServicioConsulta>();
+        Assert.NotEmpty(fake.DetalleHandlerCalls);
+        var deserialized = JsonSerializer.Deserialize<AuditoriaDetalleDto>(json, JsonOptions);
+        Assert.NotNull(deserialized);
+        Assert.Equal(entityId, deserialized!.EntityId);
+        // System.Text.Json emite camelCase por default; verificamos
+        // los nombres wire reales.
+        Assert.Contains("\"entityId\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"oldValuesJson\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"newValuesJson\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"userName\"", json, StringComparison.Ordinal);
+    }
+
+    // ====================================================================
+    // 1.A.7 — Propagación de Sort y CorrelationId
+    // ====================================================================
+
+    /// <summary>
+    /// 1.A.7 — El parámetro <c>?sort=entidad_desc</c> llega al
+    /// servicio como <see cref="AuditoriaListQuery.Sort"/>. El
+    /// binding del controller NO descarta ni transforma el valor; lo
+    /// pasa tal cual al servicio para que el switch server-side
+    /// (spec <c>auditoria-sort</c>) resuelva la columna.
+    /// </summary>
+    [Fact]
+    public async Task Get_Admin_SortPropagadoAlServicio()
+    {
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(MakeSeedAuditoriaDto(Guid.NewGuid())));
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync(BasePath + "?sort=entidad_desc");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var fake = (FakeAuditoriaServicioConsulta)clienteDisposable
+            .Services.GetRequiredService<IAuditoriaServicioConsulta>();
+        var query = Assert.Single(fake.QueryCalls);
+        Assert.Equal("entidad_desc", query.Sort);
+    }
+
+    /// <summary>
+    /// 1.A.7 — El parámetro <c>?correlationId=&lt;guid&gt;</c> llega
+    /// al servicio como <see cref="AuditoriaListQuery.CorrelationId"/>.
+    /// El binding del controller acepta <see cref="Guid"/> en la
+    /// query string y lo propaga al servicio para que el filtro
+    /// exacto (spec <c>auditoria-query</c>) aísle la correlación.
+    /// </summary>
+    [Fact]
+    public async Task Get_Admin_CorrelationIdPropagadoAlServicio()
+    {
+        var correlacion = Guid.NewGuid();
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(MakeSeedAuditoriaDto(Guid.NewGuid())));
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync($"{BasePath}?correlationId={correlacion:D}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var fake = (FakeAuditoriaServicioConsulta)clienteDisposable
+            .Services.GetRequiredService<IAuditoriaServicioConsulta>();
+        var query = Assert.Single(fake.QueryCalls);
+        Assert.Equal(correlacion, query.CorrelationId);
+    }
+
+    // ====================================================================
     // 2.2 — DateFrom > DateTo → 400 Validation con ProblemDetails
     // ====================================================================
 
@@ -373,11 +524,35 @@ public sealed class AuditoriasControllerTests
             _data = seed?.ToList() ?? [];
         }
 
+        /// <summary>
+        /// Handler opcional para <see cref="GetDetalleDtoAsync"/>.
+        /// Si está seteado, recibe el <c>id</c> del registro y
+        /// devuelve el <see cref="AuditoriaDetalleDto"/> a exponer
+        /// (o <c>null</c> para 404). Permite customizar el shape
+        /// del wire sin reescribir el fake completo.
+        /// </summary>
+        public Func<Guid, AuditoriaDetalleDto?>? DetalleHandler { get; set; }
+
+        /// <summary>
+        /// Captura de invocaciones de <see cref="QueryAsync"/>. Los
+        /// tests API la inspeccionan para verificar que el controller
+        /// propaga <c>Sort</c>, <c>CorrelationId</c> y compañía.
+        /// </summary>
+        public List<AuditoriaListQuery> QueryCalls { get; } = [];
+
+        /// <summary>
+        /// Captura de invocaciones del <see cref="DetalleHandler"/>.
+        /// Los tests API lo inspeccionan para verificar que el fake
+        /// enruta por el handler custom y no por la rama default.
+        /// </summary>
+        public List<Guid> DetalleHandlerCalls { get; } = [];
+
         public Task<PagedResult<AuditoriaDto>> QueryAsync(
             AuditoriaListQuery query,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(query);
+            QueryCalls.Add(query);
 
             if (query.DateFrom.HasValue && query.DateTo.HasValue
                 && query.DateFrom.Value > query.DateTo.Value)
@@ -444,6 +619,12 @@ public sealed class AuditoriasControllerTests
             if (dto is null)
             {
                 return Task.FromResult<AuditoriaDetalleDto?>(null);
+            }
+
+            if (DetalleHandler is not null)
+            {
+                DetalleHandlerCalls.Add(id);
+                return Task.FromResult(DetalleHandler(id));
             }
 
             // Proyecta al DTO enriquecido preservando los metadatos del
