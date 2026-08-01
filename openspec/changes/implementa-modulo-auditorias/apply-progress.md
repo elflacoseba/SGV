@@ -202,6 +202,117 @@
   un change aparte si quiere estabilizar los flaky de `Setup.*` /
   `Api.UsuariosEndToEndMySqlFactTests.*` / `VacanteRepositoryQueryTests.*`.
 
+## S2 — Controller API admin-only (2026-07-31)
+
+### Resultado del batch
+
+- **Modo**: Strict TDD (test runner `dotnet test SGV.slnx`).
+- **Tareas completadas**: 2.1, 2.2, 2.3, 2.4 (4/4 del slice S2).
+- **Tareas pendientes**: 3.1–3.8 (S3).
+- **Verificación**:
+  - Build: `dotnet build SGV.slnx --no-restore` → 0 errores.
+  - Build tests: `dotnet build tests/SGV.Tests/SGV.Tests.csproj --no-restore` → 0 errores.
+  - Suite focal: `dotnet test ... --filter "FullyQualifiedName~AuditoriasControllerTests" --no-build` → **9 passed / 0 failed / 0 skipped** (372 ms). 3 corridas consecutivas: idéntico.
+  - Suite combinada S1+S2: `--filter "FullyQualifiedName~Auditoria"` → **40 passed / 0 failed / 0 skipped** (7 s).
+  - Suite completa `dotnet test SGV.slnx --no-build` → **3358 total**. Resultados rotativos entre corridas (3/4 corridas verdes; 1/4 corrida con 1 fallido). Cuando falla, el test que rompe es **siempre** del conjunto preexistente `UsuariosEndToEndMySqlFactTests.*` (rotando entre `Delete_AnotherUser_Returns204`, `Bloquear_AnotherUser_Returns200WithBloqueadoTrue`, `Delete_OwnUser_Returns403AutoEliminacion`) — los mismos flaky que la sección «S1 Bugfix» ya documentó. Los 9 tests del S2 (`AuditoriasControllerTests.*`) pasan siempre.
+- **Estado S2**: `success`. Listo para que S3 levante el cliente Web sobre este controller.
+
+### Comandos ejecutados y resultados
+
+| Comando | Resultado |
+|---|---|
+| `dotnet build SGV.slnx --no-restore` | OK (0 errores; 72 warnings preexistentes sin cambios) |
+| `dotnet build tests/SGV.Tests/SGV.Tests.csproj --no-restore` (post-RED) | FAILED: CS0234 `SGV.Api.Controllers.AuditoriasController` no existe → confirma RED |
+| `dotnet build tests/SGV.Tests/SGV.Tests.csproj --no-restore` (post-GREEN) | OK (0 errores) |
+| `dotnet test tests/SGV.Tests/SGV.Tests.csproj --filter "FullyQualifiedName~AuditoriasControllerTests" --no-build` | **9 passed / 0 failed / 0 skipped** (372 ms) |
+| `dotnet test tests/SGV.Tests/SGV.Tests.csproj --filter "FullyQualifiedName~Auditoria" --no-build` | **40 passed / 0 failed / 0 skipped** (7 s) — 9 S2 + 15 S1 + 16 adyacentes con "Auditoria" en el nombre (interceptor, setup audit trail, etc.) |
+| `dotnet test SGV.slnx --no-build` | **3358 total**. 3/4 corridas verdes; 1/4 corrida con 1 fallido en `UsuariosEndToEndMySqlFactTests.*` (flaky preexistente, no S2) |
+
+### Archivos cambiados (todos del slice S2)
+
+| Archivo | Acción | Δ líneas | Descripción |
+|---|---|---:|---|
+| `src/SGV.Api/Controllers/AuditoriasController.cs` | Creado | +106 | Controller admin-only (`[ApiController]`, `[Authorize(Roles=RolesSgv.Administrador)]`) con GET listado + GET detalle; mapea `ArgumentException` del servicio a `ApiResults.ToValidationProblemResult` para `DateFrom>DateTo`. XML doc completo + `[ProducesResponseType]` para 200/400/401/403/404. |
+| `src/SGV.Api/Infrastructure/Results/ApiResults.cs` | Modificado | +16 | Sobrecarga adicional `ToValidationProblemResult(string code, string detail, IReadOnlyDictionary<string,string[]>? fieldErrors, HttpContext? httpContext)` que reutiliza el helper privado `BuildValidationProblem`. Es aditiva — no cambia firmas existentes. |
+| `tests/SGV.Tests/Api/AuditoriasControllerTests.cs` | Creado | +340 | Suite `[Fact]` (no toca DB). 9 tests cubren: 401 anónimo, 403 sin Admin, 200 con `PagedResult<AuditoriaDto>` y shape completo, paginación+filtros `?entityName=...&page=...&pageSize=...`, detalle 200/404, JSON sin old/new values, `[Authorize]` por reflexión, `DateFrom>DateTo` → 400 con `ProblemDetails`. Incluye `FakeAuditoriaServicioConsulta` self-contained (simula el contrato del servicio real sin tocar EF/MySQL). |
+| `openspec/changes/implementa-modulo-auditorias/tasks.md` | Modificado | ±4 | Marcar 2.1–2.4 como `[x]`. |
+| `openspec/changes/implementa-modulo-auditorias/apply-progress.md` | Modificado | — | Esta sección. |
+
+**Total líneas nuevas del slice** (excluyendo tests): ~122 (controlador + sobrecarga).
+**Total líneas de tests nuevos**: 340.
+
+### TDD Cycle Evidence
+
+| Task | Test | Layer | Safety Net | RED | GREEN | REFACTOR |
+|---|---|---|---|---|---|---|
+| 2.1 | `AuditoriasControllerTests.cs` | API integration (`[Collection("ApiIntegration")]`, `[Fact]`) | ✅ baseline build limpio | ✅ Archivo NO compilaba (CS0234 sobre `SGV.Api.Controllers.AuditoriasController`) | ✅ 8 tests pasan a la primera (401, 403, 200 shape, paginación+filtros, detalle 200, detalle 404, `[Authorize]` reflexión) | ✅ Una iteración post-GREEN: la aserción sobre `ChangedPropertiesJson` se ajustó a camelCase (`changedPropertiesJson`) porque `AddControllers()` sin `AddJsonOptions` usa la policy default de System.Text.Json, que es camelCase para HTTP responses. Las ausencias de `OldValuesJson`/`newValuesJson` se verifican tanto en PascalCase como en camelCase para defender el guardrail D-2 contra cualquier rename futuro |
+| 2.2 | Mismo archivo (test `Get_Admin_DateFromMayorADateTo_Returns400ConProblemDetails`) | API integration (`[Fact]`) | ✅ mismo | ✅ Mismo CS0234 → no compila | ✅ Primer pase GREEN una vez creado el controller con el mapeo `try/catch (ArgumentException) → ApiResults.ToValidationProblemResult(...)` | ✅ Sin refactor pendiente |
+| 2.3 | — | — | — | — | ✅ Controller creado + overload agregado a `ApiResults.ToValidationProblemResult` que toma `(string code, string detail, fieldErrors, httpContext)`. Reutiliza el helper privado `BuildValidationProblem` — no introduce un helper nuevo, sólo extiende la API existente con una forma sin tipo-error para read-sides que lanzan excepciones crudas | ✅ Doc explica por qué se justifica la sobrecarga (controllers de lectura sin envelope de error) |
+| 2.4 | — | — | — | — | ✅ Build + suite focal + suite combinada + suite completa verdes | — |
+
+#### TDD Cycle detalle: iteración post-GREEN del test 2.1.f
+
+**Hipótesis inicial** (RED): la respuesta HTTP usa naming **PascalCase** porque `AuditoriaDto` es un `record` y `JsonSerializer.Serialize(record)` produce nombres PascalCase por default.
+
+**Resultado del primer GREEN run**:
+```
+Assert.Contains() Failure: Sub-string not found
+String:    "{"items":[{"id":"e85d33a5-0941-4d97-9c0e-"···
+Not found: "ChangedPropertiesJson"
+```
+
+**Hallazgo**: la respuesta HTTP usa naming **camelCase**. Razón: `AddControllers()` en `Program.cs` no llama a `AddJsonOptions`, pero la pipeline MVC de ASP.NET Core aplica **camelCase por default** para HTTP responses (mientras que `JsonSerializer.Serialize` standalone usa PascalCase por default). El test S1 (`QueryAsync_Proyeccion_NoContieneOldNewValuesEnSerializacion`) usa `JsonSerializer.Serialize(dto)` directo, que produce PascalCase — por eso pasaba antes. La diferencia explica el falso negativo.
+
+**Fix**: actualizar la aserción a `Assert.Contains("changedPropertiesJson", json, StringComparison.Ordinal)`. Aproveché para verificar **ambas** variantes (PascalCase y camelCase) de los campos prohibidos (`OldValuesJson`/`oldValuesJson`, `NewValuesJson`/`newValuesJson`) — defense-in-depth contra un futuro `AddJsonOptions(...).UseCamelCase()` que unifique la pipeline con el resto de tests.
+
+### Test Summary
+
+- **Total tests escritos**: 9 ejecuciones xUnit (`[Fact]` puro, no `[MySqlFact]`).
+- **Total tests passing**: 9/9 en la suite focal.
+- **Layers used**: API integration con `ApiIntegrationFixture` (compartido con el resto de tests de API; cada test que toca el servicio registra un `FakeAuditoriaServicioConsulta` self-contained vía `WithOverrides`).
+- **Approval tests**: Ninguno — no hubo refactor de código preexistente.
+- **Pure functions**: ninguna añadida — el controller depende del servicio vía DI, no hay funciones puras aislables.
+
+### Desglose de cobertura por spec scenario
+
+| Test | Spec scenario |
+|---|---|
+| `Get_Anonymous_Returns401` | "Acceso anónimo a la API" → 401 |
+| `Get_NonAdmin_Returns403` | "Usuario autenticado sin rol Administrador" → 403 |
+| `Get_Admin_Returns200WithPagedResult` | "Administrador accede a la API" → 200 con `PagedResult<AuditoriaDto>` |
+| `Get_Admin_PaginacionYFiltrosAplican` | "Filtros combinados filtran el resultado" + "Defaults aplicados" |
+| `GetById_Admin_Existe_200` + `GetById_Admin_NoExiste_404` | "Detalle existente" + "Detalle inexistente" |
+| `Get_Json_NoContieneOldNiNewValues` | "DTO no expone old/new values" (D-2 a nivel HTTP) |
+| `AuditoriasController_TieneAuthorizeAttribute` | Guardrail D-1 vía reflexión |
+| `Get_Admin_DateFromMayorADateTo_Returns400ConProblemDetails` | "Rango de fechas invertido" → 400 Validation |
+
+### Work Unit Evidence
+
+| Evidence | Value |
+|---|---|
+| Focused test command and exact result | `dotnet test tests/SGV.Tests/SGV.Tests.csproj --filter "FullyQualifiedName~AuditoriasControllerTests" --no-build` → `Passed: 9, Failed: 0, Skipped: 0` (372 ms). 3 corridas consecutivas: idéntico. |
+| Runtime harness command and exact result | `dotnet test SGV.slnx --no-build` → 3358 total. 3/4 corridas pasan 3358/0/0; 1/4 corrida falla 1 test en `UsuariosEndToEndMySqlFactTests.*` (mismo flaky preexistente que la sección «S1 Bugfix» documentó). **Los 9 tests del S2 nunca fallan.** |
+| Rollback boundary | Borrar `src/SGV.Api/Controllers/AuditoriasController.cs` y `tests/SGV.Tests/Api/AuditoriasControllerTests.cs`; revertir la sobrecarga agregada en `src/SGV.Api/Infrastructure/Results/ApiResults.cs`. **No se tocó** ningún archivo S1 (`AuditoriaDto`, `AuditoriaListQuery`, `IAuditoriaServicioConsulta`, `AuditoriaServicioConsulta`, DI existente, `AuditoriaServicioConsultaTests`, `MySqlTheoryAttribute`). El contrato del puerto y la impl EF siguen verdes. |
+
+### Decisiones y desviaciones del diseño
+
+- **`FakeAuditoriaServicioConsulta` self-contained**: en lugar de cablear el `SgvDbContext` real a través del `ApiWebApplicationFactory` (lo que exigiría un `AuditoriaTestScope` específico para API + overrides de `SgvDbContext` en cada test), cada test que toca el servicio registra un fake en memoria que simula el mismo contrato: filtrado por EntityName/Operation/UserId, rango DateFrom/DateTo (inclusivo), clamp `[1,100]`, orden `OccurredAt DESC, Id DESC`, y `ArgumentException` con el **mismo mensaje** que la impl EF cuando `DateFrom > DateTo`. Decisión alineada con `tests/SGV.Tests/Api/NivelesCargoControllerTests.cs` (que usa `FakeNivelCargoServicioConsulta`) y `CargosControllerTests.cs` (que usa `FakeCargoServicio`). Los tests sin DB (auth, reflexión) usan el factory raíz sin override.
+- **`ApiResults.ToValidationProblemResult` sobrecargado**: las firmas existentes reciben un error tipado (`CargoError`, `HabilidadError`, …). El servicio de auditoría lanza `ArgumentException` cruda (no envelope), por lo que se necesitaba un camino para superficies raw strings sin inventar un `AuditoriaError` artificial. Se agregó una sobrecarga `ToValidationProblemResult(string code, string detail, fieldErrors, httpContext)` que reutiliza el helper privado `BuildValidationProblem` — extension additive de la API existente, no un helper nuevo.
+- **Sin `[MySqlFact]`**: el S1 ya cubrió los flujos que dependen de EF/MySQL con 15 tests reales (`AuditoriaServicioConsultaTests`). Duplicar esa cobertura a nivel controller sin valor adicional sería ruido. El fake aquí es verificable, determinístico y rápido; corre estable sin DB.
+- **Naming assertion adjustment**: ver "TDD Cycle detalle: iteración post-GREEN del test 2.1.f" arriba. La aserción final verifica la presencia de `changedPropertiesJson` (camelCase, que es lo que wire HTTP devuelve) y la ausencia de **ambas** variantes (`OldValuesJson` + `oldValuesJson`, `NewValuesJson` + `newValuesJson`) para defender D-2 contra cualquier cambio futuro de naming policy.
+
+### Issues encontrados
+
+- **MySQL no requerido**: como S1 ya cubre el camino EF, S2 corre 100% contra fakes. Si en un futuro se quisiera agregar un test E2E con DB real al controller (estilo `UsuariosEndToEndMySqlFactTests` + `JwtRealWebApplicationFactory`), la base ya está: el controller no necesita cambios, sólo registrar `IAuditoriaServicioConsulta` apuntando a un `SgvDbContext` real.
+- **Pipeline JSON default camelCase**: confirmado que sin `AddJsonOptions`, ASP.NET Core aplica camelCase en HTTP responses. La spec no exige naming policy particular, pero conviene tener presente el default si en el futuro un controller de auditoría necesita mantener compatibilidad PascalCase con un consumidor existente.
+
+## Rollback del batch S2
+
+1. `rm src/SGV.Api/Controllers/AuditoriasController.cs tests/SGV.Tests/Api/AuditoriasControllerTests.cs`
+2. En `src/SGV.Api/Infrastructure/Results/ApiResults.cs`: eliminar la sobrecarga `ToValidationProblemResult(string, string, IReadOnlyDictionary<string, string[]>?, HttpContext?)` agregada (es aditiva, no toca las firmas existentes).
+3. Revertir las marcas `[x]` en `openspec/changes/implementa-modulo-auditorias/tasks.md` (2.1–2.4 → `[ ]`).
+4. Revertir esta sección de `apply-progress.md`.
+5. Build + suite existentes siguen verdes: S1 intacto (servicio + puerto + DI + tests), S3 todavía no implementado.
 ## Rollback del batch S1
 
 1. `git rm src/SGV.Contracts/Auditoria/*.cs src/SGV.Aplicacion/Auditoria/IAuditoriaServicioConsulta.cs src/SGV.Infraestructura/Persistencia/AuditoriaServicioConsulta.cs tests/SGV.Tests/Aplicacion/Auditoria/AuditoriaServicioConsultaTests.cs tests/SGV.Tests/Persistencia/MySqlTheoryAttribute.cs`
