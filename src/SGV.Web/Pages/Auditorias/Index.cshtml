@@ -1,0 +1,159 @@
+@page "/auditorias"
+@model SGV.Web.Pages.Auditorias.IndexModel
+
+@{
+    ViewBag.title = "Auditorías";
+    ViewBag.subtitle = "Seguridad";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.LoadErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.LoadErrorMessage</div>
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card" data-table>
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h4 class="card-title mb-1">Listado de auditoría del sistema</h4>
+                    <p class="text-muted mb-0">
+                        Eventos capturados por el interceptor de EF Core: alta, modificación
+                        y baja lógica de entidades. El listado expone metadatos
+                        (entidad, operación, fecha, usuario, propiedades modificadas)
+                        sin valores old/new (D-2).
+                    </p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+                    <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12 col-lg-3">
+                        <form method="get" class="auditoria-filter-form">
+                            <div class="mb-2">
+                                <label class="form-label" for="entityName">Entidad</label>
+                                <input class="form-control form-control-sm" id="entityName" name="entityName" type="search" placeholder="Cargo, Persona, ..." value="@Model.EntityName" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label" for="operation">Operación</label>
+                                <input class="form-control form-control-sm" id="operation" name="operation" type="search" placeholder="Alta, Modificacion, ..." value="@Model.Operation" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label" for="dateFrom">Fecha desde</label>
+                                <input class="form-control form-control-sm" id="dateFrom" name="dateFrom" type="datetime-local" value="@(Model.DateFrom?.ToString("yyyy-MM-ddTHH:mm"))" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label" for="dateTo">Fecha hasta</label>
+                                <input class="form-control form-control-sm" id="dateTo" name="dateTo" type="datetime-local" value="@(Model.DateTo?.ToString("yyyy-MM-ddTHH:mm"))" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label" for="userId">Usuario</label>
+                                <input class="form-control form-control-sm" id="userId" name="userId" type="search" placeholder="user id" value="@Model.UserId" />
+                            </div>
+                            <input name="p" type="hidden" value="1" />
+                            <input name="pageSize" type="hidden" value="@IndexModel.DefaultPageSize" />
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary btn-sm" type="submit">Filtrar</button>
+                                <a class="btn btn-light btn-sm" href="/auditorias">Limpiar</a>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-12 col-lg-9">
+                        <div class="table-responsive">
+                            <table class="table table-custom table-centered table-hover w-100 mb-0">
+                                <thead class="bg-light align-middle bg-opacity-25 thead-sm">
+                                    <tr class="text-uppercase fs-xxs">
+                                        <th>Fecha</th>
+                                        <th>Entidad</th>
+                                        <th>Operación</th>
+                                        <th>ID entidad</th>
+                                        <th>Usuario</th>
+                                        <th>Propiedades modificadas</th>
+                                        <th>Correlación</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (Model.Items.Count == 0)
+                                    {
+                                        <tr>
+                                            <td class="text-center text-muted py-4" colspan="7">
+                                                No se encontraron registros de auditoría para los filtros aplicados.
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        foreach (var item in Model.Items)
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">@item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                                <td>@item.EntityName</td>
+                                                <td>
+                                                    <span class="badge badge-soft-info fs-xs">@item.Operation</span>
+                                                </td>
+                                                <td><span class="text-muted">@item.EntityId</span></td>
+                                                <td>
+                                                    @if (!string.IsNullOrWhiteSpace(item.UserId))
+                                                    {
+                                                        <span class="text-muted">@item.UserId</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">—</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (!string.IsNullOrWhiteSpace(item.ChangedPropertiesJson))
+                                                    {
+                                                        <span class="text-muted">@item.ChangedPropertiesJson</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">—</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (item.CorrelationId.HasValue)
+                                                    {
+                                                        <span class="text-muted">@item.CorrelationId.Value.ToString("D")</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">—</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-2">
+                            <span class="text-muted">Página @Model.CurrentPage de @Model.TotalPages</span>
+                            <nav aria-label="Paginación de auditorías">
+                                <ul class="pagination pagination-sm mb-0">
+                                    <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
+                                        <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(1))">Primera</a>
+                                    </li>
+                                    <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
+                                        <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Math.Max(1, Model.CurrentPage - 1)))">Anterior</a>
+                                    </li>
+                                    <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
+                                        <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Model.CurrentPage + 1))">Siguiente</a>
+                                    </li>
+                                    <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
+                                        <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Model.TotalPages))">Última</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

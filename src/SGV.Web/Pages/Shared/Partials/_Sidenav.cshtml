@@ -67,6 +67,16 @@
     var ocupacionesNuevaActive = string.Equals(currentPath, "/organizacion/ocupaciones/crear", StringComparison.OrdinalIgnoreCase)
         ? "active"
         : string.Empty;
+    // Slice 3 del change `implementa-modulo-auditorias`: la consulta
+    // transversal de auditoría es admin-only (D-1), por eso el item
+    // completo (no sólo el subítem) se gated por `esAdministrador`.
+    // Se renderiza como un top-level item al final del sidenav para
+    // mantener simetría visual con los otros módulos admin-only
+    // (Usuarios vive dentro del grupo Seguridad; Auditoría es un
+    // módulo transversal que no se siente como subítem).
+    var auditoriasActive = string.Equals(currentPath, "/auditorias", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : string.Empty;
 }
 
 <div class="sidenav-menu">
@@ -290,6 +300,22 @@
 </ul>
 </div>
 </li>
+@* Slice 3 del change `implementa-modulo-auditorias`: ítem top-level
+   transversal de auditoría, gateado por `esAdministrador` (D-1). El
+   ícono `ti ti-file-text` representa un archivo de bitácora y no
+   colisiona con los íconos vigentes (Ocupaciones usa `ti ti-history`,
+   Seguridad usa `ti ti-shield-lock`, etc.). El link renderiza
+   `/auditorias` que resuelve a `Pages/Auditorias/Index` cuya
+   autorización por rol vive en el `[Authorize]` del PageModel. *@
+@if (esAdministrador)
+{
+    <li class="side-nav-item">
+        <a class="side-nav-link @auditoriasActive" href="/auditorias">
+            <span class="menu-icon"><i class="ti ti-file-text"></i></span>
+            <span class="menu-text">Auditorías</span>
+        </a>
+    </li>
+}
 </ul>
 </div>
 </div>
