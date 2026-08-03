@@ -4,6 +4,7 @@
 @{
     ViewBag.title = "Auditorías";
     ViewBag.subtitle = "Seguridad";
+    var allowedPageSizes = SGV.Web.Pages.Auditorias.IndexModel.AllowedPageSizes;
 }
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
@@ -20,128 +21,219 @@
                 <div>
                     <h4 class="card-title mb-1">Listado de auditoría del sistema</h4>
                     <p class="text-muted mb-0">
-                        Eventos capturados por el interceptor de EF Core: alta, modificación
-                        y baja lógica de entidades. El listado expone metadatos
-                        (entidad, operación, fecha, usuario, propiedades modificadas)
-                        sin valores old/new (D-2).
+                        Eventos capturados por el interceptor de EF Core: alta,
+                        modificación y baja lógica de entidades. El listado
+                        expone metadatos (entidad, operación, fecha, usuario,
+                        propiedades modificadas) sin valores old/new (D-2).
                     </p>
                 </div>
                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
                 </div>
             </div>
+            @* Slice B — toolbar horizontal de filtros (estilo Habilidades/Index).
+               Reemplaza la sidebar lateral: el form ocupa todo el ancho
+               sobre la tabla para mantener paridad visual con el resto
+               del shell. *@
+            <div class="card-header border-0">
+                <form class="row g-2 align-items-end w-100" method="get">
+                    <div class="col-md-4 col-xl-3">
+                        <label class="form-label fs-xs text-muted mb-1" for="entityName">Entidad</label>
+                        <input class="form-control form-control-sm" id="entityName" name="entityName" type="search" placeholder="Cargo, Persona, ..." value="@Model.EntityName" />
+                    </div>
+                    <div class="col-md-3 col-xl-2">
+                        <label class="form-label fs-xs text-muted mb-1" for="operation">Operación</label>
+                        <input class="form-control form-control-sm" id="operation" name="operation" type="search" placeholder="Alta, Modificacion, ..." value="@Model.Operation" />
+                    </div>
+                    <div class="col-md-3 col-xl-2">
+                        <label class="form-label fs-xs text-muted mb-1" for="userId">Usuario</label>
+                        <input class="form-control form-control-sm" id="userId" name="userId" type="search" placeholder="user id" value="@Model.UserId" />
+                    </div>
+                    <div class="col-md-3 col-xl-2">
+                        <label class="form-label fs-xs text-muted mb-1" for="correlationId">Correlación</label>
+                        <input class="form-control form-control-sm" id="correlationId" name="correlationId" type="search" placeholder="guid" value="@(Model.CorrelationId?.ToString("D"))" />
+                    </div>
+                    <div class="col-md-3 col-xl-2">
+                        <label class="form-label fs-xs text-muted mb-1" for="dateFrom">Fecha desde</label>
+                        <input class="form-control form-control-sm" id="dateFrom" name="dateFrom" type="datetime-local" value="@(Model.DateFrom?.ToString("yyyy-MM-ddTHH:mm"))" />
+                    </div>
+                    <div class="col-md-3 col-xl-2">
+                        <label class="form-label fs-xs text-muted mb-1" for="dateTo">Fecha hasta</label>
+                        <input class="form-control form-control-sm" id="dateTo" name="dateTo" type="datetime-local" value="@(Model.DateTo?.ToString("yyyy-MM-ddTHH:mm"))" />
+                    </div>
+                    <div class="col-md-3 col-xl-2">
+                        <label class="form-label fs-xs text-muted mb-1" for="pageSize">Resultados por página</label>
+                        @* Selector de pageSize (spec auditoria-page-size §"Selector
+                           de PageSize con opciones 10/20/50/100"). El atributo
+                           onchange dispara el submit del form con `p=1` implícito
+                           (los inputs hidden lo inyectan) para que cambiar el
+                           pageSize resetee la página a 1 y refleje el nuevo
+                           valor sin re-tipear filtros. *@
+                        <select class="form-select form-select-sm" id="pageSize" name="pageSize" onchange="this.form.p.value=1;this.form.submit();">
+                            @foreach (var size in allowedPageSizes)
+                            {
+                                if (size == Model.PageSize)
+                                {
+                                    <option value="@size" selected>@size</option>
+                                }
+                                else
+                                {
+                                    <option value="@size">@size</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <input name="p" type="hidden" value="1" />
+                    <input name="sort" type="hidden" value="@Model.Sort" />
+                    <div class="col-auto d-flex gap-2">
+                        <button class="btn btn-primary btn-sm" type="submit">Filtrar</button>
+                        <a class="btn btn-light btn-sm" href="/auditorias">Limpiar</a>
+                    </div>
+                </form>
+            </div>
             <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-12 col-lg-3">
-                        <form method="get" class="auditoria-filter-form">
-                            <div class="mb-2">
-                                <label class="form-label" for="entityName">Entidad</label>
-                                <input class="form-control form-control-sm" id="entityName" name="entityName" type="search" placeholder="Cargo, Persona, ..." value="@Model.EntityName" />
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label" for="operation">Operación</label>
-                                <input class="form-control form-control-sm" id="operation" name="operation" type="search" placeholder="Alta, Modificacion, ..." value="@Model.Operation" />
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label" for="dateFrom">Fecha desde</label>
-                                <input class="form-control form-control-sm" id="dateFrom" name="dateFrom" type="datetime-local" value="@(Model.DateFrom?.ToString("yyyy-MM-ddTHH:mm"))" />
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label" for="dateTo">Fecha hasta</label>
-                                <input class="form-control form-control-sm" id="dateTo" name="dateTo" type="datetime-local" value="@(Model.DateTo?.ToString("yyyy-MM-ddTHH:mm"))" />
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label" for="userId">Usuario</label>
-                                <input class="form-control form-control-sm" id="userId" name="userId" type="search" placeholder="user id" value="@Model.UserId" />
-                            </div>
-                            <input name="p" type="hidden" value="1" />
-                            <input name="pageSize" type="hidden" value="@IndexModel.DefaultPageSize" />
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary btn-sm" type="submit">Filtrar</button>
-                                <a class="btn btn-light btn-sm" href="/auditorias">Limpiar</a>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="col-12 col-lg-9">
-                        <div class="table-responsive">
-                            <table class="table table-custom table-centered table-hover w-100 mb-0">
-                                <thead class="bg-light align-middle bg-opacity-25 thead-sm">
-                                    <tr class="text-uppercase fs-xxs">
-                                        <th>Fecha</th>
-                                        <th>Entidad</th>
-                                        <th>Operación</th>
-                                        <th>Usuario</th>
-                                        <th>Propiedades modificadas</th>
-                                        <th>Correlación</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @if (Model.Items.Count == 0)
-                                    {
-                                        <tr>
-                                            <td class="text-center text-muted py-4" colspan="6">
-                                                No se encontraron registros de auditoría para los filtros aplicados.
-                                            </td>
-                                        </tr>
-                                    }
-                                    else
-                                    {
-                                        foreach (var item in Model.Items)
+                <div class="table-responsive">
+                    <table class="table table-custom table-centered table-hover w-100 mb-0">
+                        <thead class="bg-light align-middle bg-opacity-25 thead-sm">
+                            <tr class="text-uppercase fs-xxs">
+                                @{
+                                    var fechaIcon = Model.GetSortIcon("fecha");
+                                    var entidadIcon = Model.GetSortIcon("entidad");
+                                    var operacionIcon = Model.GetSortIcon("operacion");
+                                    var usuarioIcon = Model.GetSortIcon("usuario");
+                                    var correlacionIcon = Model.GetSortIcon("correlacion");
+                                }
+                                <th>
+                                    <a class="link-reset" href="@Url.Page("/Auditorias/Index", Model.BuildSortRouteValues("fecha"))">
+                                        Fecha
+                                        @if (!string.IsNullOrEmpty(fechaIcon))
                                         {
-                                            <tr>
-                                                <td class="fw-semibold">@item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                                                <td>@item.EntityName</td>
-                                                <td>@item.Operation</td>
-                                                <td>
-                                                    @* El servicio ya coalesce UserName a "—" cuando el usuario no existe, por contrato (D-5 bis). *@
-                                                    <span class="text-muted">@item.UserName</span>
-                                                </td>
-                                                <td>
-                                                    @if (!string.IsNullOrWhiteSpace(item.ChangedPropertiesJson))
-                                                    {
-                                                        <span class="text-muted">@item.ChangedPropertiesJson</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-muted">—</span>
-                                                    }
-                                                </td>
-                                                <td>
-                                                    @if (item.CorrelationId.HasValue)
-                                                    {
-                                                        <span class="text-muted">@item.CorrelationId.Value.ToString("D")</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-muted">—</span>
-                                                    }
-                                                </td>
-                                            </tr>
+                                            <i class="@fechaIcon ms-1"></i>
                                         }
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-2">
-                            <span class="text-muted">Página @Model.CurrentPage de @Model.TotalPages</span>
-                            <nav aria-label="Paginación de auditorías">
-                                <ul class="pagination pagination-sm mb-0">
-                                    <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
-                                        <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(1))">Primera</a>
-                                    </li>
-                                    <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
-                                        <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Math.Max(1, Model.CurrentPage - 1)))">Anterior</a>
-                                    </li>
-                                    <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
-                                        <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Model.CurrentPage + 1))">Siguiente</a>
-                                    </li>
-                                    <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
-                                        <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Model.TotalPages))">Última</a>
-                                    </li>
-                                </ul>
-                            </nav>
-                        </div>
-                    </div>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a class="link-reset" href="@Url.Page("/Auditorias/Index", Model.BuildSortRouteValues("entidad"))">
+                                        Entidad
+                                        @if (!string.IsNullOrEmpty(entidadIcon))
+                                        {
+                                            <i class="@entidadIcon ms-1"></i>
+                                        }
+                                    </a>
+                                </th>
+                                <th>
+                                    <a class="link-reset" href="@Url.Page("/Auditorias/Index", Model.BuildSortRouteValues("operacion"))">
+                                        Operación
+                                        @if (!string.IsNullOrEmpty(operacionIcon))
+                                        {
+                                            <i class="@operacionIcon ms-1"></i>
+                                        }
+                                    </a>
+                                </th>
+                                <th>
+                                    <a class="link-reset" href="@Url.Page("/Auditorias/Index", Model.BuildSortRouteValues("usuario"))">
+                                        Usuario
+                                        @if (!string.IsNullOrEmpty(usuarioIcon))
+                                        {
+                                            <i class="@usuarioIcon ms-1"></i>
+                                        }
+                                    </a>
+                                </th>
+                                <th>Propiedades modificadas</th>
+                                <th>
+                                    <a class="link-reset" href="@Url.Page("/Auditorias/Index", Model.BuildSortRouteValues("correlacion"))">
+                                        Correlación
+                                        @if (!string.IsNullOrEmpty(correlacionIcon))
+                                        {
+                                            <i class="@correlacionIcon ms-1"></i>
+                                        }
+                                    </a>
+                                </th>
+                                <th class="text-center" style="width: 1%">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Items.Count == 0)
+                            {
+                                <tr>
+                                    <td class="text-center text-muted py-4" colspan="7">
+                                        No se encontraron registros de auditoría para los filtros aplicados.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                foreach (var item in Model.Items)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                        <td>@item.EntityName</td>
+                                        <td>@item.Operation</td>
+                                        <td>
+                                            @* El servicio ya coalesce UserName a "—" cuando el usuario no existe, por contrato (D-5 bis). *@
+                                            <span class="text-muted">@item.UserName</span>
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(item.ChangedPropertiesJson))
+                                            {
+                                                <span class="text-muted">@item.ChangedPropertiesJson</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (item.CorrelationId.HasValue)
+                                            {
+                                                <span class="text-muted">@item.CorrelationId.Value.ToString("D")</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="d-flex justify-content-center gap-1">
+                                                <a class="btn btn-info btn-icon btn-sm rounded-circle"
+                                                   href="@Url.Page("/Auditorias/Details", Model.BuildDetailsRouteValues(item.Id))"
+                                                   data-bs-toggle="tooltip"
+                                                   data-bs-title="Ver detalle"
+                                                   aria-label="Detalle de auditoría @item.Id.ToString("D")">
+                                                    <i class="ti ti-eye fs-lg"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-2">
+                    <span class="text-muted">Página @Model.CurrentPage de @Model.TotalPages</span>
+                    <nav aria-label="Paginación de auditorías">
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
+                                <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(1))">Primera</a>
+                            </li>
+                            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
+                                <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Math.Max(1, Model.CurrentPage - 1)))">Anterior</a>
+                            </li>
+                            @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+                            {
+                                <li class="page-item @(pageNumber == Model.CurrentPage ? "active" : null)">
+                                    <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(pageNumber))">@pageNumber</a>
+                                </li>
+                            }
+                            <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
+                                <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Model.CurrentPage + 1))">Siguiente</a>
+                            </li>
+                            <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
+                                <a class="page-link" href="@Url.Page("/Auditorias/Index", Model.BuildPagedRouteValues(Model.TotalPages))">Última</a>
+                            </li>
+                        </ul>
+                    </nav>
                 </div>
             </div>
         </div>
