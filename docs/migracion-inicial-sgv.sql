@@ -925,7 +925,12 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260614183103_InicialSgvo') THEN
 
-    CREATE INDEX `IX_Auditorias_CorrelationId` ON `Auditorias` (`CorrelationId`);
+    -- El índice simple IX_Auditorias_CorrelationId se omite porque
+    -- el compuesto IX_Auditorias_CorrelationId_OccurredAt (creado
+    -- por la migración 20260801014133_IndiceAuditoriaCorrelationIdOccurredAt)
+    -- cubre las queries que filtran solo por CorrelationId
+    -- (leading column). Se removió para reducir overhead de
+    -- escritura sobre Auditorias.
 
     END IF;
 END //
@@ -4198,6 +4203,39 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260731173842_AddActivePuestoIdUniqueToVacantes', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260801014133_IndiceAuditoriaCorrelationIdOccurredAt') THEN
+
+    -- El compuesto cubre las queries que filtran solo por
+    -- CorrelationId (leading column); el índice simple es redundante.
+    DROP INDEX `IX_Auditorias_CorrelationId` ON `Auditorias`;
+
+    CREATE INDEX `IX_Auditorias_CorrelationId_OccurredAt` ON `Auditorias` (`CorrelationId`, `OccurredAt`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260801014133_IndiceAuditoriaCorrelationIdOccurredAt') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260801014133_IndiceAuditoriaCorrelationIdOccurredAt', '9.0.0');
 
     END IF;
 END //

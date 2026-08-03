@@ -34,12 +34,16 @@ public sealed class AuditoriasController : ControllerBase
     /// <summary>
     /// Listado paginado y filtrado de auditoría. Los filtros
     /// (<c>entityName</c>, <c>operation</c>, <c>dateFrom</c>,
-    /// <c>dateTo</c>, <c>userId</c>) son opcionales; omitirlos
-    /// significa «no filtrar por ese criterio». El orden es
-    /// fijo (<c>OccurredAt DESC, Id DESC</c>) y <c>pageSize</c>
-    /// se clampa a <c>[1, 100]</c> en el servicio (D-3).
+    /// <c>dateTo</c>, <c>userId</c>, <c>correlationId</c>) son
+    /// opcionales; omitirlos significa «no filtrar por ese criterio».
+    /// El orden se controla con <c>sort</c> (ver spec
+    /// <c>auditoria-sort</c>): claves válidas
+    /// <c>{fecha|entidad|operacion|usuario|correlacion}_{asc|desc}</c>;
+    /// valor omitido o no reconocido cae a <c>fecha_desc</c> sin
+    /// error. <c>pageSize</c> se clampa a <c>[1, 100]</c> en el
+    /// servicio (D-3).
     /// </summary>
-    /// <param name="query">Filtros y paginación.</param>
+    /// <param name="query">Filtros + paginación + orden.</param>
     /// <param name="cancellationToken">Token de cancelación.</param>
     /// <returns>
     /// <c>200 OK</c> con un <see cref="PagedResult{T}"/> de
@@ -85,24 +89,26 @@ public sealed class AuditoriasController : ControllerBase
     /// <param name="id">Identificador único de la fila de auditoría.</param>
     /// <param name="cancellationToken">Token de cancelación.</param>
     /// <returns>
-    /// <c>200 OK</c> con el <see cref="AuditoriaDto"/> cuando existe;
-    /// <c>404 Not Found</c> en cualquier otro caso.
+    /// <c>200 OK</c> con el <see cref="AuditoriaDetalleDto"/> enriquecido
+    /// (<c>EntityId</c> + <c>OldValuesJson</c> + <c>NewValuesJson</c> +
+    /// <c>UserName</c>) cuando existe; <c>404 Not Found</c> en
+    /// cualquier otro caso.
     /// </returns>
     /// <response code="200">Detalle devuelto correctamente.</response>
     /// <response code="401">El consumidor no está autenticado.</response>
     /// <response code="403">El consumidor está autenticado pero no tiene el rol <c>Administrador</c>.</response>
     /// <response code="404">No existe un registro con ese identificador.</response>
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(AuditoriaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuditoriaDetalleDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<AuditoriaDto>> GetById(
+    public async Task<ActionResult<AuditoriaDetalleDto>> GetById(
         Guid id,
         CancellationToken cancellationToken)
     {
         var dto = await _servicio
-            .GetByIdAsync(id, cancellationToken)
+            .GetDetalleDtoAsync(id, cancellationToken)
             .ConfigureAwait(false);
         return dto is null ? NotFound() : Ok(dto);
     }

@@ -6,10 +6,9 @@ namespace SGV.Tests.Web.Auditoria;
 
 /// <summary>
 /// Fake en memoria de <see cref="IAuditoriaApiClient"/> compartido
-/// por la suite web del módulo de Auditoría (Slice 3 del change
-/// <c>implementa-modulo-auditorias</c>). Permite configurar
+/// por la suite web del módulo de Auditoría. Permite configurar
 /// resultados de <see cref="QueryAsync"/> y
-/// <see cref="ObtenerPorIdAsync"/>, forzar excepciones y registrar
+/// <see cref="GetDetalleAsync"/>, forzar excepciones y registrar
 /// invocaciones para que los PageModel seam tests verifiquen la
 /// propagación de filtros via PRG.
 /// </summary>
@@ -37,22 +36,22 @@ public sealed class FakeAuditoriaApiClient : IAuditoriaApiClient
     public Exception? QueryException { get; set; }
 
     /// <summary>
-    /// Resultado de <see cref="ObtenerPorIdAsync"/> cuando no hay
+    /// Resultado de <see cref="GetDetalleAsync"/> cuando no hay
     /// override por id. Default: <c>null</c> (404 simulado).
     /// </summary>
-    public AuditoriaDto? ObtenerPorIdResult { get; set; }
+    public AuditoriaDetalleDto? GetDetalleResult { get; set; }
 
     /// <summary>
-    /// Handler opcional para <see cref="ObtenerPorIdAsync"/>. Si está
-    /// seteado, tiene prioridad sobre <see cref="ObtenerPorIdResult"/>.
+    /// Handler opcional para <see cref="GetDetalleAsync"/>. Si está
+    /// seteado, tiene prioridad sobre <see cref="GetDetalleResult"/>.
     /// </summary>
-    public Func<Guid, AuditoriaDto?>? ObtenerPorIdHandler { get; set; }
+    public Func<Guid, AuditoriaDetalleDto?>? GetDetalleHandler { get; set; }
 
     /// <summary>Captura de invocaciones de <see cref="QueryAsync"/>.</summary>
     public List<AuditoriaListQuery> QueryCalls { get; } = [];
 
-    /// <summary>Captura de invocaciones de <see cref="ObtenerPorIdAsync"/>.</summary>
-    public List<Guid> ObtenerPorIdCalls { get; } = [];
+    /// <summary>Captura de invocaciones de <see cref="GetDetalleAsync"/>.</summary>
+    public List<Guid> GetDetalleCalls { get; } = [];
 
     public Task<PagedResult<AuditoriaDto>> QueryAsync(
         AuditoriaListQuery query,
@@ -73,17 +72,17 @@ public sealed class FakeAuditoriaApiClient : IAuditoriaApiClient
         return Task.FromResult(QueryResult);
     }
 
-    public Task<AuditoriaDto?> ObtenerPorIdAsync(
+    public Task<AuditoriaDetalleDto?> GetDetalleAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        ObtenerPorIdCalls.Add(id);
+        GetDetalleCalls.Add(id);
 
-        if (ObtenerPorIdHandler is not null)
+        if (GetDetalleHandler is not null)
         {
-            return Task.FromResult(ObtenerPorIdHandler(id));
+            return Task.FromResult(GetDetalleHandler(id));
         }
 
-        return Task.FromResult(ObtenerPorIdResult);
+        return Task.FromResult(GetDetalleResult);
     }
 }

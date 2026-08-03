@@ -70,7 +70,6 @@
                                         <th>Fecha</th>
                                         <th>Entidad</th>
                                         <th>Operación</th>
-                                        <th>ID entidad</th>
                                         <th>Usuario</th>
                                         <th>Propiedades modificadas</th>
                                         <th>Correlación</th>
@@ -80,7 +79,7 @@
                                     @if (Model.Items.Count == 0)
                                     {
                                         <tr>
-                                            <td class="text-center text-muted py-4" colspan="7">
+                                            <td class="text-center text-muted py-4" colspan="6">
                                                 No se encontraron registros de auditoría para los filtros aplicados.
                                             </td>
                                         </tr>
@@ -92,19 +91,10 @@
                                             <tr>
                                                 <td class="fw-semibold">@item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
                                                 <td>@item.EntityName</td>
+                                                <td>@item.Operation</td>
                                                 <td>
-                                                    <span class="badge badge-soft-info fs-xs">@item.Operation</span>
-                                                </td>
-                                                <td><span class="text-muted">@item.EntityId</span></td>
-                                                <td>
-                                                    @if (!string.IsNullOrWhiteSpace(item.UserId))
-                                                    {
-                                                        <span class="text-muted">@item.UserId</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-muted">—</span>
-                                                    }
+                                                    @* El servicio ya coalesce UserName a "—" cuando el usuario no existe, por contrato (D-5 bis). *@
+                                                    <span class="text-muted">@item.UserName</span>
                                                 </td>
                                                 <td>
                                                     @if (!string.IsNullOrWhiteSpace(item.ChangedPropertiesJson))
