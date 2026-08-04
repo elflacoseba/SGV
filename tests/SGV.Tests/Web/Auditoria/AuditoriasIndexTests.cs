@@ -175,12 +175,27 @@ public sealed class AuditoriasIndexTests
     /// preservarse en el HTML renderizado para que el usuario
     /// pueda reintentar sin re-tipear.
     /// </summary>
+    /// <remarks>
+    /// Slice B (issue #251): el filtro entityName/operation ahora
+    /// se renderiza como <c>&lt;select&gt;</c> cuando el endpoint
+    /// de filter-options responde OK. El Fake pre-carga
+    /// <c>GetFilterOptionsResult</c> con "Cargo" / "Alta" para que
+    /// las opciones del select matcheen los filtros vigentes y el
+    /// round-trip visual funcione (de lo contrario, el select abriría
+    /// en "Todos" y la próxima navegación perdería el filtro).
+    /// El filtro userName sigue siendo <c>&lt;input type="search"&gt;</c>
+    /// (no es catálogo poblable), por eso conserva
+    /// <c>value="u-42"</c>.
+    /// </remarks>
     [Fact]
     public async Task Get_Index_WhenApiFails_ShowsVisibleErrorAndPreservesFilters()
     {
         var apiClient = new FakeAuditoriaApiClient
         {
-            QueryException = new HttpRequestException("boom")
+            QueryException = new HttpRequestException("boom"),
+            GetFilterOptionsResult = new AuditoriaFilterOptions(
+                new[] { "Cargo", "Persona", "Puesto" },
+                new[] { "Alta", "Modificacion", "BajaLogica" })
         };
 
         await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
@@ -193,7 +208,10 @@ public sealed class AuditoriasIndexTests
         Assert.Contains("No se pudo cargar el listado de auditoría", content, StringComparison.OrdinalIgnoreCase);
 
         // Los filtros vigentes deben quedar renderizados en el
-        // form de la sidebar para permitir reintento sin re-tipear.
+        // form para permitir reintento sin re-tipear. entityName
+        // y operation son <option> dentro de <select> (Slice B),
+        // mientras que userName sigue siendo <input type="search">
+        // (no es catálogo).
         Assert.Contains("value=\"Cargo\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"Alta\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"u-42\"", content, StringComparison.OrdinalIgnoreCase);
@@ -574,8 +592,12 @@ public sealed class AuditoriasIndexTests
         Assert.Contains("Modificacion", content, StringComparison.OrdinalIgnoreCase);
 
         // El input text para entityName/operation NO debe estar presente
-        // en la rama de éxito (sólo en el fallback).
-        Assert.DoesNotContain("type=\"search\"", content, StringComparison.OrdinalIgnoreCase);
+        // en la rama de éxito (sólo en el fallback). El userName filter
+        // SIGUE siendo <input type="search"> (no es un catálogo,
+        // filtro libre), así que la aserción es específica a los
+        // dos filtros afectados.
+        Assert.DoesNotContain("type=\"search\" name=\"entityName\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("type=\"search\" name=\"operation\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

@@ -413,11 +413,20 @@ public sealed class IndexModel(
     /// (las opciones de filtro son strings simples, no tienen
     /// campos separados).
     /// </summary>
+    /// <remarks>
+    /// Si el filtro vigente tiene un valor que NO aparece en
+    /// <paramref name="values"/> (e.g. la entidad/operación ya no
+    /// existe en la tabla de auditoría, o el listado filtrado a
+    /// futuro), lo añadimos como <c>&lt;option&gt;</c> seleccionada
+    /// para preservar la intención del usuario en el round-trip.
+    /// Sin esta salvaguarda, el select abriría en "Todos" y la
+    /// próxima navegación perdería el filtro.
+    /// </remarks>
     private static IReadOnlyList<SelectListItem> BuildSelectListItems(
         IReadOnlyList<string> values,
         string? selectedValue)
     {
-        var result = new List<SelectListItem>(values.Count + 1)
+        var result = new List<SelectListItem>(values.Count + 2)
         {
             new()
             {
@@ -427,9 +436,15 @@ public sealed class IndexModel(
             }
         };
 
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var value in values)
         {
             if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (!seen.Add(value))
             {
                 continue;
             }
@@ -439,6 +454,19 @@ public sealed class IndexModel(
                 Value = value,
                 Text = value,
                 Selected = string.Equals(value, selectedValue, StringComparison.Ordinal)
+            });
+        }
+
+        // Preservar el filtro vigente aunque no esté en la lista
+        // (entidad/operación huérfana del catálogo actual).
+        if (!string.IsNullOrEmpty(selectedValue)
+            && !seen.Contains(selectedValue))
+        {
+            result.Add(new SelectListItem
+            {
+                Value = selectedValue,
+                Text = selectedValue,
+                Selected = true
             });
         }
 

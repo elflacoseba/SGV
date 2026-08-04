@@ -14,6 +14,18 @@
     <div class="alert alert-danger" role="alert">@Model.LoadErrorMessage</div>
 }
 
+@* Slice B (issue #251) — banner no bloqueante cuando el endpoint
+   filter-options falla. El listado sigue siendo usable con los
+   <input type="search"> de fallback; este alert es info, NO
+   alert-danger (no bloquea la operación). Se renderiza arriba de
+   la tabla para que el usuario lo vea apenas carga la página. *@
+@if (Model.FilterOptionsLoadFailed && !string.IsNullOrWhiteSpace(Model.FilterOptionsMessage))
+{
+    <div class="alert alert-info alert-soft mb-2" role="alert">
+        @Model.FilterOptionsMessage
+    </div>
+}
+
 <div class="row">
     <div class="col-12">
         <div class="card" data-table>
@@ -39,11 +51,38 @@
                 <form class="row g-2 align-items-end w-100" method="get">
                     <div class="col-md-4 col-xl-3">
                         <label class="form-label fs-xs text-muted mb-1" for="entityName">Entidad</label>
-                        <input class="form-control form-control-sm" id="entityName" name="entityName" type="search" placeholder="Cargo, Persona, ..." value="@Model.EntityName" />
+                        @* Slice B — filtro <select> poblado desde filter-options.
+                           Fallback a <input type="search"> si la carga de
+                           opciones falla (TransportFailureClassifier). El
+                           onchange resetea p=1 como pageSize para mantener
+                           consistencia (spec auditoria-sort §"Reset a página 1"). *@
+                        @if (Model.FilterOptionsLoadFailed)
+                        {
+                            <input class="form-control form-control-sm" id="entityName" name="entityName"
+                                   type="search" placeholder="Cargo, Persona, ..." value="@Model.EntityName" />
+                        }
+                        else
+                        {
+                            <select class="form-select form-select-sm filter-select" id="entityName" name="entityName"
+                                    asp-items="Model.EntityNameOptions"
+                                    onchange="this.form.p.value=1;this.form.submit();">
+                            </select>
+                        }
                     </div>
                     <div class="col-md-3 col-xl-2">
                         <label class="form-label fs-xs text-muted mb-1" for="operation">Operación</label>
-                        <input class="form-control form-control-sm" id="operation" name="operation" type="search" placeholder="Alta, Modificacion, ..." value="@Model.Operation" />
+                        @if (Model.FilterOptionsLoadFailed)
+                        {
+                            <input class="form-control form-control-sm" id="operation" name="operation"
+                                   type="search" placeholder="Alta, Modificacion, ..." value="@Model.Operation" />
+                        }
+                        else
+                        {
+                            <select class="form-select form-select-sm filter-select" id="operation" name="operation"
+                                    asp-items="Model.OperationOptions"
+                                    onchange="this.form.p.value=1;this.form.submit();">
+                            </select>
+                        }
                     </div>
                     <div class="col-md-3 col-xl-2">
                         <label class="form-label fs-xs text-muted mb-1" for="userName">Usuario</label>
