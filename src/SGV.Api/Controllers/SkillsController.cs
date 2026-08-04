@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Infrastructure.Results;
@@ -215,6 +216,7 @@ public class SkillsController : ControllerBase
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="409">Conflicto — ya existe una habilidad activa con el mismo código.</response>
     [HttpPost]
+    [ValidateAntiForgeryToken]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(HabilidadDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
