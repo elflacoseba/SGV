@@ -152,8 +152,8 @@ public sealed class DetailsModel(
         CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
-        PageSize = NormalizePageSize(pageSize);
-        Sort = NormalizeSort(sort);
+        PageSize = IndexModel.NormalizePageSize(pageSize);
+        Sort = IndexModel.NormalizeSort(sort);
         CorrelationId = correlationId;
         EntityName = Normalize(entityName);
         Operation = Normalize(operation);
@@ -192,41 +192,4 @@ public sealed class DetailsModel(
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    /// <summary>
-    /// Espejo del
-    /// <see cref="SGV.Web.Pages.Auditorias.IndexModel.NormalizeSort"/>.
-    /// La PageModel de Details NO pinta el icono del sort pero
-    /// debe preservar el criterio en el link de retorno, así
-    /// que también colapsa claves no reconocidas al
-    /// <see cref="SGV.Web.Pages.Auditorias.IndexModel.DefaultSort"/>.
-    /// </summary>
-    private static string? NormalizeSort(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return IndexModel.DefaultSort;
-        var trimmed = value.Trim();
-        return trimmed switch
-        {
-            "fecha_asc" or "fecha_desc"
-                or "entidad_asc" or "entidad_desc"
-                or "operacion_asc" or "operacion_desc"
-                or "usuario_asc" or "usuario_desc"
-                or "correlacion_asc" or "correlacion_desc" => trimmed,
-            _ => IndexModel.DefaultSort
-        };
-    }
-
-    /// <summary>
-    /// Espejo del
-    /// <see cref="SGV.Web.Pages.Auditorias.IndexModel.NormalizePageSize"/>:
-    /// el <c>pageSize</c> que viaja en el link de retorno debe
-    /// estar normalizado al set canónico.
-    /// </summary>
-    private static int NormalizePageSize(int value)
-    {
-        if (value <= 0) return IndexModel.DefaultPageSize;
-        return IndexModel.AllowedPageSizes.Contains(value)
-            ? value
-            : IndexModel.DefaultPageSize;
-    }
 }

@@ -12,7 +12,7 @@
     <div class="alert alert-danger" role="alert">@Model.TransportErrorMessage</div>
 }
 
-@if (Model.IsNotFound)
+@if (Model.Detalle is not { } detalle)
 {
     <div class="row">
         <div class="col-12">
@@ -31,7 +31,6 @@
 }
 else
 {
-    var detalle = Model.Detalle!;
     <div class="row">
         <div class="col-12">
             <div class="card">

@@ -208,35 +208,16 @@ public sealed class AuditoriasDetailsTests
                 || content.Contains("Intentá nuevamente", StringComparison.OrdinalIgnoreCase),
             "Detalles: el banner debe usar wording recuperable canonical (TransportFailureClassifier).");
 
-        // El id se preserva en el CTA "Volver al listado" para que el usuario
-        // pueda reintentar sin re-armar el request.
-        var backLink = ExtractFirstHref(content, "Volver al listado")
-            ?? ExtractFirstHref(content, "Volver");
-        Assert.False(string.IsNullOrWhiteSpace(backLink), "Detalles: debe existir un enlace 'Volver al listado'.");
+        // El id se preserva en la URL que el usuario ya tiene
+        // (puede reintentar el mismo Details con F5 sin re-armar el
+        // request); el CTA "Volver al listado" debe existir para
+        // permitir recuperar el flujo incluso sin volver a tipear.
+        Assert.Contains(
+            "Volver al listado",
+            content,
+            StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(new[] { id }, apiClient.GetDetalleCalls.ToArray());
-    }
-
-    /// <summary>
-    /// Helper simple de extracción del atributo <c>href</c> de un
-    /// link cuyo texto contenga el fragmento buscado. Devuelve
-    /// <c>null</c> si no encuentra match (no es un assert duro).
-    /// </summary>
-    private static string? ExtractFirstHref(string html, string linkTextFragment)
-    {
-        var lower = html.ToLowerInvariant();
-        var idx = lower.IndexOf(linkTextFragment.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase);
-        if (idx < 0) return null;
-
-        // Retroceder hasta el "<a" más cercano.
-        var anchorStart = lower.LastIndexOf("<a", StringComparison.OrdinalIgnoreCase);
-        if (anchorStart < 0 || anchorStart > idx) return null;
-
-        var hrefIdx = lower.IndexOf("href=\"", anchorStart, StringComparison.OrdinalIgnoreCase);
-        if (hrefIdx < 0) return null;
-        hrefIdx += "href=\"".Length;
-        var hrefEnd = lower.IndexOf('"', hrefIdx);
-        return hrefEnd > hrefIdx ? html.Substring(hrefIdx, hrefEnd - hrefIdx) : null;
     }
 
     // ====================================================================

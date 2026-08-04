@@ -333,7 +333,12 @@ public sealed class IndexModel(
     /// es null/vacío. Validación de claves conocidas queda en el
     /// servidor — acá solo colapsamos a default.
     /// </summary>
-    private static string? NormalizeSort(string? value)
+    /// <remarks>
+    /// <c>public static</c> para que <see cref="DetailsModel"/>
+    /// pueda reusar la misma normalización al armar el link
+    /// "Volver al listado" sin duplicar la lógica.
+    /// </remarks>
+    public static string? NormalizeSort(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return DefaultSort;
         var trimmed = value.Trim();
@@ -360,7 +365,12 @@ public sealed class IndexModel(
     /// <c>auditoria-page-size</c> §"PageSize inválido o fuera de
     /// rango se normaliza").
     /// </summary>
-    private static int NormalizePageSize(int value)
+    /// <remarks>
+    /// <c>public static</c> para que <see cref="DetailsModel"/>
+    /// pueda reusar la misma normalización al armar el link
+    /// "Volver al listado" sin duplicar la lógica.
+    /// </remarks>
+    public static int NormalizePageSize(int value)
     {
         if (value <= 0) return DefaultPageSize;
         return AllowedPageSizes.Contains(value) ? value : DefaultPageSize;
