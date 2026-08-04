@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Ocupaciones.Comandos;
@@ -90,6 +91,7 @@ public class OcupacionesController : ControllerBase
     /// <response code="409">Conflicto — persona inactiva, puesto inactivo, puesto ya ocupado, o persona+puesto ya ocupados.</response>
     [HttpPost]
     [Authorize(Roles = RolesSgv.Administrador)]
+    [ValidateAntiForgeryToken]
     [ProducesResponseType(typeof(OcupacionDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
