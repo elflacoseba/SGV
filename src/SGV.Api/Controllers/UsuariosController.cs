@@ -148,6 +148,7 @@ public sealed class UsuariosController(
     }
 
     [HttpPost("{id}/desbloquear")]
+    [ValidateAntiForgeryToken]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
