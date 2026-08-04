@@ -3,6 +3,7 @@ using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.RateLimiting;
 using SGV.Aplicacion.Seguridad.PasswordChange;
 using SGV.Aplicacion.Seguridad.PasswordReset;
@@ -26,6 +27,7 @@ public sealed class AuthController(
 {
     [HttpPost(AuthApiRoutes.LoginRelative)]
     [AllowAnonymous]
+    [ValidateAntiForgeryToken]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
