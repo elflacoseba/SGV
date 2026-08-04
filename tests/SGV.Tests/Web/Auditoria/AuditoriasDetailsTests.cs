@@ -132,6 +132,74 @@ public sealed class AuditoriasDetailsTests
     }
 
     // ====================================================================
+    // Issue #253 — Round-trip preserva `userName` entre drill-down y back-link
+    // ====================================================================
+
+    /// <summary>
+    /// Issue #253 — Cuando el listado construye el enlace de
+    /// detalle con <c>?userName=jperez</c> (vía
+    /// <c>IndexModel.BuildDetailsRouteValues</c>), la Razor Page
+    /// <c>Details</c> MUST bindear ese parámetro y el back-link
+    /// MUST re-emitirlo para que el filtro <c>userName</c> se
+    /// preserve al retornar al listado. Cuando el vínculo no
+    /// transporta <c>userName</c>, el back-link no debe arrastrar
+    /// un valor espurio. Spec
+    /// <c>auditoria-drilldown-username-filter</c> §"Round-trip
+    /// completo del filtro userName" + §"Round-trip sin filtro no
+    /// introduce userName espurio".
+    /// </summary>
+    [Theory]
+    [InlineData("jperez", true)]
+    [InlineData(null, false)]
+    public async Task Get_Details_RoundTripPreservesUserNameFilter(
+        string? requestedUserName, bool expectInBackLink)
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            GetDetalleResult = MakeAuditoriaDetalleDto(id: id)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var requestUrl = requestedUserName is null
+            ? $"/auditorias/details?id={id:D}"
+            : $"/auditorias/details?id={id:D}&userName={Uri.EscapeDataString(requestedUserName)}";
+
+        var response = await lease.Client.GetAsync(requestUrl);
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El back-link siempre debe estar renderizado (sea con filtro o sin él).
+        Assert.Contains(
+            "Volver al listado",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+
+        if (expectInBackLink)
+        {
+            Assert.Contains(
+                $"userName={requestedUserName}",
+                content,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            // Sin userName en el request, el back-link no debe
+            // arrastrar un valor espurio. Detectaría un bug que
+            // hardcodeara `userName=jperez` o re-enviara el filtro
+            // desde el DTO del detalle.
+            Assert.DoesNotContain(
+                "userName=jperez",
+                content,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Equal(new[] { id }, apiClient.GetDetalleCalls.ToArray());
+    }
+
+    // ====================================================================
     // 1.B.1.e — 404 → estado legible (no crash)
     // ====================================================================
 

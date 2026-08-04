@@ -104,8 +104,8 @@ public sealed class DetailsModel(
     /// <summary>Filtro vigente: fecha hasta.</summary>
     public DateTime? DateTo { get; private set; }
 
-    /// <summary>Filtro vigente: userId.</summary>
-    public string? UserId { get; private set; }
+    /// <summary>Filtro vigente: userName.</summary>
+    public string? UserName { get; private set; }
 
     /// <summary>
     /// Construye la URL de retorno al listado preservando el
@@ -125,7 +125,7 @@ public sealed class DetailsModel(
             operation = Operation,
             dateFrom = DateFrom,
             dateTo = DateTo,
-            userId = UserId
+            userName = UserName
         };
         return Url.Page("/Auditorias/Index", values) ?? "/auditorias";
     }
@@ -148,7 +148,7 @@ public sealed class DetailsModel(
         [FromQuery(Name = "operation")] string? operation = null,
         [FromQuery(Name = "dateFrom")] DateTime? dateFrom = null,
         [FromQuery(Name = "dateTo")] DateTime? dateTo = null,
-        [FromQuery(Name = "userId")] string? userId = null,
+        [FromQuery(Name = "userName")] string? userName = null,
         CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
@@ -159,7 +159,7 @@ public sealed class DetailsModel(
         Operation = Normalize(operation);
         DateFrom = dateFrom;
         DateTo = dateTo;
-        UserId = Normalize(userId);
+        UserName = Normalize(userName);
 
         try
         {
