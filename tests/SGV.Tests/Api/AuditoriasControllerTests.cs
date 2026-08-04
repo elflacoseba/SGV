@@ -805,37 +805,46 @@ public sealed class AuditoriasControllerTests
         /// Stub del nuevo método del puerto. En esta fase RED el
         /// interface aún no lo declara; cuando se agregue en la fase
         /// GREEN, este método pasa a ser la implementación concreta.
-        /// Espejo del comportamiento de la impl EF: dedup, orden
-        /// alfabético, cap de 100 y descarte de cadenas vacías sobre
-        /// los datos del fake. Si <see cref="FilterOptionsHandler"/> está
-        /// seteado, su resultado se devuelve sin pipeline.
+        /// Espejo del comportamiento de la impl EF: el pipeline
+        /// (dedup, orden alfabético, cap de 100 y descarte de cadenas
+        /// vacías) se aplica SIEMPRE — tanto sobre los datos del fake
+        /// como sobre la salida del <see cref="FilterOptionsHandler"/>
+        /// cuando está seteado. Esto garantiza que los tests que
+        /// inyectan datos crudos con duplicados o vacíos puedan
+        /// observar el comportamiento del pipeline a través del
+        /// controller.
         /// </summary>
         public Task<AuditoriaFilterOptions> GetFilterOptionsAsync(
             CancellationToken cancellationToken = default)
         {
-            AuditoriaFilterOptions resultado;
+            IReadOnlyList<string> rawEntityNames;
+            IReadOnlyList<string> rawOperations;
             if (FilterOptionsHandler is not null)
             {
-                resultado = FilterOptionsHandler();
+                var handlerResult = FilterOptionsHandler();
+                rawEntityNames = handlerResult.EntityNames;
+                rawOperations = handlerResult.Operations;
             }
             else
             {
-                var entityNames = _data
-                    .Select(a => a.EntityName)
-                    .Where(n => !string.IsNullOrWhiteSpace(n))
-                    .Distinct()
-                    .OrderBy(n => n, StringComparer.Ordinal)
-                    .Take(MaxFilterOptionsItems)
-                    .ToList();
-                var operations = _data
-                    .Select(a => a.Operation)
-                    .Where(o => !string.IsNullOrWhiteSpace(o))
-                    .Distinct()
-                    .OrderBy(o => o, StringComparer.Ordinal)
-                    .Take(MaxFilterOptionsItems)
-                    .ToList();
-                resultado = new AuditoriaFilterOptions(entityNames, operations);
+                rawEntityNames = _data.Select(a => a.EntityName).ToList();
+                rawOperations = _data.Select(a => a.Operation).ToList();
             }
+
+            var entityNames = rawEntityNames
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct()
+                .OrderBy(n => n, StringComparer.Ordinal)
+                .Take(MaxFilterOptionsItems)
+                .ToList();
+            var operations = rawOperations
+                .Where(o => !string.IsNullOrWhiteSpace(o))
+                .Distinct()
+                .OrderBy(o => o, StringComparer.Ordinal)
+                .Take(MaxFilterOptionsItems)
+                .ToList();
+
+            var resultado = new AuditoriaFilterOptions(entityNames, operations);
             FilterOptionsCalls.Add(resultado);
             return Task.FromResult(resultado);
         }
