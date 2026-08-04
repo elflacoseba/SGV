@@ -472,6 +472,241 @@ public sealed class AuditoriasControllerTests
     }
 
     // ====================================================================
+    // A.1 — Filter-options endpoint + filtro UserName (issue #251 Slice A)
+    // ====================================================================
+
+    /// <summary>
+    /// A.1 — Un cliente sin credenciales recibe <c>401 Unauthorized</c>
+    /// al pedir <c>GET /api/v1/auditorias/filter-options</c>. El atributo
+    /// de clase <c>[Authorize(Roles = Administrador)]</c> corre antes
+    /// del handler; no requiere fake (la auth corre antes de invocar al
+    /// servicio).
+    /// </summary>
+    [Fact]
+    public async Task FilterOptions_Anonimo_Retorna401()
+    {
+        var client = _fixture.RootFactory.CreateClient();
+
+        var response = await client.GetAsync(BasePath + "/filter-options");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// A.1 — Un cliente autenticado SIN rol <c>Administrador</c> recibe
+    /// <c>403 Forbidden</c> al pedir <c>GET /filter-options</c>. La auth
+    /// corre antes del handler (admin-only heredado del atributo de clase).
+    /// </summary>
+    [Fact]
+    public async Task FilterOptions_UsuarioSinRol_Retorna403()
+    {
+        var client = _fixture.RootFactory.CreateNonAdminClient();
+
+        var response = await client.GetAsync(BasePath + "/filter-options");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>
+    /// A.1 — Un administrador recibe <c>200 OK</c> con
+    /// <see cref="AuditoriaFilterOptions"/> cuyas colecciones están
+    /// ordenadas alfabéticamente y deduplicadas. El fake devuelve un
+    /// set con duplicados (<c>["Cargo","Persona","Cargo","Habilidad"]</c>);
+    /// el servicio debe colapsar a <c>["Cargo","Habilidad","Persona"]</c>.
+    /// </summary>
+    [Fact]
+    public async Task FilterOptions_Administrador_DevuelveListasOrdenadasSinDuplicados()
+    {
+        var opciones = new AuditoriaFilterOptions(
+            EntityNames: new[] { "Cargo", "Persona", "Cargo", "Habilidad" },
+            Operations: new[] { "Alta", "Modificacion", "Alta" });
+
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(MakeSeedAuditoriaDto(Guid.NewGuid()))
+                {
+                    FilterOptionsHandler = () => opciones
+                });
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync(BasePath + "/filter-options");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var resultado = JsonSerializer.Deserialize<AuditoriaFilterOptions>(json, JsonOptions);
+        Assert.NotNull(resultado);
+        Assert.Equal(new[] { "Cargo", "Habilidad", "Persona" }, resultado!.EntityNames);
+        Assert.Equal(new[] { "Alta", "Modificacion" }, resultado.Operations);
+    }
+
+    /// <summary>
+    /// A.1 — Guardrail D-2 reforzado: la respuesta JSON de
+    /// <c>GET /filter-options</c> NO contiene ninguna clave de PII
+    /// (<c>OldValuesJson</c>, <c>NewValuesJson</c>, <c>EntityId</c>,
+    /// <c>UserId</c>, <c>UserName</c>, <c>CorrelationId</c>,
+    /// <c>OccurredAt</c>, <c>Id</c>). Verifica la separación física de
+    /// tipos: <see cref="AuditoriaFilterOptions"/> sólo tiene dos campos.
+    /// </summary>
+    [Fact]
+    public async Task FilterOptions_RespuestaSerializada_NoContieneOldNewEntityIdUserIdUserName()
+    {
+        var opciones = new AuditoriaFilterOptions(
+            EntityNames: new[] { "Cargo" },
+            Operations: new[] { "Alta" });
+
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(MakeSeedAuditoriaDto(Guid.NewGuid()))
+                {
+                    FilterOptionsHandler = () => opciones
+                });
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync(BasePath + "/filter-options");
+        var json = await response.Content.ReadAsStringAsync();
+
+        // System.Text.Json emite camelCase por default.
+        Assert.DoesNotContain("oldValuesJson", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("newValuesJson", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("entityId", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("userId", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("userName", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("correlationId", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("occurredAt", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"id\"", json, StringComparison.Ordinal);
+        // Garantía positiva: las claves esperadas SÍ están presentes.
+        Assert.Contains("entityNames", json, StringComparison.Ordinal);
+        Assert.Contains("operations", json, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A.1 — Cap duro de 100 valores por array (spec
+    /// <c>auditoria-query</c>): con un set de 150 EntityNames distintos,
+    /// la respuesta contiene exactamente los 100 primeros en orden
+    /// lexicográfico. Verifica que el servicio aplica
+    /// <c>Distinct().OrderBy().Take(100)</c> y que el controller
+    /// propaga ese cap al wire.
+    /// </summary>
+    [Fact]
+    public async Task FilterOptions_DistinctMayorACienDevuelvePrimerosCien()
+    {
+        var entityNames = Enumerable.Range(0, 150)
+            .Select(i => $"Entity{i:D3}")
+            .ToArray();
+        var operaciones = new[] { "Alta" };
+        var opciones = new AuditoriaFilterOptions(entityNames, operaciones);
+
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(MakeSeedAuditoriaDto(Guid.NewGuid()))
+                {
+                    FilterOptionsHandler = () => opciones
+                });
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync(BasePath + "/filter-options");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var resultado = JsonSerializer.Deserialize<AuditoriaFilterOptions>(json, JsonOptions);
+        Assert.NotNull(resultado);
+        Assert.Equal(100, resultado!.EntityNames.Count);
+        var esperado = entityNames.OrderBy(x => x, StringComparer.Ordinal).Take(100).ToArray();
+        Assert.Equal(esperado, resultado.EntityNames);
+    }
+
+    /// <summary>
+    /// A.1 — El parámetro <c>?userName=jperez</c> llega al servicio
+    /// como <see cref="AuditoriaListQuery.UserName"/>. El listado filtra
+    /// por nombre legible (no por GUID) y devuelve los DTOs cuyo
+    /// <c>UserName</c> coincide. Esta es la cara "filtra" del rename
+    /// <c>UserId</c> → <c>UserName</c> (spec <c>auditoria-query</c>).
+    /// </summary>
+    [Fact]
+    public async Task Listado_UserName_FiltraPorNombreNoPorGuid()
+    {
+        var seed = new List<AuditoriaDto>
+        {
+            MakeAuditoriaDto("Cargo",     "Alta",         "u-42", new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc), userName: "jperez"),
+            MakeAuditoriaDto("Persona",   "Modificacion", "u-7",  new DateTime(2026, 1, 11, 0, 0, 0, DateTimeKind.Utc), userName: "ana"),
+        };
+
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(seed));
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync(BasePath + "?userName=jperez");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var fake = (FakeAuditoriaServicioConsulta)clienteDisposable
+            .Services.GetRequiredService<IAuditoriaServicioConsulta>();
+        var query = Assert.Single(fake.QueryCalls);
+        Assert.Equal("jperez", query.UserName);
+
+        var json = await response.Content.ReadAsStringAsync();
+        var resultado = JsonSerializer.Deserialize<PagedResult<AuditoriaDto>>(json, JsonOptions);
+        Assert.NotNull(resultado);
+        Assert.Equal(1, resultado!.TotalCount);
+        Assert.Equal("jperez", resultado.Items[0].UserName);
+    }
+
+    /// <summary>
+    /// A.1 — <c>?userName=</c> (vacío) NO aplica filtro: el servicio
+    /// recibe <see cref="AuditoriaListQuery.UserName"/> como null/empty
+    /// y devuelve todos los registros. Validación de la regla
+    /// "Filtros omitidos no filtran" de la spec <c>auditoria-query</c>.
+    /// </summary>
+    [Fact]
+    public async Task Listado_UserName_Vacio_NoFiltra()
+    {
+        var seed = new List<AuditoriaDto>
+        {
+            MakeAuditoriaDto("Cargo",     "Alta",         "u-42", new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc), userName: "jperez"),
+            MakeAuditoriaDto("Persona",   "Modificacion", "u-7",  new DateTime(2026, 1, 11, 0, 0, 0, DateTimeKind.Utc), userName: "ana"),
+            MakeAuditoriaDto("Habilidad", "BajaLogica",   "u-99", new DateTime(2026, 1, 12, 0, 0, 0, DateTimeKind.Utc), userName: "luis"),
+        };
+
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(seed));
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync(BasePath + "?userName=");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var fake = (FakeAuditoriaServicioConsulta)clienteDisposable
+            .Services.GetRequiredService<IAuditoriaServicioConsulta>();
+        var query = Assert.Single(fake.QueryCalls);
+        Assert.True(string.IsNullOrEmpty(query.UserName));
+
+        var json = await response.Content.ReadAsStringAsync();
+        var resultado = JsonSerializer.Deserialize<PagedResult<AuditoriaDto>>(json, JsonOptions);
+        Assert.NotNull(resultado);
+        Assert.Equal(3, resultado!.TotalCount);
+    }
+
+    // ====================================================================
     // Helpers — datos sembrados y fake del servicio de consulta
     // ====================================================================
 
@@ -480,14 +715,15 @@ public sealed class AuditoriasControllerTests
         string operation,
         string userId,
         DateTime occurredAt,
-        Guid? id = null) =>
+        Guid? id = null,
+        string? userName = null) =>
         new(
             id ?? Guid.NewGuid(),
             entityName,
             operation,
             occurredAt,
             userId,
-            $"{userId}-name",
+            userName ?? $"{userId}-name",
             "[\"Nombre\"]",
             Guid.NewGuid());
 
@@ -516,6 +752,7 @@ public sealed class AuditoriasControllerTests
     {
         private const int MaxPageSize = 100;
         private const int MinPageSize = 1;
+        private const int MaxFilterOptionsItems = 100;
 
         private readonly IReadOnlyList<AuditoriaDto> _data;
 
@@ -534,9 +771,19 @@ public sealed class AuditoriasControllerTests
         public Func<Guid, AuditoriaDetalleDto?>? DetalleHandler { get; set; }
 
         /// <summary>
+        /// Handler opcional para <see cref="GetFilterOptionsAsync"/>.
+        /// Si está seteado, su valor se devuelve envuelto en un
+        /// <see cref="AuditoriaFilterOptions"/> sin aplicar el pipeline
+        /// de dedup/order/cap. Útil cuando el test quiere inspeccionar
+        /// el shape wire sin pasar por la lógica del servicio.
+        /// </summary>
+        public Func<AuditoriaFilterOptions>? FilterOptionsHandler { get; set; }
+
+        /// <summary>
         /// Captura de invocaciones de <see cref="QueryAsync"/>. Los
         /// tests API la inspeccionan para verificar que el controller
-        /// propaga <c>Sort</c>, <c>CorrelationId</c> y compañía.
+        /// propaga <c>Sort</c>, <c>CorrelationId</c>, <c>UserName</c>
+        /// y compañía.
         /// </summary>
         public List<AuditoriaListQuery> QueryCalls { get; } = [];
 
@@ -546,6 +793,52 @@ public sealed class AuditoriasControllerTests
         /// enruta por el handler custom y no por la rama default.
         /// </summary>
         public List<Guid> DetalleHandlerCalls { get; } = [];
+
+        /// <summary>
+        /// Captura de invocaciones de <see cref="GetFilterOptionsAsync"/>.
+        /// Cada entrada es la lista devuelta (post-pipeline), lo que
+        /// permite verificar el cap de 100 y el orden alfabético.
+        /// </summary>
+        public List<AuditoriaFilterOptions> FilterOptionsCalls { get; } = [];
+
+        /// <summary>
+        /// Stub del nuevo método del puerto. En esta fase RED el
+        /// interface aún no lo declara; cuando se agregue en la fase
+        /// GREEN, este método pasa a ser la implementación concreta.
+        /// Espejo del comportamiento de la impl EF: dedup, orden
+        /// alfabético, cap de 100 y descarte de cadenas vacías sobre
+        /// los datos del fake. Si <see cref="FilterOptionsHandler"/> está
+        /// seteado, su resultado se devuelve sin pipeline.
+        /// </summary>
+        public Task<AuditoriaFilterOptions> GetFilterOptionsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            AuditoriaFilterOptions resultado;
+            if (FilterOptionsHandler is not null)
+            {
+                resultado = FilterOptionsHandler();
+            }
+            else
+            {
+                var entityNames = _data
+                    .Select(a => a.EntityName)
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Distinct()
+                    .OrderBy(n => n, StringComparer.Ordinal)
+                    .Take(MaxFilterOptionsItems)
+                    .ToList();
+                var operations = _data
+                    .Select(a => a.Operation)
+                    .Where(o => !string.IsNullOrWhiteSpace(o))
+                    .Distinct()
+                    .OrderBy(o => o, StringComparer.Ordinal)
+                    .Take(MaxFilterOptionsItems)
+                    .ToList();
+                resultado = new AuditoriaFilterOptions(entityNames, operations);
+            }
+            FilterOptionsCalls.Add(resultado);
+            return Task.FromResult(resultado);
+        }
 
         public Task<PagedResult<AuditoriaDto>> QueryAsync(
             AuditoriaListQuery query,
@@ -577,8 +870,11 @@ public sealed class AuditoriasControllerTests
                 filtered = filtered.Where(a => a.OccurredAt >= query.DateFrom.Value);
             if (query.DateTo.HasValue)
                 filtered = filtered.Where(a => a.OccurredAt <= query.DateTo.Value);
-            if (!string.IsNullOrWhiteSpace(query.UserId))
-                filtered = filtered.Where(a => a.UserId == query.UserId);
+            // Filtro UserName (issue #251): el fake espeja el contrato
+            // vigente; el servicio EF compara contra u.UserName del
+            // LEFT JOIN con AspNetUsers (no contra a.UserId).
+            if (!string.IsNullOrWhiteSpace(query.UserName))
+                filtered = filtered.Where(a => a.UserName == query.UserName);
             if (query.CorrelationId.HasValue)
                 filtered = filtered.Where(a => a.CorrelationId == query.CorrelationId.Value);
 
@@ -593,8 +889,8 @@ public sealed class AuditoriasControllerTests
                 "entidad_desc" => filtered.OrderByDescending(a => a.EntityName),
                 "operacion_asc" => filtered.OrderBy(a => a.Operation),
                 "operacion_desc" => filtered.OrderByDescending(a => a.Operation),
-                "usuario_asc" => filtered.OrderBy(a => a.UserId),
-                "usuario_desc" => filtered.OrderByDescending(a => a.UserId),
+                "usuario_asc" => filtered.OrderBy(a => a.UserName ?? string.Empty),
+                "usuario_desc" => filtered.OrderByDescending(a => a.UserName ?? string.Empty),
                 "correlacion_asc" => filtered.OrderBy(a => a.CorrelationId),
                 "correlacion_desc" => filtered.OrderByDescending(a => a.CorrelationId),
                 _ => filtered.OrderByDescending(a => a.OccurredAt)

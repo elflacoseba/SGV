@@ -54,14 +54,14 @@ public sealed class AuditoriaServicioConsultaTests
     [InlineData(null,       "Alta",         null, null, null, 2)] // solo Operation
     [InlineData("Persona",  "Alta",         null, null, null, 1)] // EntityName + Operation combinado
     [InlineData("Persona",  "Modificacion", null, null, null, 1)] // otro combinado (distinto)
-    [InlineData(null,       null,           null, null, "u1", 2)] // solo UserId
-    [InlineData(null,       null,           null, null, "u3", 1)] // UserId con un único resultado
+    [InlineData(null,       null,           null, null, "u1", 2)] // solo UserName (matchea el Identity sembrado con UserName="u1")
+    [InlineData(null,       null,           null, null, "u3", 1)] // UserName con un único resultado
     public async Task QueryAsync_Filtros_AplicanSegunEsperado(
         string? entityName,
         string? operation,
         DateTime? dateFrom,
         DateTime? dateTo,
-        string? userId,
+        string? userName,
         int expectedCount)
     {
         await using var scope = await AuditoriaTestScope.CreateAsync();
@@ -76,7 +76,7 @@ public sealed class AuditoriaServicioConsultaTests
             Operation: operation,
             DateFrom: dateFrom,
             DateTo: dateTo,
-            UserId: userId));
+            UserName: userName));
 
         Assert.Equal(expectedCount, resultado.TotalCount);
     }
@@ -802,6 +802,218 @@ public sealed class AuditoriaServicioConsultaTests
     }
 
     // ====================================================================
+    // A.2 — Filtro UserName (issue #251 Slice A)
+    // ====================================================================
+
+    /// <summary>
+    /// A.2 — El filtro <c>?userName=...</c> es case-insensitive gracias
+    /// al collation MySQL <c>utf8mb4_0900_ai_ci</c> por default. Sembrar
+    /// un IdentityUser con <c>UserName="jperez"</c> y consultar con
+    /// <c>"JPEREZ"</c> y <c>"jperez"</c> devuelve el mismo set de
+    /// registros. Esta es la cara "case-insensitive" del rename
+    /// <c>UserId</c> → <c>UserName</c> (spec <c>auditoria-query</c>).
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_FiltraPorUserNameCaseInsensitive()
+    {
+        await using var scope = await AuditoriaTestScope.CreateAsync();
+        var userId = "u-jperez-id";
+        await scope.InsertarUsuarioIdentityAsync(userId, "jperez");
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "Cargo",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "Alta",
+            UserId = userId,
+            ChangedPropertiesJson = "[]"
+        });
+
+        var servicio = new AuditoriaServicioConsulta(scope.Context);
+
+        // MySQL 8 default collation (utf8mb4_0900_ai_ci) hace que la
+        // comparación sea case-insensitive sin necesidad de ToLower().
+        var resultadoUpper = await servicio.QueryAsync(new AuditoriaListQuery(
+            Page: 1, PageSize: 20, UserName: "JPEREZ"));
+        var resultadoLower = await servicio.QueryAsync(new AuditoriaListQuery(
+            Page: 1, PageSize: 20, UserName: "jperez"));
+
+        Assert.Equal(1, resultadoUpper.TotalCount);
+        Assert.Equal(1, resultadoLower.TotalCount);
+    }
+
+    /// <summary>
+    /// A.2 — <c>UserName=null</c> (o string vacío) NO aplica filtro: el
+    /// servicio debe devolver todas las filas de la base, exactamente
+    /// como cuando se omite el filtro por completo. Validación de la
+    /// regla "Filtros omitidos no filtran" de la spec
+    /// <c>auditoria-query</c> aplicada al campo renombrado.
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_FiltroUserNameVacio_NoAplicaFiltro()
+    {
+        await using var scope = await AuditoriaTestScope.CreateAsync();
+        await scope.SeedFixtureAsync(); // 5 filas
+
+        var servicio = new AuditoriaServicioConsulta(scope.Context);
+
+        var resultadoNull = await servicio.QueryAsync(new AuditoriaListQuery(
+            Page: 1, PageSize: 20, UserName: null));
+        var resultadoEmpty = await servicio.QueryAsync(new AuditoriaListQuery(
+            Page: 1, PageSize: 20, UserName: string.Empty));
+
+        Assert.Equal(5, resultadoNull.TotalCount);
+        Assert.Equal(5, resultadoEmpty.TotalCount);
+    }
+
+    // ====================================================================
+    // A.2 — GetFilterOptionsAsync (issue #251 Slice A)
+    // ====================================================================
+
+    /// <summary>
+    /// A.2 — <see cref="IAuditoriaServicioConsulta.GetFilterOptionsAsync"/>
+    /// devuelve los <c>EntityName</c> y <c>Operation</c> distintos de la
+    /// tabla <c>Auditorias</c>, ordenados alfabéticamente. La ordenación
+    /// es case-sensitive (ordinal) porque el collation
+    /// <c>utf8mb4_0900_ai_ci</c> ya agrupa mayúsculas/minúsculas.
+    /// </summary>
+    [MySqlFact]
+    public async Task GetFilterOptionsAsync_DevuelveEntityNamesYOperationsOrdenadas()
+    {
+        await using var scope = await AuditoriaTestScope.CreateAsync();
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "B",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "Z",
+            UserId = "u1",
+            ChangedPropertiesJson = "[]"
+        });
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "A",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "X",
+            UserId = "u1",
+            ChangedPropertiesJson = "[]"
+        });
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "C",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "Y",
+            UserId = "u1",
+            ChangedPropertiesJson = "[]"
+        });
+
+        var servicio = new AuditoriaServicioConsulta(scope.Context);
+        var opciones = await servicio.GetFilterOptionsAsync();
+
+        Assert.Equal(new[] { "A", "B", "C" }, opciones.EntityNames);
+        Assert.Equal(new[] { "X", "Y", "Z" }, opciones.Operations);
+    }
+
+    /// <summary>
+    /// A.2 — <see cref="IAuditoriaServicioConsulta.GetFilterOptionsAsync"/>
+    /// descarta cadenas vacías o whitespace. Las filas persistidas con
+    /// <c>EntityName=""</c> (caso defensivo) NO contaminan el array
+    /// devuelto.
+    /// </summary>
+    [MySqlFact]
+    public async Task GetFilterOptionsAsync_DescartaValoresVacios()
+    {
+        await using var scope = await AuditoriaTestScope.CreateAsync();
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "Alta",
+            UserId = "u1",
+            ChangedPropertiesJson = "[]"
+        });
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "   ",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "Alta",
+            UserId = "u1",
+            ChangedPropertiesJson = "[]"
+        });
+        await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+        {
+            Id = Guid.NewGuid(),
+            OccurredAt = BaseTime,
+            EntityName = "Cargo",
+            EntityId = Guid.NewGuid().ToString(),
+            Operation = "Alta",
+            UserId = "u1",
+            ChangedPropertiesJson = "[]"
+        });
+
+        var servicio = new AuditoriaServicioConsulta(scope.Context);
+        var opciones = await servicio.GetFilterOptionsAsync();
+
+        Assert.DoesNotContain(string.Empty, opciones.EntityNames);
+        Assert.DoesNotContain("   ", opciones.EntityNames);
+        Assert.Contains("Cargo", opciones.EntityNames);
+        Assert.Single(opciones.EntityNames);
+    }
+
+    /// <summary>
+    /// A.2 — Cap duro de 100 valores por array (spec
+    /// <c>auditoria-query</c>): con 150 <c>EntityName</c> distintos
+    /// sembrados, <see cref="IAuditoriaServicioConsulta.GetFilterOptionsAsync"/>
+    /// devuelve exactamente 100 entradas, ordenadas alfabéticamente.
+    /// </summary>
+    [MySqlFact]
+    public async Task GetFilterOptionsAsync_AplicaCapDeCien()
+    {
+        await using var scope = await AuditoriaTestScope.CreateAsync();
+
+        // Sembrar 150 EntityNames distintos: "Entity000" .. "Entity149".
+        // Cada insert es una llamada individual a SaveChangesAsync para
+        // no chocar con el orden de inserciones concurrentes (EF Core
+        // no tolera SaveChanges en paralelo desde el mismo contexto).
+        var entityNames = Enumerable.Range(0, 150)
+            .Select(i => $"Entity{i:D3}")
+            .ToArray();
+        foreach (var name in entityNames)
+        {
+            await scope.InsertarAuditoriaAsync(new AuditoriaEntity
+            {
+                Id = Guid.NewGuid(),
+                OccurredAt = BaseTime,
+                EntityName = name,
+                EntityId = Guid.NewGuid().ToString(),
+                Operation = "Alta",
+                UserId = "u1",
+                ChangedPropertiesJson = "[]"
+            });
+        }
+
+        var servicio = new AuditoriaServicioConsulta(scope.Context);
+        var opciones = await servicio.GetFilterOptionsAsync();
+
+        Assert.Equal(100, opciones.EntityNames.Count);
+        var esperado = entityNames
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .Take(100)
+            .ToArray();
+        Assert.Equal(esperado, opciones.EntityNames);
+    }
+
+    // ====================================================================
     // Test scope — base MySQL aislada por test (sin interceptor)
     // ====================================================================
 
@@ -839,21 +1051,30 @@ public sealed class AuditoriaServicioConsultaTests
             return new AuditoriaTestScope(context);
         }
 
-        /// <summary>
-        /// Fixture: 5 filas de auditoría distribuidas en entidades,
-        /// operaciones, usuarios y fechas para sostener la
-        /// parametrización de filtros (ver comentarios arriba).
-        /// </summary>
-        public async Task SeedFixtureAsync()
-        {
-            await Context.Auditorias.AddRangeAsync(
-                MakeRow("Persona",   "Alta",         "u1", BaseTime.AddDays(-1)),
-                MakeRow("Persona",   "Modificacion", "u1", BaseTime.AddDays(-2)),
-                MakeRow("Persona",   "BajaLogica",   "u2", BaseTime.AddDays(-3)),
-                MakeRow("Cargo",     "Alta",         "u2", BaseTime.AddDays(-4)),
-                MakeRow("Habilidad", "Modificacion", "u3", BaseTime.AddDays(-5)));
-            await Context.SaveChangesAsync();
-        }
+/// <summary>
+    /// Fixture: 5 filas de auditoría distribuidas en entidades,
+    /// operaciones, usuarios y fechas para sostener la
+    /// parametrización de filtros (ver comentarios arriba).
+    /// Siembra también los <c>AspNetUsers</c> correspondientes para que
+    /// el filtro <c>UserName</c> (issue #251) matchee vía LEFT JOIN.
+    /// </summary>
+    public async Task SeedFixtureAsync()
+    {
+        // Sembrar Identity users antes de las filas de auditoría para que
+        // el LEFT JOIN con AspNetUsers los encuentre. UserName == Id
+        // para mantener la coherencia del InlineData("u1", 2) de la teoría.
+        await InsertarUsuarioIdentityAsync("u1", "u1");
+        await InsertarUsuarioIdentityAsync("u2", "u2");
+        await InsertarUsuarioIdentityAsync("u3", "u3");
+
+        await Context.Auditorias.AddRangeAsync(
+            MakeRow("Persona",   "Alta",         "u1", BaseTime.AddDays(-1)),
+            MakeRow("Persona",   "Modificacion", "u1", BaseTime.AddDays(-2)),
+            MakeRow("Persona",   "BajaLogica",   "u2", BaseTime.AddDays(-3)),
+            MakeRow("Cargo",     "Alta",         "u2", BaseTime.AddDays(-4)),
+            MakeRow("Habilidad", "Modificacion", "u3", BaseTime.AddDays(-5)));
+        await Context.SaveChangesAsync();
+    }
 
         public async Task InsertarAuditoriaAsync(AuditoriaEntity row)
         {
