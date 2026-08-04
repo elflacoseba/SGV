@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Organizacion.Comandos;
@@ -72,6 +73,7 @@ public class PuestosController : ControllerBase
     /// <response code="403">El consumidor no tiene rol <c>Administrador</c>.</response>
     /// <response code="409">Conflicto — ya existe un puesto activo con el mismo código.</response>
     [HttpPost]
+    [ValidateAntiForgeryToken]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(PuestoDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
