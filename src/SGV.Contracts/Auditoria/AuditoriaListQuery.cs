@@ -21,7 +21,13 @@ namespace SGV.Contracts.Auditoria;
 /// <param name="Operation">Filtro opcional por operación (exacto).</param>
 /// <param name="DateFrom">Filtro opcional, inclusivo, sobre <c>OccurredAt</c>.</param>
 /// <param name="DateTo">Filtro opcional, inclusivo, sobre <c>OccurredAt</c>.</param>
-/// <param name="UserId">Filtro opcional por usuario que ejecutó la operación.</param>
+/// <param name="UserName">
+/// Filtro opcional por nombre legible del usuario que ejecutó la
+/// operación. Compara contra <c>u.UserName</c> del LEFT JOIN con
+/// <c>AspNetUsers</c> (no contra el GUID técnico <c>a.UserId</c>).
+/// La comparación es case-insensitive por el collation MySQL
+/// <c>utf8mb4_0900_ai_ci</c>. Vacío o whitespace NO aplica filtro.
+/// </param>
 /// <param name="Sort">
 /// Clave de orden server-side (ver <c>auditoria-sort</c>). Default
 /// <c>fecha_desc</c>; valor no reconocido cae al default sin error.
@@ -37,6 +43,6 @@ public sealed record AuditoriaListQuery(
     string? Operation = null,
     DateTime? DateFrom = null,
     DateTime? DateTo = null,
-    string? UserId = null,
+    string? UserName = null,
     string? Sort = null,
     Guid? CorrelationId = null);

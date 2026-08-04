@@ -112,4 +112,42 @@ public sealed class AuditoriasController : ControllerBase
             .ConfigureAwait(false);
         return dto is null ? NotFound() : Ok(dto);
     }
+
+    /// <summary>
+    /// Opciones de filtro para poblar los <c>&lt;select&gt;</c> de
+    /// Entidad y Operación del shell web (issue #251).
+    /// </summary>
+    /// <remarks>
+    /// Devuelve los <c>EntityName</c> y <c>Operation</c> distintos
+    /// persistidos en la tabla <c>Auditorias</c>, ordenados
+    /// alfabéticamente, sin duplicados, sin cadenas vacías, con cap
+    /// de 100 elementos por array. Por construcción NO expone
+    /// <c>UserId</c>, <c>UserName</c>, <c>EntityId</c>,
+    /// <c>OldValuesJson</c> ni <c>NewValuesJson</c> (D-2 reforzado):
+    /// el wire type <see cref="AuditoriaFilterOptions"/> sólo tiene
+    /// dos colecciones de strings. La respuesta es
+    /// <c>200 OK</c> aún cuando los arrays vienen vacíos
+    /// (<c>[]</c>) — no constituye un error.
+    /// </remarks>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    /// <returns>
+    /// <c>200 OK</c> con un <see cref="AuditoriaFilterOptions"/>
+    /// poblado desde <c>SELECT DISTINCT EntityName</c> +
+    /// <c>SELECT DISTINCT Operation</c>.
+    /// </returns>
+    /// <response code="200">Opciones devueltas correctamente.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    /// <response code="403">El consumidor está autenticado pero no tiene el rol <c>Administrador</c>.</response>
+    [HttpGet("filter-options")]
+    [ProducesResponseType(typeof(AuditoriaFilterOptions), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<AuditoriaFilterOptions>> GetFilterOptions(
+        CancellationToken cancellationToken)
+    {
+        var opciones = await _servicio
+            .GetFilterOptionsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(opciones);
+    }
 }
