@@ -194,6 +194,79 @@ Verificado por:
 - `AuditoriasDetailsTests` (Slice B, 4 tests): 200 con `<pre>`,
   404 legible, transporte recuperable, no-admin → 403.
 
+### D-8 — Rename `userId` → `userName` en el filtro de auditoría y endpoint `filter-options` (issue #251, Slice A)
+
+Issue #251 (change `2026-08-03-auditoria-filtros-select-entidad-operacion`,
+Slice A) introduce dos cambios complementarios en el módulo
+transversal de auditoría:
+
+1. **Rename del parámetro del filtro `userId` → `userName`.** El
+   listado (`GET /api/v1/auditorias`) aceptaba hasta ahora
+   `?userId={guid}` comparando contra `a.UserId` (GUID técnico).
+   El nuevo contrato acepta `?userName={name}` y compara contra
+   `u.UserName` del LEFT JOIN con `AspNetUsers` (ya vigente desde
+   el change archivado `2026-07-31-ajustes-listado-auditoria`,
+   D-5 bis). La comparación es case-insensitive por el collation
+   MySQL `utf8mb4_0900_ai_ci` (no requiere `ToLower()` en la
+   lambda). El cambio es **breaking** para el único consumer del
+   wire (`SGV.Web`); el shell web se actualiza en el mismo
+   monomerge (Slice A de este change renombra la query key en
+   `AuditoriaApiClient.BuildQueryUri` y la propiedad/prop de
+   `IndexModel`; Slice B agrega el `<select>` de filtro). No hay
+   período de compatibility shim — el binding legacy
+   `?userId=...` queda ignorado por ASP.NET (model binding sólo
+   mira la firma del record). Documentado en el PR summary y
+   acá para referencia del reader.
+
+2. **Endpoint admin-only `GET /api/v1/auditorias/filter-options`.**
+   Devuelve `200 OK` con `AuditoriaFilterOptions`
+   (`{ entityNames, operations }`) derivado de `SELECT DISTINCT
+   EntityName` + `SELECT DISTINCT Operation` sobre `Auditorias`
+   con `AsNoTracking()`. Arrays ordenados alfabéticamente, sin
+   duplicados, sin cadenas vacías ni whitespace, con cap duro de
+   100 elementos por array (recortado vía
+   `Distinct().OrderBy().Take(100)`). Por construcción NO expone
+   `UserId`, `UserName`, `EntityId`, `OldValuesJson`,
+   `NewValuesJson`, `CorrelationId`, `OccurredAt` ni `Id` — el
+   tipo `AuditoriaFilterOptions` sólo tiene dos colecciones de
+   strings (D-2 reforzado por separación física de tipos, misma
+   regla que `AuditoriaDto` vs `AuditoriaDetalleDto`).
+
+Restricciones:
+
+- El atributo de clase
+  `[Authorize(Roles = RolesSgv.Administrador)]` del controller
+  cubre el endpoint nuevo (401 anónimo / 403 no-admin / 200
+  admin). Sin overrides ni `[AllowAnonymous]`.
+- El join contra `AspNetUsers` NO entra en el endpoint
+  `filter-options` (sólo expone strings de la tabla de auditoría).
+  Reusa el `DbSet<AuditoriaEntity>` ya mapeado.
+- `AsNoTracking()` en ambas queries garantiza D-4: no se
+  persiste nada al leer.
+
+Verificado por:
+
+- `AuditoriasControllerTests.FilterOptions_Anonimo_Retorna401`,
+  `FilterOptions_UsuarioSinRol_Retorna403`,
+  `FilterOptions_Administrador_DevuelveListasOrdenadasSinDuplicados`,
+  `FilterOptions_RespuestaSerializada_NoContieneOldNewEntityIdUserIdUserName`,
+  `FilterOptions_DistinctMayorACienDevuelvePrimerosCien`.
+- `AuditoriasControllerTests.Listado_UserName_FiltraPorNombreNoPorGuid`,
+  `Listado_UserName_Vacio_NoFiltra` — el query string
+  `?userName=...` llega al servicio como
+  `AuditoriaListQuery.UserName` y filtra correctamente; el
+  parámetro vacío no aplica filtro.
+- `AuditoriaServicioConsultaTests.QueryAsync_FiltraPorUserNameCaseInsensitive`,
+  `QueryAsync_FiltroUserNameVacio_NoAplicaFiltro` (ambos
+  `[MySqlFact]` — collation `utf8mb4_0900_ai_ci`).
+- `AuditoriaServicioConsultaTests.GetFilterOptionsAsync_DevuelveEntityNamesYOperationsOrdenadas`,
+  `GetFilterOptionsAsync_DescartaValoresVacios`,
+  `GetFilterOptionsAsync_AplicaCapDeCien`.
+- `AuditoriaFilterOptions` no expone `OldValuesJson`/
+  `NewValuesJson`/`EntityId`/`UserId`/`UserName`/`CorrelationId`/
+  `OccurredAt`/`Id` por ausencia de campos en el record
+  (defense-in-depth).
+
 ### Capas y archivos clave
 
 | Capa | Tipo | Archivo | Rol |
