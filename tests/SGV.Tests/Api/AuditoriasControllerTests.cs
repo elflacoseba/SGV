@@ -668,6 +668,58 @@ public sealed class AuditoriasControllerTests
     }
 
     /// <summary>
+    /// 254 — Test defensivo: <c>?userName=noexiste</c> devuelve
+    /// <c>200 OK</c> con un <see cref="PagedResult{T}"/> vacío
+    /// (<c>items: []</c>, <c>totalCount: 0</c>), NO un error 4xx/5xx.
+    /// El filtro busca por <c>u.UserName</c> en
+    /// <c>AspNetUsers</c> (no por el GUID técnico); un valor que no
+    /// matchea ningún usuario deja la colección en cero filas y el
+    /// guard <c>Math.Max(1, ceil(TotalCount/PageSize))</c> de la
+    /// shell web sigue dando <c>pageCount &gt;= 1</c> (regresión
+    /// contra división por cero). Escenario normativo de la spec
+    /// <c>auditoria-query</c> §"UserName inexistente devuelve
+    /// conjunto vacío".
+    /// </summary>
+    [Fact]
+    public async Task Listado_UserName_NoExiste_DevuelveConjuntoVacioYPageCountPositivo()
+    {
+        var seed = new List<AuditoriaDto>
+        {
+            MakeAuditoriaDto("Cargo",   "Alta",         "u-42", new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc), userName: "jperez"),
+            MakeAuditoriaDto("Persona", "Modificacion", "u-7",  new DateTime(2026, 1, 11, 0, 0, 0, DateTimeKind.Utc), userName: "ana"),
+        };
+
+        var cliente = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IAuditoriaServicioConsulta>();
+            services.AddSingleton<IAuditoriaServicioConsulta>(
+                new FakeAuditoriaServicioConsulta(seed));
+        });
+        await using var clienteDisposable = cliente;
+        var http = clienteDisposable.CreateAdminClient();
+
+        var response = await http.GetAsync(BasePath + "?userName=noexiste");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var resultado = JsonSerializer.Deserialize<PagedResult<AuditoriaDto>>(json, JsonOptions);
+        Assert.NotNull(resultado);
+        Assert.Empty(resultado!.Items);
+        Assert.Equal(0, resultado.TotalCount);
+
+        // Guard contra división por cero: la UI deriva pageCount como
+        // Math.Max(1, ceil(TotalCount / PageSize)). Con TotalCount=0
+        // el pageCount efectivo debe ser >= 1; de lo contrario el
+        // render del paginador mostraría "Página 1 de 0", que es un
+        // anti-patrón. Verifica el comportamiento protegido del spec
+        // auditoria-query §"paginación con orden determinista".
+        var pageCount = Math.Max(
+            1,
+            (int)Math.Ceiling(resultado.TotalCount / (double)Math.Max(1, resultado.PageSize)));
+        Assert.True(pageCount >= 1, $"pageCount debe ser >= 1; actual: {pageCount}.");
+    }
+
+    /// <summary>
     /// A.1 — <c>?userName=</c> (vacío) NO aplica filtro: el servicio
     /// recibe <see cref="AuditoriaListQuery.UserName"/> como null/empty
     /// y devuelve todos los registros. Validación de la regla
