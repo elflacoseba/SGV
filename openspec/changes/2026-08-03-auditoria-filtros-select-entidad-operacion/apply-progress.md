@@ -1,9 +1,9 @@
-# Apply Progress — 2026-08-03-auditoria-filtros-select-entidad-operacion (Slice A)
+# Apply Progress — 2026-08-03-auditoria-filtros-select-entidad-operacion
 
 > Change `2026-08-03-auditoria-filtros-select-entidad-operacion` (issue #251).
-> Implementación backend + contracts + hotfix compat web de la primera mitad
-> del stacked PR. Esta es la fase RED→GREEN→chrome de TDD para el Slice A
-> (backend) y deja `develop` compilable con tests 100% verdes.
+> Implementación en dos slices stacked-to-main (Slice A: backend + contracts,
+> Slice B: web UI). Esta sección es la fase RED→GREEN→chrome de TDD para
+> ambos slices y deja `develop` compilable con tests 100% verdes.
 
 ## Branch y base
 
@@ -168,3 +168,145 @@ Passed!  - Failed: 0, Passed: 89, Skipped: 0, Total: 89, Duration: 13 s
 3. Lanzar `sdd-apply` Slice B (WUs B.1-B.6: web integration, web pages,
    web tests, `bun run build`).
 4. Cerrar el ciclo con `sdd-verify` (PASS) y `sdd-archive`.
+
+---
+
+# Slice B — Web UI (issue #251)
+
+> Change `2026-08-03-auditoria-filtros-select-entidad-operacion` (issue #251),
+> segunda mitad del stacked PR. Implementación web de los selects
+> poblados dinámicamente + fallback no bloqueante para los filtros
+> `EntityName` y `Operation` del listado de auditoría, sobre el
+> backend admin-only `GET /api/v1/auditorias/filter-options` entregado
+> en Slice A. Esta es la fase RED→GREEN→chrome de TDD para el Slice B
+> (web UI) y deja la rama con suite 100% verde + bundle frontend
+> generado.
+
+## Branch y base
+
+| Campo | Valor |
+|-------|-------|
+| Rama | `feat/issue-251-auditoria-filtros-select-entidad-operacion-slice-b` |
+| Base | `develop` @ `a026ff6a` (HEAD tras merge de Slice A) |
+| Issue | #251 |
+| Slice | B (web UI: integración + page model + view + tests + bundle) |
+| Stack strategy | `stacked-to-main` (PR 2 sobre PR 1) |
+
+## Resumen ejecutivo
+
+Slice B cierra los 3 deliverables pendientes después de Slice A:
+
+- `IAuditoriaApiClient.GetFilterOptionsAsync` + impl HTTP
+  `GET /api/v1/auditorias/filter-options` (consume el wire
+  `AuditoriaFilterOptions` de `SGV.Contracts` directamente, sin
+  DTO intermedio — convención del codebase, todos los clientes
+  tipados leen los records de Contracts vía `ReadFromJsonAsync`).
+- `Index.cshtml.cs` pre-carga las opciones de los selects vía
+  `LoadFilterOptionsAsync` con `try/catch (TransportFailureClassifier)`;
+  en falla, setea `FilterOptionsLoadFailed = true` y un mensaje
+  canónico ("No se pudieron cargar las opciones de filtros. Ingresá
+  los valores manualmente."). El listado principal sigue su curso
+  ajeno a la falla del endpoint de opciones (D-2: dataset usable
+  aunque el catálogo falle).
+- `Index.cshtml` swap input→select con `asp-items` + fallback no
+  bloqueante (`<input type="search">` + `<div class="alert alert-info alert-soft">`).
+  El userName filter mantiene `<input type="search">` con
+  `placeholder="nombre de usuario"` (Slice A hotfix compat).
+- 5 nuevos tests seam (`AuditoriasIndexTests`) + 1 test
+  pre-existente migrado al nuevo shape (`Get_Index_WhenApiFails_ShowsVisibleErrorAndPreservesFilters`)
+  con `GetFilterOptionsResult` poblado para que el select
+  refleje los filtros vigentes.
+
+## Commits landed (cronológicos)
+
+| # | SHA (corto) | Subject |
+|---|-------------|---------|
+| 1 | `6d5cff8` | test(web): selects en filtros y fallback de filter-options |
+| 2 | `221bf36` | feat(web): GetFilterOptionsAsync en cliente tipado |
+| 3 | `a33c392` | feat(web): carga FilterOptions con fallback en IndexModel |
+| 4 | `a79aced` | feat(web): swap input→select con fallback no bloqueante |
+
+> (El commit `chore(web): apply-progress Slice B + bun build verde`
+> se incluye en este apply-progress y se concreta en el diff final
+> cuando el orquestador confirme el cierre de la sesión.)
+
+## TDD Cycle Evidence
+
+| Tarea | RED | GREEN | Refactor / Verify |
+|-------|-----|-------|--------------------|
+| WU-B.1 (RED) Tests Web (5) | `6d5cff8` — `AuditoriasIndexTests.cs` + `FakeAuditoriaApiClient.cs` no compilan por `GetFilterOptionsAsync` ausente en `IAuditoriaApiClient`; 3 tests posteriores fallan en runtime (HTML no contiene `<select>` / `<alert-info>` / `GetFilterOptionsCalls.Count == 1`) | `a33c392` + `a79aced` — Handler del PageModel + view 5/5 verde | El test `Get_Index_WhenApiFails_ShowsVisibleErrorAndPreservesFilters` (pre-existente) se migró para setear `GetFilterOptionsResult` con "Cargo" + "Alta" — sin esto, el select abriría en "Todos" y el round-trip perdería el filtro |
+| WU-B.2 (GREEN) `IAuditoriaApiClient.GetFilterOptionsAsync` + impl HTTP | — | `221bf36` — método declarado en interface; `AuditoriaApiClient.GetFilterOptionsAsync` ejecuta `GET /api/v1/auditorias/filter-options` con `EnsureSuccessStatusCode` + `ReadFromJsonAsync<AuditoriaFilterOptions>`; defensa defensiva para cuerpo nulo devolviendo arrays vacíos | `BuildQueryUri` ya tenía el rename `userName` del hotfix compat de Slice A; NO se tocó |
+| WU-B.3 (GREEN) `FakeAuditoriaApiClient` extendido | — | `6d5cff8` — `GetFilterOptionsResult` (default: arrays vacíos), `GetFilterOptionsHandler` (override por Func), `GetFilterOptionsException` (simula falla), `GetFilterOptionsCalls` (List\<int\>); método sigue prioridad Exception → Handler → Result | Cobertura completa del contrato sin tocar el Fake de API (ya extendido en Slice A) |
+| WU-B.4 (GREEN) `Index.cshtml.cs` carga + fallback | — | `a33c392` — `LoadFilterOptionsAsync` envuelve `GetFilterOptionsAsync` en `try/catch (TransportFailureClassifier)`; 4 props nuevas (`EntityNameOptions`, `OperationOptions`, `FilterOptionsLoadFailed`, `FilterOptionsMessage`); `BuildSelectListItems` arma la `SelectListItem[]` con "Todos" + valores del backend + safeguard de filtro huérfano (entidad/operación que ya no existe en el catálogo) | El safeguard de "valor seleccionado no está en la lista" (`BuildSelectListItems`) surgió en GREEN: sin él, el round-trip perdía el filtro cuando la entidad/operación vigente no aparecía en la respuesta del endpoint (e.g. test `Get_Index_WhenApiFails_ShowsVisibleErrorAndPreservesFilters` con `GetFilterOptionsResult` poblado) |
+| WU-B.5 (GREEN) `Index.cshtml` swap + fallback | — | `a79aced` — select con `asp-items` + `onchange="this.form.p.value=1;this.form.submit();"` (reset p=1 como pageSize); fallback @if (FilterOptionsLoadFailed) con `<input type="search">` + banner `<div class="alert alert-info alert-soft">`; userName input mantiene `placeholder="nombre de usuario"` | Sin nueva CSS — el `card-header border-0` ya envuelve el form (constraint del proposal); no se agrega segunda `.card` |
+| WU-B.6 (chrome) Verify | — | — | Ver sección "Test results" abajo |
+
+## Test results
+
+```
+$ dotnet build SGV.slnx
+Build succeeded.
+0 errors, 94 warnings pre-existentes (NU1510 + CS8524 + CS9113 +
+CS8602/4). Cero warnings nuevos introducidos por este change.
+
+$ bun install --frozen-lockfile
+Checked 772 installs across 667 packages (no changes) [195.00ms]
+
+$ bun run build (gulp build)
+[23:32:46] Starting 'build'...
+[23:32:49] Finished 'styles' after 3.03 s
+[23:32:49] Finished 'inspiniaPages' after 1.87 ms
+[23:32:49] Finished 'build' after 3.04 s
+PASS — sólo warnings deprecation de baseline-browser-mapping y
+fs.Stats (no introducidos por este change).
+
+$ dotnet test SGV.slnx --no-build
+Passed!  - Failed: 0, Passed: 3413, Skipped: 0, Total: 3413, Duration: 2 m 5 s
+
+$ dotnet test --filter "FullyQualifiedName~Auditoria|FullyQualifiedName~Web"
+Passed!  - Failed: 0, Passed: 1479, Skipped: 0, Total: 1479, Duration: 2 m 2 s
+
+$ dotnet test --filter "FullyQualifiedName~AuditoriasIndexTests"
+Passed!  - Failed: 0, Passed: 20, Skipped: 0, Total: 20, Duration: 5 s
+```
+
+- Breakdown del archivo `AuditoriasIndexTests.cs`: 20/20 verde
+  (15 pre-existentes + 5 nuevos).
+- Cobertura del nuevo contrato:
+  - `GetFilterOptionsAsync` invocado exactamente 1 vez por
+    render (test `Index_OnGetAsync_CargaFilterOptions`).
+  - Render correcto de `<select>` con "Todos" (test
+    `Index_Renderiza_Selects_ConTodos`).
+  - Fallback no bloqueante ante `HttpRequestException` (test
+    `Index_FilterOptionsFalla_FallbackAInputs`).
+  - Placeholder `nombre de usuario` en el input de userName (test
+    `Index_UserInput_PlaceholderEsNombreDeUsuario`).
+  - Round-trip `?userName=juan` → `query.UserName == "juan"`;
+    `?userId=juan` → `query.UserName == null` (test
+    `Index_RouteValue_UserName_NoUserId` con dos InlineData).
+
+## File counts
+
+| Bucket | Cantidad |
+|--------|----------|
+| Files added | 0 |
+| Files modified | 4 (`IAuditoriaApiClient.cs`, `AuditoriaApiClient.cs`, `Index.cshtml.cs`, `Index.cshtml`, `AuditoriasIndexTests.cs`, `FakeAuditoriaApiClient.cs`) |
+| Approx authored added lines (Slice B) | ~340 (incluye tests, integration DTO, PageModel, view) |
+
+## Drift from plan
+
+- **No se introdujo `AuditoriaFilterOptionsDto` en `src/SGV.Web/Integration/Auditoria/`** a pesar de que la instrucción del orquestador lo mencionaba. Decisión: el codebase consistentemente usa los records de `SGV.Contracts` directamente en `ReadFromJsonAsync<T>` (ver `CargoApiClient`, `PersonaApiClient`, `PuestoApiClient`, etc.); introducir un DTO intermedio habría sido una excepción artificial a la convención. El `design.md` §3 confirma: "`IAuditoriaApiClient.GetFilterOptionsAsync` declara `Task<AuditoriaFilterOptions>` (el record de Contracts)". Esta es la línea base del diseño y se respetó.
+- El test `Get_Index_WhenApiFails_ShowsVisibleErrorAndPreservesFilters` (pre-existente) se actualizó para setear `GetFilterOptionsResult` con valores que matcheen los filtros del querystring (`Cargo`/`Alta`). El SUT cambió: `entityName`/`operation` ahora son `<select>` en lugar de `<input>`; sin poblar `GetFilterOptionsResult`, el select abriría en "Todos" y los asserts `value="Cargo"`/`value="Alta"` no matchearían. La actualización es mecánica (no agrega cobertura nueva, sólo adapta el assert al nuevo shape).
+- Construcción `SelectListItem[]` con `Value == Text` y `Selected` por equivalencia ordinal. El design mencionaba `SelectList` con `KeyValuePair` pero el `asp-items` tag helper acepta `SelectListItem[]` nativo y la columna `UserName` no aplica para la opción de filtros (los strings son nombres simples de entidad/operación). Coherente con `Auth/Setup.cshtml` que también usa `SelectListItem[]` con `Value == Text`.
+- El onchange de los selects usa `this.form.p.value=1;this.form.submit();` (reset p=1) en lugar de `this.form.submit()` directo del design. Decisión documentada en `Cross-cutting invariants` del orquestador: el reset p=1 mantiene paridad con el `<select id="pageSize">` vigente y matchea spec `auditoria-sort` §"Reset a página 1".
+- `BuildSelectListItems` agrega el valor vigente como `<option selected>` cuando NO está en la lista del backend (entidad/operación huérfana). Esta salvaguarda no estaba explícita en el design pero se justifica porque el round-trip del filtro perdería la elección visual del usuario en ese escenario. Anotada en apply-progress (no en tasks.md porque es un refactor de GREEN, no un nuevo requirement).
+
+## Decisión de arquitectura documentada
+
+- **D-8** (en `docs/decisiones-implementacion.md`, introducida en Slice A): "Rename `userId` → `userName` en el filtro de auditoría y endpoint `filter-options` (issue #251, Slice A)". Slice B no agrega nuevas entradas a `decisiones-implementacion.md` — la decisión arquitectónica ya está consolidada y el comportamiento del Slice B es 100% derivada del break-fix de Slice A.
+
+## Próximos pasos (para el orquestador)
+
+1. Mergear `feat/issue-251-...-slice-b` → `develop` (Stack B merge sobre Slice A).
+2. Cerrar el ciclo con `sdd-verify` (PASS) y `sdd-archive` (sincronizar
+   `openspec/specs/auditoria-query/spec.md` con los deltas del change).
