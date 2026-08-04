@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using SGV.Contracts.Auditoria;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
@@ -133,6 +134,43 @@ public sealed class IndexModel(
     public string? LoadErrorMessage { get; private set; }
 
     /// <summary>
+    /// Opciones para el <c>&lt;select&gt;</c> de filtro
+    /// <c>EntityName</c>, pobladas desde el endpoint
+    /// <c>GET /api/v1/auditorias/filter-options</c>. La primera
+    /// opción es <c>Todos</c> (<c>value=""</c>) y permite limpiar
+    /// el filtro desde la UI. <c>null</c> cuando el endpoint de
+    /// opciones falló y la vista debe renderizar un
+    /// <c>&lt;input type="search"&gt;</c> en su lugar (fallback
+    /// no bloqueante, spec <c>auditoria-query</c>
+    /// §"Shell web admin-only" — escenario "filtros como select").
+    /// </summary>
+    public IReadOnlyList<SelectListItem>? EntityNameOptions { get; private set; }
+
+    /// <summary>
+    /// Opciones para el <c>&lt;select&gt;</c> de filtro
+    /// <c>Operation</c>. Misma semántica que
+    /// <see cref="EntityNameOptions"/>: <c>null</c> en fallback.
+    /// </summary>
+    public IReadOnlyList<SelectListItem>? OperationOptions { get; private set; }
+
+    /// <summary>
+    /// <c>true</c> cuando el endpoint de filter-options falló con
+    /// un error de transporte recuperable. La vista usa esta
+    /// bandera para mostrar <c>&lt;input type="search"&gt;</c> en
+    /// lugar de los <c>&lt;select&gt;</c> y para pintar un banner
+    /// no bloqueante (<c>alert-info</c>), NO un error rojo.
+    /// </summary>
+    public bool FilterOptionsLoadFailed { get; private set; }
+
+    /// <summary>
+    /// Mensaje del banner no bloqueante cuando
+    /// <see cref="FilterOptionsLoadFailed"/> es <c>true</c>. El
+    /// texto es canónico y se muestra en español por convención
+    /// del shell (UI copy consistente con el resto del módulo).
+    /// </summary>
+    public string? FilterOptionsMessage { get; private set; }
+
+    /// <summary>
     /// Handler GET del listado. Carga el listado aplicando los
     /// filtros del querystring + orden + pageSize. Cualquier
     /// excepción de transporte capturada por
@@ -162,6 +200,14 @@ public sealed class IndexModel(
         UserName = Normalize(userName);
         Sort = NormalizeSort(sort);
         CorrelationId = correlationId;
+
+        // Cargar las opciones de los <select> ANTES del listado
+        // principal. Si falla, la vista cae al fallback
+        // <input type="search"> + banner no bloqueante. La falla
+        // NO interrumpe la carga del query (D-2: el listado
+        // sigue siendo usable aunque el endpoint de opciones
+        // responda con error).
+        await LoadFilterOptionsAsync(cancellationToken).ConfigureAwait(false);
 
         var query = new AuditoriaListQuery(
             Page: CurrentPage,
@@ -311,6 +357,120 @@ public sealed class IndexModel(
         CurrentPage = 1;
         TotalPages = 1;
         LoadErrorMessage = "No se pudo cargar el listado de auditoría. Intentá nuevamente.";
+    }
+
+    /// <summary>
+    /// Carga las opciones para los <c>&lt;select&gt;</c> de
+    /// <c>EntityName</c> y <c>Operation</c> desde el endpoint
+    /// <c>GET /api/v1/auditorias/filter-options</c>. En éxito,
+    /// construye los <see cref="SelectListItem"/> con una primera
+    /// opción <c>Todos</c> (<c>value=""</c>) seguida de los
+    /// valores del backend (ya ordenados alfabéticamente por el
+    /// servicio). En falla de transporte, activa la bandera
+    /// <see cref="FilterOptionsLoadFailed"/> y deja
+    /// <see cref="EntityNameOptions"/>/<see cref="OperationOptions"/>
+    /// en <c>null</c> para que la vista renderice los
+    /// <c>&lt;input type="search"&gt;</c> de fallback.
+    /// </summary>
+    private async Task LoadFilterOptionsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var options = await auditoriaApiClient
+                .GetFilterOptionsAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            EntityNameOptions = BuildSelectListItems(
+                values: options.EntityNames,
+                selectedValue: EntityName);
+
+            OperationOptions = BuildSelectListItems(
+                values: options.Operations,
+                selectedValue: Operation);
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            logger.LogWarning(
+                ex,
+                "Fallo de transporte al cargar filter-options para /auditorias; "
+                + "se renderiza fallback a <input type=\"search\">.");
+
+            EntityNameOptions = null;
+            OperationOptions = null;
+            FilterOptionsLoadFailed = true;
+            FilterOptionsMessage =
+                "No se pudieron cargar las opciones de filtros. Ingresá los valores manualmente.";
+        }
+    }
+
+    /// <summary>
+    /// Materializa una colección de strings en una lista de
+    /// <see cref="SelectListItem"/> para renderizar en un
+    /// <c>&lt;select&gt;</c>. La primera entrada es la opción
+    /// neutra <c>Todos</c> (<c>value=""</c>); queda
+    /// <c>selected</c> si el filtro vigente es null/vacío. Los
+    /// strings subsiguientes se exponen con <c>value == text</c>
+    /// (las opciones de filtro son strings simples, no tienen
+    /// campos separados).
+    /// </summary>
+    /// <remarks>
+    /// Si el filtro vigente tiene un valor que NO aparece en
+    /// <paramref name="values"/> (e.g. la entidad/operación ya no
+    /// existe en la tabla de auditoría, o el listado filtrado a
+    /// futuro), lo añadimos como <c>&lt;option&gt;</c> seleccionada
+    /// para preservar la intención del usuario en el round-trip.
+    /// Sin esta salvaguarda, el select abriría en "Todos" y la
+    /// próxima navegación perdería el filtro.
+    /// </remarks>
+    private static IReadOnlyList<SelectListItem> BuildSelectListItems(
+        IReadOnlyList<string> values,
+        string? selectedValue)
+    {
+        var result = new List<SelectListItem>(values.Count + 2)
+        {
+            new()
+            {
+                Value = string.Empty,
+                Text = "Todos",
+                Selected = string.IsNullOrEmpty(selectedValue)
+            }
+        };
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (!seen.Add(value))
+            {
+                continue;
+            }
+
+            result.Add(new SelectListItem
+            {
+                Value = value,
+                Text = value,
+                Selected = string.Equals(value, selectedValue, StringComparison.Ordinal)
+            });
+        }
+
+        // Preservar el filtro vigente aunque no esté en la lista
+        // (entidad/operación huérfana del catálogo actual).
+        if (!string.IsNullOrEmpty(selectedValue)
+            && !seen.Contains(selectedValue))
+        {
+            result.Add(new SelectListItem
+            {
+                Value = selectedValue,
+                Text = selectedValue,
+                Selected = true
+            });
+        }
+
+        return result;
     }
 
     /// <summary>

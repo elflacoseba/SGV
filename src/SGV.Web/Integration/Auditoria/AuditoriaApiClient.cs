@@ -85,6 +85,31 @@ public sealed class AuditoriaApiClient(HttpClient httpClient) : IAuditoriaApiCli
             .ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task<AuditoriaFilterOptions> GetFilterOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var response = await httpClient
+            .GetAsync($"{BaseRoute}/filter-options", cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var options = await response.Content
+            .ReadFromJsonAsync<AuditoriaFilterOptions>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        // El endpoint admin-only del backend nunca debería
+        // responder 200 con cuerpo nulo; defendemos igual el
+        // contrato devolviendo colecciones vacías para que el
+        // PageModel pueda bindear sin NullReferenceException si
+        // el wire shape difiere por una regresión upstream.
+        return options ?? new AuditoriaFilterOptions(
+            Array.Empty<string>(),
+            Array.Empty<string>());
+    }
+
     /// <summary>
     /// Compone la query string del endpoint <c>GET /api/v1/auditorias</c>
     /// con paginación, filtros opcionales y orden server-side. La

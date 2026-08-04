@@ -175,12 +175,27 @@ public sealed class AuditoriasIndexTests
     /// preservarse en el HTML renderizado para que el usuario
     /// pueda reintentar sin re-tipear.
     /// </summary>
+    /// <remarks>
+    /// Slice B (issue #251): el filtro entityName/operation ahora
+    /// se renderiza como <c>&lt;select&gt;</c> cuando el endpoint
+    /// de filter-options responde OK. El Fake pre-carga
+    /// <c>GetFilterOptionsResult</c> con "Cargo" / "Alta" para que
+    /// las opciones del select matcheen los filtros vigentes y el
+    /// round-trip visual funcione (de lo contrario, el select abriría
+    /// en "Todos" y la próxima navegación perdería el filtro).
+    /// El filtro userName sigue siendo <c>&lt;input type="search"&gt;</c>
+    /// (no es catálogo poblable), por eso conserva
+    /// <c>value="u-42"</c>.
+    /// </remarks>
     [Fact]
     public async Task Get_Index_WhenApiFails_ShowsVisibleErrorAndPreservesFilters()
     {
         var apiClient = new FakeAuditoriaApiClient
         {
-            QueryException = new HttpRequestException("boom")
+            QueryException = new HttpRequestException("boom"),
+            GetFilterOptionsResult = new AuditoriaFilterOptions(
+                new[] { "Cargo", "Persona", "Puesto" },
+                new[] { "Alta", "Modificacion", "BajaLogica" })
         };
 
         await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
@@ -193,7 +208,10 @@ public sealed class AuditoriasIndexTests
         Assert.Contains("No se pudo cargar el listado de auditoría", content, StringComparison.OrdinalIgnoreCase);
 
         // Los filtros vigentes deben quedar renderizados en el
-        // form de la sidebar para permitir reintento sin re-tipear.
+        // form para permitir reintento sin re-tipear. entityName
+        // y operation son <option> dentro de <select> (Slice B),
+        // mientras que userName sigue siendo <input type="search">
+        // (no es catálogo).
         Assert.Contains("value=\"Cargo\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"Alta\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("value=\"u-42\"", content, StringComparison.OrdinalIgnoreCase);
@@ -493,5 +511,197 @@ public sealed class AuditoriasIndexTests
         Assert.Contains(itemId.ToString("D"), content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("p=2", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("pageSize=50", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ====================================================================
+    // WU-B.1 — Slice B (issue #251): selects + filter-options + fallback
+    // ====================================================================
+
+    /// <summary>
+    /// WU-B.1.a — El handler <c>OnGetAsync</c> invoca exactamente
+    /// una vez <see cref="IAuditoriaApiClient.GetFilterOptionsAsync"/>
+    /// durante el render del listado (incluso aunque la respuesta del
+    /// endpoint de filter-options esté vacía). El PageModel pre-carga
+    /// las opciones para popular los <c>&lt;select&gt;</c> de
+    /// <c>EntityName</c> y <c>Operation</c> antes de la consulta
+    /// principal del listado (spec <c>auditoria-query</c> §"Shell web
+    /// admin-only" — escenario "filtros como select poblados desde
+    /// filter-options").
+    /// </summary>
+    [Fact]
+    public async Task Index_OnGetAsync_CargaFilterOptions()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, IndexModel.DefaultPageSize),
+            GetFilterOptionsResult = new AuditoriaFilterOptions(
+                new[] { "Cargo", "Persona" },
+                new[] { "Alta", "Modificacion" })
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/auditorias");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Single(apiClient.GetFilterOptionsCalls);
+    }
+
+    /// <summary>
+    /// WU-B.1.b — Cuando <see cref="IAuditoriaApiClient.GetFilterOptionsAsync"/>
+    /// devuelve listas no vacías, el HTML rendereado por el PageModel
+    /// contiene dos <c>&lt;select&gt;</c> con <c>id="entityName"</c> y
+    /// <c>id="operation"</c>, cada uno con un primer
+    /// <c>&lt;option value=""&gt;Todos&lt;/option&gt;</c> seguido de
+    /// las opciones dinámicas del backend. La opción "Todos" permite
+    /// limpiar el filtro desde la UI sin un botón "Limpiar" adicional.
+    /// </summary>
+    [Fact]
+    public async Task Index_Renderiza_Selects_ConTodos()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, IndexModel.DefaultPageSize),
+            GetFilterOptionsResult = new AuditoriaFilterOptions(
+                new[] { "Cargo", "Persona", "Puesto" },
+                new[] { "Alta", "Modificacion", "BajaLogica" })
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/auditorias");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Dos <select> con los id canónicos.
+        Assert.Contains("<select", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=\"entityName\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=\"operation\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"entityName\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"operation\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // Opción "Todos" como primera opción de cada select (value="").
+        Assert.Contains("value=\"\">Todos", content, StringComparison.OrdinalIgnoreCase);
+
+        // Las opciones dinámicas del backend aparecen en el HTML.
+        Assert.Contains("Cargo", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Persona", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Puesto", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Alta", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Modificacion", content, StringComparison.OrdinalIgnoreCase);
+
+        // El input text para entityName/operation NO debe estar presente
+        // en la rama de éxito (sólo en el fallback). El userName filter
+        // SIGUE siendo <input type="search"> (no es un catálogo,
+        // filtro libre), así que la aserción es específica a los
+        // dos filtros afectados.
+        Assert.DoesNotContain("type=\"search\" name=\"entityName\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("type=\"search\" name=\"operation\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// WU-B.1.c — Cuando <see cref="IAuditoriaApiClient.GetFilterOptionsAsync"/>
+    /// lanza una excepción de transporte (HttpRequestException),
+    /// el PageModel hace fallback a <c>&lt;input type="search"&gt;</c>
+    /// para los filtros <c>EntityName</c> y <c>Operation</c>,
+    /// rendereando un mensaje no bloqueante (alert-info, NO alert-danger)
+    /// y dejando el listado paginado operativo. La consulta principal
+    /// del listado <see cref="IAuditoriaApiClient.QueryAsync"/> sigue
+    /// invocándose para que los datos se sigan mostrando a pesar del
+    /// fallo del endpoint de filter-options.
+    /// </summary>
+    [Fact]
+    public async Task Index_FilterOptionsFalla_FallbackAInputs()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, IndexModel.DefaultPageSize),
+            GetFilterOptionsException = new HttpRequestException("filter-options offline")
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/auditorias");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El PageModel intenta cargar los filter-options una vez.
+        Assert.Single(apiClient.GetFilterOptionsCalls);
+
+        // El listado principal sigue funcionando (no se interrumpe la
+        // carga del query); el QueryAsync se invoca normalmente.
+        Assert.Single(apiClient.QueryCalls);
+
+        // Fallback a inputs de texto para los dos filtros afectados.
+        Assert.Contains("type=\"search\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"entityName\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"operation\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // Mensaje no bloqueante (alert-info / alert-soft), NO alert-danger:
+        // el listado sigue siendo usable, sólo se perdió la carga de
+        // opciones pobladas.
+        Assert.Contains("alert-info", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("alert-danger", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// WU-B.1.d — El placeholder del filtro de usuario
+    /// (<c>Pages/Auditorias/Index</c>) debe ser
+    /// <c>"nombre de usuario"</c>, alineado con el rename del
+    /// parámetro de query string <c>userId → userName</c> (spec
+    /// <c>auditoria-query</c> §"Filtros combinables de consulta" —
+    /// el filtro ahora apunta a <c>u.UserName</c>, no al GUID
+    /// técnico <c>a.UserId</c>).
+    /// </summary>
+    [Fact]
+    public async Task Index_UserInput_PlaceholderEsNombreDeUsuario()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, IndexModel.DefaultPageSize)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/auditorias");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("placeholder=\"nombre de usuario\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"userName\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("placeholder=\"user id\"", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// WU-B.1.e — Round-trip del filtro renombrado: enviar
+    /// <c>?userName=juan</c> llega al backend como
+    /// <c>query.UserName = "juan"</c> y la respuesta mantiene el
+    /// valor al renderizar el input. El parámetro legacy
+    /// <c>?userId=juan</c> ya NO filtra (model binding del record
+    /// ignora silenciosamente la clave desconocida), por lo que
+    /// <c>UserName</c> queda en <c>null</c>. El request sigue siendo
+    /// 200 OK y la página renderiza el listado.
+    /// </summary>
+    [Theory]
+    [InlineData("?userName=juan", "juan")]
+    [InlineData("?userId=juan", null)]
+    public async Task Index_RouteValue_UserName_NoUserId(string queryString, string? expectedUserName)
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, IndexModel.DefaultPageSize)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/auditorias{queryString}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(expectedUserName, query.UserName);
     }
 }
