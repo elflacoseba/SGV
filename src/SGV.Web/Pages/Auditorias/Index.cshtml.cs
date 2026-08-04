@@ -103,8 +103,8 @@ public sealed class IndexModel(
     /// <summary>Filtro vigente: fecha hasta (inclusivo).</summary>
     public DateTime? DateTo { get; private set; }
 
-    /// <summary>Filtro vigente: identificador del usuario que ejecutó la operación.</summary>
-    public string? UserId { get; private set; }
+    /// <summary>Filtro vigente: nombre legible del usuario que ejecutó la operación.</summary>
+    public string? UserName { get; private set; }
 
     /// <summary>
     /// Filtro vigente: identificador de correlación (aísla los
@@ -148,7 +148,7 @@ public sealed class IndexModel(
         string? operation = null,
         DateTime? dateFrom = null,
         DateTime? dateTo = null,
-        string? userId = null,
+        string? userName = null,
         string? sort = null,
         Guid? correlationId = null,
         CancellationToken cancellationToken = default)
@@ -159,7 +159,7 @@ public sealed class IndexModel(
         Operation = Normalize(operation);
         DateFrom = dateFrom;
         DateTo = dateTo;
-        UserId = Normalize(userId);
+        UserName = Normalize(userName);
         Sort = NormalizeSort(sort);
         CorrelationId = correlationId;
 
@@ -170,7 +170,7 @@ public sealed class IndexModel(
             Operation: Operation,
             DateFrom: DateFrom,
             DateTo: DateTo,
-            UserId: UserId,
+            UserName: UserName,
             Sort: Sort,
             CorrelationId: CorrelationId);
 
@@ -211,7 +211,7 @@ public sealed class IndexModel(
         operation = Operation,
         dateFrom = DateFrom,
         dateTo = DateTo,
-        userId = UserId,
+        userName = UserName,
         sort = Sort,
         correlationId = CorrelationId
     };
@@ -234,7 +234,7 @@ public sealed class IndexModel(
         operation = Operation,
         dateFrom = DateFrom,
         dateTo = DateTo,
-        userId = UserId,
+        userName = UserName,
         sort = GetSortRoute(sortKey),
         correlationId = CorrelationId
     };
@@ -258,7 +258,7 @@ public sealed class IndexModel(
         operation = Operation,
         dateFrom = DateFrom,
         dateTo = DateTo,
-        userId = UserId
+        userName = UserName
     };
 
     /// <summary>

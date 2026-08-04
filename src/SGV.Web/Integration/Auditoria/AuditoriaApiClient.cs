@@ -122,10 +122,10 @@ public sealed class AuditoriaApiClient(HttpClient httpClient) : IAuditoriaApiCli
             builder.Append(Uri.EscapeDataString(query.DateTo.Value.ToString("o")));
         }
 
-        if (!string.IsNullOrWhiteSpace(query.UserId))
+        if (!string.IsNullOrWhiteSpace(query.UserName))
         {
-            builder.Append("&userId=");
-            builder.Append(Uri.EscapeDataString(query.UserId));
+            builder.Append("&userName=");
+            builder.Append(Uri.EscapeDataString(query.UserName));
         }
 
         if (!string.IsNullOrWhiteSpace(query.Sort))

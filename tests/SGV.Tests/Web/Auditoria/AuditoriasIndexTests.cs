@@ -125,7 +125,7 @@ public sealed class AuditoriasIndexTests
         Assert.Null(query.Operation);
         Assert.Null(query.DateFrom);
         Assert.Null(query.DateTo);
-        Assert.Null(query.UserId);
+        Assert.Null(query.UserName);
     }
 
     // ====================================================================
@@ -186,7 +186,7 @@ public sealed class AuditoriasIndexTests
         await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
 
         var response = await lease.Client.GetAsync(
-            "/auditorias?entityName=Cargo&operation=Alta&userId=u-42");
+            "/auditorias?entityName=Cargo&operation=Alta&userName=u-42");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -225,7 +225,7 @@ public sealed class AuditoriasIndexTests
         await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
 
         var response = await lease.Client.GetAsync(
-            "/auditorias?p=2&pageSize=20&entityName=Cargo&operation=Alta&userId=u-7");
+            "/auditorias?p=2&pageSize=20&entityName=Cargo&operation=Alta&userName=u-7");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -239,7 +239,7 @@ public sealed class AuditoriasIndexTests
         Assert.Contains("pageSize=20", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("entityName=Cargo", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("operation=Alta", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("userId=u-7", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("userName=u-7", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ====================================================================

@@ -42,6 +42,14 @@ public sealed class AuditoriaServicioConsulta(SgvDbContext context)
     /// </summary>
     internal const string UserNameFallback = "—";
 
+    /// <summary>
+    /// Cap duro de elementos por array en el endpoint
+    /// <c>filter-options</c> (spec <c>auditoria-query</c>). Un
+    /// <c>DISTINCT</c> grande sobre <c>Auditorias</c> queda acotado
+    /// a los primeros 100 en orden alfabético.
+    /// </summary>
+    internal const int MaxFilterOptionsItems = 100;
+
     public async Task<PagedResult<AuditoriaDto>> QueryAsync(
         AuditoriaListQuery query,
         CancellationToken cancellationToken = default)
@@ -101,10 +109,16 @@ public sealed class AuditoriaServicioConsulta(SgvDbContext context)
             origen = origen.Where(x => x.a.OccurredAt <= dateTo);
         }
 
-        if (!string.IsNullOrWhiteSpace(query.UserId))
+        if (!string.IsNullOrWhiteSpace(query.UserName))
         {
-            var userId = query.UserId;
-            origen = origen.Where(x => x.a.UserId == userId);
+            // Issue #251: el filtro de usuario compara contra
+            // u.UserName del LEFT JOIN con AspNetUsers (no contra
+            // el GUID técnico a.UserId). El guard x.u != null
+            // protege la lambda sobre filas huérfanas (LEFT JOIN
+            // con DefaultIfEmpty() puede dejar u en null cuando
+            // la fila de auditoría referencia un UserId purgado).
+            var userName = query.UserName;
+            origen = origen.Where(x => x.u != null && x.u.UserName == userName);
         }
 
         if (query.CorrelationId.HasValue)
@@ -199,5 +213,44 @@ public sealed class AuditoriaServicioConsulta(SgvDbContext context)
             .ConfigureAwait(false);
 
         return dto;
+    }
+
+    public async Task<AuditoriaFilterOptions> GetFilterOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        // Dos proyecciones DISTINCT paralelas sobre la tabla
+        // Auditorias (sin JOIN con AspNetUsers: el endpoint no expone
+        // usuario). El filtro !IsNullOrWhiteSpace descarta null/""/"
+        // " antes del DISTINCT para no contaminar el array. El orden
+        // es lexicográfico cliente-servidor; el collation MySQL
+        // utf8mb4_0900_ai_ci es case-insensitive y accent-insensitive
+        // (Cargo y cargo colapsan al mismo bucket). El Take(100)
+        // aplica DESPUÉS de Distinct().OrderBy(...) de modo que se
+        // devuelven los primeros 100 en orden alfabético.
+        //
+        // AsNoTracking garantiza D-4: no se persiste nada al leer.
+        // Las queries NO se ejecutan en paralelo (no vale la pena a
+        // este volumen; EF los serializa en el mismo DbContext y la
+        // latencia agregada es despreciable). Si crece el set, hook
+        // natural para sliding-cache queda en la interface.
+        var entityNames = await context.Auditorias.AsNoTracking()
+            .Where(a => !string.IsNullOrWhiteSpace(a.EntityName))
+            .Select(a => a.EntityName)
+            .Distinct()
+            .OrderBy(n => n)
+            .Take(MaxFilterOptionsItems)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var operations = await context.Auditorias.AsNoTracking()
+            .Where(a => !string.IsNullOrWhiteSpace(a.Operation))
+            .Select(a => a.Operation)
+            .Distinct()
+            .OrderBy(o => o)
+            .Take(MaxFilterOptionsItems)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new AuditoriaFilterOptions(entityNames, operations);
     }
 }
