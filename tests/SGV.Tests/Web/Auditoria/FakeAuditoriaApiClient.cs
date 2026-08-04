@@ -47,6 +47,14 @@ public sealed class FakeAuditoriaApiClient : IAuditoriaApiClient
     /// </summary>
     public Func<Guid, AuditoriaDetalleDto?>? GetDetalleHandler { get; set; }
 
+    /// <summary>
+    /// Excepción opcional que <see cref="GetDetalleAsync"/> debe
+    /// lanzar (simula una falla de transporte contra el backend al
+    /// solicitar el detalle). Tiene prioridad sobre
+    /// <see cref="GetDetalleHandler"/> y <see cref="GetDetalleResult"/>.
+    /// </summary>
+    public Exception? GetDetalleException { get; set; }
+
     /// <summary>Captura de invocaciones de <see cref="QueryAsync"/>.</summary>
     public List<AuditoriaListQuery> QueryCalls { get; } = [];
 
@@ -77,6 +85,11 @@ public sealed class FakeAuditoriaApiClient : IAuditoriaApiClient
         CancellationToken cancellationToken = default)
     {
         GetDetalleCalls.Add(id);
+
+        if (GetDetalleException is not null)
+        {
+            throw GetDetalleException;
+        }
 
         if (GetDetalleHandler is not null)
         {

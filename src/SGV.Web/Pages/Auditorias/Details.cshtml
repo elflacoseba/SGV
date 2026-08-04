@@ -1,0 +1,156 @@
+@page "/auditorias/details"
+@model SGV.Web.Pages.Auditorias.DetailsModel
+@{
+    ViewBag.title = "Detalle de auditoría";
+    ViewBag.subtitle = "Seguridad";
+}
+
+@await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
+
+@if (!string.IsNullOrWhiteSpace(Model.TransportErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.TransportErrorMessage</div>
+}
+
+@if (Model.Detalle is not { } detalle)
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="ti ti-alert-circle fs-2x text-muted mb-3 d-block"></i>
+                    <h5 class="text-muted">La auditoría solicitada no está disponible.</h5>
+                    <p class="text-muted mb-0">
+                        Es posible que el registro haya sido purgado o que
+                        haya ocurrido un error al consultarlo.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-1">@detalle.EntityName · @detalle.Operation</h4>
+                    <p class="text-muted mb-0">
+                        <small>
+                            Identificador del registro:
+                            <span class="font-monospace">@detalle.Id.ToString("D")</span>
+                        </small>
+                    </p>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3 text-muted">Entidad</dt>
+                        <dd class="col-sm-9">
+                            <span class="fw-semibold">@detalle.EntityName</span>
+                            <span class="text-muted ms-2 font-monospace">(#@detalle.EntityId)</span>
+                        </dd>
+
+                        <dt class="col-sm-3 text-muted">Operación</dt>
+                        <dd class="col-sm-9">@detalle.Operation</dd>
+
+                        <dt class="col-sm-3 text-muted">Fecha</dt>
+                        <dd class="col-sm-9">@detalle.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</dd>
+
+                        <dt class="col-sm-3 text-muted">Usuario</dt>
+                        <dd class="col-sm-9">
+                            @if (!string.IsNullOrWhiteSpace(detalle.UserId))
+                            {
+                                <span class="fw-semibold">@detalle.UserName</span>
+                                <span class="text-muted ms-2 font-monospace">(@detalle.UserId)</span>
+                            }
+                            else
+                            {
+                                <span>@detalle.UserName</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3 text-muted">Correlación</dt>
+                        <dd class="col-sm-9">
+                            @if (detalle.CorrelationId.HasValue)
+                            {
+                                <span class="font-monospace">@detalle.CorrelationId.Value.ToString("D")</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-3 text-muted">Propiedades modificadas</dt>
+                        <dd class="col-sm-9">
+                            @if (!string.IsNullOrWhiteSpace(detalle.ChangedPropertiesJson))
+                            {
+                                @* Slice B — spec auditoria-detalle §"Página web de
+                                   detalle con render preformateado": el JSON se
+                                   muestra en <pre> monoespaciado para preservar
+                                   formato legible (salts de línea, indentación). *@
+                                <pre class="bg-light p-2">@detalle.ChangedPropertiesJson</pre>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-12 col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Valores anteriores</h5>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrWhiteSpace(detalle.OldValuesJson))
+                    {
+                        <pre class="bg-light p-2 mb-0">@detalle.OldValuesJson</pre>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">
+                            La operación no captura snapshot previo
+                            (alta / creación).
+                        </p>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Valores nuevos</h5>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrWhiteSpace(detalle.NewValuesJson))
+                    {
+                        <pre class="bg-light p-2 mb-0">@detalle.NewValuesJson</pre>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">
+                            La operación no captura snapshot posterior
+                            (baja lógica).
+                        </p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row mt-3">
+    <div class="col-12 d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="@Model.BuildBackUrl()">
+            <i class="ti ti-arrow-left me-1"></i>Volver al listado
+        </a>
+    </div>
+</div>

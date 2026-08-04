@@ -3,6 +3,7 @@ using System.Web;
 using SGV.Contracts.Auditoria;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
+using SGV.Web.Pages.Auditorias;
 using Xunit;
 
 namespace SGV.Tests.Web.Auditoria;
@@ -292,5 +293,205 @@ public sealed class AuditoriasIndexTests
             "/auth/sign-in",
             response.Headers.Location?.OriginalString,
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ====================================================================
+    // 1.B.1 — Slice B: sort reset p=1 + pageSize selector + propagation
+    // ====================================================================
+
+    /// <summary>
+    /// 1.B.1.a — Selector de pageSize expone las 4 opciones canónicas
+    /// (10/20/50/100) y refleja la opción vigente. Cuando no se
+    /// pasa <c>pageSize</c>, la opción seleccionada es la default
+    /// del sistema (20). Spec <c>auditoria-page-size</c> §"Selector
+    /// de PageSize con opciones 10/20/50/100".
+    /// </summary>
+    [Fact]
+    public async Task Get_Index_PageSizeSelector_RendersAllFourOptionsWithDefaultSelected()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, IndexModel.DefaultPageSize)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/auditorias");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("<select", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"pageSize\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // Las 4 opciones canónicas deben estar presentes.
+        Assert.Matches("value=\"10\"", content);
+        Assert.Matches("value=\"20\"", content);
+        Assert.Matches("value=\"50\"", content);
+        Assert.Matches("value=\"100\"", content);
+
+        // Default seleccionado cuando no hay pageSize en querystring.
+        // El helper Razor <option ... selected> deja "selected" como
+        // atributo; assert relajado para tolerar el formato exacto
+        // que el binder elige.
+        Assert.Contains("selected", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(">20<", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 1.B.1.b — El selector refleja la opción vigente cuando el
+    /// request trae <c>pageSize=50</c>. Spec <c>auditoria-page-size</c>
+    /// §"Selector refleja el pageSize actual".
+    /// </summary>
+    [Fact]
+    public async Task Get_Index_PageSizeSelector_ReflectsActivePageSize()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, 50)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/auditorias?pageSize=50");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El backend recibió pageSize=50 explícito (no se normaliza
+        // a default porque está en {10,20,50,100}).
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(50, query.PageSize);
+    }
+
+    /// <summary>
+    /// 1.B.1.c — pageSize fuera del set canónico {10,20,50,100} cae
+    /// al default (20) antes de llegar al backend. Spec
+    /// <c>auditoria-page-size</c> §"PageSize inválido o fuera de
+    /// rango se normaliza".
+    /// </summary>
+    [Theory]
+    [InlineData(15)]
+    [InlineData(0)]
+    [InlineData(999)]
+    public async Task Get_Index_PageSizeOutOfSet_NormalizesToDefault(int requested)
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, IndexModel.DefaultPageSize)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/auditorias?pageSize={requested}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El backend debe recibir el default (20), NO el valor
+        // fuera de rango. La shell es la primera línea de
+        // normalización del selector (auditoria-page-size).
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(IndexModel.DefaultPageSize, query.PageSize);
+    }
+
+    /// <summary>
+    /// 1.B.1.d — Cambiar el criterio de orden resetea
+    /// <c>page</c> a <c>1</c> y preserva el <c>pageSize</c> y los
+    /// filtros vigentes. Los enlaces de los <c>&lt;th&gt;</c>
+    /// ordenables deben llevar <c>?p=1&amp;sort=X&amp;pageSize=Y&amp;...</c>.
+    /// Spec <c>auditoria-sort</c> §"Reset a página 1 al cambiar
+    /// sort en la shell web".
+    /// </summary>
+    [Fact]
+    public async Task Get_Index_SortHeader_LinkResetsPageAndPreservesPageSizeAndFilters()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([MakeAuditoriaDto()], 60, 1, IndexModel.DefaultPageSize)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        // El usuario está en página 3 con pageSize=50 y filtro entityName=Cargo.
+        var response = await lease.Client.GetAsync(
+            "/auditorias?p=3&pageSize=50&sort=fecha_desc&entityName=Cargo");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El header clickeable de Entidad debe apuntar a p=1 (reset)
+        // y propagar pageSize=50 + entityName=Cargo + la nueva clave
+        // sort=entidad_asc.
+        Assert.Contains("p=1", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pageSize=50", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=entidad_asc", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("entityName=Cargo", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 1.B.1.e — Los enlaces de paginación preservan <c>sort</c> y
+    /// <c>pageSize</c> además de los filtros. La página "Siguiente"
+    /// debe llevar <c>?p=2&amp;pageSize=50&amp;sort=Y&amp;...</c>.
+    /// Spec <c>auditoria-sort</c> §"Paginación preserva sort activo"
+    /// + <c>auditoria-page-size</c> §"Enlaces de paginación
+    /// preservan PageSize".
+    /// </summary>
+    [Fact]
+    public async Task Get_Index_Pagination_PreservesSortAndPageSize()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            // Page=1, total=120 → TotalPages=3 con PageSize=50.
+            QueryResult = new PagedResult<AuditoriaDto>([MakeAuditoriaDto()], 120, 1, 50)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync(
+            "/auditorias?p=1&pageSize=50&sort=usuario_desc&entityName=Cargo");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El link Siguiente (p=2) debe llevar el sort + pageSize + entityName.
+        Assert.Contains("p=2", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pageSize=50", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sort=usuario_desc", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("entityName=Cargo", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 1.B.1.f — El link a la página de Detalle (acción por fila)
+    /// debe preservar el contexto del listado: <c>p</c>,
+    /// <c>pageSize</c>, <c>sort</c> y filtros. Spec
+    /// <c>auditoria-detalle</c> §"Página web de detalle con render
+    /// preformateado" (la PageModel de Details bindea estos
+    /// parámetros para ofrecer "Volver al listado" preservando el
+    /// contexto, requisito no-normativo del diseño).
+    /// </summary>
+    [Fact]
+    public async Task Get_Index_DetailsLink_PreservesListContext()
+    {
+        var itemId = Guid.NewGuid();
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>(
+                [MakeAuditoriaDto(id: itemId, entityName: "Cargo")],
+                TotalCount: 1,
+                Page: 1,
+                PageSize: IndexModel.DefaultPageSize)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync(
+            "/auditorias?p=2&pageSize=50&sort=fecha_desc&entityName=Cargo");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El link al detalle de la fila debe llevar el id + el contexto.
+        Assert.Contains("auditorias/details", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(itemId.ToString("D"), content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("p=2", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pageSize=50", content, StringComparison.OrdinalIgnoreCase);
     }
 }

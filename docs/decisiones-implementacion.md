@@ -93,6 +93,107 @@ o proyección desnormalizada. Esta decisión cierra la pregunta
 previa del proposal y mantiene el alcance de lectura sin tocar
 la escritura ni el esquema de Identity.
 
+> **D-5 bis (issue #248, Slice A):** se levanta el «fuera de
+> alcance» del v1 para `UserName`, manteniendo `UserId` crudo
+> en el wire como clave de correlación técnica. La proyección
+> usa un **LEFT JOIN contra `AspNetUsers`** resuelto con
+> `DefaultIfEmpty()`; cuando el `UserId` no tiene fila en
+> Identity (purga, soft-delete, huérfano, sistema), el servicio
+> coalesce explícitamente a la cadena `"—"` (rayo em,
+> U+2014 — consistente con el resto del wire contract que usa
+> el mismo carácter para valores faltantes). Esto cierra el
+> path de UX que preguntaba por el nombre legible del actor
+> sin sacrificar la forma «técnica» del `UserId`. El LEFT JOIN
+> reusa `AspNetUsers` y no agrega migraciones de esquema
+> (D-3 cerrado por construcción). Verificado por los tests
+> `[MySqlFact]` `QueryAsync_UserIdExistente_ResuelveUserNameDeIdentity`,
+> `QueryAsync_UserIdInexistente_CaeAFallbackRayemEm` y
+> `QueryAsync_SortUsuarioAsc_OrdenaPorUserName` (este último
+> cubre que la columna "Usuario" ordena por nombre legible,
+> no por `UserId` crudo, para que el operador vea el orden
+> que espera).
+
+### D-6 — Orden server-side dinámico vía `switch(Sort)` (issue #248, Slice A)
+
+La spec `auditoria-sort` introduce cinco criterios de orden
+(`fecha|entidad|operacion|usuario|correlacion` × `asc|desc`). El
+sort se resuelve **server-side** con un `switch` expresión sobre
+`Sort` (no con `OrderBy` por `string` arbitrario) para mantener
+explícito el universo de claves válidas y dejar al motor LINQ
+construir el `IOrderedQueryable` apropiado. El default es
+`fecha_desc` (equivalente al orden vigente del v1),
+`ThenByDescending(Id)` se aplica como **tiebreak determinista**
+universal y un valor no reconocido **cae al default sin error**
+para no romper la consulta por input malformado. La columna
+«usuario» ordena por `UserName` (LEFT JOIN) y no por `UserId`,
+cerrando por construcción la UX consistente con D-5 bis.
+
+| `Sort`         | Columna       | Mapeo LINQ                              |
+|----------------|---------------|------------------------------------------|
+| `fecha_asc`    | `OccurredAt`  | `OrderBy(x => x.a.OccurredAt)`          |
+| `fecha_desc`   | `OccurredAt`  | `OrderByDescending(x => x.a.OccurredAt)`|
+| `entidad_asc`  | `EntityName`  | `OrderBy(x => x.a.EntityName)`          |
+| `entidad_desc` | `EntityName`  | `OrderByDescending(x => x.a.EntityName)`|
+| `operacion_asc`/`desc`  | `Operation`  | simétrico                                |
+| `usuario_asc`/`desc`    | `UserName`   | `OrderBy(x => x.u != null ? x.u.UserName : UserNameFallback)` |
+| `correlacion_asc`/`desc`| `CorrelationId` | simétrico                              |
+| _otro_         | default       | `OrderByDescending(x => x.a.OccurredAt)`|
+
+La migración EF `IndiceAuditoriaCorrelationIdOccurredAt` agrega
+el índice compuesto `(CorrelationId, OccurredAt DESC)` para que
+`sort=correlacion_desc` (combinable con `?correlationId=...`)
+no fuerce `Using filesort` en MySQL. Verificado por tests
+`[MySqlFact]` `QueryAsync_DefaultSortEs_FechaDesc`,
+`QueryAsync_Sort*` (10 variantes) y por
+`AuditoriasControllerTests.Get_PropagaSortAServicio`.
+La shell web espeja la normalización (`Index.cshtml.cs` →
+`NormalizeSort`) para reflejar el criterio vigente en los
+iconos de los headers.
+
+### D-7 — Detalle admin con `AuditoriaDetalleDto` (issue #248, Slice A + Slice B)
+
+El endpoint `GET /api/v1/auditorias/{id}` y la page
+`/auditorias/details?id={guid}` exponen **la única superficie
+del sistema que arrastra `EntityId`, `OldValuesJson` y
+`NewValuesJson` al wire**. La separación física de tipos
+(`AuditoriaDetalleDto` vs `AuditoriaDto`) cierra D-2 por
+construcción: el listado jamás puede exponer esos campos
+aunque alguien agregue una propiedad al DTO equivocado.
+
+Restricciones:
+
+- `[Authorize(Roles = RolesSgv.Administrador)]` se aplica en
+  tres frentes (controller API, page Details y sideNav),
+  análogo a D-1. No-admin recibe `403 Forbidden`; anónimo
+  recibe `401 Unauthorized`. La redirección a
+  `/error/403` la aplica la cookie auth del shell con
+  `AllowAutoRedirect=false` en los tests seam.
+- El cliente HTTP tipado `IAuditoriaApiClient.GetDetalleAsync`
+  mapea `404` → `null` sin lanzar, propaga nativas
+  `HttpRequestException`/`TaskCanceledException`/`JsonException`
+  vía `TransportFailureClassifier` para que la page la
+  traduzca a un banner recuperable preservando el `id`
+  consultado.
+- La page Details distingue tres estados: `200 OK` con el DTO
+  enriquecido (header con metadatos + tres bloques
+  `<pre class="bg-light p-2">` para los JSON),
+  "no encontrado" legible (404 upstream) y "transporte
+  recuperable" (banner de error visible con el id preservado
+  en el CTA "Volver al listado"). El `<pre>` es la única
+  vía del sistema para mostrar JSON preformateado en el
+  shell, alineado con el estilo de los demás detail pages.
+
+Verificado por:
+
+- `AuditoriaDetalleDto` no expone `OldValuesJson`/`NewValuesJson`
+  por reflexión (defense-in-depth).
+- `AuditoriasControllerTests.GetById_ExistingId_ReturnsAuditoriaDetalleDto`.
+- `AuditoriasIndexTests` extensivos en Slice B (toolbar
+  horizontal + sort headers + pageSize selector + Details
+  link que preserva contexto).
+- `AuditoriasDetailsTests` (Slice B, 4 tests): 200 con `<pre>`,
+  404 legible, transporte recuperable, no-admin → 403.
+
 ### Capas y archivos clave
 
 | Capa | Tipo | Archivo | Rol |
@@ -104,15 +205,18 @@ la escritura ni el esquema de Identity.
 | DI (S1) | extension | `src/SGV.Infraestructura/DependencyInjection.cs` | `AddScoped<IAuditoriaServicioConsulta, AuditoriaServicioConsulta>()`. |
 | Controller (S2) | `sealed class` | `src/SGV.Api/Controllers/AuditoriasController.cs` | `[Authorize(Roles=RolesSgv.Administrador)]`; mapea `ArgumentException` → `400 Validation`. |
 | Helper 4xx (S2) | `static class` | `src/SGV.Api/Infrastructure/Results/ApiResults.cs` | Sobrecarga additive `ToValidationProblemResult(string code, string detail, fieldErrors, httpContext)`. |
-| Cliente HTTP (S3) | `interface` | `src/SGV.Web/Integration/Auditoria/IAuditoriaApiClient.cs` | `QueryAsync` + `ObtenerPorIdAsync`. |
-| Cliente HTTP impl (S3) | `sealed class` | `src/SGV.Web/Integration/Auditoria/AuditoriaApiClient.cs` | `EnsureSuccessStatusCode`; 404 → `null`; propaga `HttpRequestException`/`TaskCanceledException` nativas. |
+| Cliente HTTP (S3) | `interface` | `src/SGV.Web/Integration/Auditoria/IAuditoriaApiClient.cs` | `QueryAsync` + `GetDetalleAsync` (Slice A rename `ObtenerPorId` → `GetDetalle`). |
+| Cliente HTTP impl (S3) | `sealed class` | `src/SGV.Web/Integration/Auditoria/AuditoriaApiClient.cs` | `EnsureSuccessStatusCode`; 404 → `null`; propaga `HttpRequestException`/`TaskCanceledException` nativas; `BuildQueryUri` propaga `sort` + `correlationId`. |
 | DI Web (S3) | extension | `src/SGV.Web/Program.cs` | `AddHttpClient<IAuditoriaApiClient, AuditoriaApiClient>(...).AddHttpMessageHandler<ApiBearerTokenHandler>()`. |
-| Razor Page (S3) | `sealed class` | `src/SGV.Web/Pages/Auditorias/Index.cshtml.cs` | `[Authorize(Roles=RolesSgv.Administrador)]`; sidebar filtros + paginación; `TransportFailureClassifier` para recuperables. |
-| Razor View (S3) | `.cshtml` | `src/SGV.Web/Pages/Auditorias/Index.cshtml` | Sidebar filtros (EntityName, Operation, DateFrom, DateTo, UserId) + tabla + paginación. |
+| Razor Page Index (S3) | `sealed class` | `src/SGV.Web/Pages/Auditorias/Index.cshtml.cs` | `[Authorize(Roles=RolesSgv.Administrador)]` (D-1); Slice B agrega bind `Sort`/`CorrelationId`/`PageSize`, helpers `BuildSortRouteValues`/`BuildDetailsRouteValues`, normalizadores; `TransportFailureClassifier` para recuperables. |
+| Razor View Index (S3) | `.cshtml` | `src/SGV.Web/Pages/Auditorias/Index.cshtml` | Slice A: sidebar filtros (EntityName, Operation, DateFrom, DateTo, UserId). Slice B: toolbar horizontal, `<th>` ordenables con `GetSortRoute`/`GetSortIcon`, `<select name="pageSize">` 10/20/50/100, columna Acciones con Details link, paginación con números + Primera/Última. |
+| Razor Page Details (S3) | `sealed class` | `src/SGV.Web/Pages/Auditorias/Details.cshtml.cs` | Nueva en Slice B (D-7): `[Authorize(Roles=RolesSgv.Administrador)]`; `OnGetAsync(Guid)` consume `GetDetalleAsync`; clasifica 200 / 404 / transport failure; preserva contexto del listado para "Volver al listado". |
+| Razor View Details (S3) | `.cshtml` | `src/SGV.Web/Pages/Auditorias/Details.cshtml` | Nueva en Slice B (D-7): header con metadatos + 3 bloques `<pre class="bg-light p-2">` para `ChangedPropertiesJson`, `OldValuesJson`, `NewValuesJson`; estados 404 legible y banner recuperable preservando id. |
 | Sidenav (S3) | `.cshtml` | `src/SGV.Web/Pages/Shared/Partials/_Sidenav.cshtml` | Top-level item `Auditorías` (ícono `ti ti-file-text`) gateado por `esAdministrador`. |
-| Tests S1 | `[MySqlFact]` + `[Fact]` | `tests/SGV.Tests/Aplicacion/Auditoria/AuditoriaServicioConsultaTests.cs` | 15 tests: filtros, orden determinista, clamps, `DateFrom>DateTo`, JSON sin old/new, no-inserta-tras-query. |
-| Tests S2 | `[Fact]` | `tests/SGV.Tests/Api/AuditoriasControllerTests.cs` | 9 tests: 401, 403, 200 shape, paginación+filtros, detalle 200/404, JSON sin old/new, `[Authorize]` reflexión, 400 rango invertido. |
-| Tests S3 | `[Fact]` | `tests/SGV.Tests/Web/Auditoria/AuditoriasIndexTests.cs` | 6 tests: admin 200 con tabla+paginación, lista vacía legible, error de transporte recuperable sin perder filtros, paginación preserva filtros, no-admin → 403, anónimo → redirect. |
+| Tests S1 | `[MySqlFact]` + `[Fact]` | `tests/SGV.Tests/Aplicacion/Auditoria/AuditoriaServicioConsultaTests.cs` | 15 tests: filtros, orden determinista, clamps, `DateFrom>DateTo`, JSON sin old/new, no-inserta-tras-query, LEFT JOIN `UserName` resuelto+fallback, sort dinámico 10 claves + inválido, `GetDetalleDtoAsync` con old/new + sin old (alta). |
+| Tests S2 | `[Fact]` | `tests/SGV.Tests/Api/AuditoriasControllerTests.cs` | 9 tests: 401, 403, 200 shape, paginación+filtros, detalle 200/404, JSON sin old/new, `[Authorize]` reflexión, 400 rango invertido, propagación de `sort` y `correlationId`. |
+| Tests S3 Index | `[Fact]` + `[Theory]` | `tests/SGV.Tests/Web/Auditoria/AuditoriasIndexTests.cs` | 12 tests (Slice A: 6 base + Slice B: 6 nuevos con `InlineData`): admin 200 con tabla+paginación, lista vacía legible, error de transporte recuperable sin perder filtros, paginación preserva filtros, no-admin → 403, anónimo → redirect, pageSize selector 10/20/50/100, default 20, pageSize out-of-set normaliza, sort header resetea p=1 + preserva pageSize + filtros, paginación preserva sort+pageSize, Details link preserva contexto. |
+| Tests S3 Details | `[Fact]` | `tests/SGV.Tests/Web/Auditoria/AuditoriasDetailsTests.cs` | 4 tests (Slice B): 200 con JSON en `<pre>`, 404 legible, transport failure con banner recuperable preservando id, no-admin → 403. |
 | Helper tests S3 | `sealed class` | `tests/SGV.Tests/Web/Auditoria/FakeAuditoriaApiClient.cs` | Fake in-memory del `IAuditoriaApiClient` para la suite seam PageModel. |
 | Helper tests S3 | `sealed class` | `tests/SGV.Tests/Web/SgvWebApplicationFactory.cs` | `WithAuditoriaApiClient(IAuditoriaApiClient fake)` — espejo de `WithHabilidadApiClient` / `WithVacanteApiClient`. |
 | Helper tests S3 | `sealed class` | `tests/SGV.Tests/Web/Collections/WebIntegrationFixture.cs` | `CreateAuditoriaLeaseAsync(IAuditoriaApiClient, adminRole)` — espejo de `CreateCargoLeaseAsync`. |
