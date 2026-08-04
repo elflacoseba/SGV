@@ -61,6 +61,35 @@ public sealed class FakeAuditoriaApiClient : IAuditoriaApiClient
     /// <summary>Captura de invocaciones de <see cref="GetDetalleAsync"/>.</summary>
     public List<Guid> GetDetalleCalls { get; } = [];
 
+    /// <summary>
+    /// Resultado de <see cref="GetFilterOptionsAsync"/> cuando no hay
+    /// override. Default: <see cref="AuditoriaFilterOptions"/> con
+    /// ambas colecciones vacías (cubre los tests donde el PageModel
+    /// debe manejar una respuesta vacía sin crashear).
+    /// </summary>
+    public AuditoriaFilterOptions GetFilterOptionsResult { get; set; } =
+        new(Array.Empty<string>(), Array.Empty<string>());
+
+    /// <summary>
+    /// Handler opcional para <see cref="GetFilterOptionsAsync"/>.
+    /// Tiene prioridad sobre <see cref="GetFilterOptionsResult"/>
+    /// (mismo patrón que <see cref="GetDetalleHandler"/>).
+    /// </summary>
+    public Func<AuditoriaFilterOptions>? GetFilterOptionsHandler { get; set; }
+
+    /// <summary>
+    /// Excepción opcional que <see cref="GetFilterOptionsAsync"/>
+    /// debe lanzar (simula una falla de transporte del endpoint
+    /// <c>GET /api/v1/auditorias/filter-options</c> para que el
+    /// PageModel active la rama de fallback a inputs de texto).
+    /// Tiene prioridad sobre <see cref="GetFilterOptionsHandler"/> y
+    /// <see cref="GetFilterOptionsResult"/>.
+    /// </summary>
+    public Exception? GetFilterOptionsException { get; set; }
+
+    /// <summary>Captura de invocaciones de <see cref="GetFilterOptionsAsync"/>.</summary>
+    public List<int> GetFilterOptionsCalls { get; } = [];
+
     public Task<PagedResult<AuditoriaDto>> QueryAsync(
         AuditoriaListQuery query,
         CancellationToken cancellationToken = default)
@@ -97,5 +126,23 @@ public sealed class FakeAuditoriaApiClient : IAuditoriaApiClient
         }
 
         return Task.FromResult(GetDetalleResult);
+    }
+
+    public Task<AuditoriaFilterOptions> GetFilterOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        GetFilterOptionsCalls.Add(1);
+
+        if (GetFilterOptionsException is not null)
+        {
+            throw GetFilterOptionsException;
+        }
+
+        if (GetFilterOptionsHandler is not null)
+        {
+            return Task.FromResult(GetFilterOptionsHandler());
+        }
+
+        return Task.FromResult(GetFilterOptionsResult);
     }
 }
