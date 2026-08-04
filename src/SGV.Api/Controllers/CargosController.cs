@@ -115,7 +115,6 @@ public class CargosController : ControllerBase
     /// <response code="400">Datos inválidos o error de validación.</response>
     /// <response code="409">Conflicto — ya existe un cargo activo con el mismo código.</response>
     [HttpPost]
-    [ValidateAntiForgeryToken]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(CargoDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

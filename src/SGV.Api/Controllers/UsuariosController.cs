@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SGV.Api.Infrastructure.Results;

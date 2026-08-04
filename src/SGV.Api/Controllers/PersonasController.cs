@@ -136,7 +136,6 @@ public class PersonasController : ControllerBase
     /// <response code="409">Conflicto — ya existe una persona activa con el mismo legajo, email o documento.</response>
     [HttpPost]
     [Authorize(Roles = RolesSgv.Administrador)]
-    [ValidateAntiForgeryToken]
     [ProducesResponseType(typeof(PersonaDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

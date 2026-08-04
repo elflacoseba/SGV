@@ -1,7 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FluentValidation;
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -28,7 +27,6 @@ public sealed class AuthController(
 {
     [HttpPost(AuthApiRoutes.LoginRelative)]
     [AllowAnonymous]
-    [ValidateAntiForgeryToken]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
@@ -98,7 +96,6 @@ public sealed class AuthController(
     }
 
     [HttpPost(AuthApiRoutes.ForgotPasswordRelative)]
-    [ValidateAntiForgeryToken]
     [AllowAnonymous]
     [EnableRateLimiting(AuthApiRoutes.ForgotPasswordPolicyName)]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -131,7 +128,6 @@ public sealed class AuthController(
     }
 
     [HttpPost(AuthApiRoutes.ResetPasswordRelative)]
-    [ValidateAntiForgeryToken]
     [AllowAnonymous]
     [EnableRateLimiting(AuthApiRoutes.ResetPasswordPolicyName)]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -165,7 +161,6 @@ public sealed class AuthController(
         return Ok(new { mensaje = "Tu contraseña fue actualizada." });
     }
 
-    [ValidateAntiForgeryToken]
     [HttpPost(AuthApiRoutes.ValidateResetTokenRelative)]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
