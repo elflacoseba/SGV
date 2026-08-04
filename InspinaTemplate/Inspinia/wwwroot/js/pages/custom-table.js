@@ -403,7 +403,7 @@ class Table {
 
                     const percentPattern = /^-?[\d,.]+%$/
                     if (percentPattern.test(raw)) {
-                        const val = parseFloat(raw.replace("%", ""))
+                        const val = parseFloat(raw.replace(/%/g, ""))
                         return isNaN(val) ? 0 : val / 100
                     }
 
