@@ -79,7 +79,6 @@ public sealed class UsuariosController(
     }
 
     [HttpPost]
-    [ValidateAntiForgeryToken]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -134,7 +133,6 @@ public sealed class UsuariosController(
 
     [HttpPost("{id}/bloquear")]
     [Authorize(Roles = RolesSgv.Administrador)]
-    [ValidateAntiForgeryToken]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -151,8 +149,6 @@ public sealed class UsuariosController(
     }
 
     [HttpPost("{id}/desbloquear")]
-    [ValidateAntiForgeryToken]
-    [ValidateAntiForgeryToken]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

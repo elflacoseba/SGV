@@ -2,7 +2,6 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -163,7 +162,6 @@ public sealed class AuthController(
             return BadRequest(new { mensaje = "El enlace de restablecimiento no es válido o ya expiró." });
         }
 
-    [ValidateAntiForgeryToken]
         return Ok(new { mensaje = "Tu contraseña fue actualizada." });
     }
 
