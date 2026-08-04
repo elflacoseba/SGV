@@ -55,4 +55,32 @@ public interface IAuditoriaApiClient
     Task<AuditoriaDetalleDto?> GetDetalleAsync(
         Guid id,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Devuelve los valores disponibles para poblar los
+    /// <c>&lt;select&gt;</c> de <c>EntityName</c> y <c>Operation</c>
+    /// del listado de auditoría (issue #251 / Slice B). Consume el
+    /// endpoint admin-only
+    /// <c>GET /api/v1/auditorias/filter-options</c> introducido en
+    /// Slice A.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La respuesta es un wire seguro: <see cref="AuditoriaFilterOptions"/>
+    /// sólo expone los nombres lógicos de entidad y las operaciones
+    /// registradas — NO arrastra <c>UserId</c>, <c>UserName</c>,
+    /// <c>EntityId</c>, <c>OldValuesJson</c> ni <c>NewValuesJson</c>
+    /// (D-2 reforzado por separación física de tipos).
+    /// </para>
+    /// <para>
+    /// Las fallas de transporte se propagan como
+    /// <see cref="HttpRequestException"/> o
+    /// <see cref="TaskCanceledException"/> para que el PageModel
+    /// active la rama de fallback a <c>&lt;input&gt;</c> de texto
+    /// sin pintar un error rojo.
+    /// </para>
+    /// </remarks>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    Task<AuditoriaFilterOptions> GetFilterOptionsAsync(
+        CancellationToken cancellationToken = default);
 }
