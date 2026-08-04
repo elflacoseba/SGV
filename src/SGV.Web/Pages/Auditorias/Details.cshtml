@@ -1,8 +1,14 @@
 @page "/auditorias/details"
 @model SGV.Web.Pages.Auditorias.DetailsModel
+@using System.Text.Json
 @{
     ViewBag.title = "Detalle de auditoría";
     ViewBag.subtitle = "Seguridad";
+
+    static string FormatJson(string json) =>
+        JsonSerializer.Serialize(
+            JsonSerializer.Deserialize<JsonElement>(json),
+            new JsonSerializerOptions { WriteIndented = true });
 }
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")
@@ -90,7 +96,7 @@ else
                                    detalle con render preformateado": el JSON se
                                    muestra en <pre> monoespaciado para preservar
                                    formato legible (salts de línea, indentación). *@
-                                <pre class="bg-light p-2">@detalle.ChangedPropertiesJson</pre>
+                                <pre class="bg-light p-2">@FormatJson(detalle.ChangedPropertiesJson)</pre>
                             }
                             else
                             {
@@ -112,7 +118,7 @@ else
                 <div class="card-body">
                     @if (!string.IsNullOrWhiteSpace(detalle.OldValuesJson))
                     {
-                        <pre class="bg-light p-2 mb-0">@detalle.OldValuesJson</pre>
+                        <pre class="bg-light p-2 mb-0">@FormatJson(detalle.OldValuesJson)</pre>
                     }
                     else
                     {
@@ -132,7 +138,7 @@ else
                 <div class="card-body">
                     @if (!string.IsNullOrWhiteSpace(detalle.NewValuesJson))
                     {
-                        <pre class="bg-light p-2 mb-0">@detalle.NewValuesJson</pre>
+                        <pre class="bg-light p-2 mb-0">@FormatJson(detalle.NewValuesJson)</pre>
                     }
                     else
                     {
