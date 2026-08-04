@@ -37,13 +37,15 @@ if (jQuery().daterangepicker) {
 
         $this.daterangepicker(options, function (start, end) {
             if (targetSelector) {
-                $(targetSelector).html(start.format("MMMM D, YYYY") + " - " + end.format("MMMM D, YYYY"))
+                const $target = $($.find(targetSelector))
+                $target.text(start.format("MMMM D, YYYY") + " - " + end.format("MMMM D, YYYY"))
             }
         })
 
         // Set initial display value
         if (targetSelector) {
-            $(targetSelector).html(start.format("MMMM D, YYYY") + " - " + end.format("MMMM D, YYYY"))
+            const $target = $($.find(targetSelector))
+            $target.text(start.format("MMMM D, YYYY") + " - " + end.format("MMMM D, YYYY"))
         }
     })
 
