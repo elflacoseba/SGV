@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using SGV.Api.Infrastructure.Results;
 using SGV.Aplicacion.Personas.Comandos;
 using SGV.Aplicacion.Personas.Consultas;
@@ -135,6 +136,7 @@ public class PersonasController : ControllerBase
     /// <response code="409">Conflicto — ya existe una persona activa con el mismo legajo, email o documento.</response>
     [HttpPost]
     [Authorize(Roles = RolesSgv.Administrador)]
+    [ValidateAntiForgeryToken]
     [ProducesResponseType(typeof(PersonaDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
