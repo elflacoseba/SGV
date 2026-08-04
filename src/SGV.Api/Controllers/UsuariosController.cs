@@ -79,6 +79,7 @@ public sealed class UsuariosController(
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     [Authorize(Roles = RolesSgv.Administrador)]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
