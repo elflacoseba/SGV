@@ -111,7 +111,14 @@ public sealed class PersonaOcupacionesModel(
 
     /// <inheritdoc/>
     object? IOcupacionesCrossList.NewOcupacionRouteValues
-        => new { personaId = PersonaId };
+        => Items.Count == 0 ? new { personaId = PersonaId } : null;
+
+    /// <inheritdoc/>
+    object? IOcupacionesCrossList.VerOcupacionVigenteRouteValues
+        => Items.Count > 0 ? new { id = Items[0].Id } : null;
+
+    /// <inheritdoc/>
+    string? IOcupacionesCrossList.DisponibilidadMessage => null;
 
     /// <inheritdoc/>
     string IOcupacionesCrossList.CrossEntityColumnHeader => "Puesto";
@@ -124,6 +131,17 @@ public sealed class PersonaOcupacionesModel(
 
     /// <inheritdoc/>
     bool IOcupacionesCrossList.RenderCrossEntityCellAsBadge => true;
+
+    /// <summary>
+    /// T-7.2 (change <c>vacante-ocupacion-flow-alignment</c>): el flujo
+    /// desde Persona no aplica NAV-007 — las ocupaciones de una Persona
+    /// pueden existir sin Vacante (caso histórico) o venir de selección
+    /// aún no implementada. Default conservador: ocultar el botón.
+    /// </summary>
+    bool IOcupacionesCrossList.HayVacanteAbierta => true;
+
+    /// <inheritdoc/>
+    string? IOcupacionesCrossList.AbrirVacanteUrl => null;
 
     // ── Handler ──────────────────────────────────────────────────────────
 

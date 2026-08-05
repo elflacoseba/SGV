@@ -69,8 +69,34 @@
             <label asp-for="Input.PuestoId">Puesto</label>
             <span asp-validation-for="Input.PuestoId" class="text-danger"></span>
         </div>
-    </div>
 
+        @if (!Model.IsEdit)
+        {
+            var hasPuesto = Model.Input.PuestoId.HasValue && Model.Input.PuestoId.Value != Guid.Empty;
+            var sinVacante = Model.PuestoSinVacanteAbierta;
+            <div class="alert @(sinVacante ? "alert-warning" : "alert-info") mt-2" role="alert">
+                <strong>Flujo recomendado:</strong> el alta directa requiere una
+                Vacante abierta para el Puesto. Use el módulo de Vacantes para
+                el camino principal.
+                @if (!hasPuesto)
+                {
+                    <span>Seleccione un Puesto para verificar su disponibilidad.</span>
+                }
+                else if (sinVacante)
+                {
+                    <a class="alert-link"
+                       asp-page="/Organizacion/Vacantes/Create"
+                       asp-route-puestoId="@Model.Input.PuestoId">
+                        Abrir Vacante para este Puesto
+                    </a>
+                }
+                else
+                {
+                    <span>Este Puesto ya tiene una Vacante abierta.</span>
+                }
+            </div>
+        }
+    </div>
 
     <div class="col-md-6">
         <div class="form-floating">

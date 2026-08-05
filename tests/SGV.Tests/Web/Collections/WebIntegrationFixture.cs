@@ -126,6 +126,19 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             puestosApiClient: puestos,
             ocupacionApiClient: ocupacion));
 
+    public Task<WebClientLease> CreateOcupacionFormLeaseAsync(
+        IOcupacionApiClient ocupacion,
+        IPersonaApiClient persona,
+        IPuestosApiClient puestos,
+        IVacanteApiClient vacante,
+        bool adminRole = true)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            personaApiClient: persona,
+            puestosApiClient: puestos,
+            ocupacionApiClient: ocupacion,
+            vacanteApiClient: vacante));
+
     /// <summary>
     /// Lease autenticado contra la página cruzada <c>PersonaOcupaciones</c>
     /// (Slice 3b del change <c>2026-07-28-web-ocupaciones-issue-208</c>).
@@ -160,6 +173,17 @@ public sealed class WebIntegrationFixture : IAsyncLifetime
             ConfigureBaseUrl, BuildAuthHandler(adminRole),
             puestosApiClient: puestos,
             ocupacionApiClient: ocupacion));
+
+    public Task<WebClientLease> CreatePuestoOcupacionesLeaseAsync(
+        IPuestosApiClient puestos,
+        IOcupacionApiClient ocupacion,
+        IVacanteApiClient vacante,
+        bool adminRole = false)
+        => CreateAuthenticatedLeaseAsync(f => f.WithOverrides(
+            ConfigureBaseUrl, BuildAuthHandler(adminRole),
+            puestosApiClient: puestos,
+            ocupacionApiClient: ocupacion,
+            vacanteApiClient: vacante));
 
     public Task<WebClientLease> CreateHabilidadLeaseAsync(
         FakeHabilidadApiClient habilidad, bool adminRole = false)

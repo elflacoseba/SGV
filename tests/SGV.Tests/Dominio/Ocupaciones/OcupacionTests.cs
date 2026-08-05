@@ -240,6 +240,41 @@ public sealed class OcupacionTests
         Assert.Contains("no se puede", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ── VacanteId (T-1.2) ────────────────────────────────────────
+
+    [Fact]
+    public void Crear_ConVacanteId_AlmacenaValor()
+    {
+        var vacanteId = Guid.NewGuid();
+
+        var ocupacion = new Ocupacion(
+            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2025, 1, 1),
+            TipoAsignacion.Permanente, fechaFin: null, vacanteId: vacanteId);
+
+        Assert.Equal(vacanteId, ocupacion.VacanteId);
+    }
+
+    [Fact]
+    public void Crear_SinVacanteId_PermiteNull()
+    {
+        var ocupacion = new Ocupacion(
+            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2025, 1, 1),
+            TipoAsignacion.Permanente);
+
+        Assert.Null(ocupacion.VacanteId);
+    }
+
+    [Fact]
+    public void VacanteId_NoTieneSetterPublico()
+    {
+        // Spec #124: las propiedades auditables/settables son private set.
+        // VacanteId debe seguir el mismo principio para consistencia.
+        var setter = typeof(Ocupacion)
+            .GetProperty(nameof(Ocupacion.VacanteId))?.GetSetMethod();
+
+        Assert.Null(setter);
+    }
+
     // ── EliminarLogicamente ──────────────────────────────────────
 
     [Fact]

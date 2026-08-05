@@ -140,6 +140,78 @@ public sealed class OcupacionMapperTests
         Assert.False(entity.IsDeleted);
     }
 
+    // ── VacanteId round-trip (T-1.5) ────────────────────────────
+
+    [Fact]
+    public void MapDomainToEntity_ConVacanteId_Preserva()
+    {
+        var domain = new Ocupacion(
+            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2024, 1, 1),
+            TipoAsignacion.Permanente, vacanteId: Guid.NewGuid());
+
+        var entity = DomainToPersistenceMapper.ToEntity(domain);
+
+        Assert.Equal(domain.VacanteId, entity.VacanteId);
+    }
+
+    [Fact]
+    public void MapDomainToEntity_SinVacanteId_PermiteNull()
+    {
+        var domain = new Ocupacion(
+            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2024, 1, 1),
+            TipoAsignacion.Permanente);
+
+        var entity = DomainToPersistenceMapper.ToEntity(domain);
+
+        Assert.Null(entity.VacanteId);
+    }
+
+    [Fact]
+    public void MapPersistenceToDomain_ConVacanteId_HidrataPropiedad()
+    {
+        var vacanteId = Guid.NewGuid();
+        var entity = CrearEntidadActiva();
+        entity.VacanteId = vacanteId;
+
+        var domain = PersistenceToDomainMapper.ToDomain(entity);
+
+        Assert.Equal(vacanteId, domain.VacanteId);
+    }
+
+    [Fact]
+    public void MapPersistenceToDomain_SinVacanteId_HidrataNull()
+    {
+        var entity = CrearEntidadActiva();
+        entity.VacanteId = null;
+
+        var domain = PersistenceToDomainMapper.ToDomain(entity);
+
+        Assert.Null(domain.VacanteId);
+    }
+
+    [Fact]
+    public void UpdateEntity_SincronizaVacanteId()
+    {
+        var entity = CrearEntidadActiva();
+        entity.VacanteId = Guid.NewGuid();
+
+        var vacanteAnterior = entity.VacanteId;
+        var vacanteNuevo = Guid.NewGuid();
+
+        var dominio = new Ocupacion(
+            entity.PersonaId, entity.PuestoId, entity.FechaInicio,
+            entity.TipoAsignacion, entity.FechaFin, entity.Observaciones,
+            vacanteId: vacanteNuevo)
+        {
+            Id = entity.Id
+        };
+
+        DomainToPersistenceMapper.UpdateEntity(entity, dominio);
+
+        Assert.Equal(vacanteNuevo, entity.VacanteId);
+        Assert.NotEqual(vacanteAnterior, entity.VacanteId);
+    }
+
     [Fact]
     public void MapDomainToEntity_Deleted_MapsAuditFields()
     {
@@ -262,12 +334,15 @@ public sealed class OcupacionMapperTests
             observaciones: "Obs",
             persona: null,
             puesto: null,
+            vacanteId: null,
+            vacante: null,
             DateTime.UtcNow, null, null, null, false, null, null);
 
         Assert.Equal(fechaInicio, dominio.FechaInicio);
         Assert.Equal(fechaFin, dominio.FechaFin);
         Assert.Equal(TipoAsignacion.Permanente, dominio.TipoAsignacion);
         Assert.Equal("Obs", dominio.Observaciones);
+        Assert.Null(dominio.VacanteId);
         Assert.False(dominio.EsVigente);
     }
 
@@ -285,6 +360,8 @@ public sealed class OcupacionMapperTests
                 observaciones: null,
                 persona: null,
                 puesto: null,
+                vacanteId: null,
+                vacante: null,
                 DateTime.UtcNow, null, null, null, false, null, null));
     }
 
@@ -301,6 +378,8 @@ public sealed class OcupacionMapperTests
             observaciones: null,
             persona: null,
             puesto: null,
+            vacanteId: null,
+            vacante: null,
             DateTime.UtcNow, null, null, null, false, null, null);
 
         Assert.True(dominio.EsVigente);
@@ -319,6 +398,8 @@ public sealed class OcupacionMapperTests
             observaciones: null,
             persona: null,
             puesto: null,
+            vacanteId: null,
+            vacante: null,
             DateTime.UtcNow, null, null, null, false, null, null);
 
         Assert.False(dominio.EsVigente);

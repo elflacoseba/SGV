@@ -2,6 +2,7 @@ using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Vacantes.Comandos;
 using SGV.Contracts.Vacantes.Consultas;
 using SGV.Contracts.Vacantes.Consultas.Dtos;
+using SGV.Contracts.Vacantes.Enums;
 
 namespace SGV.Web.Integration.Vacantes;
 
@@ -42,5 +43,16 @@ public interface IVacanteApiClient
     Task<VacanteCommandResult> CambiarEstadoAsync(
         Guid id,
         CambiarEstadoVacanteRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// T-7.1 / T-7.2 (change <c>vacante-ocupacion-flow-alignment</c>):
+    /// devuelve <see langword="true"/> si el backend reporta al menos
+    /// una Vacante ABIERTA (no terminal) para <paramref name="puestoId"/>.
+    /// Consumido por <c>Ocupaciones/Create</c> (hint FORM-009) y por
+    /// <c>PuestoOcupaciones</c> (botón NAV-007 "Abrir Vacante").
+    /// </summary>
+    Task<bool> ExisteVacanteAbiertaParaPuestoAsync(
+        Guid puestoId,
         CancellationToken cancellationToken = default);
 }

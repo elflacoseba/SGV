@@ -236,6 +236,7 @@ internal static class DomainToPersistenceMapper
             Id = domain.Id,
             PersonaId = domain.PersonaId,
             PuestoId = domain.PuestoId,
+            VacanteId = domain.VacanteId,
             FechaInicio = domain.FechaInicio,
             FechaFin = domain.FechaFin,
             TipoAsignacion = domain.TipoAsignacion,
@@ -254,6 +255,7 @@ internal static class DomainToPersistenceMapper
     {
         entity.PersonaId = domain.PersonaId;
         entity.PuestoId = domain.PuestoId;
+        entity.VacanteId = domain.VacanteId;
         entity.FechaInicio = domain.FechaInicio;
         entity.FechaFin = domain.FechaFin;
         entity.TipoAsignacion = domain.TipoAsignacion;

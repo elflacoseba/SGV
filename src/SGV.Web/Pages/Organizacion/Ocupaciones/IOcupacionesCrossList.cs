@@ -81,9 +81,15 @@ public interface IOcupacionesCrossList
 
     /// <summary>
     /// Route values para el botón "Nueva ocupación" admin-gated. <c>null</c>
-    /// deshabilita el botón aunque el usuario sea admin (no se usa hoy).
+    /// cuando no existe una Vacante abierta o ya hay una Ocupación vigente.
     /// </summary>
     object? NewOcupacionRouteValues { get; }
+
+    /// <summary>Route values para consultar la Ocupación vigente, si existe.</summary>
+    object? VerOcupacionVigenteRouteValues { get; }
+
+    /// <summary>Mensaje contextual cuando no existe Vacante abierta ni Ocupación vigente.</summary>
+    string? DisponibilidadMessage { get; }
 
     /// <summary>Etiqueta de la columna que muestra la entidad opuesta (p.ej. "Puesto" o "Persona").</summary>
     string CrossEntityColumnHeader { get; }
@@ -101,6 +107,25 @@ public interface IOcupacionesCrossList
     /// texto plano con <see cref="CrossEntityCellClass"/>.
     /// </summary>
     bool RenderCrossEntityCellAsBadge { get; }
+
+    /// <summary>
+    /// T-7.2 (change <c>vacante-ocupacion-flow-alignment</c>):
+    /// <c>true</c> cuando la entidad dueña tiene al menos una Vacante
+    /// abierta. Default: <c>true</c> en <see cref="Personas.PersonaOcupacionesModel"/>
+    /// (no aplica REQ-OCC-NAV-007 al flujo desde Persona) y se sobreescribe
+    /// a <c>false</c> cuando el Puesto NO tiene Vacante abierta en
+    /// <see cref="Puestos.PuestoOcupacionesModel"/>, lo que habilita el
+    /// botón NAV-007 "Abrir Vacante".
+    /// </summary>
+    bool HayVacanteAbierta { get; }
+
+    /// <summary>
+    /// T-7.2: URL del botón NAV-007 "Abrir Vacante" que aparece en el
+    /// header del card. <c>null</c> oculta el botón. Solo
+    /// <see cref="Puestos.PuestoOcupacionesModel"/> lo expone (las
+    /// ocupaciones de una Persona no requieren este alta contextual).
+    /// </summary>
+    string? AbrirVacanteUrl { get; }
 }
 
 /// <summary>

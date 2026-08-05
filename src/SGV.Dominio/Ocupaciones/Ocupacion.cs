@@ -1,6 +1,7 @@
 using SGV.Dominio.Comun;
 using SGV.Dominio.Organizacion;
 using SGV.Dominio.Personas;
+using SGV.Dominio.Vacantes;
 
 namespace SGV.Dominio.Ocupaciones;
 
@@ -10,7 +11,21 @@ public sealed record class Ocupacion : EntidadAuditable
     {
     }
 
-    public Ocupacion(Guid personaId, Guid puestoId, DateOnly fechaInicio, TipoAsignacion tipoAsignacion, DateOnly? fechaFin = null, string? observaciones = null)
+    /// <summary>
+    /// Constructor primario de la Ocupacion. <paramref name="vacanteId"/>
+    /// es nullable: las Ocupaciones históricas (pre-N2) quedan con
+    /// <c>VacanteId = null</c>; las nuevas Ocupaciones derivadas de Cubrir
+    /// una Vacante lo setean explícitamente. Issue #276 (N2
+    /// <c>vacante-ocupacion-flow-alignment</c>).
+    /// </summary>
+    public Ocupacion(
+        Guid personaId,
+        Guid puestoId,
+        DateOnly fechaInicio,
+        TipoAsignacion tipoAsignacion,
+        DateOnly? fechaFin = null,
+        string? observaciones = null,
+        Guid? vacanteId = null)
     {
         if (fechaFin.HasValue && fechaFin.Value < fechaInicio)
         {
@@ -23,6 +38,7 @@ public sealed record class Ocupacion : EntidadAuditable
         FechaFin = fechaFin;
         TipoAsignacion = tipoAsignacion;
         Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 1000);
+        VacanteId = vacanteId;
     }
 
     public Guid PersonaId { get; private set; }
@@ -32,6 +48,18 @@ public sealed record class Ocupacion : EntidadAuditable
     public Guid PuestoId { get; private set; }
 
     public Puesto Puesto { get; private set; } = null!;
+
+    /// <summary>
+    /// Identificador de la Vacante de la cual deriva esta Ocupacion
+    /// (set cuando se cubre la Vacante vía N2). Nullable: las
+    /// Ocupaciones históricas (creadas directamente sin pasar por el
+    /// flujo de Vacante) tienen <c>VacanteId = null</c>. La FK con
+    /// <see cref="Vacante"/> es <c>ON DELETE RESTRICT</c>: la Vacante no
+    /// se borra mientras tenga Ocupaciones derivadas activas.
+    /// </summary>
+    public Guid? VacanteId { get; private set; }
+
+    public Vacante? Vacante { get; private set; }
 
     public DateOnly FechaInicio { get; private set; }
 
@@ -156,6 +184,8 @@ public sealed record class Ocupacion : EntidadAuditable
         string? observaciones,
         Persona? persona,
         Puesto? puesto,
+        Guid? vacanteId,
+        Vacante? vacante,
         DateTime createdAt,
         string? createdByUserId,
         DateTime? updatedAt,
@@ -187,6 +217,8 @@ public sealed record class Ocupacion : EntidadAuditable
         self.FechaFin = fechaFin;
         self.TipoAsignacion = tipoAsignacion;
         self.Observaciones = ValidacionesDominio.Opcional(observaciones, nameof(Observaciones), 1000);
+        self.VacanteId = vacanteId;
+        self.Vacante = vacante;
         self.Persona = persona!;
         self.Puesto = puesto!;
 

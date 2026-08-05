@@ -8,6 +8,7 @@ using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Integration.Vacantes;
 using SGV.Web.Pages.Common;
 
 namespace SGV.Web.Pages.Organizacion.Ocupaciones;
@@ -39,11 +40,12 @@ public sealed class CreateModel(
     IOcupacionApiClient ocupacionApiClient,
     IPersonaApiClient personaApiClient,
     IPuestosApiClient puestosApiClient,
+    IVacanteApiClient vacanteApiClient,
     IAuthSessionRedirector authRedirector,
     ILogger<CreateModel> logger) : OcupacionFormPageModel
 {
     /// <summary>Bandera estática para que la vista no muestre acciones de Edit.</summary>
-    public bool IsEdit => false;
+    public override bool IsEdit => false;
 
     /// <summary>Mensaje de feedback (success/warning/danger) entregado vía TempData tras PRG.</summary>
     public string? StatusMessage => PageFeedback.GetStatusMessage(TempData);
@@ -52,6 +54,18 @@ public sealed class CreateModel(
     public string StatusKind => PageFeedback.GetStatusKind(TempData);
 
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
+    /// <summary>
+    /// T-7.1 (change <c>vacante-ocupacion-flow-alignment</c>): true cuando
+    /// el Puesto precargado (vía <c>?puestoId=</c>) NO tiene Vacante
+    /// abierta. La vista usa este flag para mostrar el FORM-009 hint en
+    /// variante <c>alert-warning</c>.
+    /// </summary>
+    public override bool PuestoSinVacanteAbierta
+    {
+        get => base.PuestoSinVacanteAbierta;
+        protected set => base.PuestoSinVacanteAbierta = value;
+    }
 
     /// <summary>
     /// GET handler. Pre-carga <see cref="OcupacionInputModel.PersonaId"/>
@@ -68,6 +82,18 @@ public sealed class CreateModel(
         Input.PuestoId ??= puestoId;
 
         await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
+
+        // T-7.1: si el Puesto ya viene precargado, consultamos si tiene
+        // Vacante abierta para mostrar el hint correcto. Default false
+        // (trata la falta de información como "sin vacante" para ser
+        // conservative con la UI).
+        if (Input.PuestoId.HasValue && Input.PuestoId.Value != Guid.Empty)
+        {
+            PuestoSinVacanteAbierta = !await vacanteApiClient
+                .ExisteVacanteAbiertaParaPuestoAsync(Input.PuestoId.Value, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         return Page();
     }
 
@@ -84,7 +110,7 @@ public sealed class CreateModel(
     {
         if (!ModelState.IsValid)
         {
-            await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
+            await ReloadFormStateAsync(cancellationToken);
             return Page();
         }
 
@@ -148,7 +174,7 @@ public sealed class CreateModel(
                 // PersonaYPuestoOcupados (mapeo a ambos campos) y
                 // PuestoOcupado (mapeo a PuestoId únicamente).
                 MapConflictToModelState(result.Error);
-                await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
+                await ReloadFormStateAsync(cancellationToken);
                 return Page();
             }
 
@@ -167,7 +193,17 @@ public sealed class CreateModel(
             }
         }
 
-        await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
+        await ReloadFormStateAsync(cancellationToken);
         return Page();
+    }
+
+    private async Task ReloadFormStateAsync(CancellationToken cancellationToken)
+    {
+        await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
+        PuestoSinVacanteAbierta = Input.PuestoId is { } puestoId
+            && puestoId != Guid.Empty
+            && !await vacanteApiClient
+                .ExisteVacanteAbiertaParaPuestoAsync(puestoId, cancellationToken)
+                .ConfigureAwait(false);
     }
 }

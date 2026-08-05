@@ -3,11 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Common;
+using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Vacantes.Comandos.Validaciones;
 using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Vacantes.Comandos;
 using SGV.Contracts.Vacantes.Consultas.Dtos;
+using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Vacantes;
 
 namespace SGV.Aplicacion.Vacantes.Comandos;
@@ -23,6 +25,7 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
 {
     private readonly IVacanteRepository vacanteRepository;
     private readonly IEstadoVacanteRepository estadoVacanteRepository;
+    private readonly IOcupacionRepository ocupacionRepository;
     private readonly IUnitOfWork unitOfWork;
     private readonly IConstraintViolationDetector constraintDetector;
     private readonly ILogger<VacanteServicioComandos> logger;
@@ -39,7 +42,8 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
         IConstraintViolationDetector constraintDetector,
         ILogger<VacanteServicioComandos> logger,
         IValidator<CrearVacanteRequest> crearValidator,
-        IValidator<CambiarEstadoVacanteRequest> cambiarEstadoValidator)
+        IValidator<CambiarEstadoVacanteRequest> cambiarEstadoValidator,
+        IOcupacionRepository ocupacionRepository)
     {
         ArgumentNullException.ThrowIfNull(vacanteRepository);
         ArgumentNullException.ThrowIfNull(estadoVacanteRepository);
@@ -48,9 +52,11 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(crearValidator);
         ArgumentNullException.ThrowIfNull(cambiarEstadoValidator);
+        ArgumentNullException.ThrowIfNull(ocupacionRepository);
 
         this.vacanteRepository = vacanteRepository;
         this.estadoVacanteRepository = estadoVacanteRepository;
+        this.ocupacionRepository = ocupacionRepository;
         this.unitOfWork = unitOfWork;
         this.constraintDetector = constraintDetector;
         this.logger = logger;
@@ -67,11 +73,13 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
         IEstadoVacanteRepository estadoVacanteRepository,
         IUnitOfWork unitOfWork,
         IConstraintViolationDetector constraintDetector,
-        ILogger<VacanteServicioComandos> logger)
+        ILogger<VacanteServicioComandos> logger,
+        IOcupacionRepository ocupacionRepository)
         : this(
             vacanteRepository, estadoVacanteRepository, unitOfWork, constraintDetector, logger,
             new CrearVacanteRequestValidator(),
-            new CambiarEstadoVacanteRequestValidator())
+            new CambiarEstadoVacanteRequestValidator(),
+            ocupacionRepository)
     {
     }
 
@@ -141,6 +149,22 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
                     VacanteErrorCodigo.EstadoTerminalInmutable,
                     mensaje),
                 new Dictionary<string, string[]> { ["estadoVacanteId"] = [mensaje] });
+        }
+
+        // N1 (change vacante-ocupacion-flow-alignment): una Ocupación
+        // activa implica que la posición del Puesto está ocupada. Abrir
+        // una Vacante para el mismo Puesto es incoherente; rechazar antes
+        // de la constraint BD para dar un error semánticamente correcto
+        // desde el dominio. Distinto de PuestoConVacanteAbierta (que
+        // rechaza por otra Vacante abierta) y del PuestoOcupado del lado
+        // Ocupación (que es la unicidad por Puesto desde ese módulo).
+        if (await ocupacionRepository.ExistsActiveByPuestoAsync(request.PuestoId, excludingId: null, cancellationToken).ConfigureAwait(false))
+        {
+            return VacanteCommandResult.Failure(
+                new VacanteError(
+                    ErrorCategoria.Conflict,
+                    VacanteErrorCodigo.PuestoOcupado,
+                    "El puesto tiene una Ocupación activa; no se puede abrir una vacante mientras la posición esté ocupada."));
         }
 
         if (await vacanteRepository.ExistsAbiertaByPuestoAsync(request.PuestoId, cancellationToken).ConfigureAwait(false))
@@ -261,6 +285,29 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
                     "El estado de vacante destino no existe."));
         }
 
+        // N2 (change vacante-ocupacion-flow-alignment): Cubrir una Vacante
+        // requiere PersonaId (provisto por la Postulación ganadora, fuera
+        // de scope). Decisión pre-apply: comparar destinoCubierta por
+        // nombre literal ("Cubierta") en vez de agregar una columna —
+        // mismo trade-off que T-5.0 vs Cancelada, frágil ante renombre
+        // del seed pero 0 migración. Cuando el destino no es Cubierta
+        // (e.g. Cancelada o no terminal), el campo PersonaId se ignora.
+        var destinoEsCubierta = estadoNuevo.EsTerminal
+            && string.Equals(estadoNuevo.Nombre, "Cubierta", StringComparison.OrdinalIgnoreCase);
+        if (destinoEsCubierta && request.PersonaId is null)
+        {
+            var fieldErrors = new Dictionary<string, string[]>
+            {
+                ["personaId"] = ["PersonaId es obligatorio al cubrir una Vacante."]
+            };
+            return VacanteCommandResult.Failure(
+                new VacanteError(
+                    ErrorCategoria.Validation,
+                    VacanteErrorCodigo.PersonaIdRequeridoParaCubrir,
+                    "PersonaId es obligatorio al cubrir una Vacante."),
+                fieldErrors);
+        }
+
         try
         {
             var historial = vacante.CambiarEstado(
@@ -275,6 +322,29 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
             }
 
             await vacanteRepository.RegistrarCambioEstadoAsync(vacante, historial, cancellationToken).ConfigureAwait(false);
+
+            // N2: al Cubrir, crear la Ocupacion derivada en la MISMA
+            // transacción EF (una sola SaveChanges más abajo). EF agrupa
+            // ambas inserciones (vacante + historial + ocupacion) en un
+            // solo commit; si falla la Ocupacion, el cambio de estado de
+            // la Vacante también se revierte. El check de PersonaId arriba
+            // garantiza null-safety aquí.
+            if (destinoEsCubierta)
+            {
+                var ocupacionDerivada = new Ocupacion(
+                    personaId: request.PersonaId!.Value,
+                    puestoId: vacante.PuestoId,
+                    fechaInicio: DateOnly.FromDateTime(DateTime.UtcNow),
+                    tipoAsignacion: TipoAsignacion.Permanente,
+                    fechaFin: null,
+                    observaciones: null,
+                    vacanteId: vacante.Id);
+
+                await ocupacionRepository
+                    .AddAsync(ocupacionDerivada, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             var detailDto = MapToDetailDto(
