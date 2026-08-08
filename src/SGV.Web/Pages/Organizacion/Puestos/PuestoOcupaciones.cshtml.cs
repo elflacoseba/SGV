@@ -147,9 +147,18 @@ public sealed class PuestoOcupacionesModel(
 
     /// <inheritdoc/>
     object? IOcupacionesCrossList.VerOcupacionVigenteRouteValues
-        => HayOcupacionActiva
-            ? new { id = Items.First().Id }
-            : null;
+    {
+        get
+        {
+            if (!HayOcupacionActiva)
+            {
+                return null;
+            }
+
+            var firstId = Items.FirstOrDefault()?.Id;
+            return firstId.HasValue ? new { id = firstId.Value } : null;
+        }
+    }
 
     /// <inheritdoc/>
     string? IOcupacionesCrossList.DisponibilidadMessage
