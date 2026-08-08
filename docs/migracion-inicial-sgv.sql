@@ -925,20 +925,6 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260614183103_InicialSgvo') THEN
 
-    CREATE INDEX `IX_Auditorias_CorrelationId` ON `Auditorias` (`CorrelationId`);
-
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
-
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260614183103_InicialSgvo') THEN
-
     CREATE INDEX `IX_Auditorias_EntityName_EntityId_OccurredAt` ON `Auditorias` (`EntityName`, `EntityId`, `OccurredAt`);
 
     END IF;
@@ -4198,20 +4184,6 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260731173842_AddActivePuestoIdUniqueToVacantes', '9.0.0');
-
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
-
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260801014133_IndiceAuditoriaCorrelationIdOccurredAt') THEN
-
-    ALTER TABLE `Auditorias` DROP INDEX `IX_Auditorias_CorrelationId`;
 
     END IF;
 END //
