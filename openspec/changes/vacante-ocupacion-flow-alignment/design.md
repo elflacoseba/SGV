@@ -4,7 +4,7 @@
 
 El change alinea los flujos `Puesto → Vacante → Ocupacion` materializando la FK latente (`Ocupacion.VacanteId`) y endureciendo dos servicios de aplicación con checks cruzados: `VacanteServicioComandos` (N1 rechaza creación si el Puesto tiene Ocupacion activa; N2 materializa la `Ocupacion` al transicionar a `Cubierta`) y `OcupacionServicioComandos` (N3 rechaza alta directa sin Vacante abierta; Q2 bloquea reactivación si la Vacante vinculada está Cancelada).
 
-La pieza más sensible es **N2**: `CambiarEstadoAsync` deja de ser una transición con histórico y pasa a ser transición + histórico + creación atómica de `Ocupacion`. Todo bajo la misma transacción EF (`IUnitOfWork.SaveChangesAsync`), sin new hebavior de `BeginTransaction` porque `IUnitOfWork` no lo expone hoy y el wrapper EF cubre el chequeo.
+La pieza más sensible es **N2**: `CambiarEstadoAsync` deja de ser una transición con histórico y pasa a ser transición + histórico + creación atómica de `Ocupacion`. Todo bajo la misma transacción EF (`IUnitOfWork.SaveChangesAsync`), sin new behavior de `BeginTransaction` porque `IUnitOfWork` no lo expone hoy y el wrapper EF cubre el chequeo.
 
 **Corrección crítica al contexto recibido**: los métodos `ExistsActiveByPuestoAsync` en `IOcupacionRepository` y `ExistsAbiertaByPuestoAsync` en `IVacanteRepository` **ya existen** — los services los reusan sin tocar la interfaz. El design no agrega métodos de repositorio nuevos. El único contrato nuevo es `CambiarEstadoVacanteRequest.PersonaId` (opcional, obligatorio si destino es terminal `Cubierta`).
 

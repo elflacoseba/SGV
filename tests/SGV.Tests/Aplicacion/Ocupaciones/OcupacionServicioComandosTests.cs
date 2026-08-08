@@ -1155,8 +1155,11 @@ internal sealed class FakeVacanteLookupRepository : IVacanteRepository
 /// <summary>
 /// Helper para tests Q2: hidrata la nav <c>Vacante.EstadoVacante</c> usando
 /// reflection porque el setter es <c>private</c>. La nav es necesaria para
-/// que el servicio distinga por nombre "Cancelada" vs "Cubierta" (decisión
-/// pre-apply #1712).
+/// que el servicio distinga <c>EsCubierta</c> / <c>EsCancelada</c> en
+/// los checks N2 (Cubrir) y Q2 (Reactivar). WU-8 (PR #259 review H-8):
+/// los flags se setean ahora vía constructor de <see cref="EstadoVacante"/>;
+/// este helper sólo cubre la nav property del agregado Vacante, no
+/// duplicable sin tocar la entidad de dominio.
 /// </summary>
 internal static class VacanteTestExtensions
 {
