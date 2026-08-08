@@ -217,10 +217,12 @@ public sealed class VacanteApiClient(HttpClient httpClient) : IVacanteApiClient
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {
-            // T-7.1 / T-7.2: si la API no responde, degradamos a "no hay
-            // vacante abierta" para que la UI muestre los hints
-            // conservatives (alert-warning, sin botón NAV-007) en
-            // lugar de un error duro. El render sigue siendo degradable.
+            // Política de degradación unificada (T-7.1 / T-7.2 — PR #259
+            // review H-5): si la API no responde, degradamos a "no hay
+            // vacante abierta" para mostrar el botón NAV-007 en lugar
+            // de ocultarlo silenciosamente. Es preferible que el usuario
+            // descubra que el camino no aplica a que el botón desaparezca
+            // y deje al usuario sin clara acción de salida.
             _ = ex;
             return false;
         }

@@ -83,10 +83,14 @@ public sealed class PuestoOcupacionesModel(
     /// <c>true</c> cuando el Puesto due\u00f1o tiene al menos una Vacante
     /// abierta. Se setea en <see cref="OnGetAsync"/> consultando
     /// <see cref="IVacanteApiClient.ExisteVacanteAbiertaParaPuestoAsync"/>.
-    /// Default: <c>true</c> para que la UI no muestre el bot\u00f3n
-    /// NAV-007 por defecto si la consulta falla.
+    /// Default: <c>false</c> — degradación optimista alineada con la
+    /// política de <see cref="IVacanteApiClient.ExisteVacanteAbiertaParaPuestoAsync"/>
+    /// (que degrada a <c>false</c> ante fallo de transporte). La UI
+    /// prefiere mostrar el botón NAV-007 y dejar que el usuario
+    /// descubra que el camino no aplica, antes que ocultarlo
+    /// silenciosamente.
     /// </summary>
-    public bool HayVacanteAbierta { get; private set; } = true;
+    public bool HayVacanteAbierta { get; private set; }
 
     /// <summary>
     /// T-7.2: <c>true</c> cuando el Puesto tiene una Ocupaci\u00f3n
@@ -257,8 +261,12 @@ public sealed class PuestoOcupacionesModel(
 
         // T-7.2: una vez confirmada la lectura del Puesto, consultamos si
         // tiene una Vacante abierta para decidir el render del botón NAV-007.
-        // El helper degrada a "hay vacante" si la API falla, así que un
-        // fallo de transporte NO oclta el botón.
+        // Política de degradación unificada: tanto este cliente
+        // (<c>VacanteApiClient.ExisteVacanteAbiertaParaPuestoAsync</c>) como
+        // esta propiedad degradan a <c>false</c> ante fallo de transporte
+        // para mostrar el botón NAV-007. Un fallo de transporte revela así
+        // la acción y deja al usuario descubrir que el camino no aplica,
+        // en vez de ocultar el botón silenciosamente.
         HayVacanteAbierta = await vacanteApiClient
             .ExisteVacanteAbiertaParaPuestoAsync(id, cancellationToken)
             .ConfigureAwait(false);
