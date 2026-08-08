@@ -9,6 +9,7 @@ using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Seguridad;
+using SGV.Tests.Integration;
 using SGV.Tests.Persistencia;
 using Xunit;
 
@@ -28,6 +29,7 @@ namespace SGV.Tests.Seguridad;
 /// en CI real que OnTokenValidated corre tras la firma del token pero
 /// antes de la autorización, con UserManager resuelto desde scope."
 /// </summary>
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class JwtCorteInmediatoMySqlFactTests
 {
     private const string SigningKey = "CORTE-INMEDIATO-TEST-MIN-32-BYTES!!";

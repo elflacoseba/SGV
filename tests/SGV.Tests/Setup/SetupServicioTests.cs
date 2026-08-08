@@ -14,6 +14,7 @@ using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Contracts.Setup;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Seguridad;
+using SGV.Tests.Integration;
 using SGV.Tests.Persistencia;
 using SGV.Tests.Seguridad;
 using Xunit;
@@ -36,7 +37,7 @@ namespace SGV.Tests.Setup;
 /// - All Setup tests share a single xUnit collection to serialize them
 ///   against the shared <c>sgv_test</c> database.
 /// </summary>
-[Collection("SetupServicio")]
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class SetupServicioTests
 {
     private const string SigningKey = "E2E-API-TEST-MIN-32-BYTES-REQUIRED!!!";
@@ -277,17 +278,17 @@ public sealed class SetupServicioTests
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SgvDbContext>();
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM `Auditorias`");
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM `AspNetUserRoles`");
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM `AspNetUsers`");
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM `Personas`");
-        await db.SaveChangesAsync();
+        await SgvTestDatabaseCleaner.CleanAsync(db);
     }
 
     private static async Task VaciarAspNetUsersAsync(JwtRealWebApplicationFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SgvDbContext>();
+        // VaciarAspNetUsersAsync preserves Personas because the
+        // password-mapping tests rely on the "Admin Seed" persona still
+        // being present so CrearAdminAsync can re-bind a fresh AspNetUsers
+        // row to it. Only the Identity rows + audit history are wiped.
         await db.Database.ExecuteSqlRawAsync("DELETE FROM `Auditorias`");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM `AspNetUserRoles`");
         await db.Database.ExecuteSqlRawAsync("DELETE FROM `AspNetUsers`");

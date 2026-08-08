@@ -8,6 +8,7 @@ using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Contracts.Setup;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Seguridad;
+using SGV.Tests.Integration;
 using SGV.Tests.Persistencia;
 using SGV.Tests.Seguridad;
 using Xunit;
@@ -21,7 +22,7 @@ namespace SGV.Tests.Setup;
 /// rechaza el segundo, o la guarda <c>AnyUsersAsync</c> devuelve
 /// <c>SetupYaCompletado</c> si el primero ya commiteó).
 /// </summary>
-[Collection("SetupServicio")]
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class SetupConcurrencyMySqlFactTests
 {
     private const string SigningKey = "E2E-API-TEST-MIN-32-BYTES-REQUIRED!!!";
@@ -103,10 +104,6 @@ public sealed class SetupConcurrencyMySqlFactTests
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SgvDbContext>();
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM `Auditorias`");
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM `AspNetUserRoles`");
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM `AspNetUsers`");
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM `Personas`");
-        await db.SaveChangesAsync();
+        await SgvTestDatabaseCleaner.CleanAsync(db);
     }
 }

@@ -3,10 +3,12 @@ using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Dominio.Ocupaciones;
+using SGV.Tests.Integration;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
 
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class OcupacionRepositoryTests
 {
     // ── Active/History Queries ──────────────────────────────────

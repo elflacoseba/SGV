@@ -5,6 +5,7 @@ using SGV.Dominio.Vacantes;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Tests.Integration;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -20,6 +21,7 @@ namespace SGV.Tests.Persistencia;
 /// ver <c>openspec/changes/feature-implementar-modulo-vacantes/tasks.md</c>
 /// Phase 2 (2.3, 2.4).
 /// </summary>
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class VacanteRepositoryQueryTests
 {
     private static string UniqueSuffix() => Guid.NewGuid().ToString("N")[..8];
