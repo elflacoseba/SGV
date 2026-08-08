@@ -26,8 +26,14 @@ namespace SGV.Web.Pages.Organizacion.Ocupaciones;
 /// </summary>
 public abstract class OcupacionFormPageModel : PageModel, IOcupacionForm
 {
-    /// <summary>Indica que el PageModel base representa un formulario de edición.</summary>
-    public virtual bool IsEdit => true;
+    /// <summary>
+    /// Indica que el PageModel representa un formulario de edición.
+    /// Default <c>false</c> (PR #259 review H-7): un PageModel que olvide
+    /// override cae en Create, donde un IsEdit accidentalmente en
+    /// <c>true</c> podría habilitar acciones destructivas (delete/reactivar).
+    /// Edit debe hacer explícito <c>public override bool IsEdit => true</c>.
+    /// </summary>
+    public virtual bool IsEdit => false;
 
     /// <summary>
     /// Indica si el Puesto seleccionado carece de Vacante abierta.
