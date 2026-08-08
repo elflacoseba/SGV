@@ -50,7 +50,14 @@ internal class JwtRealWebApplicationFactory(string signingKey)
     /// <summary>
     /// Forces host build (so <c>ValidateOnStart</c> runs) and seeds the
     /// minimum role/persona/admin tuple so <c>/api/v1/auth/login</c> can
-    /// authenticate. Idempotent: running it twice does not throw.
+    /// authenticate. Idempotent AND race-safe: when multiple test classes
+    /// run in parallel against the shared <c>sgv_test</c> database, two
+    /// concurrent invocations can both pass the <c>FindByNameAsync</c>
+    /// check before either calls <c>CreateAsync</c>. The second
+    /// <c>CreateAsync</c> must therefore tolerate
+    /// <c>IdentityErrorDescriber.DuplicateUserName</c> (code
+    /// <c>"DuplicateUserName"</c>) and resolve the just-created user via
+    /// <c>FindByNameAsync</c> instead of failing the test host.
     /// </summary>
     public async Task InitializeAsync()
     {
@@ -96,24 +103,92 @@ internal class JwtRealWebApplicationFactory(string signingKey)
                 IsActive = true,
             };
             db.Personas.Add(persona);
-            await db.SaveChangesAsync();
+            // Detect concurrent inserts of the same Admin/Seed persona
+            // (no UNIQUE constraint on Nombres+Apellidos, so we can't rely
+            // on a duplicate-key failure) and re-query instead of throwing.
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                db.ChangeTracker.Clear();
+                persona = await db.Personas
+                    .FirstOrDefaultAsync(p => p.Nombres == "Admin" && p.Apellidos == "Seed");
+                Assert.NotNull(persona);
+            }
         }
 
         // 3) Admin — UserManager.CreateAsync NO asigna PersonaId, es property
         //    publica de SgvIdentityUser y debe setearse antes.
-        if (await userManager.FindByNameAsync("admin") is null)
+        var admin = await userManager.FindByNameAsync("admin");
+        if (admin is null)
         {
-            var admin = new SgvIdentityUser
+            var candidate = new SgvIdentityUser
             {
                 UserName = "admin",
                 Email = "admin@test.local",
                 EmailConfirmed = true,
-                PersonaId = persona.Id,
+                PersonaId = persona!.Id,
             };
-            var createResult = await userManager.CreateAsync(admin, "Admin#12345");
-            Assert.True(createResult.Succeeded, string.Join(", ", createResult.Errors.Select(e => e.Description)));
-            var roleAssign = await userManager.AddToRoleAsync(admin, RolesSgv.Administrador);
-            Assert.True(roleAssign.Succeeded, string.Join(", ", roleAssign.Errors.Select(e => e.Description)));
+            IdentityResult createResult;
+            try
+            {
+                createResult = await userManager.CreateAsync(candidate, "Admin#12345");
+            }
+            catch (DbUpdateException du) when (IsDuplicateUserName(du))
+            {
+                // Identity usually converts this into a Failure result, but
+                // when multiple InitializeAsync invocations race on the same
+                // schema the UserStore sometimes propagates the raw
+                // DbUpdateException. Treat it as a benign race and re-query.
+                createResult = IdentityResult.Failed(new IdentityErrorDescriber().DuplicateUserName(candidate.UserName));
+            }
+
+            if (!createResult.Succeeded)
+            {
+                // Race resolution: another InitializeAsync invocation
+                // committed the admin between our FindByNameAsync and our
+                // CreateAsync. Identity surfaces this as DuplicateUserName.
+                // Re-query and continue instead of failing the whole host.
+                var duplicate = createResult.Errors.Any(e =>
+                    string.Equals(e.Code, "DuplicateUserName", StringComparison.Ordinal));
+                Assert.True(duplicate,
+                    "CreateAsync(admin) failed for a non-duplicate reason: " +
+                    string.Join(", ", createResult.Errors.Select(e => e.Description)));
+
+                admin = await userManager.FindByNameAsync("admin");
+                Assert.NotNull(admin);
+            }
+            else
+            {
+                admin = candidate;
+            }
+
+            if (!await userManager.IsInRoleAsync(admin!, RolesSgv.Administrador))
+            {
+                var roleAssign = await userManager.AddToRoleAsync(admin!, RolesSgv.Administrador);
+                Assert.True(roleAssign.Succeeded,
+                    string.Join(", ", roleAssign.Errors.Select(e => e.Description)));
+            }
         }
+    }
+
+    /// <summary>
+    /// Detects whether a <see cref="DbUpdateException"/> originated from a
+    /// unique-key violation on <c>AspNetUsers.UserNameIndex</c>. Pomelo +
+    /// MySQL surface this as <c>MySqlException</c> with number 1062.
+    /// </summary>
+    private static bool IsDuplicateUserName(DbUpdateException exception)
+    {
+        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
+        {
+            if (inner is MySqlException { Number: 1062 } my)
+            {
+                return my.Message.Contains("UserNameIndex", StringComparison.OrdinalIgnoreCase)
+                    || my.Message.Contains("NormalizedUserName", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        return false;
     }
 }

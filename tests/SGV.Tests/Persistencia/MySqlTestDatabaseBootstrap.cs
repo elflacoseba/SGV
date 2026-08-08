@@ -104,6 +104,19 @@ internal static partial class MySqlTestDatabaseBootstrap
             {
                 using var context = TestSgvDbContextFactory.CreateDbContext(settings);
                 context.Database.Migrate();
+                // Note: We deliberately do NOT wipe transactional tables
+                // here. Migrate() does not re-apply HasData() rows, so
+                // wiping would destroy catalog seeds (NivelesHabilidad,
+                // Cargos, Habilidades, etc.) without a way to restore
+                // them. The pre-existing issue #260 race conditions are
+                // resolved by:
+                //   1. JwtRealWebApplicationFactory.InitializeAsync
+                //      tolerating DuplicateUserName errors (race-safe
+                //      seed), and
+                //   2. [Collection("MySqlIntegration")] serializing every
+                //      class that shares sgv_test.
+                // Tests that need a clean transactional slate must call
+                // SgvTestDatabaseCleaner.CleanAsync(context) explicitly.
             },
             log: message => Console.Error.WriteLine(message));
     }
