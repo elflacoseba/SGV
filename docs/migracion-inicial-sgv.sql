@@ -925,6 +925,20 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260614183103_InicialSgvo') THEN
 
+    CREATE INDEX `IX_Auditorias_CorrelationId` ON `Auditorias` (`CorrelationId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260614183103_InicialSgvo') THEN
+
     CREATE INDEX `IX_Auditorias_EntityName_EntityId_OccurredAt` ON `Auditorias` (`EntityName`, `EntityId`, `OccurredAt`);
 
     END IF;
@@ -2555,7 +2569,7 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
 
-    UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente'
+    UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente';
 
     END IF;
 END //
@@ -2569,7 +2583,7 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
 
-    UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina'
+    UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina';
 
     END IF;
 END //
@@ -2583,7 +2597,7 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad') THEN
 
-    UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Temporal'
+    UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Temporal';
 
     END IF;
 END //
@@ -2882,82 +2896,133 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260716120000_DropSoftDeleteFromAspNetUsers') THEN
 
-    DROP PROCEDURE IF EXISTS __sgvApplyD7;
+    -- Bandera de reentrancia: 1 si la columna IsDeleted existe
+    -- (estado pre-D7); 0 si ya fue dropeada (estado post-D7).
+    SET @needsD7 := (
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE table_schema = DATABASE()
+          AND table_name = 'AspNetUsers'
+          AND column_name = 'IsDeleted'
+    );
 
-    CREATE PROCEDURE __sgvApplyD7()
-    BEGIN
-        DECLARE _needsD7 INT DEFAULT (
-            SELECT COUNT(*) FROM information_schema.COLUMNS
-            WHERE table_schema = DATABASE()
-              AND table_name = 'AspNetUsers'
-              AND column_name = 'IsDeleted'
-        );
-        IF _needsD7 > 0 THEN
-            -- Paso 1: preflight fail-loud
-            SET @duplicatePersonas = (
-                SELECT COUNT(*) FROM (
-                    SELECT `PersonaId` FROM `AspNetUsers`
-                    GROUP BY `PersonaId` HAVING COUNT(*) > 1
-                ) AS dupes
-            );
-            SET @preflightMsg = CONCAT(
-                'Backfill fail-loud: ', @duplicatePersonas,
-                ' PersonaId duplicados entre AspNetUsers activas. ',
-                'Resolver duplicados manualmente antes de aplicar esta migración.'
-            );
-            IF @duplicatePersonas > 0 THEN
-                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = @preflightMsg;
-            END IF;
+    -- Paso 1: preflight fail-loud vía ADD UNIQUE INDEX temporal
+    -- sobre PersonaId. Si hay duplicados activos, MySQL devuelve
+    -- ERROR 1062 y aborta el script antes de cualquier mutación
+    -- destructiva. Reemplaza al SIGNAL SQLSTATE custom previo
+    -- (no disponible fuera de un stored procedure).
+    SET @step1 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            ADD UNIQUE INDEX `__sgvD7_PreflightUnique` (`PersonaId`),
+            ALGORITHM=INPLACE, LOCK=NONE',
+        'DO 0');
+    PREPARE step1Stmt FROM @step1;
+    EXECUTE step1Stmt;
+    DEALLOCATE PREPARE step1Stmt;
 
-            -- Paso 2: backfill
-            UPDATE `AspNetUsers`
+    -- Paso 2: backfill IsDeleted=1 → LockoutEnd futuro.
+    SET @step2 := IF(@needsD7 > 0,
+        'UPDATE `AspNetUsers`
             SET `LockoutEnabled` = 1,
-                `LockoutEnd` = '9999-12-31 23:59:59.999999'
-            WHERE `IsDeleted` = 1;
+                `LockoutEnd` = ''9999-12-31 23:59:59.999999''
+            WHERE `IsDeleted` = 1',
+        'DO 0');
+    PREPARE step2Stmt FROM @step2;
+    EXECUTE step2Stmt;
+    DEALLOCATE PREPARE step2Stmt;
 
-            -- Paso 3: DROP FK
-            ALTER TABLE `AspNetUsers`
-              DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
-              ALGORITHM=INPLACE, LOCK=NONE;
+    -- Paso 3: DROP FK (metadata-only, INPLACE).
+    SET @step3 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
+            ALGORITHM=INPLACE, LOCK=NONE',
+        'DO 0');
+    PREPARE step3Stmt FROM @step3;
+    EXECUTE step3Stmt;
+    DEALLOCATE PREPARE step3Stmt;
 
-            -- Paso 4: DROP INDEX ActiveUserNameUnique
-            ALTER TABLE `AspNetUsers`
-              DROP INDEX `IX_AspNetUsers_ActiveUserNameUnique`,
-              ALGORITHM=INPLACE, LOCK=NONE;
+    -- Paso 4: DROP INDEX ActiveUserNameUnique.
+    SET @step4 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            DROP INDEX `IX_AspNetUsers_ActiveUserNameUnique`,
+            ALGORITHM=INPLACE, LOCK=NONE',
+        'DO 0');
+    PREPARE step4Stmt FROM @step4;
+    EXECUTE step4Stmt;
+    DEALLOCATE PREPARE step4Stmt;
 
-            -- Paso 5: DROP INDEX ActivePersonaIdUnique
-            ALTER TABLE `AspNetUsers`
-              DROP INDEX `IX_AspNetUsers_ActivePersonaIdUnique`,
-              ALGORITHM=INPLACE, LOCK=NONE;
+    -- Paso 5: DROP INDEX ActivePersonaIdUnique.
+    SET @step5 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            DROP INDEX `IX_AspNetUsers_ActivePersonaIdUnique`,
+            ALGORITHM=INPLACE, LOCK=NONE',
+        'DO 0');
+    PREPARE step5Stmt FROM @step5;
+    EXECUTE step5Stmt;
+    DEALLOCATE PREPARE step5Stmt;
 
-            -- Paso 6: DROP COLUMNs
-            ALTER TABLE `AspNetUsers`
-              DROP COLUMN `ActiveUserNameUnique`,
-              DROP COLUMN `ActivePersonaIdUnique`,
-              DROP COLUMN `IsDeleted`,
-              ALGORITHM=INPLACE, LOCK=NONE;
+    -- Paso 6: DROP COLUMNs (incluye IsDeleted, libera columnas
+    -- generadas STORED referenciadas por los índices dropeados).
+    SET @step6 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            DROP COLUMN `ActiveUserNameUnique`,
+            DROP COLUMN `ActivePersonaIdUnique`,
+            DROP COLUMN `IsDeleted`,
+            ALGORITHM=INPLACE, LOCK=NONE',
+        'DO 0');
+    PREPARE step6Stmt FROM @step6;
+    EXECUTE step6Stmt;
+    DEALLOCATE PREPARE step6Stmt;
 
-            -- Paso 7: DROP INDEX PersonaId
-            ALTER TABLE `AspNetUsers`
-              DROP INDEX `IX_AspNetUsers_PersonaId`,
-              ALGORITHM=INPLACE, LOCK=NONE;
+    -- Paso 7: DROP INDEX PersonaId no-único vigente desde la
+    -- migración AddSoftDeleteToAspNetUsers paso 3. Este índice
+    -- fue creado como no-único para liberar la unicidad que
+    -- originalmente sostenía la FK; ahora lo reemplazamos por
+    -- una versión UNIQUE.
+    SET @step7 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            DROP INDEX `IX_AspNetUsers_PersonaId`,
+            ALGORITHM=INPLACE, LOCK=NONE',
+        'DO 0');
+    PREPARE step7Stmt FROM @step7;
+    EXECUTE step7Stmt;
+    DEALLOCATE PREPARE step7Stmt;
 
-            -- Paso 8: ADD UNIQUE INDEX PersonaId
-            ALTER TABLE `AspNetUsers`
-              ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
-              ALGORITHM=INPLACE, LOCK=NONE;
+    -- Paso 8: DROP INDEX temporal preflight.
+    SET @step8 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            DROP INDEX `__sgvD7_PreflightUnique`,
+            ALGORITHM=INPLACE, LOCK=NONE',
+        'DO 0');
+    PREPARE step8Stmt FROM @step8;
+    EXECUTE step8Stmt;
+    DEALLOCATE PREPARE step8Stmt;
 
-            -- Paso 9: ADD CONSTRAINT FK
-            ALTER TABLE `AspNetUsers`
-              ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
-              FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
-              ON DELETE RESTRICT,
-              ALGORITHM=COPY;
-        END IF;
-    END;
+    -- Paso 9: ADD UNIQUE INDEX PersonaId (canónico, mismo
+    -- nombre que el índice temporal — el DROP/CREATE atómico
+    -- podría optimizarse, pero rompería la barerra del
+    -- preflight fail-loud).
+    SET @step9 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
+            ALGORITHM=INPLACE, LOCK=NONE',
+        'DO 0');
+    PREPARE step9Stmt FROM @step9;
+    EXECUTE step9Stmt;
+    DEALLOCATE PREPARE step9Stmt;
 
-    CALL __sgvApplyD7();
-    DROP PROCEDURE __sgvApplyD7;
+    -- Paso 10: ADD CONSTRAINT FK PersonaId RESTRICT.
+    -- ALGORITHM=COPY porque MySQL 8 no permite INPLACE para
+    -- ADD CONSTRAINT sobre FKs en este contexto.
+    SET @step10 := IF(@needsD7 > 0,
+        'ALTER TABLE `AspNetUsers`
+            ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
+            FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
+            ON DELETE RESTRICT,
+            ALGORITHM=COPY',
+        'DO 0');
+    PREPARE step10Stmt FROM @step10;
+    EXECUTE step10Stmt;
+    DEALLOCATE PREPARE step10Stmt;
 
     END IF;
 END //
@@ -4197,6 +4262,20 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260801014133_IndiceAuditoriaCorrelationIdOccurredAt') THEN
 
+    ALTER TABLE `Auditorias` DROP INDEX `IX_Auditorias_CorrelationId`;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260801014133_IndiceAuditoriaCorrelationIdOccurredAt') THEN
+
     CREATE INDEX `IX_Auditorias_CorrelationId_OccurredAt` ON `Auditorias` (`CorrelationId`, `OccurredAt`);
 
     END IF;
@@ -4270,6 +4349,83 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260804235936_AddVacanteIdToOcupaciones', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260805000000_AddEstadoVacanteFlags') THEN
+
+    ALTER TABLE `EstadosVacante` ADD `EsCubierta` tinyint(1) NOT NULL DEFAULT FALSE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260805000000_AddEstadoVacanteFlags') THEN
+
+    ALTER TABLE `EstadosVacante` ADD `EsCancelada` tinyint(1) NOT NULL DEFAULT FALSE;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260805000000_AddEstadoVacanteFlags') THEN
+
+    UPDATE `EstadosVacante` SET `EsCubierta` = TRUE
+    WHERE `Id` = '20000000-0000-0000-0000-000000000003';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260805000000_AddEstadoVacanteFlags') THEN
+
+    UPDATE `EstadosVacante` SET `EsCancelada` = TRUE
+    WHERE `Id` = '20000000-0000-0000-0000-000000000004';
+    SELECT ROW_COUNT();
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260805000000_AddEstadoVacanteFlags') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260805000000_AddEstadoVacanteFlags', '9.0.0');
 
     END IF;
 END //

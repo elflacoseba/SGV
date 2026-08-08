@@ -422,7 +422,8 @@ El primer intento de unificar el camino (que `dotnet ef migrations script` gener
 - **No usa `__EFMigrationsHistory`** para trazabilidad. Aunque crea la tabla y registra las 13 migraciones, no se actualiza en reaplicaciones. La trazabilidad real vive en este archivo + el repo Git.
 - **No incluye datos semilla** (`AgregarDatosSemillaBase`). Los seeders viven en `src/SGV.Infraestructura/Persistencia/Seeds/`.
 - **`DROP TABLE IF EXISTS + CREATE` para re-ejecución idempotente**. NO usar contra una base MySQL 8 preexistente (cambia la collation).
-- **Stored procedures con `DELIMITER`**: el script incluye `DROP PROCEDURE IF EXISTS __sgvApplyD7` + bloque CREATE PROCEDURE para la migración `DropSoftDeleteFromAspNetUsers`. Si se aplica programáticamente (vía `MySqlConnector`/Python), el cliente debe parsear las directivas `DELIMITER` o usar `--delimiter` en el CLI. Conectar con `Allow User Variables=true` si se usa `MySqlConnector` (los `SET @var = ...` del script lo requieren).
+- **Stored procedures con `DELIMITER`**: el script se aplica con el CLI `mysql` (que parsea directivas `DELIMITER`). Si se aplica programáticamente (vía `MySqlConnector`/Python), el cliente debe parsear las directivas `DELIMITER` o usar `--delimiter` en el CLI. Conectar con `Allow User Variables=true` si se usa `MySqlConnector` (los `SET @var = ...` del script lo requieren).
+- **Stored procedure anidado para D7 (#263)**: la versión previa de la migración `DropSoftDeleteFromAspNetUsers` declaraba un procedure interno `__sgvApplyD7` anidado dentro del procedure `MigrationsScript` que EF Core genera para el modo `--idempotent`. MySQL rechaza esa anidación con `ERROR 1357 ("Can't drop or alter a PROCEDURE from within another stored routine")`, por lo que el script abortaba antes de aplicar el soft-delete. La versión actual ejecuta los 10 pasos de D7 en SQL directo, gated por un `@needsD7` derivado de `information_schema.COLUMNS` y ejecutado vía `PREPARE`/`EXECUTE`/`DEALLOCATE PREPARE`. El preflight fail-loud custom (`SIGNAL SQLSTATE '45000'`) se reemplazó por un `ADD UNIQUE INDEX` temporal sobre `PersonaId` (`__sgvD7_PreflightUnique`): si hay duplicados activos, MySQL aborta con `ERROR 1062` antes de cualquier operación destructiva. La barrera natural del UNIQUE INDEX es suficiente para el criterio end-to-end; el mensaje custom se pierde como trade-off aceptable.
 
 ### Validación empírica
 
@@ -435,6 +436,187 @@ Antes de mergear a develop, las pruebas se ejecutaron contra `sgvapi.elflacoseba
 - ✅ Patrón con `CONCAT(CAST(... AS CHAR CHARACTER SET utf8mb4), ':', ...)` → funciona
 
 Si en el futuro el proyecto unifica el camino MariaDB al estilo EF puro, hay que regenerar los `Designer.cs` de las migraciones 1-12 (o agregar una mini-migración correctiva VIRTUAL→STORED al inicio del pipeline). No hay trabajo previo en esa dirección; el camino dual se mantiene por estabilidad de despliegues.
+
+## Issue #263 — script standalone ejecutable punta a punta
+
+> Cambio #263 cierra dos bugs que impedían aplicar
+> `docs/migracion-inicial-sgv.sql` contra una base MySQL 8 limpia
+> en modo `--idempotent`. La investigación partió de una afirmación de
+> la issue (UPDATE sin `;` en `Ocupaciones.TipoAsignacion`) y descubrió
+> un segundo bug latente en la migración `DropSoftDeleteFromAspNetUsers`
+> (procedure anidado en `MigrationsScript`).
+
+### Bug 1 — `UPDATE` sin `;` dentro del wrapper `MigrationsScript`
+
+`dotnet ef migrations script --idempotent` envuelve cada operación de
+cada migración en un stored procedure `MigrationsScript()` cuya
+estructura es:
+
+```sql
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '...') THEN
+
+    -- cuerpo de la operación acá
+
+    END IF;
+END //
+```
+
+Una sentencia `migrationBuilder.Sql("UPDATE ...")` que **no termina
+con `;`** produce dentro de ese cuerpo `UPDATE ... \n\n END IF;`, lo
+que MySQL concatena hasta el próximo `;` y devuelve `ERROR 1064`. La
+migración `ConvertirTipoAsignacionAEnumYActualizarUnicidad` tenía
+seis UPDATE sin terminador (tres en `Up`, tres en `Down`). Fix: agregar
+`;` al final de cada `migrationBuilder.Sql("UPDATE ...")` en ambos
+métodos. Comportamiento EF runtime intacto.
+
+### Bug 2 — stored procedure anidado en `MigrationsScript`
+
+La migración `DropSoftDeleteFromAspNetUsers` (D7) declaraba un
+procedure interno `__sgvApplyD7` anidado dentro del wrapper
+`MigrationsScript` que EF Core genera para `--idempotent`:
+
+```sql
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(...) THEN
+
+    DROP PROCEDURE IF EXISTS __sgvApplyD7;        -- ❌ ERROR 1357
+    CREATE PROCEDURE __sgvApplyD7()
+    BEGIN
+        ...
+    END;
+
+    CALL __sgvApplyD7();
+    DROP PROCEDURE __sgvApplyD7;
+
+    END IF;
+END //
+```
+
+MySQL rechaza `DROP/CREATE PROCEDURE` dentro de otro stored routine
+con `ERROR 1357 ("Can't drop or alter a PROCEDURE from within
+another stored routine")`. Esto bloqueaba el script mucho antes del
+paso destructivo. Tres opciones evaluadas (ver `apply-progress.md`
+del change archivado `2026-07-16-quita-soft-delete-usuario`):
+
+- **A — Mantener el procedure y reescribir MigrationsScript wrapper**: requiere patchear el generador de EF, fuera de alcance.
+- **B — Script sin DELIMITER + sin wrapper**: requiere regenerar con otro modo, pierde idempotencia.
+- **C — Reescribir D7 en SQL directo gated por `information_schema`** ✅.
+
+### Decisión adoptada (vigente) — `C` con preflight natural
+
+La nueva versión de `20260716120000_DropSoftDeleteFromAspNetUsers.cs`
+ejecuta los **10 pasos del design D7** en SQL directo, gated por un
+`@needsD7` booleano derivado de `information_schema.COLUMNS` (existe
+`IsDeleted`?) y ejecutado vía `PREPARE` / `EXECUTE` / `DEALLOCATE
+PREPARE`. El `IF NOT EXISTS(SELECT 1 FROM __EFMigrationsHistory WHERE
+MigrationId = '...')` que EF Core sigue generando afuera del cuerpo
+mantiene la idempotencia a nivel migración; el chequeo defensivo de
+`@needsD7` cubre el caso de fila huérfana en el historial.
+
+**Preflight fail-loud:** el `SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT`
+custom de la versión previa se reemplaza por un `ADD UNIQUE INDEX
+__sgvD7_PreflightUnique (PersonaId)` en el paso 1. Si hay duplicados
+activos, MySQL devuelve `ERROR 1062` y aborta el script antes de
+cualquier mutación destructiva. El índice temporal se dropea en el
+paso 8 y se recrea como canónico (`IX_AspNetUsers_PersonaId`) en el
+paso 9. Trade-off explícito: **se pierde el mensaje custom** del
+`SIGNAL`; el `ERROR 1062` nativo de MySQL (con su mensaje estándar
+"Duplicate entry ... for key '__sgvD7_PreflightUnique'") es la nueva
+señal fail-loud. Suficiente para el criterio end-to-end.
+
+| Paso | Operación |
+|------|-----------|
+| 1    | `ADD UNIQUE INDEX __sgvD7_PreflightUnique (PersonaId)` — preflight natural |
+| 2    | `UPDATE AspNetUsers SET LockoutEnabled=1, LockoutEnd='9999-12-31 23:59:59.999999' WHERE IsDeleted = 1` |
+| 3    | `DROP FOREIGN KEY FK_AspNetUsers_Personas_PersonaId` (INPLACE, LOCK=NONE) |
+| 4    | `DROP INDEX IX_AspNetUsers_ActiveUserNameUnique` (INPLACE, LOCK=NONE) |
+| 5    | `DROP INDEX IX_AspNetUsers_ActivePersonaIdUnique` (INPLACE, LOCK=NONE) |
+| 6    | `DROP COLUMN ActiveUserNameUnique, ActivePersonaIdUnique, IsDeleted` (INPLACE, LOCK=NONE) |
+| 7    | `DROP INDEX IX_AspNetUsers_PersonaId` (no-único, vigente desde `AddSoftDeleteToAspNetUsers`) (INPLACE, LOCK=NONE) |
+| 8    | `DROP INDEX __sgvD7_PreflightUnique` (INPLACE, LOCK=NONE) |
+| 9    | `ADD UNIQUE INDEX IX_AspNetUsers_PersonaId (PersonaId)` (INPLACE, LOCK=NONE) |
+| 10   | `ADD CONSTRAINT FK_AspNetUsers_Personas_PersonaId FOREIGN KEY (PersonaId) REFERENCES Personas (Id) ON DELETE RESTRICT` (ALGORITHM=COPY) |
+
+### Limitación documentada — migración sin Designer
+
+`dotnet ef migrations list` detecta **17** migraciones (incluida D7);
+tanto `dotnet ef database update` como el script standalone
+`docs/migracion-inicial-sgv.sql` aplican las mismas **17** y dejan
+idéntico end-state en `__EFMigrationsHistory`. La migración
+`20260730000000_SemillaTipoUnidadOrganizativaAmpliada` carece de
+`.Designer.cs` por lo que **no aparece en `dotnet ef migrations
+list`**, queda **fuera del script standalone**, y sus 13 filas de
+`InsertData` (Sede, Region, etc.) **no se ejecutan en ninguno de los
+dos paths**. Esto es preexistente a #263, no introducido por este
+cambio.
+
+**Conteo posterior a la corrida:** ambos paths dejan **7 filas** en
+`TiposUnidadOrganizativa` (las del seed original de
+`20260616190624_CambiarTipoUnidadATablaTipoUnidadOrganizativa`), no
+20. Los 13 registros adicionales viven sólo en
+`DatosSemilla.HasData` (snapshot EF Core) y **no se materializan
+automáticamente** porque la migración que los insertaría no está
+registrada. `dotnet ef database update` los reportaría como un
+delta de `HasData` sólo si el Designer.cs de esa migración
+existiera y la registrara; sin Designer, EF considera la migración
+inexistente y no emite inserts. El script standalone, análogamente,
+sólo recorre las migraciones que el wrapper genera a partir del
+model snapshot vigente.
+
+**No afecta deployments reales:** producción usa el camino MariaDB
+hand-crafted (`scripts/migracion-inicial-sgv-mariadb.sql`) o el
+runtime `Database.Migrate()` con un Designer.cs correcto; ninguno
+de esos paths pasa por esta migración huérfana. Regenerar el
+`Designer.cs` de `SemillaTipoUnidadOrganizativaAmpliada` o crear
+una migración correctiva que inserte los 13 registros faltantes es
+**trabajo de follow-up separado**; está fuera del alcance de #263,
+cuyo objetivo era hacer el script standalone ejecutable punta a
+punto, no completar la detectabilidad del set completo de
+migraciones.
+
+### Cobertura nueva
+
+- `tests/SGV.Tests/Persistencia/ScriptStandaloneSmokeMySqlFactTests.cs`
+  (2 tests `[MySqlFact]`): ejecuta `docs/migracion-inicial-sgv.sql`
+  completo contra una DB MySQL efímera (creada y destruida por el
+  test), verifica que las 17 migraciones quedan registradas en
+  `__EFMigrationsHistory` y que el end-state post-D7 es correcto
+  (`IsDeleted`/`ActiveUserNameUnique`/`ActivePersonaIdUnique`
+  eliminados, `IX_AspNetUsers_PersonaId` UNIQUE, FK RESTRICT).
+  El segundo test verifica idempotencia aplicando el script dos veces.
+  La password se inyecta vía `ProcessStartInfo.Environment["MYSQL_PWD"]`
+  y el script se alimenta por stdin — la password no aparece en
+  `argv` ni en `ps`.
+- `tests/SGV.Tests/Persistencia/ScriptStandaloneStaticGuardTests.cs`
+  (3 tests `[Fact]`): defense-in-depth que detecta los dos patrones
+  de bug originales sin necesidad de MySQL real — sentencia sin `;`
+  dentro de `MigrationsScript` (Bug 1) y `CREATE`/`DROP`/`CALL`
+  procedure anidado (Bug 2). Si alguien reintroduce cualquiera de
+  los dos patrones, el test falla con el offset aproximado.
+- `tests/SGV.Tests/Persistencia/DropSoftDeleteMigracionTests.cs`
+  (7 tests `[Fact]`): actualizados para reflejar el nuevo diseño —
+  preflight por `__sgvD7_PreflightUnique` con verificación de
+  posición (`IndexOf`) **antes** de cualquier mutación destructiva,
+  reentrancia via `information_schema` + `PREPARE`/`EXECUTE`, ausencia
+  del procedure interno `__sgvApplyD7`.
+
+### Riesgos residuales
+
+1. **Mensaje del preflight es `ERROR 1062` nativo** en vez del SIGNAL
+   custom. Operadores que busquen el texto del mensaje viejo en logs
+   no lo encontrarán; el mensaje nativo de MySQL es la nueva señal
+   fail-loud. Aceptable: el `ADD UNIQUE INDEX` natural es la barrera
+   que importa.
+2. **El smoke test invoca `mysql` CLI** porque MySqlConnector no
+   soporta directivas `DELIMITER` (https://mysqlconnector.net/delimiter).
+   El path operativo es el mismo que usaría un operador (CLI mysql),
+   no MySqlConnector. La password se pasa vía `psi.Environment["MYSQL_PWD"]`
+   y el script se alimenta por `StandardInput` — la password **no
+   aparece en `argv` ni en `ps`** del proceso `mysql` ni del proceso
+   test runner.
 
 ## Índices Únicos con Soft Delete
 

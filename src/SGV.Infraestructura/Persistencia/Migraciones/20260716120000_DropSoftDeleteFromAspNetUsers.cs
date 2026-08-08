@@ -22,11 +22,27 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
     /// <c>ALGORITHM=COPY</c> extra y conserva la unicidad 1:1.
     /// </para>
     /// <para>
-    /// El preflight fail-loud (paso 1) aborta con SQLSTATE 45000 si
-    /// existen duplicados activos de PersonaId; el backfill (paso 2)
-    /// traduce <c>IsDeleted=1</c> a un lockout administrativo
-    /// (<c>LockoutEnabled=1, LockoutEnd='9999-12-31 23:59:59.999999'</c>)
-    /// antes de dropear la columna.
+    /// <b>Reescrito en #263:</b> la versión previa
+    /// usaba un stored procedure <c>__sgvApplyD7</c> anidado dentro
+    /// del procedure <c>MigrationsScript</c> que EF Core genera para
+    /// <c>dotnet ef migrations script --idempotent</c>. MySQL rechaza
+    /// <c>DROP/CREATE PROCEDURE</c> dentro de otro stored routine con
+    /// <c>ERROR 1357 (Can't drop or alter a PROCEDURE from within
+    /// another stored routine)</c>. La solución ejecuta los diez
+    /// pasos en SQL directo, gated por un <c>@needsD7</c> booleano
+    /// derivado de <c>information_schema.COLUMNS</c> y ejecutado vía
+    /// <c>PREPARE</c>/<c>EXECUTE</c>/<c>DEALLOCATE PREPARE</c>.
+    /// </para>
+    /// <para>
+    /// <b>Preflight fail-loud:</b> el SIGNAL custom de la versión
+    /// previa se reemplaza por un <c>ADD UNIQUE INDEX</c> temporal
+    /// sobre <c>PersonaId</c> que actúa como preflight natural: si
+    /// existen duplicados activos, MySQL devuelve <c>ERROR 1062</c>
+    /// y aborta el script antes de cualquier operación destructiva.
+    /// El índice temporal se dropea en el paso 8 y se recrea
+    /// como canónico en el paso 9. La pérdida del mensaje custom
+    /// se compensa por la barrera natural del UNIQUE INDEX, suficiente
+    /// para el criterio end-to-end del script.
     /// </para>
     /// </remarks>
     public partial class DropSoftDeleteFromAspNetUsers : Migration
@@ -35,101 +51,156 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // ────────────────────────────────────────────────────────────
-            // RES-001 (4R review): la migración es reentrante. Un segundo
-            // run contra un schema post-D7 (IsDeleted ya no existe)
-            // debe ser un no-op, no una excepción. Lo logramos con un
-            // stored procedure efímero gated por INFORMATION_SCHEMA.
+            // Reentrancia (#263): un segundo run contra un schema post-D7
+            // (IsDeleted ya no existe) debe ser un no-op. El EF Core wrapper
+            // MigrationsScript ya gatea por __EFMigrationsHistory, pero
+            // defendemos también contra filas huérfanas en el historial
+            // (ej. edición manual) chequeando information_schema.COLUMNS
+            // y usando PREPARE/EXECUTE con un SQL condicional.
             //
-            // El orden de los 8 pasos dentro del bloque IF sigue
-            // siendo el del design D7:
-            //  (1) preflight fail-loud duplicados PersonaId;
+            // El orden de los 10 pasos respeta el design D7:
+            //  (1) preflight ADD UNIQUE INDEX temporal sobre PersonaId
+            //      (falla con 1062 si hay duplicados activos);
             //  (2) backfill IsDeleted=1 → LockoutEnd futuro;
             //  (3) DROP FK;
             //  (4) DROP INDEX ActiveUserNameUnique;
             //  (5) DROP INDEX ActivePersonaIdUnique;
             //  (6) DROP COLUMN ActiveUserNameUnique/ActivePersonaIdUnique/IsDeleted;
-            //  (7) DROP INDEX PersonaId (no-único);
-            //  (8) ADD UNIQUE INDEX PersonaId;
-            //  (9) ADD CONSTRAINT FK PersonaId RESTRICT.
+            //  (7) DROP INDEX PersonaId (no-único vigente desde
+            //      AddSoftDeleteToAspNetUsers paso 3);
+            //  (8) DROP INDEX temporal preflight;
+            //  (9) ADD UNIQUE INDEX PersonaId (canónico, mismo nombre);
+            // (10) ADD CONSTRAINT FK PersonaId RESTRICT.
             // ────────────────────────────────────────────────────────────
             migrationBuilder.Sql(
                 """
-                DROP PROCEDURE IF EXISTS __sgvApplyD7;
+                -- Bandera de reentrancia: 1 si la columna IsDeleted existe
+                -- (estado pre-D7); 0 si ya fue dropeada (estado post-D7).
+                SET @needsD7 := (
+                    SELECT COUNT(*) FROM information_schema.COLUMNS
+                    WHERE table_schema = DATABASE()
+                      AND table_name = 'AspNetUsers'
+                      AND column_name = 'IsDeleted'
+                );
 
-                CREATE PROCEDURE __sgvApplyD7()
-                BEGIN
-                    DECLARE _needsD7 INT DEFAULT (
-                        SELECT COUNT(*) FROM information_schema.COLUMNS
-                        WHERE table_schema = DATABASE()
-                          AND table_name = 'AspNetUsers'
-                          AND column_name = 'IsDeleted'
-                    );
-                    IF _needsD7 > 0 THEN
-                        -- Paso 1: preflight fail-loud
-                        SET @duplicatePersonas = (
-                            SELECT COUNT(*) FROM (
-                                SELECT `PersonaId` FROM `AspNetUsers`
-                                GROUP BY `PersonaId` HAVING COUNT(*) > 1
-                            ) AS dupes
-                        );
-                        SET @preflightMsg = CONCAT(
-                            'Backfill fail-loud: ', @duplicatePersonas,
-                            ' PersonaId duplicados entre AspNetUsers activas. ',
-                            'Resolver duplicados manualmente antes de aplicar esta migración.'
-                        );
-                        IF @duplicatePersonas > 0 THEN
-                            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = @preflightMsg;
-                        END IF;
+                -- Paso 1: preflight fail-loud vía ADD UNIQUE INDEX temporal
+                -- sobre PersonaId. Si hay duplicados activos, MySQL devuelve
+                -- ERROR 1062 y aborta el script antes de cualquier mutación
+                -- destructiva. Reemplaza al SIGNAL SQLSTATE custom previo
+                -- (no disponible fuera de un stored procedure).
+                SET @step1 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        ADD UNIQUE INDEX `__sgvD7_PreflightUnique` (`PersonaId`),
+                        ALGORITHM=INPLACE, LOCK=NONE',
+                    'DO 0');
+                PREPARE step1Stmt FROM @step1;
+                EXECUTE step1Stmt;
+                DEALLOCATE PREPARE step1Stmt;
 
-                        -- Paso 2: backfill
-                        UPDATE `AspNetUsers`
+                -- Paso 2: backfill IsDeleted=1 → LockoutEnd futuro.
+                SET @step2 := IF(@needsD7 > 0,
+                    'UPDATE `AspNetUsers`
                         SET `LockoutEnabled` = 1,
-                            `LockoutEnd` = '9999-12-31 23:59:59.999999'
-                        WHERE `IsDeleted` = 1;
+                            `LockoutEnd` = ''9999-12-31 23:59:59.999999''
+                        WHERE `IsDeleted` = 1',
+                    'DO 0');
+                PREPARE step2Stmt FROM @step2;
+                EXECUTE step2Stmt;
+                DEALLOCATE PREPARE step2Stmt;
 
-                        -- Paso 3: DROP FK
-                        ALTER TABLE `AspNetUsers`
-                          DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
-                          ALGORITHM=INPLACE, LOCK=NONE;
+                -- Paso 3: DROP FK (metadata-only, INPLACE).
+                SET @step3 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
+                        ALGORITHM=INPLACE, LOCK=NONE',
+                    'DO 0');
+                PREPARE step3Stmt FROM @step3;
+                EXECUTE step3Stmt;
+                DEALLOCATE PREPARE step3Stmt;
 
-                        -- Paso 4: DROP INDEX ActiveUserNameUnique
-                        ALTER TABLE `AspNetUsers`
-                          DROP INDEX `IX_AspNetUsers_ActiveUserNameUnique`,
-                          ALGORITHM=INPLACE, LOCK=NONE;
+                -- Paso 4: DROP INDEX ActiveUserNameUnique.
+                SET @step4 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        DROP INDEX `IX_AspNetUsers_ActiveUserNameUnique`,
+                        ALGORITHM=INPLACE, LOCK=NONE',
+                    'DO 0');
+                PREPARE step4Stmt FROM @step4;
+                EXECUTE step4Stmt;
+                DEALLOCATE PREPARE step4Stmt;
 
-                        -- Paso 5: DROP INDEX ActivePersonaIdUnique
-                        ALTER TABLE `AspNetUsers`
-                          DROP INDEX `IX_AspNetUsers_ActivePersonaIdUnique`,
-                          ALGORITHM=INPLACE, LOCK=NONE;
+                -- Paso 5: DROP INDEX ActivePersonaIdUnique.
+                SET @step5 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        DROP INDEX `IX_AspNetUsers_ActivePersonaIdUnique`,
+                        ALGORITHM=INPLACE, LOCK=NONE',
+                    'DO 0');
+                PREPARE step5Stmt FROM @step5;
+                EXECUTE step5Stmt;
+                DEALLOCATE PREPARE step5Stmt;
 
-                        -- Paso 6: DROP COLUMNs
-                        ALTER TABLE `AspNetUsers`
-                          DROP COLUMN `ActiveUserNameUnique`,
-                          DROP COLUMN `ActivePersonaIdUnique`,
-                          DROP COLUMN `IsDeleted`,
-                          ALGORITHM=INPLACE, LOCK=NONE;
+                -- Paso 6: DROP COLUMNs (incluye IsDeleted, libera columnas
+                -- generadas STORED referenciadas por los índices dropeados).
+                SET @step6 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        DROP COLUMN `ActiveUserNameUnique`,
+                        DROP COLUMN `ActivePersonaIdUnique`,
+                        DROP COLUMN `IsDeleted`,
+                        ALGORITHM=INPLACE, LOCK=NONE',
+                    'DO 0');
+                PREPARE step6Stmt FROM @step6;
+                EXECUTE step6Stmt;
+                DEALLOCATE PREPARE step6Stmt;
 
-                        -- Paso 7: DROP INDEX PersonaId
-                        ALTER TABLE `AspNetUsers`
-                          DROP INDEX `IX_AspNetUsers_PersonaId`,
-                          ALGORITHM=INPLACE, LOCK=NONE;
+                -- Paso 7: DROP INDEX PersonaId no-único vigente desde la
+                -- migración AddSoftDeleteToAspNetUsers paso 3. Este índice
+                -- fue creado como no-único para liberar la unicidad que
+                -- originalmente sostenía la FK; ahora lo reemplazamos por
+                -- una versión UNIQUE.
+                SET @step7 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        DROP INDEX `IX_AspNetUsers_PersonaId`,
+                        ALGORITHM=INPLACE, LOCK=NONE',
+                    'DO 0');
+                PREPARE step7Stmt FROM @step7;
+                EXECUTE step7Stmt;
+                DEALLOCATE PREPARE step7Stmt;
 
-                        -- Paso 8: ADD UNIQUE INDEX PersonaId
-                        ALTER TABLE `AspNetUsers`
-                          ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
-                          ALGORITHM=INPLACE, LOCK=NONE;
+                -- Paso 8: DROP INDEX temporal preflight.
+                SET @step8 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        DROP INDEX `__sgvD7_PreflightUnique`,
+                        ALGORITHM=INPLACE, LOCK=NONE',
+                    'DO 0');
+                PREPARE step8Stmt FROM @step8;
+                EXECUTE step8Stmt;
+                DEALLOCATE PREPARE step8Stmt;
 
-                        -- Paso 9: ADD CONSTRAINT FK
-                        ALTER TABLE `AspNetUsers`
-                          ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
-                          FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
-                          ON DELETE RESTRICT,
-                          ALGORITHM=COPY;
-                    END IF;
-                END;
+                -- Paso 9: ADD UNIQUE INDEX PersonaId (canónico, mismo
+                -- nombre que el índice temporal — el DROP/CREATE atómico
+                -- podría optimizarse, pero rompería la barrera del
+                -- preflight fail-loud).
+                SET @step9 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
+                        ALGORITHM=INPLACE, LOCK=NONE',
+                    'DO 0');
+                PREPARE step9Stmt FROM @step9;
+                EXECUTE step9Stmt;
+                DEALLOCATE PREPARE step9Stmt;
 
-                CALL __sgvApplyD7();
-                DROP PROCEDURE __sgvApplyD7;
+                -- Paso 10: ADD CONSTRAINT FK PersonaId RESTRICT.
+                -- ALGORITHM=COPY porque MySQL 8 no permite INPLACE para
+                -- ADD CONSTRAINT sobre FKs en este contexto.
+                SET @step10 := IF(@needsD7 > 0,
+                    'ALTER TABLE `AspNetUsers`
+                        ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
+                        FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
+                        ON DELETE RESTRICT,
+                        ALGORITHM=COPY',
+                    'DO 0');
+                PREPARE step10Stmt FROM @step10;
+                EXECUTE step10Stmt;
+                DEALLOCATE PREPARE step10Stmt;
                 """);
         }
 

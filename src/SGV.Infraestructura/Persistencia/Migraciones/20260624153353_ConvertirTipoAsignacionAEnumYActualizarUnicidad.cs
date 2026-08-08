@@ -21,15 +21,19 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
 
             // Step 2: Convert known legacy string values to their numeric equivalents
             // Must happen BEFORE altering the column type to int.
-            // Enum mapping: Permanente=0, Interina=1, Temporal=2
+            // Enum mapping: Permanente=0, Interina=1, Temporal=2.
+            // NOTE (#263): las sentencias terminan con ';' explícito porque
+            // `dotnet ef migrations script --idempotent` envuelve cada
+            // operación en un procedure `MigrationsScript`; un UPDATE sin
+            // ';' produce ERROR 1064 dentro de ese procedure.
             migrationBuilder.Sql(
-                "UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente'");
+                "UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente';");
 
             migrationBuilder.Sql(
-                "UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina'");
+                "UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina';");
 
             migrationBuilder.Sql(
-                "UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Temporal'");
+                "UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Temporal';");
 
             // Step 3: Convert column from varchar to int
             // If any unknown string values remain, MySQL will throw an error here
@@ -74,15 +78,16 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                 name: "ActivePersonaPuestoUnique",
                 table: "Ocupaciones");
 
-            // Convert numeric values back to textual equivalents
+            // Convert numeric values back to textual equivalents.
+            // NOTE (#263): las sentencias terminan con ';' explícito (ver Up).
             migrationBuilder.Sql(
-                "UPDATE `Ocupaciones` SET `TipoAsignacion` = 'Permanente' WHERE `TipoAsignacion` = 0");
+                "UPDATE `Ocupaciones` SET `TipoAsignacion` = 'Permanente' WHERE `TipoAsignacion` = 0;");
 
             migrationBuilder.Sql(
-                "UPDATE `Ocupaciones` SET `TipoAsignacion` = 'Interina' WHERE `TipoAsignacion` = 1");
+                "UPDATE `Ocupaciones` SET `TipoAsignacion` = 'Interina' WHERE `TipoAsignacion` = 1;");
 
             migrationBuilder.Sql(
-                "UPDATE `Ocupaciones` SET `TipoAsignacion` = 'Temporal' WHERE `TipoAsignacion` = 2");
+                "UPDATE `Ocupaciones` SET `TipoAsignacion` = 'Temporal' WHERE `TipoAsignacion` = 2;");
 
             // Revert column type from int to varchar(50)
             migrationBuilder.AlterColumn<string>(
