@@ -68,6 +68,14 @@ public sealed class CreateModel(
     }
 
     /// <summary>
+    /// WU-4 (PR #259 review H-6): cache del resultado de
+    /// <see cref="IVacanteApiClient.ExisteVacanteAbiertaParaPuestoAsync"/>
+    /// para no repetir la consulta en <see cref="OnGetAsync"/> y
+    /// <see cref="ReloadFormStateAsync"/>. <c>null</c> = sin cache.
+    /// </summary>
+    private bool? _puestoTieneVacanteCache;
+
+    /// <summary>
     /// GET handler. Pre-carga <see cref="OcupacionInputModel.PersonaId"/>
     /// y <see cref="OcupacionInputModel.PuestoId"/> desde el query string
     /// (paridad con la página cruzada <c>PersonaOcupaciones</c> de Slice 3b)
@@ -84,14 +92,15 @@ public sealed class CreateModel(
         await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
 
         // T-7.1: si el Puesto ya viene precargado, consultamos si tiene
-        // Vacante abierta para mostrar el hint correcto. Default false
-        // (trata la falta de información como "sin vacante" para ser
-        // conservative con la UI).
+        // Vacante abierta para mostrar el hint correcto. WU-4 guarda
+        // el resultado para reusarlo en ReloadFormStateAsync.
         if (Input.PuestoId.HasValue && Input.PuestoId.Value != Guid.Empty)
         {
-            PuestoSinVacanteAbierta = !await vacanteApiClient
+            var tieneVacante = await vacanteApiClient
                 .ExisteVacanteAbiertaParaPuestoAsync(Input.PuestoId.Value, cancellationToken)
                 .ConfigureAwait(false);
+            _puestoTieneVacanteCache = tieneVacante;
+            PuestoSinVacanteAbierta = !tieneVacante;
         }
 
         return Page();
@@ -200,10 +209,25 @@ public sealed class CreateModel(
     private async Task ReloadFormStateAsync(CancellationToken cancellationToken)
     {
         await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
-        PuestoSinVacanteAbierta = Input.PuestoId is { } puestoId
-            && puestoId != Guid.Empty
-            && !await vacanteApiClient
-                .ExisteVacanteAbiertaParaPuestoAsync(puestoId, cancellationToken)
-                .ConfigureAwait(false);
+        if (Input.PuestoId is not { } puestoId || puestoId == Guid.Empty)
+        {
+            PuestoSinVacanteAbierta = false;
+            return;
+        }
+
+        // WU-4: reusar el cache de OnGetAsync si está disponible para
+        // evitar un round-trip extra a la API. Sólo re-consultar ante
+        // cambio de Puesto (cache stale) o primera entrada vía POST.
+        if (_puestoTieneVacanteCache is { } cached)
+        {
+            PuestoSinVacanteAbierta = !cached;
+            return;
+        }
+
+        var tieneVacante = await vacanteApiClient
+            .ExisteVacanteAbiertaParaPuestoAsync(puestoId, cancellationToken)
+            .ConfigureAwait(false);
+        _puestoTieneVacanteCache = tieneVacante;
+        PuestoSinVacanteAbierta = !tieneVacante;
     }
 }
