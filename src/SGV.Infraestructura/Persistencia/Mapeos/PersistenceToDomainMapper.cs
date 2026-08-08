@@ -209,6 +209,8 @@ internal static class PersistenceToDomainMapper
             entity.Observaciones,
             entity.Persona is null ? null : ToDomain(entity.Persona),
             entity.Puesto is null ? null : ToDomain(entity.Puesto),
+            entity.VacanteId,
+            entity.Vacante is null ? null : ToDomain(entity.Vacante),
             entity.CreatedAt,
             entity.CreatedByUserId,
 entity.UpdatedAt,
@@ -241,7 +243,13 @@ entity.UpdatedAt,
 
     public static EstadoVacante ToDomain(EstadoVacanteEntity entity)
     {
-        return new EstadoVacante(entity.Codigo, entity.Nombre, entity.Orden, entity.EsTerminal)
+        return new EstadoVacante(
+            entity.Codigo,
+            entity.Nombre,
+            entity.Orden,
+            entity.EsTerminal,
+            entity.EsCubierta,
+            entity.EsCancelada)
         {
             Id = entity.Id
         };

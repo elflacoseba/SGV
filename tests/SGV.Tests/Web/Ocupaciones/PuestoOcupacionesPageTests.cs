@@ -6,6 +6,7 @@ using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Puesto;
+using SGV.Tests.Web.Vacantes;
 using Xunit;
 
 namespace SGV.Tests.Web.Ocupaciones;
@@ -39,8 +40,8 @@ public sealed class PuestoOcupacionesPageTests
     public PuestoOcupacionesPageTests(WebIntegrationFixture fixture) => _fixture = fixture;
 
     private async Task<WebClientLease> CreateLeaseAsync(
-        FakePuestosApiClient puestos, FakeOcupacionApiClient ocupacion, bool adminRole = false)
-        => await _fixture.CreatePuestoOcupacionesLeaseAsync(puestos, ocupacion, adminRole);
+        FakePuestosApiClient puestos, FakeOcupacionApiClient ocupacion, FakeVacanteApiClient? vacante = null, bool adminRole = false)
+        => await _fixture.CreatePuestoOcupacionesLeaseAsync(puestos, ocupacion, vacante ?? new FakeVacanteApiClient(), adminRole);
 
     private static PuestoDto BuildPuesto(
         Guid id,
@@ -65,8 +66,41 @@ public sealed class PuestoOcupacionesPageTests
             puestoId: puestoId,
             puestoNombre: puestoNombre);
 
-    // ──────────────────────────────────────────────────
-    // REQ-OCC-NAV-002 / Scenario: Puesto ocupado
+    [Fact]
+    public async Task Get_Admin_SinVacanteAbierta_MuestraAbrirVacanteYNoNuevaOcupacion()
+    {
+        var puestoId = Guid.NewGuid();
+        var puestosApi = new FakePuestosApiClient { GetByIdResult = BuildPuesto(puestoId) };
+        var ocupacionApi = new FakeOcupacionApiClient();
+        var vacanteApi = new FakeVacanteApiClient { ExisteVacanteAbiertaParaPuestoResult = false };
+
+        await using var lease = await CreateLeaseAsync(puestosApi, ocupacionApi, vacanteApi, adminRole: true);
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/{puestoId:D}/ocupaciones");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Contains("Abrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Nueva ocupación", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Admin_ConOcupacionVigente_MuestraVerOcupacion()
+    {
+        var puestoId = Guid.NewGuid();
+        var puestosApi = new FakePuestosApiClient { GetByIdResult = BuildPuesto(puestoId) };
+        var ocupacionApi = new FakeOcupacionApiClient
+        {
+            ListarResult = new PagedResult<OcupacionDto>([BuildOcupacion(puestoId)], 1, 1, 20)
+        };
+        var vacanteApi = new FakeVacanteApiClient { ExisteVacanteAbiertaParaPuestoResult = false };
+
+        await using var lease = await CreateLeaseAsync(puestosApi, ocupacionApi, vacanteApi, adminRole: true);
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/{puestoId:D}/ocupaciones");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Contains("Ver Ocupación vigente", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Nueva ocupación", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ──────────────────────────────────────────────────
 
     [Fact]
@@ -240,8 +274,8 @@ public sealed class PuestoOcupacionesPageTests
         {
             ListarResult = new PagedResult<OcupacionDto>([], 0, 1, 20)
         };
-
-        await using var lease = await CreateLeaseAsync(puestosApi, ocupacionApi, adminRole: false);
+        var vacanteApi = new FakeVacanteApiClient { ExisteVacanteAbiertaParaPuestoResult = true };
+        await using var lease = await CreateLeaseAsync(puestosApi, ocupacionApi, vacanteApi, adminRole: false);
 
         var response = await lease.Client.GetAsync($"/organizacion/puestos/{puestoId:D}/ocupaciones");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
@@ -268,9 +302,9 @@ public sealed class PuestoOcupacionesPageTests
         {
             ListarResult = new PagedResult<OcupacionDto>([], 0, 1, 20)
         };
+        var vacanteApi = new FakeVacanteApiClient { ExisteVacanteAbiertaParaPuestoResult = true };
 
-        await using var lease = await CreateLeaseAsync(puestosApi, ocupacionApi, adminRole: true);
-
+        await using var lease = await CreateLeaseAsync(puestosApi, ocupacionApi, vacanteApi, adminRole: true);
         var response = await lease.Client.GetAsync($"/organizacion/puestos/{puestoId:D}/ocupaciones");
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 

@@ -295,6 +295,50 @@ public sealed class VacantesControllerTests
         Assert.Contains("PuestoConVacanteAbierta", problem!.Title ?? string.Empty);
     }
 
+    // ── N1 (T-8.1): Puesto con Ocupacion activa → 409 PuestoOcupado ──
+
+    [Fact]
+    public async Task Create_PuestoConOcupacionActiva_Returns409PuestoOcupado()
+    {
+        var fakeComandos = new FakeVacanteServicioComandos
+        {
+            CrearHandler = (_, _) => Task.FromResult(
+                VacanteCommandResult.Failure(
+                    new VacanteError(
+                        ErrorCategoria.Conflict,
+                        VacanteErrorCodigo.PuestoOcupado,
+                        "El puesto tiene una Ocupación activa; no se puede abrir una vacante mientras la posición esté ocupada.")))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IVacanteServicioComandos>();
+            services.AddSingleton<IVacanteServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var request = DefaultCreateRequest();
+
+        var response = await client.PostAsJsonAsync("/api/v1/vacantes", request);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("PuestoOcupado", problem!.Title ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Create_PuestoDisponible_Returns201()
+    {
+        // Cubierto por `Create_ValidRequest_Returns201Created`; duplicado explícito
+        // para T-8.1 con semántica exacta (Código del problema NO contiene "PuestoOcupado").
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+        var request = DefaultCreateRequest();
+
+        var response = await client.PostAsJsonAsync("/api/v1/vacantes", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
     [Fact]
     public async Task Create_EstadoVacanteInexistente_Returns404()
     {
@@ -413,6 +457,62 @@ public sealed class VacantesControllerTests
         var factory = _fixture.RootFactory;
         var client = factory.CreateAdminClient();
         var request = DefaultCambioEstadoRequest();
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/vacantes/{FakeVacanteServicioConsulta.VacanteId1}/estado",
+            request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadFromJsonAsync<VacanteDetailDto>();
+        Assert.NotNull(content);
+    }
+
+    // ── N2 (T-8.1): Cubrir sin PersonaId → 400 PersonaIdRequeridoParaCubrir ──
+
+    [Fact]
+    public async Task CambiarEstado_CubrirSinPersonaId_Returns400PersonaIdRequerido()
+    {
+        var fieldErrors = new Dictionary<string, string[]>
+        {
+            ["personaId"] = ["PersonaId es obligatorio al cubrir una Vacante."]
+        };
+        var fakeComandos = new FakeVacanteServicioComandos
+        {
+            CambiarEstadoHandler = (_, _, _) => Task.FromResult(
+                VacanteCommandResult.Failure(
+                    new VacanteError(
+                        ErrorCategoria.Validation,
+                        VacanteErrorCodigo.PersonaIdRequeridoParaCubrir,
+                        "PersonaId es obligatorio al cubrir una Vacante."),
+                    fieldErrors))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IVacanteServicioComandos>();
+            services.AddSingleton<IVacanteServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var request = new CambiarEstadoVacanteRequest(
+            EstadoVacanteId: Guid.Parse("20000000-0000-0000-0000-000000000003")); // Cubierta
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/vacantes/{FakeVacanteServicioConsulta.VacanteId1}/estado",
+            request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("personaId", problem!.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task CambiarEstado_CubrirConPersonaId_Returns200()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+        var request = new CambiarEstadoVacanteRequest(
+            EstadoVacanteId: Guid.Parse("20000000-0000-0000-0000-000000000003"),
+            PersonaId: Guid.NewGuid());
 
         var response = await client.PatchAsJsonAsync(
             $"/api/v1/vacantes/{FakeVacanteServicioConsulta.VacanteId1}/estado",

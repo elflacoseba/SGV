@@ -28,6 +28,23 @@ public sealed class OcupacionConfiguracion : IEntityTypeConfiguration<OcupacionE
             .HasForeignKey(e => e.PuestoId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // FK opcional a Vacantes (N2): una Ocupacion derivada de Cubrir
+        // una Vacante lleva VacanteId seteado; las Ocupaciones históricas
+        // pre-N2 quedan con NULL. OnDelete(Restrict) preserva N4: la Vacante
+        // Cubierta no se borra mientras tenga Ocupaciones derivadas activas.
+        builder.HasOne(e => e.Vacante)
+            .WithMany()
+            .HasForeignKey(e => e.VacanteId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Índice no único de soporte para joins (e.g. listado de Ocupaciones
+        // por VacanteId). No se impone UNIQUE porque una Vacante puede
+        // tener múltiples Ocupaciones derivadas (reapertura de Puesto vía
+        // finalizar Ocupacion previa) y los NULL múltiples permitidos por
+        // MySQL ya cubren Ocupaciones históricas.
+        builder.HasIndex(e => e.VacanteId)
+            .HasDatabaseName("IX_Ocupaciones_VacanteId");
+
         // MySQL does not support filtered indexes. Use generated columns that
         // are NULL when the ocupacion is not active (ended or soft-deleted) so
         // the unique index enforces one active ocupacion per puesto,

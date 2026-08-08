@@ -18,6 +18,13 @@ namespace SGV.Web.Pages.Organizacion.Vacantes;
 /// <see cref="IVacanteApiClient.ListarPuestosAsync"/> declarado en el
 /// propio cliente de Vacantes.
 /// </summary>
+/// <remarks>
+/// T-7.3 (change <c>vacante-ocupacion-flow-alignment</c>): si la URL
+/// trae <c>?puestoId=&lt;guid&gt;</c> (delegado desde
+/// <c>PuestoOcupaciones</c> con NAV-007 botón "Abrir Vacante"), el
+/// dropdown de Puesto se preselecciona y se deshabilita para evitar
+/// cambios accidentales. Un hidden input conserva el valor en el POST.
+/// </remarks>
 [Authorize]
 public sealed class CreateModel(
     IVacanteApiClient vacanteApiClient,
@@ -49,18 +56,51 @@ public sealed class CreateModel(
     /// <summary>Whether the current user has a mutation role.</summary>
     public bool CanMutate => User.IsInRole(RolesSgv.Administrador) || User.IsInRole(RolesSgv.GestorVacantes);
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// T-7.3: <c>true</c> cuando el handler se invocó con
+    /// <c>?puestoId=&lt;guid&gt;</c>. El dropdown se deshabilita y un
+    /// hidden input transporta el valor al POST.
+    /// </summary>
+    public bool PuestoPreseleccionado { get; private set; }
+
+    /// <summary>
+    /// T-7.3: PuestoId efectivo que se preseleccionó (también conocido
+    /// como <c>Input.PuestoId</c> tras el handler de GET).
+    /// </summary>
+    public Guid? PuestoIdPreseleccionado { get; private set; }
+
+    /// <summary>
+    /// T-7.3: URL de retorno una vez creada la Vacante — la UI vuelve
+    /// al <c>Puesto/Details</c> si venía desde NAV-007.
+    /// </summary>
+    public string? ReturnUrl { get; private set; }
+
+    public async Task<IActionResult> OnGetAsync(
+        [FromQuery(Name = "puestoId")] Guid? puestoId = null,
+        [FromQuery(Name = "returnUrl")] string? returnUrl = null,
+        CancellationToken cancellationToken = default)
     {
         if (!CanMutate)
         {
             return Forbid();
         }
 
+        if (puestoId.HasValue && puestoId.Value != Guid.Empty)
+        {
+            Input.PuestoId = puestoId;
+            PuestoIdPreseleccionado = puestoId;
+            PuestoPreseleccionado = true;
+        }
+
+        ReturnUrl = NormalizeReturn(returnUrl);
+
         await LoadCatalogsAsync(cancellationToken);
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnPostAsync(
+        [FromQuery(Name = "returnUrl")] string? returnUrl = null,
+        CancellationToken cancellationToken = default)
     {
         if (!CanMutate)
         {
@@ -77,6 +117,10 @@ public sealed class CreateModel(
             await LoadCatalogsAsync(cancellationToken);
             return Page();
         }
+
+        // T-7.3: si el handler de GET bloqueó el dropdown, recomputamos el flag.
+        var normalizedReturn = NormalizeReturn(returnUrl);
+        ReturnUrl = normalizedReturn;
 
         VacanteCommandResult result;
         try
@@ -101,6 +145,12 @@ public sealed class CreateModel(
 
         if (result.IsSuccess && result.Value is not null)
         {
+            if (normalizedReturn is not null && Url.IsLocalUrl(normalizedReturn))
+            {
+                PageFeedback.SetSuccess(TempData, "La vacante se creó correctamente.");
+                return LocalRedirect(normalizedReturn);
+            }
+
             PageFeedback.SetSuccess(TempData, "La vacante se creó correctamente.");
             return RedirectToPage("/Organizacion/Vacantes/Details", new { id = result.Value.Id });
         }
@@ -183,4 +233,14 @@ public sealed class CreateModel(
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeReturn(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+        var trimmed = raw.Trim();
+        return trimmed.StartsWith('/') || trimmed.StartsWith("~/") ? trimmed : null;
+    }
 }

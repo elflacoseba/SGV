@@ -5,15 +5,18 @@ using SGV.Aplicacion.Ocupaciones.Comandos;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Personas.Consultas.Dtos;
+using SGV.Contracts.Vacantes.Consultas;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using SGV.Dominio.Personas;
+using SGV.Dominio.Vacantes;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Ocupaciones;
@@ -51,6 +54,8 @@ public sealed class OcupacionServicioComandosTests
         var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
         var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
         var uow = new FakeUnitOfWork();
+        // T-3.3 (adaptación a N3): ahora el helper por default inyecta una
+        // Vacante abierta para PuestoIdActivo, satisfaciendo el check N3.
         var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow);
 
         var resultado = await servicio.CrearAsync(CrearRequest(), default);
@@ -60,6 +65,42 @@ public sealed class OcupacionServicioComandosTests
         Assert.Equal(PersonaIdActiva, resultado.Value!.PersonaId);
         Assert.Equal(PuestoIdActivo, resultado.Value.PuestoId);
         Assert.Equal(OcupacionEstado.Vigente, resultado.Value.Estado);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    // ── N3 (T-3.2): CrearOcupacion directo rechaza sin Vacante abierta ──
+
+    [Fact]
+    public async Task CrearAsync_PuestoSinVacanteAbierta_DevuelveConflictoPuestoSinVacanteAbierta()
+    {
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var vacanteRepo = new FakeVacanteLookupRepository(); // sin vacantes abiertas
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, vacanteRepo);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
+        Assert.Equal(OcupacionErrorCodigo.PuestoSinVacanteAbierta, resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_PuestoConVacanteAbierta_Exito()
+    {
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var vacanteRepo = new FakeVacanteLookupRepository { PuestosConVacanteAbierta = [PuestoIdActivo] };
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, vacanteRepo);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(), default);
+
+        Assert.True(resultado.IsSuccess);
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
@@ -443,6 +484,60 @@ public sealed class OcupacionServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    /// <summary>
+    /// Q1 (Finalizar Ocupación con Vacante Cubierta NO reabre la Vacante):
+    /// tras Cubrir, la Vacante queda Cubierta y la Ocupación derivada
+    /// lleva <c>VacanteId</c> seteado. Al Finalizar la Ocupación, la
+    /// Vacante debe permanecer Cubierta (no se reabre ni se cambia).
+    /// Verifica que el flujo de Finalizar no consulta ni muta Vacante.
+    /// </summary>
+    [Fact]
+    public async Task Finalizar_VacanteCubiertaOrigen_NoReabreVacante()
+    {
+        var vacanteId = Guid.Parse("70000000-0000-0000-0000-000000000505");
+        var estadoCubierta = new EstadoVacante("Cubierta", "Cubierta", 3, true, esCubierta: true)
+        {
+            Id = Guid.Parse("70000000-0000-0000-0000-000000000506")
+        };
+        var vacanteCubierta = new Vacante(
+            PuestoIdActivo,
+            estadoCubierta.Id,
+            new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            "Motivo")
+        {
+            Id = vacanteId
+        };
+        vacanteCubierta.WithEstadoVacante(estadoCubierta);
+
+        var ocupacionDerivada = new Ocupacion(
+            PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 1, 1),
+            TipoAsignacion.Permanente, vacanteId: vacanteId);
+        // Activa por default.
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacionDerivada] };
+        var personaRepo = new FakePersonaWriteRepository();
+        var puestoRepo = new FakePuestoWriteRepository();
+        var uow = new FakeUnitOfWork();
+        // Setear VacanteRepository para que N3 (ExistsAbiertaByPuestoAsync)
+        // devuelva false y permita el flujo de Finalizar.
+        var vacanteRepo = new FakeVacanteLookupRepository
+        {
+            VacantesPorId = { [vacanteId] = vacanteCubierta }
+        };
+
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, vacanteRepo);
+
+        var resultado = await servicio.FinalizarAsync(
+            ocupacionDerivada.Id,
+            new FinalizarOcupacionRequest(new DateOnly(2025, 6, 30)),
+            default);
+
+        // Finalizar debe tener éxito sin tocar Vacante.
+        Assert.True(resultado.IsSuccess);
+        // La Vacante sigue Cubierta: el fake no recibió CambiarEstado ni UpdateAsync.
+        Assert.Equal(estadoCubierta.Id, vacanteCubierta.EstadoVacanteId);
+    }
+
     // ── EliminarAsync ───────────────────────────────────────────
 
     [Fact]
@@ -587,6 +682,109 @@ public sealed class OcupacionServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ── Q2 (T-5.1): Reactivar Ocupacion rechaza Vacante Cancelada ──
+
+    [Fact]
+    public async Task ReactivarAsync_VacanteCancelada_DevuelveConflictoVacanteCancelada()
+    {
+        var vacanteId = Guid.Parse("70000000-0000-0000-0000-000000000501");
+        var ocupacionConVacante = new Ocupacion(
+            PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 1, 1),
+            TipoAsignacion.Permanente, vacanteId: vacanteId);
+        ocupacionConVacante.Finalizar(new DateOnly(2025, 6, 30));
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacionConVacante] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+
+        // Vacante con su EstadoVacante poblado con EsCancelada=true.
+        var estadoCancelado = new EstadoVacante("Cancelada", "Cancelada", 4, true, esCancelada: true)
+        {
+            Id = Guid.Parse("70000000-0000-0000-0000-000000000502")
+        };
+        var vacanteCancelada = new Vacante(
+            PuestoIdActivo, estadoCancelado.Id,
+            new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            "Motivo").WithEstadoVacante(estadoCancelado);
+
+        var vacanteRepo = new FakeVacanteLookupRepository
+        {
+            VacantesPorId = { [vacanteId] = vacanteCancelada }
+        };
+
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, vacanteRepo);
+
+        var resultado = await servicio.ReactivarAsync(ocupacionConVacante.Id, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
+        Assert.Equal(
+            OcupacionErrorCodigo.VacanteCanceladaParaReactivar,
+            resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ReactivarAsync_VacanteCubierta_Exito()
+    {
+        var vacanteId = Guid.Parse("70000000-0000-0000-0000-000000000503");
+        var estadoCubiertaId = Guid.Parse("70000000-0000-0000-0000-000000000504");
+        var estadoCubierta = new EstadoVacante("Cubierta", "Cubierta", 3, true, esCubierta: true)
+        {
+            Id = estadoCubiertaId
+        };
+        var vacanteCubierta = new Vacante(
+            PuestoIdActivo,
+            estadoCubiertaId,
+            new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            "Motivo")
+        {
+            Id = vacanteId
+        };
+        vacanteCubierta.WithEstadoVacante(estadoCubierta);
+
+        var ocupacionConVacante = new Ocupacion(
+            PersonaIdActiva, PuestoIdActivo, new DateOnly(2025, 1, 1),
+            TipoAsignacion.Permanente, vacanteId: vacanteId);
+        ocupacionConVacante.Finalizar(new DateOnly(2025, 6, 30));
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacionConVacante] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var vacanteRepo = new FakeVacanteLookupRepository
+        {
+            VacantesPorId = { [vacanteId] = vacanteCubierta }
+        };
+
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, vacanteRepo);
+
+        var resultado = await servicio.ReactivarAsync(ocupacionConVacante.Id, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+    }
+
+    [Fact]
+    public async Task ReactivarAsync_SinVacanteId_Permite()
+    {
+        // Ocupacion histórica sin VacanteId → no consulta Vacante, permite reactivar.
+        var ocupacionSinVacante = CrearOcupacionFinalizada(PuestoIdActivo, PersonaIdActiva, OcupacionIdFinalizada);
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository { Datos = [ocupacionSinVacante] };
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var vacanteRepo = new FakeVacanteLookupRepository(); // no consultada
+
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, vacanteRepo);
+
+        var resultado = await servicio.ReactivarAsync(ocupacionSinVacante.Id, default);
+
+        Assert.True(resultado.IsSuccess);
+    }
+
     // Issue 10: Missing tests for ReactivarAsync reference validation.
 
     [Fact]
@@ -663,12 +861,14 @@ public sealed class OcupacionServicioComandosTests
         IOcupacionRepository ocupacionRepo,
         IPersonaRepository personaRepo,
         IPuestoRepository puestoRepo,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IVacanteRepository? vacanteRepo = null)
     {
         return new OcupacionServicioComandos(
             ocupacionRepo, personaRepo, puestoRepo, uow,
             new FakeConstraintViolationDetector(),
-            new FakeLogger<OcupacionServicioComandos>());
+            new FakeLogger<OcupacionServicioComandos>(),
+            vacanteRepo ?? new FakeVacanteLookupRepository { PuestosConVacanteAbierta = [PuestoIdActivo] });
     }
 
     private static Persona CrearPersonaActiva()
@@ -927,4 +1127,47 @@ internal sealed class FakeLogger<T> : ILogger<T>
 internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
 {
     public bool IsConstraintViolation(DbUpdateException ex) => true;
+}
+
+internal sealed class FakeVacanteLookupRepository : IVacanteRepository
+{
+    public HashSet<Guid> PuestosConVacanteAbierta { get; set; } = [];
+    public Dictionary<Guid, Vacante?> VacantesPorId { get; set; } = [];
+
+    public Task<bool> ExistsAbiertaByPuestoAsync(Guid puestoId, CancellationToken ct = default)
+        => Task.FromResult(PuestosConVacanteAbierta.Contains(puestoId));
+
+    public Task<Vacante?> GetByIdForUpdateAsync(Guid id, CancellationToken ct = default)
+    {
+        var v = VacantesPorId.TryGetValue(id, out var found) ? found : null;
+        return Task.FromResult(v);
+    }
+
+    // Métodos no ejercidos por N3/Q2 — NotImplemented.
+    public Task AddAsync(Vacante domain, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task RegistrarCambioEstadoAsync(Vacante vacante, HistorialEstadoVacante historial, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task UpdateAsync(Vacante vacante, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<(IReadOnlyList<Vacante> Items, int TotalCount)> ListarAsync(VacanteListQuery query, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<Vacante?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<IReadOnlyList<Vacante>> ListAllAsync(CancellationToken ct = default) => throw new NotImplementedException();
+}
+
+/// <summary>
+/// Helper para tests Q2: hidrata la nav <c>Vacante.EstadoVacante</c> usando
+/// reflection porque el setter es <c>private</c>. La nav es necesaria para
+/// que el servicio distinga <c>EsCubierta</c> / <c>EsCancelada</c> en
+/// los checks N2 (Cubrir) y Q2 (Reactivar). WU-8 (PR #259 review H-8):
+/// los flags se setean ahora vía constructor de <see cref="EstadoVacante"/>;
+/// este helper sólo cubre la nav property del agregado Vacante, no
+/// duplicable sin tocar la entidad de dominio.
+/// </summary>
+internal static class VacanteTestExtensions
+{
+    public static Vacante WithEstadoVacante(this Vacante vacante, EstadoVacante estado)
+    {
+        typeof(Vacante)
+            .GetProperty(nameof(Vacante.EstadoVacante))!
+            .SetValue(vacante, estado);
+        return vacante;
+    }
 }

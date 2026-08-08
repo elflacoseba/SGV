@@ -15,6 +15,8 @@ using SGV.Tests.Web.Puesto;
 using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Organizacion;
 using SGV.Web.Integration.Personas;
+using SGV.Web.Integration.Vacantes;
+using SGV.Tests.Web.Vacantes;
 using SGV.Web.Pages.Organizacion.Ocupaciones;
 using Xunit;
 
@@ -63,17 +65,31 @@ public sealed class OcupacionCreatePageTests
         IOcupacionApiClient ocupacion,
         IPersonaApiClient? persona = null,
         IPuestosApiClient? puestos = null,
+        IVacanteApiClient? vacante = null,
         bool adminRole = true)
     {
         return await _fixture.CreateOcupacionFormLeaseAsync(
             ocupacion,
             persona ?? new FakePersonaApiClient(),
             puestos ?? new FakePuestosApiClient(),
+            vacante ?? new FakeVacanteApiClient(),
             adminRole);
     }
 
-    // ──────────────────────────────────────────────────
-    // REQ-OCC-FORM-001 / Scenario: Render — los 5 campos visibles
+    [Fact]
+    public async Task Get_Create_WithoutPuestoId_MuestraHintInicial()
+    {
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            puestos: FakePuestosApiClient.WithPuestoList(SamplePuesto()));
+
+        var response = await lease.Client.GetAsync("/organizacion/ocupaciones/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Seleccione un Puesto para verificar su disponibilidad", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ──────────────────────────────────────────────────
 
     [Fact]

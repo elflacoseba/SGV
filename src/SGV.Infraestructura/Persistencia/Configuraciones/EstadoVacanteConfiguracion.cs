@@ -12,6 +12,8 @@ public sealed class EstadoVacanteConfiguracion : IEntityTypeConfiguration<Estado
         builder.ConfigurarId();
         builder.Property(e => e.Codigo).HasMaxLength(50).IsRequired();
         builder.Property(e => e.Nombre).HasMaxLength(100).IsRequired();
+        builder.Property(e => e.EsCubierta).IsRequired();
+        builder.Property(e => e.EsCancelada).IsRequired();
         builder.HasIndex(e => e.Codigo).IsUnique();
     }
 }

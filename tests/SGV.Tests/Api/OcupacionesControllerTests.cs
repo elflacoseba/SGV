@@ -480,6 +480,66 @@ public sealed class OcupacionesControllerTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
+    // ── Q2 (T-8.2): Reactivar bloquea si Vacante Cancelada → 409 VacanteCanceladaParaReactivar ──
+
+    [Fact]
+    public async Task Reactivate_VacanteCancelada_Returns409VacanteCanceladaParaReactivar()
+    {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            ReactivarHandler = (_, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(
+                        ErrorCategoria.Conflict,
+                        OcupacionErrorCodigo.VacanteCanceladaParaReactivar,
+                        "La Vacante asociada fue cancelada; no se puede reactivar la Ocupación.")))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IOcupacionServicioComandos>();
+            services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.PatchAsync(
+            $"/api/v1/ocupaciones/{FakeOcupacionServicioConsulta.OcupacionId1}/reactivar", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("VacanteCanceladaParaReactivar", problem!.Title ?? string.Empty);
+    }
+
+    // ---- T-8.2: N3 — Puesto sin Vacante abierta → 409 PuestoSinVacanteAbierta ----
+
+    [Fact]
+    public async Task Create_PuestoSinVacanteAbierta_Returns409PuestoSinVacanteAbierta()
+    {
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            CrearHandler = (_, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(
+                        ErrorCategoria.Conflict,
+                        OcupacionErrorCodigo.PuestoSinVacanteAbierta,
+                        "El puesto no tiene una Vacante abierta; abra una Vacante antes de asignar una persona al puesto.")))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IOcupacionServicioComandos>();
+            services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var request = DefaultCreateRequest();
+
+        var response = await client.PostAsJsonAsync("/api/v1/ocupaciones", request);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("PuestoSinVacanteAbierta", problem!.Title ?? string.Empty);
+    }
+
     // ---- DELETE /api/v1/ocupaciones/{id} ----
 
     [Fact]

@@ -192,4 +192,39 @@ public sealed class VacanteApiClient(HttpClient httpClient) : IVacanteApiClient
             ? VacanteCommandResult.Failure(error, parsed.FieldErrors)
             : VacanteCommandResult.Failure(error);
     }
+
+    /// <inheritdoc />
+    public async Task<bool> ExisteVacanteAbiertaParaPuestoAsync(
+        Guid puestoId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Usa el segmento "abiertas" (default) que el backend
+            // resuelve contra `EstadoVacante.EsTerminal` (no contra
+            // `FechaCierre`), fidelidad con el dominio. TotalCount > 0
+            // basta como señal sin necesidad de paginar las filas.
+            var query = new VacanteListQuery(
+                Page: 1,
+                PageSize: 1,
+                Search: null,
+                Sort: null,
+                Segmento: VacanteSegmentoListado.Abiertas,
+                PuestoId: puestoId);
+
+            var response = await ListarAsync(query, cancellationToken).ConfigureAwait(false);
+            return response.TotalCount > 0;
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            // Política de degradación unificada (T-7.1 / T-7.2 — PR #259
+            // review H-5): si la API no responde, degradamos a "no hay
+            // vacante abierta" para mostrar el botón NAV-007 en lugar
+            // de ocultarlo silenciosamente. Es preferible que el usuario
+            // descubra que el camino no aplica a que el botón desaparezca
+            // y deje al usuario sin clara acción de salida.
+            _ = ex;
+            return false;
+        }
+    }
 }

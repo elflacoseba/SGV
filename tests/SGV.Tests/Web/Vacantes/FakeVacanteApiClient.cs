@@ -107,6 +107,17 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
         return Task.FromResult(CambiarEstadoResult);
     }
 
+    /// <summary>
+    /// T-7.1 / T-7.2: tests pueden setear el resultado del helper que
+    /// consulta si un Puesto tiene Vacante abierta. Default = false.
+    /// </summary>
+    public bool ExisteVacanteAbiertaParaPuestoResult { get; set; }
+
+    public Task<bool> ExisteVacanteAbiertaParaPuestoAsync(
+        Guid puestoId,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(ExisteVacanteAbiertaParaPuestoResult);
+
     public static VacanteDto BuildDto(
         Guid? id = null,
         Guid? puestoId = null,

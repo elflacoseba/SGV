@@ -28,13 +28,30 @@
 
                     <div class="mb-3">
                         <label asp-for="Input.PuestoId" class="form-label"></label>
-                        <select asp-for="Input.PuestoId" class="form-select" disabled="@(Model.CatalogsReady ? null : "disabled")">
-                            <option value="">Seleccione un puesto</option>
-                            @foreach (var puesto in Model.Puestos)
-                            {
-                                <option value="@puesto.Id">@puesto.Nombre (@puesto.Codigo)</option>
-                            }
-                        </select>
+                        @if (Model.PuestoPreseleccionado)
+                        {
+                            // T-7.3: cuando el handler recibe ?puestoId=, el
+                            // dropdown se bloquea y un hidden input transporta
+                            // el valor al POST. La etiqueta siguiente muestra el
+                            // nombre del Puesto seleccionado (si los catálogos
+                            // cargaron) para preservar legibilidad.
+                            var selected = Model.Puestos.FirstOrDefault(p => p.Id == Model.PuestoIdPreseleccionado);
+                            <input type="hidden" asp-for="Input.PuestoId" />
+                            <select asp-for="Input.PuestoId" class="form-select" disabled>
+                                <option value="@Model.PuestoIdPreseleccionado">@(selected is not null ? $"{selected.Nombre} ({selected.Codigo})" : Model.PuestoIdPreseleccionado.ToString())</option>
+                            </select>
+                            <small class="form-text text-muted">Puesto preseleccionado desde la navegación contextual. No se puede cambiar.</small>
+                        }
+                        else
+                        {
+                            <select asp-for="Input.PuestoId" class="form-select" disabled="@(Model.CatalogsReady ? null : "disabled")">
+                                <option value="">Seleccione un puesto</option>
+                                @foreach (var puesto in Model.Puestos)
+                                {
+                                    <option value="@puesto.Id">@puesto.Nombre (@puesto.Codigo)</option>
+                                }
+                            </select>
+                        }
                         <span asp-validation-for="Input.PuestoId" class="text-danger"></span>
                     </div>
 

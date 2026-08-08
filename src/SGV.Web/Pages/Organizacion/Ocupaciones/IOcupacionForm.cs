@@ -51,6 +51,12 @@ public interface IOcupacionForm
     /// </summary>
     PersonaDto? PersonaVinculada { get; }
 
+    /// <summary>Indica si el Puesto seleccionado carece de Vacante abierta.</summary>
+    bool PuestoSinVacanteAbierta => false;
+
+    /// <summary>Indica si el formulario corresponde al alta de una Ocupación.</summary>
+    bool IsEdit { get; }
+
     /// <summary>Mensaje de error general recuperable (catálogo caído, error de transporte en POST, etc.).</summary>
     string? ErrorMessage { get; }
 }

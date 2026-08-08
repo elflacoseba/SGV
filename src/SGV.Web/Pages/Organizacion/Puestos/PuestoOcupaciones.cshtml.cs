@@ -6,6 +6,7 @@ using SGV.Contracts.Seguridad;
 using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Ocupaciones;
 using SGV.Web.Integration.Organizacion;
+using SGV.Web.Integration.Vacantes;
 using SGV.Web.Pages.Organizacion.Ocupaciones;
 
 namespace SGV.Web.Pages.Organizacion.Puestos;
@@ -27,11 +28,16 @@ namespace SGV.Web.Pages.Organizacion.Puestos;
 /// <c>PersonaOcupaciones</c>. La vista cruzada no expone paginación
 /// (volumen esperado ≤ 20 por entidad dueña; ver
 /// <see cref="IOcupacionesCrossList"/>).
+/// T-7.2 (change <c>vacante-ocupacion-flow-alignment</c>):
+/// agrega banderines <c>HayVacanteAbierta</c>, <c>HayOcupacionActiva</c>
+/// y botón "Abrir Vacante" (REQ-OCC-NAV-007) cuando el Puesto no tiene
+/// Vacante abierta y el usuario es Administrador.
 /// </remarks>
 [Authorize]
 public sealed class PuestoOcupacionesModel(
     IPuestosApiClient puestosApiClient,
     IOcupacionApiClient ocupacionApiClient,
+    IVacanteApiClient vacanteApiClient,
     ILogger<PuestoOcupacionesModel> logger) : PageModel, IOcupacionesCrossList
 {
     /// <summary>Tamaño de página fijo para la grilla cruzada.</summary>
@@ -71,6 +77,29 @@ public sealed class PuestoOcupacionesModel(
     /// del botón "Nueva ocupación", REQ-OCC-NAV-006).
     /// </summary>
     public bool EsAdministrador => User.IsInRole(RolesSgv.Administrador);
+
+    /// <summary>
+    /// T-7.2 (change <c>vacante-ocupacion-flow-alignment</c>):
+    /// <c>true</c> cuando el Puesto due\u00f1o tiene al menos una Vacante
+    /// abierta. Se setea en <see cref="OnGetAsync"/> consultando
+    /// <see cref="IVacanteApiClient.ExisteVacanteAbiertaParaPuestoAsync"/>.
+    /// Default: <c>false</c> — degradación optimista alineada con la
+    /// política de <see cref="IVacanteApiClient.ExisteVacanteAbiertaParaPuestoAsync"/>
+    /// (que degrada a <c>false</c> ante fallo de transporte). La UI
+    /// prefiere mostrar el botón NAV-007 y dejar que el usuario
+    /// descubra que el camino no aplica, antes que ocultarlo
+    /// silenciosamente.
+    /// </summary>
+    public bool HayVacanteAbierta { get; private set; }
+
+    /// <summary>
+    /// T-7.2: <c>true</c> cuando el Puesto tiene una Ocupaci\u00f3n
+    /// activa. Calculado a partir de <see cref="TotalCount"/> y el
+    /// listado vigente cargado. Conserva la semántica NAV-006 original
+    /// (mostrar "Ver Ocupaci\u00f3n vigente" en lugar de "Nueva Ocupaci\u00f3n"
+    /// cuando ya hay una).
+    /// </summary>
+    public bool HayOcupacionActiva => TotalCount > 0;
 
     // ── IOcupacionesCrossList ─────────────────────────────────────────────
 
@@ -116,7 +145,30 @@ public sealed class PuestoOcupacionesModel(
 
     /// <inheritdoc/>
     object? IOcupacionesCrossList.NewOcupacionRouteValues
-        => new { puestoId = PuestoId };
+        => HayVacanteAbierta && !HayOcupacionActiva
+            ? new { puestoId = PuestoId }
+            : null;
+
+    /// <inheritdoc/>
+    object? IOcupacionesCrossList.VerOcupacionVigenteRouteValues
+    {
+        get
+        {
+            if (!HayOcupacionActiva)
+            {
+                return null;
+            }
+
+            var firstId = Items.FirstOrDefault()?.Id;
+            return firstId.HasValue ? new { id = firstId.Value } : null;
+        }
+    }
+
+    /// <inheritdoc/>
+    string? IOcupacionesCrossList.DisponibilidadMessage
+        => !HayVacanteAbierta && !HayOcupacionActiva
+            ? "No hay una Vacante abierta para este Puesto. Abra una Vacante para iniciar el flujo de cobertura."
+            : null;
 
     /// <inheritdoc/>
     string IOcupacionesCrossList.CrossEntityColumnHeader => "Persona";
@@ -129,6 +181,19 @@ public sealed class PuestoOcupacionesModel(
 
     /// <inheritdoc/>
     bool IOcupacionesCrossList.RenderCrossEntityCellAsBadge => false;
+
+    /// <summary>
+    /// T-7.2 (NAV-007): URL del botón "Abrir Vacante" con
+    /// <c>puestoId</c> precargado y <c>returnUrl</c> hacia el
+    /// <c>Puesto/Details</c>. Solo se rendereaa cuando NO hay Vacante
+    /// abierta y el usuario es Administrador. El partial
+    /// <c>_CrossList.cshtml</c> lo consume vía
+    /// <see cref="IOcupacionesCrossList.AbrirVacanteUrl"/>.
+    /// </summary>
+    string? IOcupacionesCrossList.AbrirVacanteUrl
+        => !HayVacanteAbierta && User.IsInRole(RolesSgv.Administrador)
+            ? $"/Organizacion/Vacantes/Create?puestoId={PuestoId:D}&returnUrl=/Organizacion/Puestos/Details/{PuestoId:D}"
+            : null;
 
     // ── Handler ──────────────────────────────────────────────────────────
 
@@ -193,5 +258,17 @@ public sealed class PuestoOcupacionesModel(
                 id);
             ErrorMessage = "No se pudo cargar el listado de ocupaciones del puesto. Intentá nuevamente.";
         }
+
+        // T-7.2: una vez confirmada la lectura del Puesto, consultamos si
+        // tiene una Vacante abierta para decidir el render del botón NAV-007.
+        // Política de degradación unificada: tanto este cliente
+        // (<c>VacanteApiClient.ExisteVacanteAbiertaParaPuestoAsync</c>) como
+        // esta propiedad degradan a <c>false</c> ante fallo de transporte
+        // para mostrar el botón NAV-007. Un fallo de transporte revela así
+        // la acción y deja al usuario descubrir que el camino no aplica,
+        // en vez de ocultar el botón silenciosamente.
+        HayVacanteAbierta = await vacanteApiClient
+            .ExisteVacanteAbiertaParaPuestoAsync(id, cancellationToken)
+            .ConfigureAwait(false);
     }
 }

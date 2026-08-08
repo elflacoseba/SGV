@@ -12,4 +12,8 @@ public sealed class EstadoVacanteEntity : EntityBase
     public int Orden { get; set; }
 
     public bool EsTerminal { get; set; }
+
+    public bool EsCubierta { get; set; }
+
+    public bool EsCancelada { get; set; }
 }

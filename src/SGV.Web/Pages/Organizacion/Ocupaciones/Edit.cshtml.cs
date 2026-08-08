@@ -43,7 +43,7 @@ public sealed class EditModel(
     /// <summary><c>true</c> cuando el recurso no está disponible para edición.</summary>
     public bool IsRecoverable { get; private set; }
 
-    public bool IsEdit => true;
+    public override bool IsEdit => true;
 
     public string? StatusMessage => PageFeedback.GetStatusMessage(TempData);
 

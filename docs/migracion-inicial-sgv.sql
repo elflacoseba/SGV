@@ -925,25 +925,6 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260614183103_InicialSgvo') THEN
 
-    -- El índice simple IX_Auditorias_CorrelationId se omite porque
-    -- el compuesto IX_Auditorias_CorrelationId_OccurredAt (creado
-    -- por la migración 20260801014133_IndiceAuditoriaCorrelationIdOccurredAt)
-    -- cubre las queries que filtran solo por CorrelationId
-    -- (leading column). Se removió para reducir overhead de
-    -- escritura sobre Auditorias.
-
-    END IF;
-END //
-DELIMITER ;
-CALL MigrationsScript();
-DROP PROCEDURE MigrationsScript;
-
-DROP PROCEDURE IF EXISTS MigrationsScript;
-DELIMITER //
-CREATE PROCEDURE MigrationsScript()
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260614183103_InicialSgvo') THEN
-
     CREATE INDEX `IX_Auditorias_EntityName_EntityId_OccurredAt` ON `Auditorias` (`EntityName`, `EntityId`, `OccurredAt`);
 
     END IF;
@@ -4216,10 +4197,6 @@ CREATE PROCEDURE MigrationsScript()
 BEGIN
     IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260801014133_IndiceAuditoriaCorrelationIdOccurredAt') THEN
 
-    -- El compuesto cubre las queries que filtran solo por
-    -- CorrelationId (leading column); el índice simple es redundante.
-    DROP INDEX `IX_Auditorias_CorrelationId` ON `Auditorias`;
-
     CREATE INDEX `IX_Auditorias_CorrelationId_OccurredAt` ON `Auditorias` (`CorrelationId`, `OccurredAt`);
 
     END IF;
@@ -4236,6 +4213,63 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260801014133_IndiceAuditoriaCorrelationIdOccurredAt', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260804235936_AddVacanteIdToOcupaciones') THEN
+
+    ALTER TABLE `Ocupaciones` ADD `VacanteId` char(36) COLLATE ascii_general_ci NULL;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260804235936_AddVacanteIdToOcupaciones') THEN
+
+    CREATE INDEX `IX_Ocupaciones_VacanteId` ON `Ocupaciones` (`VacanteId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260804235936_AddVacanteIdToOcupaciones') THEN
+
+    ALTER TABLE `Ocupaciones` ADD CONSTRAINT `FK_Ocupaciones_Vacantes_VacanteId` FOREIGN KEY (`VacanteId`) REFERENCES `Vacantes` (`Id`) ON DELETE RESTRICT;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260804235936_AddVacanteIdToOcupaciones') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260804235936_AddVacanteIdToOcupaciones', '9.0.0');
 
     END IF;
 END //

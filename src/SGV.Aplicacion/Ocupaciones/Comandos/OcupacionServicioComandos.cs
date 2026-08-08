@@ -7,6 +7,7 @@ using SGV.Aplicacion.Ocupaciones.Comandos.Validaciones;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Comandos;
 using SGV.Contracts.Ocupaciones.Dtos;
@@ -26,6 +27,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
     private readonly IOcupacionRepository ocupacionRepository;
     private readonly IPersonaRepository personaRepository;
     private readonly IPuestoRepository puestoRepository;
+    private readonly IVacanteRepository vacanteRepository;
     private readonly IUnitOfWork unitOfWork;
     private readonly IConstraintViolationDetector constraintDetector;
     private readonly ILogger<OcupacionServicioComandos> logger;
@@ -45,7 +47,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         ILogger<OcupacionServicioComandos> logger,
         IValidator<CrearOcupacionRequest> crearValidator,
         IValidator<ActualizarOcupacionRequest> actualizarValidator,
-        IValidator<FinalizarOcupacionRequest> finalizarValidator)
+        IValidator<FinalizarOcupacionRequest> finalizarValidator,
+        IVacanteRepository vacanteRepository)
     {
         ArgumentNullException.ThrowIfNull(ocupacionRepository);
         ArgumentNullException.ThrowIfNull(personaRepository);
@@ -56,10 +59,12 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         ArgumentNullException.ThrowIfNull(crearValidator);
         ArgumentNullException.ThrowIfNull(actualizarValidator);
         ArgumentNullException.ThrowIfNull(finalizarValidator);
+        ArgumentNullException.ThrowIfNull(vacanteRepository);
 
         this.ocupacionRepository = ocupacionRepository;
         this.personaRepository = personaRepository;
         this.puestoRepository = puestoRepository;
+        this.vacanteRepository = vacanteRepository;
         this.unitOfWork = unitOfWork;
         this.constraintDetector = constraintDetector;
         this.logger = logger;
@@ -78,12 +83,14 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         IPuestoRepository puestoRepository,
         IUnitOfWork unitOfWork,
         IConstraintViolationDetector constraintDetector,
-        ILogger<OcupacionServicioComandos> logger)
+        ILogger<OcupacionServicioComandos> logger,
+        IVacanteRepository vacanteRepository)
         : this(ocupacionRepository, personaRepository, puestoRepository, unitOfWork,
                constraintDetector, logger,
                new CrearOcupacionRequestValidator(),
                new ActualizarOcupacionRequestValidator(),
-               new FinalizarOcupacionRequestValidator())
+               new FinalizarOcupacionRequestValidator(),
+               vacanteRepository)
     {
     }
 
@@ -141,6 +148,20 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             return OcupacionCommandResult.Failure(
                 new(ErrorCategoria.Conflict, "PuestoInactivo", "El puesto referenciado no está activo."));
+        }
+
+        // N3 (change vacante-ocupacion-flow-alignment): el alta directa de
+        // Ocupacion requiere una Vacante abierta para el mismo Puesto. Sin
+        // ella, el camino normal es Cubrir la Vacante (N2). El flujo principal
+        // (REQ-OCC-FORM-009 + REQ-OCC-NAV-007) deriva al usuario al módulo de
+        // Vacantes en lugar de permitir el alta directa sin Vacante abierta.
+        if (!await vacanteRepository.ExistsAbiertaByPuestoAsync(request.PuestoId, cancellationToken).ConfigureAwait(false))
+        {
+            return OcupacionCommandResult.Failure(
+                new(
+                    ErrorCategoria.Conflict,
+                    OcupacionErrorCodigo.PuestoSinVacanteAbierta,
+                    "El puesto no tiene una Vacante abierta; abra una Vacante antes de asignar una persona al puesto."));
         }
 
         // Issue 4: Check Persona+Puesto first (more specific), then Puesto alone.
@@ -368,6 +389,28 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             return OcupacionCommandResult.Failure(
                 new(ErrorCategoria.Conflict, "OcupacionYaActiva", "La ocupación ya está activa."));
+        }
+
+        // Q2 (change vacante-ocupacion-flow-alignment): si la Ocupacion está
+        // vinculada a una Vacante Cancelada, rechazar la reactivación.
+        // El flag de dominio `EsCancelada` reemplaza la comparación por
+        // nombre que era frágil ante renombre del seed. Solo dispara en
+        // ReactivarAsync; Finalizar y Eliminar no tocan este check
+        // (preservación de Q1=NO reopen y Q3=NO reopen).
+        if (ocupacion.VacanteId is { } vacanteVinculadaId)
+        {
+            var vacanteAsociada = await vacanteRepository
+                .GetByIdForUpdateAsync(vacanteVinculadaId, cancellationToken)
+                .ConfigureAwait(false);
+            // FK rota histórica (vacante fue purgada) → permite reactivar.
+            if (vacanteAsociada?.EstadoVacante?.EsCancelada == true)
+            {
+                return OcupacionCommandResult.Failure(
+                    new(
+                        ErrorCategoria.Conflict,
+                        OcupacionErrorCodigo.VacanteCanceladaParaReactivar,
+                        "La Vacante asociada fue cancelada; no se puede reactivar la Ocupación."));
+            }
         }
 
         // Issue 1: Validation helpers return the loaded entity — no redundant fetch.

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SGV.Infraestructura.Persistencia;
 
@@ -11,9 +12,11 @@ using SGV.Infraestructura.Persistencia;
 namespace SGV.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(SgvDbContext))]
-    partial class SgvDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260804235936_AddVacanteIdToOcupaciones")]
+    partial class AddVacanteIdToOcupaciones
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -546,12 +549,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<bool>("EsCancelada")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("EsCubierta")
-                        .HasColumnType("tinyint(1)");
-
                     b.Property<bool>("EsTerminal")
                         .HasColumnType("tinyint(1)");
 
@@ -575,8 +572,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
                             Codigo = "Abierta",
-                            EsCancelada = false,
-                            EsCubierta = false,
                             EsTerminal = false,
                             Nombre = "Abierta",
                             Orden = 1
@@ -585,8 +580,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000002"),
                             Codigo = "EnSeleccion",
-                            EsCancelada = false,
-                            EsCubierta = false,
                             EsTerminal = false,
                             Nombre = "En Selección",
                             Orden = 2
@@ -595,8 +588,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000003"),
                             Codigo = "Cubierta",
-                            EsCancelada = false,
-                            EsCubierta = true,
                             EsTerminal = true,
                             Nombre = "Cubierta",
                             Orden = 3
@@ -605,8 +596,6 @@ namespace SGV.Infraestructura.Persistencia.Migraciones
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000004"),
                             Codigo = "Cancelada",
-                            EsCancelada = true,
-                            EsCubierta = false,
                             EsTerminal = true,
                             Nombre = "Cancelada",
                             Orden = 4
