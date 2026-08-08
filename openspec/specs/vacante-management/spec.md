@@ -17,11 +17,22 @@ Gestión del ciclo de vida de vacantes de puestos vía API REST: abrir, consulta
 
 ### Requisito: Crear Vacante
 
-El sistema DEBE permitir abrir una vacante indicando `PuestoId`, `EstadoVacanteId` (inicial), `FechaApertura`, `Motivo` y opcionalmente `Observaciones`. Solo el rol `Administrador` o `GestorVacantes` DEBE poder invocar la mutación. El `EstadoVacanteId` inicial NO DEBE referenciar un estado terminal (`EsTerminal = true`); si lo hace, la operación DEBE ser rechazada con `400 Bad Request`. La unicidad "una sola vacante abierta por puesto" DEBE reforzarse con unique constraint parcial en BD sobre `PuestoId` filtrado por `FechaCierre IS NULL` y `IsDeleted = 0`; ante carrera concurrente la BD es fuente de verdad, y la aplicación DEBE mapear la `DbUpdateException` de constraint violation al código `VacanteErrorCodigo.PuestoConVacanteAbierta` respondiendo `409 Conflict`.
+El sistema DEBE permitir abrir una vacante indicando `PuestoId`, `EstadoVacanteId` (inicial), `FechaApertura`, `Motivo` y opcionalmente `Observaciones`. Solo el rol `Administrador` o `GestorVacantes` DEBE poder invocar la mutación. El `EstadoVacanteId` inicial NO DEBE referenciar un estado terminal (`EsTerminal = true`); si lo hace, la operación DEBE ser rechazada con `400 Bad Request`.
+
+**Regla N1 — Bloqueo por Ocupacion activa**: antes de evaluar la constraint de BD, el sistema DEBE verificar que no exista una `Ocupacion` activa (`EsVigente = true`, `IsDeleted = 0`) para el `PuestoId`. Si existe, DEBE rechazar con `409 Conflict` y código `PuestoOcupado`. La unicidad "una sola vacante abierta por puesto" DEBE reforzarse con unique constraint parcial en BD sobre `PuestoId` filtrado por `FechaCierre IS NULL` y `IsDeleted = 0`; ante carrera concurrente la BD es fuente de verdad, y la aplicación DEBE mapear la `DbUpdateException` de constraint violation al código `VacanteErrorCodigo.PuestoConVacanteAbierta` respondiendo `409 Conflict`.
+
+#### Escenario: Puesto con Ocupacion activa (N1)
+
+- **DADO** que existe una `Ocupacion` con `EsVigente = true` para el `PuestoId` indicado
+- **Y** no existe vacante abierta para ese `PuestoId`
+- **CUANDO** un usuario con rol `Administrador` o `GestorVacantes` solicita `POST /api/v1/vacantes`
+- **ENTONCES** el sistema DEBE responder `409 Conflict` con código `PuestoOcupado`
+- **Y** la vacante NO DEBE persistirse.
 
 #### Escenario: Creación exitosa
 
 - **DADO** que no existe vacante abierta para el `PuestoId` indicado
+- **Y** no existe `Ocupacion` activa para ese `PuestoId`
 - **Y** `EstadoVacanteId` referencia un estado de vacante existente no terminal
 - **CUANDO** un usuario con rol `Administrador` o `GestorVacantes` solicita `POST /api/v1/vacantes`
 - **ENTONCES** el sistema DEBE persistir la vacante
@@ -113,6 +124,8 @@ El sistema DEBE exponer `GET /api/v1/vacantes/{id}` devolviendo `VacanteDetailDt
 
 El sistema DEBE permitir transicionar el `EstadoVacanteId` persistiendo simultáneamente un registro en `HistorialEstadoVacante`. La transición a estado terminal (`Cubierta`, `Cancelada`) DEBE setear `FechaCierre` automáticamente. `Motivo` es OPCIONAL (PB-3).
 
+**Regla N2 — Cubrir crea Ocupacion automáticamente**: la transición a `Cubierta` DEBE recibir `PersonaId` (identificador de la Postulación ganadora) y DEBE crear automáticamente una `Ocupacion` vinculada con `VacanteId` seteado y `EsVigente = true`, en la misma transacción que el cambio de estado y el histórico. Si `PersonaId` no se provee, la transición DEBE rechazarse con `400 Validation` y `FieldErrors["personaId"]`.
+
 #### Escenario: Transición exitosa a estado no terminal
 
 - **DADO** una vacante en estado `Abierta`
@@ -121,18 +134,33 @@ El sistema DEBE permitir transicionar el `EstadoVacanteId` persistiendo simultá
 - **Y** DEBE insertar un registro en `HistorialEstadoVacante`
 - **Y** `FechaCierre` DEBE permanecer nula.
 
+#### Escenario: Transición a Cubierta crea Ocupacion (N2)
+
+- **DADO** una Vacante `Abierta` con una Postulación ganadora cuyo `PersonaId` está disponible
+- **CUANDO** un `Administrador` o `GestorVacantes` solicita `PATCH /api/v1/vacantes/{id}/estado` con destino `Cubierta` y `PersonaId`
+- **ENTONCES** el sistema DEBE setear `FechaCierre` y registrar `HistorialEstadoVacante`
+- **Y** DEBE crear una `Ocupacion` con `VacanteId` igual al id de la Vacante, `PuestoId` igual al de la Vacante, `PersonaId` recibido y `EsVigente = true`
+- **Y** la creación de la `Ocupacion` DEBE ser atómica respecto del cambio de estado.
+
+#### Escenario: Cubrir sin PersonaId es rechazado (N2)
+
+- **DADO** una Vacante `Abierta`
+- **CUANDO** se solicita transición a `Cubierta` sin `PersonaId`
+- **ENTONCES** el sistema DEBE responder `400 Bad Request` con `ErrorCategoria.Validation` y `FieldErrors["personaId"]`
+- **Y** NO DEBE mutar la Vacante ni crear `Ocupacion`.
+
+#### Escenario: Atomicidad extendida a Ocupacion (N2)
+
+- **DADO** una transición a `Cubierta` válida
+- **CUANDO** la persistencia de la `Ocupacion` derivada falla
+- **ENTONCES** el cambio de estado de la Vacante y el histórico DEBEN revertirse (misma transacción).
+
 #### Escenario: Transición a estado terminal setea FechaCierre
 
 - **DADO** una vacante abierta
 - **CUANDO** se solicita cambiar a `Cubierta` sin `Motivo` (PB-3 asumido opcional)
 - **ENTONCES** el sistema DEBE setear `FechaCierre`
 - **Y** DEBE registrar el histórico.
-
-#### Escenario: Atomicidad de vacante e historial
-
-- **DADO** una solicitud de cambio de estado válida
-- **CUANDO** la persistencia del histórico falla
-- **ENTONCES** el cambio de estado de la vacante DEBE revertirse (misma transacción).
 
 #### Escenario: Estado terminal inmutable
 
@@ -193,6 +221,22 @@ Las respuestas de vacantes DEBEN exponer `id`, `puestoId`, `puestoNombre` (denor
 
 El sistema DEBE garantizar, mediante unique constraint parcial en BD sobre `PuestoId` filtrado por `FechaCierre IS NULL` y `IsDeleted = 0`, que nunca coexistan dos vacantes abiertas para el mismo puesto. La columna calculada que soporta la constraint DEBE evaluar a `NULL` para vacantes cerradas o soft-deleted, de modo que MySQL las ignore del unique index.
 
+**Regla N4 — La posición del Puesto se libera al finalizar la Ocupacion derivada**: la disponibilidad de negocio del Puesto para una nueva Vacante depende también de la `Ocupacion` derivada. La posiciónsólo se libera cuando la `Ocupacion` derivada deja de ser activa (`Finalizada` o eliminada lógicamente), no cuando la Vacante transiciona a `Cubierta`. El check N1 (`PuestoOcupado`) gobierna la creación de nuevas Vacantes mientras exista `Ocupacion` activa.
+
+#### Escenario: Cubrir la Vacante no libera la posición (N4)
+
+- **DADO** una Vacante `Cubierta` con `Ocupacion` derivada `EsVigente = true`
+- **CUANDO** se solicita `POST /api/v1/vacantes` para el mismo `PuestoId`
+- **ENTONCES** el sistema DEBE responder `409 Conflict` con código `PuestoOcupado` (N1)
+- **Y** la constraint de BD de vacante abierta NO entra en juego porque `FechaCierre` ya está seteada.
+
+#### Escenario: Finalizar la Ocupacion derivada libera la posición (N4)
+
+- **DADO** una Vacante `Cubierta` cuya `Ocupacion` derivada fue finalizada (`EsVigente = false`)
+- **Y** no existe otra vacante abierta para el `PuestoId`
+- **CUANDO** se solicita `POST /api/v1/vacantes` para ese `PuestoId`
+- **ENTONCES** el sistema DEBE responder `201 Created`.
+
 #### Escenario: Una vacante abierta por puesto no viola la constraint
 
 - **DADO** que no existe vacante abierta para un `PuestoId`
@@ -219,3 +263,13 @@ El sistema DEBE garantizar, mediante unique constraint parcial en BD sobre `Pues
 - **CUANDO** por error se reabre seteando `FechaCierre = NULL`
 - **ENTONCES** la BD DEBE rechazar por violación de unique constraint
 - **Y** el rechazo DEBE mapearse a `VacanteErrorCodigo.PuestoConVacanteAbierta`.
+
+### Requisito: Códigos de error de Ocupacion cruzada
+
+El sistema DEBE exponer el código funcional `PuestoOcupado` (Ocupacion activa bloqueando creación de Vacante) en `VacanteErrorCodigo`, distinto de `PuestoConVacanteAbierta` (constraint de BD) y de `OcupacionErrorCodigo.PuestoOcupado` (conflicto de Ocupacion por Puesto ya vigente).
+
+#### Escenario: Discriminación de códigos 409
+
+- **DADO** un Puesto con `Ocupacion` activa y sin vacante abierta
+- **CUANDO** se intenta crear una Vacante
+- **ENTONCES** el código DEBE ser `PuestoOcupado` (Ocupacion activa), no `PuestoConVacanteAbierta`.

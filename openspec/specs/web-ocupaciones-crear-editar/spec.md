@@ -20,12 +20,21 @@ Incluye `Create`, `Edit`, `Details`, validación, conflictos y PRG. Excluye edic
 
 CUANDO un Administrador abre `Create`, SHALL disponer de `PersonaId`, `PuestoId`, `FechaInicio`, `TipoAsignacion` y `Observaciones`, con selectores alimentados por catálogos existentes.
 
+**Modificación por N3**: el `Create` DEBE verificar que el `PuestoId` seleccionado tenga una Vacante abierta. Si no la tiene, la API responde `409 Conflict` con código `PuestoSinVacanteAbierta` y el formulario DEBE mostrar el conflicto junto al selector `PuestoId`.
+
 #### Escenarios
 
 #### Scenario: Alta válida
-- GIVEN catálogos cargados y datos válidos
+- GIVEN catálogos cargados y datos válidos y una Vacante abierta para el `PuestoId`
 - WHEN se envía el formulario
 - THEN SHALL invocar Create y persistir la Ocupación.
+
+#### Scenario: Puesto sin Vacante abierta (N3)
+- GIVEN que el `PuestoId` seleccionado no tiene ninguna Vacante abierta
+- WHEN se envía el formulario `Create`
+- THEN la API SHALL responder `409 Conflict` con código `PuestoSinVacanteAbierta`
+- Y el formulario SHALL mostrar el conflicto junto al selector `PuestoId`
+- Y NO SHALL mostrar éxito ni perder los demás inputs.
 
 #### Scenario: Catálogo no disponible
 - GIVEN falla un catálogo
@@ -102,7 +111,7 @@ CUANDO un formulario es inválido, SHALL validar en cliente y servidor, mapear `
 
 ### Requirement: REQ-OCC-FORM-005 — Conflictos de unicidad visibles
 
-CUANDO Create o Edit recibe 409, SHALL distinguir `PersonaYPuestoOcupados` y `PuestoOcupado`, conservar el formulario y mostrar feedback funcional.
+CUANDO Create o Edit recibe 409, SHALL distinguir `PersonaYPuestoOcupados`, `PuestoOcupado` y `PuestoSinVacanteAbierta`, conservar el formulario y mostrar feedback funcional.
 
 #### Escenarios
 
@@ -116,8 +125,13 @@ CUANDO Create o Edit recibe 409, SHALL distinguir `PersonaYPuestoOcupados` y `Pu
 - WHEN se intenta guardar
 - THEN SHALL mostrar `PuestoOcupado`.
 
+#### Scenario: Puesto sin vacante abierta (N3)
+- GIVEN el `PuestoId` no tiene Vacante abierta
+- WHEN se intenta guardar
+- THEN SHALL mostrar el conflicto `PuestoSinVacanteAbierta` junto al selector `PuestoId`.
+
 #### Scenario: Sin falso éxito
-- GIVEN cualquiera de esos 409
+- GIVEN cualquiera de esos 409 (`PersonaYPuestoOcupados`, `PuestoOcupado`, `PuestoSinVacanteAbierta`)
 - WHEN se re-renderiza
 - THEN SHALL conservar datos y no mostrar éxito.
 
@@ -167,10 +181,12 @@ CUANDO se finaliza, `FechaFin` SHALL ser igual o posterior a `FechaInicio`; clie
 
 CUANDO Reactivate responde 409 por unicidad, Details SHALL mostrar el código específico, mantener el estado histórico y permitir una recuperación informada.
 
+**Modificación por Q2**: la reactivación DEBE rechazarse también cuando la `Vacante` vinculada a la `Ocupacion` está `Cancelada`, además de las colisiones de unicidad existentes.
+
 #### Escenarios
 
 #### Scenario: Reactivación válida
-- GIVEN no existen colisiones vigentes
+- GIVEN no existen colisiones vigentes y la `Vacante` vinculada (si existe) NO está `Cancelada`
 - WHEN se reactiva
 - THEN SHALL quedar `Vigente` tras PRG.
 
@@ -183,6 +199,30 @@ CUANDO Reactivate responde 409 por unicidad, Details SHALL mostrar el código es
 - GIVEN otro vínculo vigente ocupa el Puesto
 - WHEN se reactiva
 - THEN SHALL mostrar `PuestoOcupado` y no mutar.
+
+#### Scenario: Vacante Cancelada bloquea reactivación (Q2)
+- GIVEN una `Ocupacion` cuya `Vacante` vinculada (mismo `VacanteId`) está en estado `Cancelada`
+- WHEN se confirma Reactivar
+- THEN la API SHALL responder `409 Conflict`
+- Y Details SHALL mostrar el conflicto manteniendo el estado histórico
+- Y NO SHALL mutar la `Ocupacion`.
+
+### Requirement: REQ-OCC-FORM-009 — Flujo normal documentado
+
+El formulario `Create` SHALL documentar al usuario Administrador que el flujo normal de alta de `Ocupacion` es el automatizado: crear Vacante → transicionar a `Cubierta` (que materializa la `Ocupacion`). El alta manual vía `Create` queda restringida al caso en que el `Puesto` ya tiene Vacante abierta (N3) y representa una excepción operativa, no el camino principal.
+
+#### Escenarios
+
+#### Scenario: Hints de flujo en `Create`
+- GIVEN un Administrador abriendo `Create`
+- WHEN se renderiza el formulario
+- THEN SHALL mostrar un hint indicando que el alta directa requiere Vacante abierta para el Puesto
+- Y SHALL enlazar al módulo de Vacantes para el flujo principal.
+
+#### Scenario: `Create` no sustituye al flujo automatizado
+- GIVEN un Puesto sin Vacante abierta
+- WHEN el Administrador intenta el alta directa
+- THEN SHALL recibir `PuestoSinVacanteAbierta` y ser derivado al flujo Vacante → Cubierta.
 
 ## Modelo de Datos
 
@@ -206,5 +246,6 @@ CUANDO Reactivate responde 409 por unicidad, Details SHALL mostrar el código es
 ## Dependencias
 
 - Depende de API-001/004/005 y LST-001/004.
-- FORM-002/003 dependen de `OcupacionEstado`; FORM-005/008 de códigos 409.
+- FORM-002/003 dependen de `OcupacionEstado`; FORM-005/008/009 de códigos 409.
+- FORM-001/005/009 y NAV-006/007 dependen del flujo `Puesto → Vacante → Ocupacion` (N1/N2/N3/N4/Q2).
 - `web-ocupaciones-navegacion-contextual` precarga estos formularios, sin cambiar sus reglas.

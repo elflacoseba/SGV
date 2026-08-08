@@ -125,6 +125,8 @@ CUANDO el usuario selecciona Volver, SHALL regresar al Details de Persona o Pues
 
 CUANDO un Administrador crea desde una página cruzada, Create SHALL precargar el id dueño, mantener editable el otro selector y conservar un retorno seguro al origen.
 
+**Modificación por el flujo `Puesto → Vacante → Ocupacion`**: el alta contextual desde `PuestoOcupaciones` se bifurca según el estado del Puesto. Si el Puesto tiene Vacante abierta, el flujo mantiene el comportamiento actual (precarga `Create` de Ocupacion con `PuestoId`). Si no tiene Vacante abierta, la acción contextual DEBE redirigir al módulo de Vacantes para abrir una Vacante (NAV-007), dado que N3 rechazaría el alta directa de Ocupacion. Si el Puesto tiene Ocupacion activa, se DERIVA al detalle de la Ocupacion vigente.
+
 #### Escenarios
 
 #### Scenario: Alta desde Persona
@@ -132,15 +134,52 @@ CUANDO un Administrador crea desde una página cruzada, Create SHALL precargar e
 - WHEN se selecciona Nueva ocupación
 - THEN SHALL abrir Create con `PersonaId` preseleccionado.
 
-#### Scenario: Alta desde Puesto
-- GIVEN un Puesto dueño
-- WHEN se selecciona Nueva ocupación
-- THEN SHALL abrir Create con `PuestoId` preseleccionado.
+#### Scenario: Alta desde Puesto con Vacante abierta
+- GIVEN un Puesto dueño con Vacante abierta
+- WHEN se selecciona Nueva ocupación desde `PuestoOcupaciones`
+- THEN SHALL abrir Create con `PuestoId` preseleccionado
+- Y el submit podrá prosperar (sujeto a N3, que en este caso pasa).
+
+#### Scenario: Alta desde Puesto sin Vacante abierta (N3)
+- GIVEN un Puesto dueño sin Vacante abierta (ni abierta ni en curso)
+- WHEN se selecciona "Nueva ocupación" desde `PuestoOcupaciones`
+- THEN SHALL redirigir al flujo de creación de Vacante para ese `PuestoId`
+- Y NO SHALL abrir `Create` de Ocupacion con `PuestoId` precargado (queda rechazado por N3)
+- Y SHALL mostrar mensaje contextual indicando que primero debe existir una Vacante abierta.
+
+#### Scenario: Alta desde Puesto con Ocupacion activa (N1)
+- GIVEN un Puesto con `Ocupacion` activa
+- WHEN se selecciona "Nueva ocupación" desde `PuestoOcupaciones`
+- THEN SHALL informar que el Puesto ya está ocupado y derivar al detalle de la `Ocupacion` vigente
+- Y NO SHALL ofrecer el flujo de Vacante ni el `Create` de Ocupacion.
 
 #### Scenario: Usuario no-admin
 - GIVEN un autenticado sin rol Administrador
 - WHEN se renderiza o solicita el alta
 - THEN SHALL ocultar la acción y bloquear la escritura.
+
+### Requirement: REQ-OCC-NAV-007 — Navegación al flujo de Vacante desde Puesto
+
+El sistema SHALL exponer desde `PuestoOcupaciones` una acción "Abrir Vacante" para Administradores que dirija al flujo de creación de Vacante del módulo correspondiente con `PuestoId` precargado, de modo de habilitar luego el alta de `Ocupacion` por la vía normal (Vacante → `Cubierta` → Ocupacion automática).
+
+#### Escenarios
+
+#### Scenario: Abrir Vacante desde Puesto sin vacante
+- GIVEN un Puesto sin Vacante abierta ni `Ocupacion` activa
+- Y un Administrador navegando `PuestoOcupaciones`
+- WHEN se selecciona "Abrir Vacante"
+- THEN SHALL navegar al `Create` de Vacantes con `PuestoId` precargado
+- Y SHALL conservar retorno seguro al `Puesto Details`.
+
+#### Scenario: Abrir Vacante oculto si ya existe
+- GIVEN un Puesto con Vacante abierta
+- WHEN se renderiza `PuestoOcupaciones`
+- THEN SHALL ocultar "Abrir Vacante" y mostrar "Nueva ocupación" habilitado.
+
+#### Scenario: "Abrir Vacante" no-admin
+- GIVEN un usuario sin rol Administrador
+- WHEN se renderiza `PuestoOcupaciones`
+- THEN SHALL ocultar "Abrir Vacante" (igual que "Nueva ocupación").
 
 ## Modelo de Datos
 
