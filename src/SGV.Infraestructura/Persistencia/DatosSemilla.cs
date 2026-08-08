@@ -56,8 +56,8 @@ internal static class DatosSemilla
         builder.Entity<EstadoVacanteEntity>().HasData(
             new EstadoVacanteEntity { Id = VacanteAbiertaId, Codigo = "Abierta", Nombre = "Abierta", Orden = 1, EsTerminal = false },
             new EstadoVacanteEntity { Id = VacanteEnSeleccionId, Codigo = "EnSeleccion", Nombre = "En Selección", Orden = 2, EsTerminal = false },
-            new EstadoVacanteEntity { Id = VacanteCubiertaId, Codigo = "Cubierta", Nombre = "Cubierta", Orden = 3, EsTerminal = true },
-            new EstadoVacanteEntity { Id = VacanteCanceladaId, Codigo = "Cancelada", Nombre = "Cancelada", Orden = 4, EsTerminal = true });
+            new EstadoVacanteEntity { Id = VacanteCubiertaId, Codigo = "Cubierta", Nombre = "Cubierta", Orden = 3, EsTerminal = true, EsCubierta = true },
+            new EstadoVacanteEntity { Id = VacanteCanceladaId, Codigo = "Cancelada", Nombre = "Cancelada", Orden = 4, EsTerminal = true, EsCancelada = true });
 
         builder.Entity<EstadoPostulacionEntity>().HasData(
             new EstadoPostulacionEntity { Id = PostulacionPostuladoId, Codigo = "Postulado", Nombre = "Postulado", Orden = 1, EsTerminal = false, EsTerminalPositivo = false },
