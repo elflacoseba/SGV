@@ -110,6 +110,15 @@ public sealed class PersonaOcupacionesModel(
         => $"/personas/detalle/{PersonaId:D}";
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// WU-6 (PR #259 review H-7): Tras N3, ocultar "Nueva ocupación" cuando
+    /// la Persona ya tiene una Ocupación vigente fuerza el flujo normal
+    /// Vacante → Cubierta. Pre-N3, el botón se exponía siempre que la
+    /// Persona existiera activa; esto permitía el alta directa de
+    /// Ocupación sin Vacante, contradiciendo N3. Se documenta el
+    /// comportamiento vigente para que un reviewer futuro no lo
+    /// confunda con un regression.
+    /// </remarks>
     object? IOcupacionesCrossList.NewOcupacionRouteValues
         => Items.Count == 0 ? new { personaId = PersonaId } : null;
 
