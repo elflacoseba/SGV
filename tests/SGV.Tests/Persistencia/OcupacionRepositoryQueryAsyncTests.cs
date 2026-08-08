@@ -5,6 +5,7 @@ using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Dominio.Ocupaciones;
 using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Enums;
+using SGV.Tests.Integration;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -15,6 +16,7 @@ namespace SGV.Tests.Persistencia;
 /// con su nuevo contrato (segmento + filtros contextuales + búsqueda + sort + paginación).
 /// Los tests se skip-ean limpio sin MySQL local — ver <c>openspec/changes/2026-07-28-web-ocupaciones-issue-208</c>.
 /// </summary>
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class OcupacionRepositoryQueryAsyncTests
 {
     private static readonly Guid PersonaA = Guid.Parse("a0000000-0000-0000-0000-000000000001");

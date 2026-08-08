@@ -1,14 +1,25 @@
 @page "/auditorias/details"
 @model SGV.Web.Pages.Auditorias.DetailsModel
 @using System.Text.Json
+@using System.Text.Encodings.Web
 @{
     ViewBag.title = "Detalle de auditoría";
     ViewBag.subtitle = "Seguridad";
 
+    // Issue #260 follow-up: the default JsonEncoder escapes non-ASCII
+    // characters as \uXXXX, which makes "Después" render as
+    // "Despu\u00E9s" in the <pre> block. UnsafeRelaxedJsonEscaping
+    // preserves the literal UTF-8 byte so usuarios see the original
+    // value (accented letters, ñ, etc.) — same behavior the page had
+    // before the change 999ccf03 JSON formatting landed.
     static string FormatJson(string json) =>
         JsonSerializer.Serialize(
             JsonSerializer.Deserialize<JsonElement>(json),
-            new JsonSerializerOptions { WriteIndented = true });
+            new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
 }
 
 @await Html.PartialAsync("~/Pages/Shared/Partials/_PageTitle.cshtml")

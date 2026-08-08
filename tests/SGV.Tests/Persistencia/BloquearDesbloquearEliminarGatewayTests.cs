@@ -6,6 +6,7 @@ using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Seguridad;
+using SGV.Tests.Integration;
 using SGV.Tests.Persistencia;
 using Xunit;
 
@@ -18,6 +19,7 @@ namespace SGV.Tests.Persistencia;
 /// aligned to Identity's <see cref="UserManager{TSelf}.SetLockoutEndDateAsync"/>
 /// and <see cref="UserManager{TSelf}.DeleteAsync"/> APIs.
 /// </summary>
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class BloquearDesbloquearEliminarGatewayTests
 {
     [MySqlFact]

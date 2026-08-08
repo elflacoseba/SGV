@@ -8,6 +8,7 @@ using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Seguridad;
+using SGV.Tests.Integration;
 using SGV.Tests.Persistencia;
 using SGV.Tests.Seguridad;
 using Xunit;
@@ -28,6 +29,7 @@ namespace SGV.Tests.Api;
 /// - Auto-fence: admin cannot delete/block themselves → 403
 /// - Double DELETE → 404
 /// </summary>
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class UsuariosEndToEndMySqlFactTests
 {
     private const string SigningKey = "E2E-API-TEST-MIN-32-BYTES-REQUIRED!!!";

@@ -8,6 +8,7 @@ using SGV.Contracts.Seguridad.Usuarios;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Seguridad;
+using SGV.Tests.Integration;
 using SGV.Tests.Persistencia;
 using Xunit;
 
@@ -27,6 +28,7 @@ namespace SGV.Tests.Seguridad;
 /// real MySQL persistence) so the regression also covers the full
 /// HTTP request path through <c>AuthController</c>.
 /// </remarks>
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class SoftDeletedUserLoginTests
 {
     private const string SigningKey = "SOFTDELETE-LOGIN-TEST-MIN-32-BYTES!!";

@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using SGV.Contracts.Seguridad.Usuarios;
+using SGV.Tests.Integration;
 using SGV.Tests.Persistencia;
 using Xunit;
 
@@ -21,6 +22,7 @@ namespace SGV.Tests.Seguridad;
 /// contrary to <see cref="SGV.Tests.Api.AuthControllerTests"/> which uses the
 /// fake auth scheme registered by <see cref="SGV.Tests.Api.ApiWebApplicationFactory"/>.
 /// </summary>
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class JwtRealAuthTests
 {
     private const string LoginRelative = "api/v1/auth/login";
