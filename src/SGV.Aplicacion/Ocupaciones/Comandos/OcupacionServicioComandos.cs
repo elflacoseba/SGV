@@ -393,9 +393,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
 
         // Q2 (change vacante-ocupacion-flow-alignment): si la Ocupacion está
         // vinculada a una Vacante Cancelada, rechazar la reactivación.
-        // Decisión pre-apply #1712: comparar por nombre literal
-        // ("Cancelada") en vez de agregar columna/esCancelada — frágil ante
-        // renombre del seed pero 0 migración adicional. Solo dispara en
+        // El flag de dominio `EsCancelada` reemplaza la comparación por
+        // nombre que era frágil ante renombre del seed. Solo dispara en
         // ReactivarAsync; Finalizar y Eliminar no tocan este check
         // (preservación de Q1=NO reopen y Q3=NO reopen).
         if (ocupacion.VacanteId is { } vacanteVinculadaId)
@@ -404,8 +403,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
                 .GetByIdForUpdateAsync(vacanteVinculadaId, cancellationToken)
                 .ConfigureAwait(false);
             // FK rota histórica (vacante fue purgada) → permite reactivar.
-            if (vacanteAsociada is not null
-                && string.Equals(vacanteAsociada.EstadoVacante?.Nombre, "Cancelada", StringComparison.OrdinalIgnoreCase))
+            if (vacanteAsociada?.EstadoVacante?.EsCancelada == true)
             {
                 return OcupacionCommandResult.Failure(
                     new(

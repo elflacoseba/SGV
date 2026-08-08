@@ -495,7 +495,7 @@ public sealed class OcupacionServicioComandosTests
     public async Task Finalizar_VacanteCubiertaOrigen_NoReabreVacante()
     {
         var vacanteId = Guid.Parse("70000000-0000-0000-0000-000000000505");
-        var estadoCubierta = new EstadoVacante("Cubierta", "Cubierta", 3, true)
+        var estadoCubierta = new EstadoVacante("Cubierta", "Cubierta", 3, true, esCubierta: true)
         {
             Id = Guid.Parse("70000000-0000-0000-0000-000000000506")
         };
@@ -698,8 +698,8 @@ public sealed class OcupacionServicioComandosTests
         var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
         var uow = new FakeUnitOfWork();
 
-        // Vacante con su EstadoVacante poblado con Nombre == "Cancelada".
-        var estadoCancelado = new EstadoVacante("Cancelada", "Cancelada", 4, true)
+        // Vacante con su EstadoVacante poblado con EsCancelada=true.
+        var estadoCancelado = new EstadoVacante("Cancelada", "Cancelada", 4, true, esCancelada: true)
         {
             Id = Guid.Parse("70000000-0000-0000-0000-000000000502")
         };
@@ -730,7 +730,7 @@ public sealed class OcupacionServicioComandosTests
     {
         var vacanteId = Guid.Parse("70000000-0000-0000-0000-000000000503");
         var estadoCubiertaId = Guid.Parse("70000000-0000-0000-0000-000000000504");
-        var estadoCubierta = new EstadoVacante("Cubierta", "Cubierta", 3, true)
+        var estadoCubierta = new EstadoVacante("Cubierta", "Cubierta", 3, true, esCubierta: true)
         {
             Id = estadoCubiertaId
         };

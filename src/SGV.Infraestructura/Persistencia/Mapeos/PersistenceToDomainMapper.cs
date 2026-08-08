@@ -243,7 +243,13 @@ entity.UpdatedAt,
 
     public static EstadoVacante ToDomain(EstadoVacanteEntity entity)
     {
-        return new EstadoVacante(entity.Codigo, entity.Nombre, entity.Orden, entity.EsTerminal)
+        return new EstadoVacante(
+            entity.Codigo,
+            entity.Nombre,
+            entity.Orden,
+            entity.EsTerminal,
+            entity.EsCubierta,
+            entity.EsCancelada)
         {
             Id = entity.Id
         };

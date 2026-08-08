@@ -287,13 +287,11 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
 
         // N2 (change vacante-ocupacion-flow-alignment): Cubrir una Vacante
         // requiere PersonaId (provisto por la Postulación ganadora, fuera
-        // de scope). Decisión pre-apply: comparar destinoCubierta por
-        // nombre literal ("Cubierta") en vez de agregar una columna —
-        // mismo trade-off que T-5.0 vs Cancelada, frágil ante renombre
-        // del seed pero 0 migración. Cuando el destino no es Cubierta
-        // (e.g. Cancelada o no terminal), el campo PersonaId se ignora.
-        var destinoEsCubierta = estadoNuevo.EsTerminal
-            && string.Equals(estadoNuevo.Nombre, "Cubierta", StringComparison.OrdinalIgnoreCase);
+        // de scope). El flag de dominio `EsCubierta` reemplaza la
+        // comparación por nombre que era frágil ante renombre del seed.
+        // El flag convive con `EsTerminal` para no romper reglas previas
+        // (estados terminales no admiten más cambios).
+        var destinoEsCubierta = estadoNuevo.EsCubierta;
         if (destinoEsCubierta && request.PersonaId is null)
         {
             var fieldErrors = new Dictionary<string, string[]>

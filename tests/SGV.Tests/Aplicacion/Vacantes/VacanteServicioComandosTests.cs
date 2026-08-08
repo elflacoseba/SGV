@@ -389,6 +389,45 @@ public sealed class VacanteServicioComandosTests
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
+    /// <summary>
+    /// WU-1 / H-1: el flag de dominio <c>EsCubierta</c> reemplaza la
+    /// comparación por nombre. Un EstadoVacante con <c>Nombre="Cubierta"</c>
+    /// pero <c>EsCubierta=false</c> NO debe disparar la creación de la
+    /// Ocupacion derivada (N2). Esta guarda evita que un refactor
+    /// reintroduzca la comparación por nombre contra el seed.
+    /// </summary>
+    [Fact]
+    public async Task CambiarEstado_NombreCubiertaPeroEsCubiertaFalse_NoCreaOcupacion()
+    {
+        var abierta = new Vacante(PuestoId1, EstadoCubiertaIdAbierta, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
+        {
+            Id = VacanteId1
+        };
+        var repo = new FakeVacanteWriteRepository { Datos = [abierta] };
+        var estadoRepo = new FakeEstadoVacanteRepository
+        {
+            Datos =
+            [
+                new EstadoVacante("Abierta", "Abierta", 1, false) { Id = Guid.Parse("20000000-0000-0000-0000-000000000001") },
+                new EstadoVacante("CubiertaFake", "Cubierta", 3, true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000003") },
+            ]
+        };
+        var uow = new FakeUnitOfWork();
+        var ocupacionRepo = new FakeOcupacionLookupRepository();
+        var servicio = CrearServicio(repo, estadoRepo, uow, ocupacionRepo);
+
+        var resultado = await servicio.CambiarEstadoAsync(
+            abierta.Id,
+            CrearCambioEstadoRequest(
+                estadoVacanteId: Guid.Parse("20000000-0000-0000-0000-000000000003"),
+                personaId: PersonaGanadoraId),
+            default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(0, ocupacionRepo.AddCallCount);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
     [Fact]
     public async Task CambiarEstado_A_NoTerminal_FlujoInalterado()
     {
@@ -831,8 +870,8 @@ internal sealed class FakeEstadoVacanteRepository : IEstadoVacanteRepository
         [
             new EstadoVacante("Abierta", "Abierta", 1, false) { Id = Guid.Parse("20000000-0000-0000-0000-000000000001") },
             new EstadoVacante("EnSeleccion", "En Selección", 2, false) { Id = Guid.Parse("20000000-0000-0000-0000-000000000002") },
-            new EstadoVacante("Cubierta", "Cubierta", 3, true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000003") },
-            new EstadoVacante("Cancelada", "Cancelada", 4, true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000004") }
+            new EstadoVacante("Cubierta", "Cubierta", 3, true, esCubierta: true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000003") },
+            new EstadoVacante("Cancelada", "Cancelada", 4, true, esCancelada: true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000004") }
         ];
     }
 
