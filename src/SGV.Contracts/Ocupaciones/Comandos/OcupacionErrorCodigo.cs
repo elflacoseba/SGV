@@ -27,4 +27,36 @@ public static class OcupacionErrorCodigo
     /// (preservación de Q1=NO reopen y Q3=NO reopen).
     /// </summary>
     public const string VacanteCanceladaParaReactivar = nameof(VacanteCanceladaParaReactivar);
+
+    /// <summary>
+    /// 404 (REQ-OCC-FORM-010, change <c>invertir-flujo-cubrir</c>):
+    /// <c>VacanteId</c> provisto en <c>CrearOcupacionRequest</c> no
+    /// resuelve ninguna Vacante persistida.
+    /// </summary>
+    public const string VacanteNoEncontrada = nameof(VacanteNoEncontrada);
+
+    /// <summary>
+    /// 400 (REQ-OCC-FORM-010, change <c>invertir-flujo-cubrir</c>):
+    /// la Vacante referenciada está en un estado terminal (<c>Cubierta</c>
+    /// o <c>Cancelada</c>); no admite cobertura. La operación correcta es
+    /// abrir una nueva Vacante.
+    /// </summary>
+    public const string VacanteNoAbierta = nameof(VacanteNoAbierta);
+
+    /// <summary>
+    /// 409 (REQ-OCC-FORM-010, change <c>invertir-flujo-cubrir</c>):
+    /// la Vacante referenciada ya tiene una Ocupación vigente vinculada
+    /// (<c>EsVigente=true</c> y <c>VacanteId</c> coincidente); no se crea
+    /// una segunda Ocupación derivada.
+    /// </summary>
+    public const string VacanteYaCubierta = nameof(VacanteYaCubierta);
+
+    /// <summary>
+    /// 400 (REQ-OCC-FORM-010, change <c>invertir-flujo-cubrir</c>):
+    /// el <c>PuestoId</c> del request no coincide con el <c>PuestoId</c>
+    /// de la Vacante referenciada. La API devuelve este código en lugar
+    /// de inferir el Puesto desde la Vacante cuando el cliente lo envía
+    /// explícitamente.
+    /// </summary>
+    public const string PuestoIdNoCoincideConVacante = nameof(PuestoIdNoCoincideConVacante);
 }

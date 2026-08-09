@@ -56,4 +56,27 @@ public interface IOcupacionRepository : IReadOnlyRepository<Ocupacion>
     /// Excludes the occupation with the specified <paramref name="excludingId"/> if provided.
     /// </summary>
     Task<bool> ExistsActiveByPersonaYPuestoAsync(Guid personaId, Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns <see langword="true"/> when an active occupation exists for
+    /// the given <paramref name="vacanteId"/> (no soft-delete, sin fecha
+    /// de fin). Usado por <c>OcupacionServicioComandos.CrearAsync</c>
+    /// para detectar cobertura duplicada cuando el request trae
+    /// <c>VacanteId</c> (REQ-OCC-FORM-010).
+    /// </summary>
+    Task<bool> ExistsActiveByVacanteAsync(Guid vacanteId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Devuelve la Ocupación vigente (<c>EsVigente</c>) vinculada a la
+    /// <paramref name="vacanteId"/>, junto con el nombre completo de la
+    /// Persona asignada (proyección SQL <c>Nombres + ' ' + Apellidos</c>).
+    /// Retorna <see langword="null"/> si no existe (defensivo: estado
+    /// inconsistente en el que una Vacante Cubierta no tiene Ocupación
+    /// derivada). Usado por <c>VacanteServicioConsulta</c> para hidratar
+    /// <c>VacanteDetailDto.OcupacionDerivadaId</c> /
+    /// <c>PersonaAsignadaNombre</c>.
+    /// </summary>
+    Task<(Guid Id, string PersonaNombre)?> ObtenerVigentePorVacanteAsync(
+        Guid vacanteId,
+        CancellationToken cancellationToken = default);
 }

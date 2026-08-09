@@ -201,4 +201,51 @@ public sealed class OcupacionRepository(SgvDbContext context)
                 cancellationToken)
             .ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// T1.10 / REQ-OCC-FORM-010 (invertir-flujo-cubrir): cobertura duplicada
+    /// por Vacante. Usado por <c>OcupacionServicioComandos.CrearAsync</c>
+    /// antes de insertar una Ocupación derivada de <c>VacanteId</c>.
+    /// </summary>
+    public async Task<bool> ExistsActiveByVacanteAsync(
+        Guid vacanteId,
+        CancellationToken cancellationToken = default)
+    {
+        return await Context
+            .Set<OcupacionEntity>()
+            .AnyAsync(o =>
+                o.VacanteId == vacanteId &&
+                !o.IsDeleted &&
+                o.FechaFin == null,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// T1.10 / REQ-OCC-FORM-010 (invertir-flujo-cubrir): hidrata el detalle
+    /// de Vacante con la Ocupación vigente vinculada (id + nombre completo
+    /// de la Persona asignada). Defensivo: retorna <see langword="null"/>
+    /// si no existe Ocupación vigente (estado inconsistente).
+    /// Proyección SQL para no materializar el grafo completo en memoria.
+    /// </summary>
+    public async Task<(Guid Id, string PersonaNombre)?> ObtenerVigentePorVacanteAsync(
+        Guid vacanteId,
+        CancellationToken cancellationToken = default)
+    {
+        var projection = await Context
+            .Set<OcupacionEntity>()
+            .AsNoTracking()
+            .Where(o => o.VacanteId == vacanteId && !o.IsDeleted && o.FechaFin == null)
+            .Select(o => new
+            {
+                o.Id,
+                PersonaNombre = o.Persona.Nombres + " " + o.Persona.Apellidos
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return projection is null
+            ? null
+            : (projection.Id, projection.PersonaNombre);
+    }
 }

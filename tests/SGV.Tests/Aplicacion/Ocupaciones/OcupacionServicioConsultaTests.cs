@@ -211,6 +211,17 @@ internal sealed class FakeOcupacionReadRepository : IOcupacionRepository
     public Task<bool> ExistsActiveByPersonaYPuestoAsync(Guid personaId, Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Read-only fake does not support write operations.");
 
+    // T1.9 / REQ-OCC-FORM-010 (invertir-flujo-cubrir): la consulta de Vacantes
+    // no necesita estos métodos; lanzan NotSupported para detectar
+    // invocaciones accidentales desde tests de lectura.
+    public Task<bool> ExistsActiveByVacanteAsync(Guid vacanteId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake: ExistsActiveByVacanteAsync no se invoca desde queries.");
+
+    public Task<(Guid Id, string PersonaNombre)?> ObtenerVigentePorVacanteAsync(
+        Guid vacanteId,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake: ObtenerVigentePorVacanteAsync no se invoca desde queries.");
+
     public Task<(IReadOnlyList<Ocupacion> Items, int TotalCount)> QueryAsync(
         OcupacionListQuery query,
         CancellationToken cancellationToken = default)

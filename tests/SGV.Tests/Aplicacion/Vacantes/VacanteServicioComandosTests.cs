@@ -804,6 +804,16 @@ internal sealed class FakeOcupacionLookupRepository : IOcupacionRepository
     public Task<bool> ExistsActiveByPuestoAsync(
         Guid puestoId, Guid? excludingId = null, CancellationToken ct = default)
         => Task.FromResult(PuestosConOcupacionActiva.Contains(puestoId));
+
+    // T1.9 / REQ-OCC-FORM-010 (invertir-flujo-cubrir): el fake del módulo
+    // Vacante no consulta cobertura por Vacante (no es su scope).
+    public Task<bool> ExistsActiveByVacanteAsync(Guid vacanteId, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task<(Guid Id, string PersonaNombre)?> ObtenerVigentePorVacanteAsync(
+        Guid vacanteId,
+        CancellationToken ct = default)
+        => throw new NotImplementedException();
 }
 
 internal sealed class FakeVacanteWriteRepository : IVacanteRepository
@@ -864,6 +874,15 @@ internal sealed class FakeEstadoVacanteRepository : IEstadoVacanteRepository
 {
     public List<EstadoVacante> Datos { get; set; } = [];
 
+    /// <summary>
+    /// T1.11 (invertir-flujo-cubrir): cuando <c>true</c>, <c>ListAllAsync</c>
+    /// devuelve sólo el estado Cubierta. Usado para forzar el path
+    /// Unexpected (estado Cubierta ausente del catálogo) en tests
+    /// puntuales; el default <c>false</c> mantiene el comportamiento
+    /// previo (todos los estados del seed).
+    /// </summary>
+    public bool SoloCubierta { get; set; }
+
     public FakeEstadoVacanteRepository()
     {
         Datos =
@@ -879,7 +898,8 @@ internal sealed class FakeEstadoVacanteRepository : IEstadoVacanteRepository
         => Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
 
     public Task<IReadOnlyList<EstadoVacante>> ListAllAsync(CancellationToken cancellationToken = default)
-        => Task.FromResult<IReadOnlyList<EstadoVacante>>(Datos);
+        => Task.FromResult<IReadOnlyList<EstadoVacante>>(
+            SoloCubierta ? Datos.Where(e => e.EsCubierta).ToList() : Datos);
 }
 
 internal sealed class FakeUnitOfWork : IUnitOfWork

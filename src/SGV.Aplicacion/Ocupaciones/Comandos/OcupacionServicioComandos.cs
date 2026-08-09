@@ -28,6 +28,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
     private readonly IPersonaRepository personaRepository;
     private readonly IPuestoRepository puestoRepository;
     private readonly IVacanteRepository vacanteRepository;
+    private readonly IEstadoVacanteRepository estadoVacanteRepository;
     private readonly IUnitOfWork unitOfWork;
     private readonly IConstraintViolationDetector constraintDetector;
     private readonly ILogger<OcupacionServicioComandos> logger;
@@ -48,7 +49,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         IValidator<CrearOcupacionRequest> crearValidator,
         IValidator<ActualizarOcupacionRequest> actualizarValidator,
         IValidator<FinalizarOcupacionRequest> finalizarValidator,
-        IVacanteRepository vacanteRepository)
+        IVacanteRepository vacanteRepository,
+        IEstadoVacanteRepository estadoVacanteRepository)
     {
         ArgumentNullException.ThrowIfNull(ocupacionRepository);
         ArgumentNullException.ThrowIfNull(personaRepository);
@@ -60,11 +62,13 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         ArgumentNullException.ThrowIfNull(actualizarValidator);
         ArgumentNullException.ThrowIfNull(finalizarValidator);
         ArgumentNullException.ThrowIfNull(vacanteRepository);
+        ArgumentNullException.ThrowIfNull(estadoVacanteRepository);
 
         this.ocupacionRepository = ocupacionRepository;
         this.personaRepository = personaRepository;
         this.puestoRepository = puestoRepository;
         this.vacanteRepository = vacanteRepository;
+        this.estadoVacanteRepository = estadoVacanteRepository;
         this.unitOfWork = unitOfWork;
         this.constraintDetector = constraintDetector;
         this.logger = logger;
@@ -84,13 +88,15 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         IUnitOfWork unitOfWork,
         IConstraintViolationDetector constraintDetector,
         ILogger<OcupacionServicioComandos> logger,
-        IVacanteRepository vacanteRepository)
+        IVacanteRepository vacanteRepository,
+        IEstadoVacanteRepository estadoVacanteRepository)
         : this(ocupacionRepository, personaRepository, puestoRepository, unitOfWork,
                constraintDetector, logger,
                new CrearOcupacionRequestValidator(),
                new ActualizarOcupacionRequestValidator(),
                new FinalizarOcupacionRequestValidator(),
-               vacanteRepository)
+               vacanteRepository,
+               estadoVacanteRepository)
     {
     }
 
@@ -136,6 +142,18 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             return OcupacionCommandResult.Failure(
                 new(ErrorCategoria.Conflict, "PersonaInactiva", "La persona referenciada no está activa."));
+        }
+
+        // ── N2 invertido (REQ-OCC-FORM-010, change invertir-flujo-cubrir) ──
+        // Si el request trae VacanteId, la creación es una cobertura: el
+        // PuestoId se valida/resuelve desde la Vacante y la transición a
+        // Cubierta se materializa en la misma transacción EF. Si NO trae
+        // VacanteId, sigue vigente el flujo N3 (alta directa requiere Vacante
+        // abierta para el Puesto).
+        if (request.VacanteId.HasValue)
+        {
+            return await CrearOcupacionCubriendoVacanteAsync(
+                request, persona, cancellationToken).ConfigureAwait(false);
         }
 
         var puesto = await puestoRepository.GetByIdIncludingDeletedAsync(request.PuestoId, cancellationToken).ConfigureAwait(false);
@@ -197,6 +215,142 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
         {
             logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", nameof(CrearAsync), ex.Message);
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.Conflict, "DatosInvalidos", ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// N2 invertido (change <c>invertir-flujo-cubrir</c>): rama de
+    /// <see cref="CrearAsync"/> que crea una Ocupación como cobertura de una
+    /// Vacante referenciada por <c>request.VacanteId</c>. Resuelve el
+    /// <c>PuestoId</c> desde la Vacante cuando el request lo omite, valida
+    /// unicidad contra Ocupaciones vigentes por Vacante y transiciona la
+    /// Vacante a <c>Cubierta</c> dentro del mismo
+    /// <see cref="IUnitOfWork.SaveChangesAsync"/>.
+    /// </summary>
+    private async Task<OcupacionCommandResult> CrearOcupacionCubriendoVacanteAsync(
+        CrearOcupacionRequest request,
+        Persona persona,
+        CancellationToken cancellationToken)
+    {
+        var vacante = await vacanteRepository
+            .GetByIdForUpdateAsync(request.VacanteId!.Value, cancellationToken)
+            .ConfigureAwait(false);
+        if (vacante is null)
+        {
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.NotFound, OcupacionErrorCodigo.VacanteNoEncontrada,
+                    "La Vacante referenciada no existe."));
+        }
+
+        // Estado terminal (Cubierta o Cancelada) → la Vacante ya no admite
+        // cobertura. Esto cubre AC7 (Cubierta) y el caso Cancelada (N3).
+        if (vacante.EstadoVacante?.EsTerminal == true)
+        {
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.Validation, OcupacionErrorCodigo.VacanteNoAbierta,
+                    "La Vacante referenciada está en un estado terminal y no admite cobertura."));
+        }
+
+        // Cobertura duplicada: ya existe una Ocupación vigente para esta
+        // Vacante (defensa lógica contra carrera TOCTOU en el path único).
+        if (await ocupacionRepository
+            .ExistsActiveByVacanteAsync(request.VacanteId.Value, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.Conflict, OcupacionErrorCodigo.VacanteYaCubierta,
+                    "La Vacante ya tiene una Ocupación vigente vinculada."));
+        }
+
+        // Coherencia PuestoId: si el request lo trae, debe coincidir con
+        // el de la Vacante. Si lo omite (Guid.Empty), se resuelve desde la
+        // Vacante (REQ-OCC-FORM-010 scenario "PuestoId omitido").
+        Guid puestoIdEfectivo;
+        if (request.PuestoId == Guid.Empty)
+        {
+            puestoIdEfectivo = vacante.PuestoId;
+        }
+        else if (request.PuestoId != vacante.PuestoId)
+        {
+            var fieldErrors = new Dictionary<string, string[]>
+            {
+                [ToCamelCase(nameof(request.PuestoId))] =
+                    ["El PuestoId no coincide con el de la Vacante referenciada."]
+            };
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.Validation, OcupacionErrorCodigo.PuestoIdNoCoincideConVacante,
+                    "El PuestoId no coincide con el de la Vacante referenciada."),
+                fieldErrors);
+        }
+        else
+        {
+            puestoIdEfectivo = request.PuestoId;
+        }
+
+        var puesto = await puestoRepository
+            .GetByIdIncludingDeletedAsync(puestoIdEfectivo, cancellationToken)
+            .ConfigureAwait(false);
+        if (puesto is null)
+        {
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.NotFound, "PuestoNoEncontrado", "El puesto referenciado no existe."));
+        }
+        if (!puesto.IsActive)
+        {
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.Conflict, "PuestoInactivo", "El puesto referenciado no está activo."));
+        }
+
+        // EstadoCubierta se obtiene del catálogo de EstadoVacante por el
+        // flag de dominio EsCubierta=true (paridad con VacanteServicioComandos).
+        var estadosVacante = await estadoVacanteRepository
+            .ListAllAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var estadoCubierta = estadosVacante.FirstOrDefault(e => e.EsCubierta);
+        if (estadoCubierta is null)
+        {
+            // Defensive: el seed garantiza un estado Cubierta; si no
+            // existe, la BD está corrupta. Reportamos Unexpected para que
+            // el caller lo investigue sin permitir el alta.
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.Unexpected, "EstadoCubiertaNoEncontrado",
+                    "No se pudo resolver el estado Cubierta del catálogo de EstadoVacante."));
+        }
+
+        try
+        {
+            var ocupacion = new Ocupacion(
+                personaId: request.PersonaId,
+                puestoId: puestoIdEfectivo,
+                fechaInicio: request.FechaInicio,
+                tipoAsignacion: OcupacionTipoAsignacionMapper.ToDomain(request.TipoAsignacion),
+                observaciones: request.Observaciones,
+                vacanteId: request.VacanteId);
+
+            await ocupacionRepository.AddAsync(ocupacion, cancellationToken).ConfigureAwait(false);
+
+            // Misma transacción: CambiarEstado de la Vacante → Cubierta.
+            var historial = vacante.CambiarEstado(
+                estadoNuevoId: estadoCubierta.Id,
+                usuarioId: null,
+                motivo: "Cubierta por creación de Ocupación (REQ-OCC-FORM-010)",
+                cerrar: true);
+            await vacanteRepository
+                .RegistrarCambioEstadoAsync(vacante, historial, cancellationToken)
+                .ConfigureAwait(false);
+
+            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            var personaNombre = $"{persona.Nombres} {persona.Apellidos}";
+            var puestoNombre = puesto.Nombre;
+            return OcupacionCommandResult.Success(MapToDto(ocupacion, personaNombre, puestoNombre));
+        }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            logger.LogWarning(ex, "Constraint violation in {Method}: {Message}",
+                nameof(CrearOcupacionCubriendoVacanteAsync), ex.Message);
             return OcupacionCommandResult.Failure(
                 new(ErrorCategoria.Conflict, "DatosInvalidos", ex.Message));
         }

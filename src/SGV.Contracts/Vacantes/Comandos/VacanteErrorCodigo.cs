@@ -30,10 +30,25 @@ public static class VacanteErrorCodigo
     public const string ObservacionesMuyLargas = nameof(ObservacionesMuyLargas);
 
     /// <summary>
-    /// 400 (N2 — al Cubrir una Vacante, <c>PersonaId</c> es obligatorio
-    /// y debe venir provisto por la Postulación ganadora del módulo de
-    /// Selección, fuera de scope de este change).
+    /// 400 (N2 — al Cubrir una Vacante vía <c>PATCH /estado</c>, el
+    /// flujo correcto es crear una Ocupación vía
+    /// <c>POST /api/v1/ocupaciones</c> con <c>VacanteId</c>. La transición
+    /// directa a <c>Cubierta</c> está deprecada; este código rechaza el
+    /// path legacy y deriva al botón "Cubrir Vacante" del Details.
+    /// Change <c>invertir-flujo-cubrir</c>.
     /// </summary>
+    public const string CubrirVacanteRequiereCrearOcupacion = nameof(CubrirVacanteRequiereCrearOcupacion);
+
+    /// <summary>
+    /// 400 (N2 — nombre legacy conservado para compatibilidad de clientes
+    /// cacheados). Refleja el flujo anterior: al Cubrir una Vacante,
+    /// <c>PersonaId</c> era obligatorio. Reemplazado por
+    /// <see cref="CubrirVacanteRequiereCrearOcupacion"/> en el change
+    /// <c>invertir-flujo-cubrir</c>: el servicio NUNCA devuelve este código
+    /// en runtime post-change; los tests nuevos referencian exclusivamente
+    /// el nuevo nombre.
+    /// </summary>
+    [Obsolete("Use CubrirVacanteRequiereCrearOcupacion. El flujo Cubrir vive en OcupacionServicioComandos.CrearAsync con VacanteId; este código ya no se devuelve en runtime.")]
     public const string PersonaIdRequeridoParaCubrir = nameof(PersonaIdRequeridoParaCubrir);
 
     /// <summary>

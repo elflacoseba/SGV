@@ -78,6 +78,17 @@ public sealed class PuestoServicioComandos(
         public Task<bool> ExistsActiveByPersonaYPuestoAsync(Guid personaId, Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
 
+        // T1.9 / REQ-OCC-FORM-010 (invertir-flujo-cubrir): el null-object
+        // reporta cero cobertura derivada por Vacante; PuestoServicioComandos
+        // nunca invoca estos métodos, pero la firma debe existir.
+        public Task<bool> ExistsActiveByVacanteAsync(Guid vacanteId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<(Guid Id, string PersonaNombre)?> ObtenerVigentePorVacanteAsync(
+            Guid vacanteId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<(Guid Id, string PersonaNombre)?>(null);
+
         public Task<global::SGV.Dominio.Ocupaciones.Ocupacion?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("NullOcupacionRepository: GetByIdAsync no soportado.");
 
