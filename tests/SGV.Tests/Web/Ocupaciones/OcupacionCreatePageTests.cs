@@ -867,10 +867,20 @@ public sealed class OcupacionCreatePageTests
             $@"<input(?=[^>]*name=""Input\.VacanteId"")(?=[^>]*value=""{vacanteId:D}"")[^>]*type=""hidden""[^>]*>",
             content);
 
-        // El dropdown de PuestoId queda bloqueado (attribute `disabled`).
-        Assert.Matches(
-            @"<select\b[^>]*\bname=""Input\.PuestoId""[^>]*\bdisabled\b",
-            content);
+        // El dropdown de PuestoId queda bloqueado. Independientemente
+        // de cómo Razor serialice el boolean (puede omitir el atributo
+        // cuando es false, o emitir `disabled="True"` cuando es true),
+        // exigimos que aparezca el literal `disabled` en el mismo
+        // `<select>` que tenga `name="Input.PuestoId"`.
+        var selectMatch = Regex.Match(
+            content,
+            @"<select\b[^>]*\bname=""Input\.PuestoId""[^>]*>",
+            RegexOptions.IgnoreCase);
+        Assert.True(selectMatch.Success, "Expected <select name=\"Input.PuestoId\"> to be rendered.");
+        Assert.Contains(
+            "disabled",
+            selectMatch.Value,
+            StringComparison.OrdinalIgnoreCase);
 
         // Hint informativo mencionando la Vacante.
         Assert.Contains("Esta Vacante", content, StringComparison.OrdinalIgnoreCase);
