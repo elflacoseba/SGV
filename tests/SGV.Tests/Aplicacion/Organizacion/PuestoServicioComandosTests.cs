@@ -636,6 +636,17 @@ internal sealed class FakeOcupacionWriteRepository : IOcupacionRepository
     public Task<bool> ExistsActiveByPersonaYPuestoAsync(Guid personaId, Guid puestoId, Guid? excludingId = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 
+    // T1.9 / REQ-OCC-FORM-010 (invertir-flujo-cubrir): el fake del módulo
+    // Puesto no consulta cobertura por Vacante (no es su scope); lanzan
+    // NotSupported para detectar invocaciones accidentales.
+    public Task<bool> ExistsActiveByVacanteAsync(Guid vacanteId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
+    public Task<(Guid Id, string PersonaNombre)?> ObtenerVigentePorVacanteAsync(
+        Guid vacanteId,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException();
+
     public Task AddAsync(Ocupacion ocupacion, CancellationToken cancellationToken = default)
         => throw new NotSupportedException();
 

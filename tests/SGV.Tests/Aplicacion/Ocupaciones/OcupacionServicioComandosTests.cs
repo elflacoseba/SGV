@@ -19,6 +19,9 @@ using SGV.Dominio.Personas;
 using SGV.Dominio.Vacantes;
 using Xunit;
 
+// Acceso al FakeEstadoVacanteRepository compartido (definido en VacanteServicioComandosTests).
+using SGV.Tests.Aplicacion.Vacantes;
+
 namespace SGV.Tests.Aplicacion.Ocupaciones;
 
 public sealed class OcupacionServicioComandosTests
@@ -855,6 +858,218 @@ public sealed class OcupacionServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ── REQ-OCC-FORM-010 (invertir-flujo-cubrir): Cubrir vía VacanteId ──
+
+    private static readonly Guid VacanteIdAbierta = Guid.Parse("70000000-0000-0000-0000-000000000701");
+    private static readonly Guid VacanteIdCubierta = Guid.Parse("70000000-0000-0000-0000-000000000702");
+
+    private static readonly Guid EstadoAbiertaVacanteId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+    private static readonly Guid EstadoCubiertaVacanteId = Guid.Parse("20000000-0000-0000-0000-000000000003");
+
+    private static Vacante CrearVacanteAbierta(Guid vacanteId, Guid puestoId)
+    {
+        var estado = new EstadoVacante("Abierta", "Abierta", 1, false) { Id = EstadoAbiertaVacanteId };
+        return new Vacante(puestoId, estado.Id, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Apertura")
+        {
+            Id = vacanteId
+        }.WithEstadoVacante(estado);
+    }
+
+    private static Vacante CrearVacanteCubierta(Guid vacanteId, Guid puestoId)
+    {
+        var estado = new EstadoVacante("Cubierta", "Cubierta", 3, true, esCubierta: true) { Id = EstadoCubiertaVacanteId };
+        var vacante = new Vacante(puestoId, estado.Id, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Apertura")
+        {
+            Id = vacanteId
+        };
+        vacante.CambiarEstado(estado.Id, null, motivo: "Cubierta por cobertura previa", cerrar: true);
+        return vacante.WithEstadoVacante(estado);
+    }
+
+    private static CrearOcupacionRequest CrearRequestConVacante(
+        Guid vacanteId,
+        Guid? personaId = null,
+        Guid? puestoId = null)
+        => new(
+            PersonaId: personaId ?? PersonaIdActiva,
+            PuestoId: puestoId ?? PuestoIdActivo,
+            FechaInicio: new DateOnly(2026, 1, 1),
+            TipoAsignacion: OcupacionTipoAsignacion.Permanente,
+            Observaciones: null,
+            VacanteId: vacanteId);
+
+    [Fact]
+    public async Task CrearAsync_ConVacanteId_VacanteAbierta_CreaOcupacionYTransicionaVacanteACubierta()
+    {
+        // T1.1 — happy path: AddAsync de Ocupación con VacanteId, PuestoId del Vacante,
+        // RegistrarCambioEstadoAsync invocado, y SaveChangesCount = 1.
+        var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo);
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdAbierta, puestoId: PuestoIdActivo),
+            default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(PuestoIdActivo, resultado.Value!.PuestoId);
+        Assert.Equal(PersonaIdActiva, resultado.Value.PersonaId);
+        Assert.Equal(OcupacionEstado.Vigente, resultado.Value.Estado);
+        Assert.Equal(1, uow.SaveChangesCount);
+        Assert.Equal(1, trackingRepo.RegistrarCambioEstadoCallCount);
+        Assert.Single(ocupacionRepo.Datos);
+        Assert.Equal(VacanteIdAbierta, ocupacionRepo.Datos[0].VacanteId);
+        Assert.Equal(PuestoIdActivo, ocupacionRepo.Datos[0].PuestoId);
+        Assert.True(ocupacionRepo.Datos[0].EsVigente);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConVacanteId_VacanteNoEncontrada_DevuelveNotFound()
+    {
+        // T1.2 — GetByIdForUpdateAsync retorna null → VacanteNoEncontrada sin SaveChanges.
+        var trackingRepo = new TrackingVacanteRepository(); // sin vacantes
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo);
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(Guid.Parse("70000000-0000-0000-0000-000000000799")),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
+        Assert.Equal(OcupacionErrorCodigo.VacanteNoEncontrada, resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Empty(ocupacionRepo.Datos);
+        Assert.Equal(0, trackingRepo.RegistrarCambioEstadoCallCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConVacanteId_VacanteCubierta_Devuelve400_VacanteNoAbierta()
+    {
+        // T1.3 — Vacante Cubierta (EstadoVacante.EsTerminal=true) → VacanteNoAbierta.
+        var vacante = CrearVacanteCubierta(VacanteIdCubierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdCubierta] = vacante;
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo);
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdCubierta, puestoId: PuestoIdActivo),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Validation, resultado.Error!.Categoria);
+        Assert.Equal(OcupacionErrorCodigo.VacanteNoAbierta, resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Empty(ocupacionRepo.Datos);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConVacanteId_VacanteYaCubierta_Devuelve409_VacanteYaCubierta()
+    {
+        // T1.4 — Vacante Abierta pero ya tiene Ocupación vigente → VacanteYaCubierta.
+        var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
+
+        // ExistsActiveByVacanteAsync devuelve true (fake con cobertura manual).
+        var ocupacionRepo = new FakeOcupacionWriteRepositoryConCobertura();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo);
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdAbierta, puestoId: PuestoIdActivo),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
+        Assert.Equal(OcupacionErrorCodigo.VacanteYaCubierta, resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Empty(ocupacionRepo.Datos);
+        Assert.Equal(0, trackingRepo.RegistrarCambioEstadoCallCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConVacanteId_PuestoIdNoCoincide_Devuelve400_PuestoIdNoCoincideConVacante()
+    {
+        // T1.5 — Vacante.PuestoId = P1, request PuestoId = P2 → 400 con fieldError en puestoId.
+        var otraPuestoId = Guid.Parse("70000000-0000-0000-0000-000000000102");
+        var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        // El PuestoId del request no existe en el repo, pero el path se
+        // rechaza ANTES de validar el Puesto (la coherencia con la Vacante
+        // viene primero); igual poblamos el puesto del request para que el
+        // catálogo no falle por error distinto.
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo(), new Puesto(Guid.NewGuid(), Guid.NewGuid(), "PUESTO-OTRO", "Otro Puesto") { Id = otraPuestoId }] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo);
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdAbierta, puestoId: otraPuestoId),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Validation, resultado.Error!.Categoria);
+        Assert.Equal(OcupacionErrorCodigo.PuestoIdNoCoincideConVacante, resultado.Error.Code);
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("puestoId", resultado.FieldErrors!.Keys);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Empty(ocupacionRepo.Datos);
+        Assert.Equal(0, trackingRepo.RegistrarCambioEstadoCallCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConVacanteId_FalloEnSaveChanges_NoCreaOcupacionYNoTransicionaVacante()
+    {
+        // T1.6 — Atomicidad: FakeUnitOfWork.ThrowOnSaveChanges lanza DbUpdateException
+        // al commit; ninguna inserción queda confirmada.
+        var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork
+        {
+            ThrowOnSaveChanges = new DbUpdateException("Simulated constraint violation in T1.6 (invertir-flujo-cubrir).")
+        };
+        var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo);
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdAbierta, puestoId: PuestoIdActivo),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        // El catch vigente mapea DbUpdateException a DatosInvalidos con Conflict.
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
+        // CambiarEstado se invocó (el servicio lo orquestó) pero no se
+        // persistió: el fake de tracking confirma que el commit quedó vacío.
+        Assert.Equal(1, trackingRepo.RegistrarCambioEstadoCallCount);
+        Assert.Empty(trackingRepo.CommitedVacantes);
+        Assert.Equal(1, uow.SaveChangesCount); // intentó, falló
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private static OcupacionServicioComandos CrearServicio(
@@ -862,13 +1077,15 @@ public sealed class OcupacionServicioComandosTests
         IPersonaRepository personaRepo,
         IPuestoRepository puestoRepo,
         IUnitOfWork uow,
-        IVacanteRepository? vacanteRepo = null)
+        IVacanteRepository? vacanteRepo = null,
+        IEstadoVacanteRepository? estadoVacanteRepo = null)
     {
         return new OcupacionServicioComandos(
             ocupacionRepo, personaRepo, puestoRepo, uow,
             new FakeConstraintViolationDetector(),
             new FakeLogger<OcupacionServicioComandos>(),
-            vacanteRepo ?? new FakeVacanteLookupRepository { PuestosConVacanteAbierta = [PuestoIdActivo] });
+            vacanteRepo ?? new FakeVacanteLookupRepository { PuestosConVacanteAbierta = [PuestoIdActivo] },
+            estadoVacanteRepo ?? new FakeEstadoVacanteRepository { SoloCubierta = false });
     }
 
     private static Persona CrearPersonaActiva()
@@ -932,7 +1149,7 @@ public sealed class OcupacionServicioComandosTests
 
 // ── Fakes ────────────────────────────────────────────────────────
 
-internal sealed class FakeOcupacionWriteRepository : IOcupacionRepository
+internal class FakeOcupacionWriteRepository : IOcupacionRepository
 {
     public List<Ocupacion> Datos { get; set; } = [];
 
@@ -1013,6 +1230,16 @@ internal sealed class FakeOcupacionWriteRepository : IOcupacionRepository
         OcupacionListQuery query,
         CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Write fake does not support query operations.");
+
+    // T1.9 / REQ-OCC-FORM-010 (invertir-flujo-cubrir): el fake declara las
+    // firmas nuevas; el comportamiento concreto se agrega en T1.10 / GREEN.
+    public virtual Task<bool> ExistsActiveByVacanteAsync(Guid vacanteId, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
+
+    public virtual Task<(Guid Id, string PersonaNombre)?> ObtenerVigentePorVacanteAsync(
+        Guid vacanteId,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<(Guid Id, string PersonaNombre)?>(null);
 }
 
 internal sealed class FakePersonaWriteRepository : IPersonaRepository
@@ -1106,17 +1333,6 @@ internal sealed class FakePuestoWriteRepository : IPuestoRepository
         => Task.FromResult<(IReadOnlyList<Puesto>, int)>(([], 0));
 }
 
-internal sealed class FakeUnitOfWork : IUnitOfWork
-{
-    public int SaveChangesCount { get; private set; }
-
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        SaveChangesCount++;
-        return Task.FromResult(1);
-    }
-}
-
 internal sealed class FakeLogger<T> : ILogger<T>
 {
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -1165,9 +1381,75 @@ internal static class VacanteTestExtensions
 {
     public static Vacante WithEstadoVacante(this Vacante vacante, EstadoVacante estado)
     {
-        typeof(Vacante)
-            .GetProperty(nameof(Vacante.EstadoVacante))!
-            .SetValue(vacante, estado);
+        var prop = typeof(Vacante).GetProperty(nameof(Vacante.EstadoVacante))
+            ?? throw new InvalidOperationException(
+                $"Vacante.EstadoVacante no encontrada: refactor de la entidad.");
+        prop.SetValue(vacante, estado);
         return vacante;
     }
 }
+
+/// <summary>
+/// Fake de <see cref="IVacanteRepository"/> orientado a los tests de
+/// <c>OcupacionServicioComandos.CrearAsync</c> con <c>VacanteId</c>
+/// (change <c>invertir-flujo-cubrir</c>). Carga la Vacante por id desde
+/// <see cref="StagedVacantes"/> y registra los intentos de cambio de
+/// estado para que los tests puedan verificar la atomicidad (los commits
+/// se mueven a <see cref="CommitedVacantes"/> cuando el UoW completa).
+/// </summary>
+internal sealed class TrackingVacanteRepository : IVacanteRepository
+{
+    public Dictionary<Guid, Vacante?> StagedVacantes { get; } = [];
+    public List<Vacante> CommitedVacantes { get; } = [];
+    public int RegistrarCambioEstadoCallCount { get; private set; }
+
+    private bool _pending;
+    private Vacante _stagingVacante = default!;
+    private HistorialEstadoVacante _stagingHistorial = default!;
+
+    public Task<Vacante?> GetByIdForUpdateAsync(Guid id, CancellationToken ct = default)
+        => Task.FromResult(StagedVacantes.TryGetValue(id, out var v) ? v : null);
+
+    public Task RegistrarCambioEstadoAsync(Vacante vacante, HistorialEstadoVacante historial, CancellationToken ct = default)
+    {
+        RegistrarCambioEstadoCallCount++;
+        _stagingVacante = vacante;
+        _stagingHistorial = historial;
+        _pending = true;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Compromete la mutación pendiente (modela el SaveChangesAsync exitoso
+    /// de EF). Si el UoW tiró, el test no llama a Commit y la lista queda
+    /// vacía — demostrando el rollback.
+    /// </summary>
+    public void Commit()
+    {
+        if (!_pending) return;
+        CommitedVacantes.Add(_stagingVacante);
+        _pending = false;
+    }
+
+    // Métodos no usados por el path REQ-OCC-FORM-010.
+    public Task AddAsync(Vacante vacante, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task UpdateAsync(Vacante vacante, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<(IReadOnlyList<Vacante> Items, int TotalCount)> ListarAsync(VacanteListQuery query, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<bool> ExistsAbiertaByPuestoAsync(Guid puestoId, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<Vacante?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<IReadOnlyList<Vacante>> ListAllAsync(CancellationToken ct = default) => throw new NotImplementedException();
+}
+
+/// <summary>
+/// Variante de <see cref="FakeOcupacionWriteRepository"/> que reporta
+/// <c>ExistsActiveByVacanteAsync = true</c> (para T1.4).
+/// </summary>
+internal sealed class FakeOcupacionWriteRepositoryConCobertura : FakeOcupacionWriteRepository
+{
+    public override Task<bool> ExistsActiveByVacanteAsync(Guid vacanteId, CancellationToken cancellationToken = default)
+        => Task.FromResult(true);
+}
+
+// T1.6 (invertir-flujo-cubrir) usa el FakeUnitOfWork con ThrowOnSaveChanges
+// declarado en este mismo assembly (SGV.Tests.Aplicacion.Vacantes) para
+// simular la constraint violation. No se necesita un fake separado.
