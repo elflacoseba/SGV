@@ -309,13 +309,53 @@ public sealed class VacanteServicioComandosTests
         Assert.Equal(1, uow.SaveChangesCount);
     }
 
-    // ── N2 (T-4.3): Cubrir Vacante crea Ocupacion derivada ───────────
+    // ── N2 (T-4.3) DEPRECADO por invertir-flujo-cubrir: Cubrir vía PATCH ahora
+    //    devuelve 400 CubrirVacanteRequiereCrearOcupacion. La creación de la
+    //    Ocupación derivada vive en OcupacionServicioComandos.CrearAsync con
+    //    VacanteId. Ver T1.13 / T1.14 abajo.
 
     private static readonly Guid PersonaGanadoraId = Guid.Parse("70000000-0000-0000-0000-000000000601");
 
     [Fact]
-    public async Task CambiarEstado_A_Cubierta_ConPersonaId_CreaOcupacionYRegistraHistorial()
+    public async Task CambiarEstado_A_Cubierta_Devuelve400ConCodigoCubrirVacanteRequiereCrearOcupacionYMensaje()
     {
+        // T1.13 (invertir-flujo-cubrir): el path legacy "Cubrir vía PATCH"
+        // está deprecado. El servicio rechaza con 400 + código nuevo +
+        // mensaje de orientación al botón "Cubrir Vacante" del Details.
+        var abierta = new Vacante(PuestoId1, EstadoCubiertaIdAbierta, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
+        {
+            Id = VacanteId1
+        };
+        var repo = new FakeVacanteWriteRepository { Datos = [abierta] };
+        var estadoRepo = new FakeEstadoVacanteRepository();
+        var uow = new FakeUnitOfWork();
+        var ocupacionRepo = new FakeOcupacionLookupRepository();
+        var servicio = CrearServicio(repo, estadoRepo, uow, ocupacionRepo);
+
+        var resultado = await servicio.CambiarEstadoAsync(
+            abierta.Id,
+            CrearCambioEstadoRequest(estadoVacanteId: EstadoCubiertaId, personaId: null),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Validation, resultado.Error!.Categoria);
+        Assert.Equal(VacanteErrorCodigo.CubrirVacanteRequiereCrearOcupacion, resultado.Error.Code);
+        Assert.Contains("Use el botón 'Cubrir Vacante'", resultado.Error.Message);
+        // El campo legacy personaId se ignora silenciosamente.
+        Assert.NotNull(resultado.FieldErrors);
+        Assert.Contains("personaId", resultado.FieldErrors!.Keys);
+        // No se crea Ocupación ni se persiste cambio de estado.
+        Assert.Equal(0, ocupacionRepo.AddCallCount);
+        Assert.Equal(0, repo.RegistrarCambioEstadoCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CambiarEstado_A_Cubierta_ConPersonaIdPopulado_TambienIgnoraPersonaId()
+    {
+        // T1.14 (invertir-flujo-cubrir): el path legacy ya no crea la Ocupación
+        // ni siquiera si el cliente envía PersonaId. El campo se ignora y el
+        // rechazo es idéntico al de T1.13.
         var abierta = new Vacante(PuestoId1, EstadoCubiertaIdAbierta, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = VacanteId1
@@ -331,38 +371,12 @@ public sealed class VacanteServicioComandosTests
             CrearCambioEstadoRequest(estadoVacanteId: EstadoCubiertaId, personaId: PersonaGanadoraId),
             default);
 
-        Assert.True(resultado.IsSuccess);
-        Assert.Equal(1, ocupacionRepo.AddCallCount);
-        Assert.Equal(abierta.Id, ocupacionRepo.LastAddedVacanteId);
-        Assert.Equal(PersonaGanadoraId, ocupacionRepo.LastAddedPersonaId);
-        Assert.Equal(PuestoId1, ocupacionRepo.LastAddedPuestoId);
-        Assert.Equal(1, uow.SaveChangesCount);
-    }
-
-    [Fact]
-    public async Task CambiarEstado_A_Cubierta_SinPersonaId_DevuelvePersonaIdRequerido()
-    {
-        var abierta = new Vacante(PuestoId1, EstadoCubiertaIdAbierta, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
-        {
-            Id = VacanteId1
-        };
-        var repo = new FakeVacanteWriteRepository { Datos = [abierta] };
-        var estadoRepo = new FakeEstadoVacanteRepository();
-        var uow = new FakeUnitOfWork();
-        var ocupacionRepo = new FakeOcupacionLookupRepository();
-        var servicio = CrearServicio(repo, estadoRepo, uow, ocupacionRepo);
-
-        var resultado = await servicio.CambiarEstadoAsync(
-            abierta.Id,
-            CrearCambioEstadoRequest(estadoVacanteId: EstadoCubiertaId), // sin PersonaId
-            default);
-
         Assert.False(resultado.IsSuccess);
         Assert.Equal(ErrorCategoria.Validation, resultado.Error!.Categoria);
-        Assert.Equal(VacanteErrorCodigo.PersonaIdRequeridoParaCubrir, resultado.Error.Code);
-        Assert.NotNull(resultado.FieldErrors);
-        Assert.Contains("personaId", resultado.FieldErrors!.Keys);
+        Assert.Equal(VacanteErrorCodigo.CubrirVacanteRequiereCrearOcupacion, resultado.Error.Code);
+        Assert.Contains("Use el botón 'Cubrir Vacante'", resultado.Error.Message);
         Assert.Equal(0, ocupacionRepo.AddCallCount);
+        Assert.Equal(0, repo.RegistrarCambioEstadoCallCount);
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
@@ -391,13 +405,16 @@ public sealed class VacanteServicioComandosTests
 
     /// <summary>
     /// WU-1 / H-1: el flag de dominio <c>EsCubierta</c> reemplaza la
-    /// comparación por nombre. Un EstadoVacante con <c>Nombre="Cubierta"</c>
-    /// pero <c>EsCubierta=false</c> NO debe disparar la creación de la
-    /// Ocupacion derivada (N2). Esta guarda evita que un refactor
-    /// reintroduzca la comparación por nombre contra el seed.
+    /// comparación por nombre. Tras invertir-flujo-cubrir (T1.13/T1.14),
+    /// cualquier destino con <c>EsCubierta=true</c> se rechaza con
+    /// <c>CubrirVacanteRequiereCrearOcupacion</c>; la creación de la
+    /// Ocupación vive exclusivamente en
+    /// <c>OcupacionServicioComandos.CrearAsync</c> con <c>VacanteId</c>.
+    /// Esta guarda evita que un refactor reintroduzca la comparación por
+    /// nombre contra el seed.
     /// </summary>
     [Fact]
-    public async Task CambiarEstado_NombreCubiertaPeroEsCubiertaFalse_NoCreaOcupacion()
+    public async Task CambiarEstado_NombreCubiertaPeroEsCubiertaTrue_SeRechazaConCodigoNuevo()
     {
         var abierta = new Vacante(PuestoId1, EstadoCubiertaIdAbierta, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
@@ -409,7 +426,7 @@ public sealed class VacanteServicioComandosTests
             Datos =
             [
                 new EstadoVacante("Abierta", "Abierta", 1, false) { Id = Guid.Parse("20000000-0000-0000-0000-000000000001") },
-                new EstadoVacante("CubiertaFake", "Cubierta", 3, true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000003") },
+                new EstadoVacante("CubiertaFake", "Cubierta", 3, true, esCubierta: true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000003") },
             ]
         };
         var uow = new FakeUnitOfWork();
@@ -423,9 +440,10 @@ public sealed class VacanteServicioComandosTests
                 personaId: PersonaGanadoraId),
             default);
 
-        Assert.True(resultado.IsSuccess);
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(VacanteErrorCodigo.CubrirVacanteRequiereCrearOcupacion, resultado.Error!.Code);
         Assert.Equal(0, ocupacionRepo.AddCallCount);
-        Assert.Equal(1, uow.SaveChangesCount);
+        Assert.Equal(0, uow.SaveChangesCount);
     }
 
     [Fact]
@@ -453,18 +471,17 @@ public sealed class VacanteServicioComandosTests
     [Fact]
     public async Task CambiarEstado_Atomicidad_DbUpdateException_NoPersiste()
     {
-        var abierta = new Vacante(PuestoId1, EstadoCubiertaIdAbierta, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
+        // Tras invertir-flujo-cubrir, el destino Cubierta se rechaza antes de
+        // llegar a SaveChangesAsync. La prueba de atomicidad del bridge EF
+        // para el cambio de estado se mantiene usando Cancelada (terminal
+        // no Cubierta → flujo vigente sin creación de Ocupación).
+        var abierta = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = VacanteId1
         };
-        // El fake usa Commit explícito: si SaveChangesAsync lanza, no
-        // se aplica ningún cambio al store final. Esto modela el
-        // rollback EF: una sola transacción cubre AddAsync, cambio de
-        // estado, historial y la Ocupacion derivada. La prueba real de
-        // atomicidad se hace contra MySQL (T-1.6 + OcupacionVacanteId-
-        // PersistenciaTests). Aquí validamos que el commit del fake
-        // queda vacío cuando el UoW tira, lo que demuestra que la
-        // orquestación del servicio no produce cambios persistentes.
+        // El fake usa Commit explícito: si SaveChangesAsync lanza, no se
+        // aplica ningún cambio al store final. Esto modela el rollback EF
+        // para cambio de estado + historial en una sola transacción.
         var repo = new TrackingVacanteWriteRepository(abierta);
         var estadoRepo = new FakeEstadoVacanteRepository();
         var uow = new FakeUnitOfWork { ThrowOnSaveChanges = new DbUpdateException("FK violation") };
@@ -473,7 +490,7 @@ public sealed class VacanteServicioComandosTests
 
         var resultado = await servicio.CambiarEstadoAsync(
             abierta.Id,
-            CrearCambioEstadoRequest(estadoVacanteId: EstadoCubiertaId, personaId: PersonaGanadoraId),
+            CrearCambioEstadoRequest(estadoVacanteId: EstadoCanceladaId),
             default);
 
         Assert.False(resultado.IsSuccess);
@@ -485,8 +502,11 @@ public sealed class VacanteServicioComandosTests
     }
 
     [Fact]
-    public async Task CambiarEstado_CubrirExitoso_PersisteYAgregaOcupacion()
+    public async Task CambiarEstado_Cubrir_DevuelveRechazo_YNoPersiste()
     {
+        // Tras invertir-flujo-cubrir (T1.13), el flujo "Cubrir vía PATCH"
+        // ya NO crea Ocupación. La cobertura del path Cubrir se hace ahora
+        // en OcupacionServicioComandos.CrearAsync con VacanteId.
         var abierta = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = VacanteId1
@@ -502,10 +522,11 @@ public sealed class VacanteServicioComandosTests
             CrearCambioEstadoRequest(estadoVacanteId: EstadoCubiertaId, personaId: PersonaGanadoraId),
             default);
 
-        Assert.True(resultado.IsSuccess);
-        repo.Commit();
-        Assert.Equal(1, ocupacionRepo.AddCallCount);
-        Assert.Equal(VacanteId1, ocupacionRepo.LastAddedVacanteId);
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(VacanteErrorCodigo.CubrirVacanteRequiereCrearOcupacion, resultado.Error!.Code);
+        Assert.Equal(0, ocupacionRepo.AddCallCount);
+        Assert.Equal(0, repo.RegistrarCambioEstadoCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
     }
 
     /// <summary>
@@ -622,6 +643,9 @@ public sealed class VacanteServicioComandosTests
     [Fact]
     public async Task CambiarEstado_AEstadoTerminal_SeteaFechaCierre()
     {
+        // Tras invertir-flujo-cubrir, el destino Cubierta se rechaza. La
+        // verificación de "estado terminal setea FechaCierre" se mantiene
+        // usando Cancelada (otro estado terminal, no Cubierta).
         var abierta = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = VacanteId1
@@ -634,14 +658,13 @@ public sealed class VacanteServicioComandosTests
         var resultado = await servicio.CambiarEstadoAsync(
             abierta.Id,
             CrearCambioEstadoRequest(
-                estadoVacanteId: EstadoCubiertaId,
-                motivo: "Cubierta por postulante aceptado",
-                personaId: Guid.NewGuid()),
+                estadoVacanteId: EstadoCanceladaId,
+                motivo: "Cancelación por reorganización"),
             default);
 
         Assert.True(resultado.IsSuccess);
         Assert.NotNull(abierta.FechaCierre); // el dominio setea FechaCierre cuando cerrar=true
-        Assert.Equal(EstadoCubiertaId, abierta.EstadoVacanteId);
+        Assert.Equal(EstadoCanceladaId, abierta.EstadoVacanteId);
         Assert.Single(resultado.Value!.Historial); // el historial incluye la nueva entrada
         Assert.Equal(1, uow.SaveChangesCount);
     }

@@ -285,24 +285,26 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
                     "El estado de vacante destino no existe."));
         }
 
-        // N2 (change vacante-ocupacion-flow-alignment): Cubrir una Vacante
-        // requiere PersonaId (provisto por la Postulación ganadora, fuera
-        // de scope). El flag de dominio `EsCubierta` reemplaza la
-        // comparación por nombre que era frágil ante renombre del seed.
-        // El flag convive con `EsTerminal` para no romper reglas previas
-        // (estados terminales no admiten más cambios).
-        var destinoEsCubierta = estadoNuevo.EsCubierta;
-        if (destinoEsCubierta && request.PersonaId is null)
+        // N2 invertido (change invertir-flujo-cubrir): el path legacy
+        // "Cubrir vía PATCH crea la Ocupacion derivada" está deprecado.
+        // La transición a Cubierta se rechaza con 400 Validation + código
+        // CubrirVacanteRequiereCrearOcupacion + mensaje que deriva al botón
+        // "Cubrir Vacante" del Details. La creación de la Ocupación vive
+        // exclusivamente en OcupacionServicioComandos.CrearAsync con
+        // VacanteId (REQ-OCC-FORM-010). El campo legacy PersonaId se
+        // ignora silenciosamente.
+        if (estadoNuevo.EsCubierta)
         {
+            const string mensaje = "Use el botón 'Cubrir Vacante' en el detalle de la Vacante para crear la Ocupación derivada.";
             var fieldErrors = new Dictionary<string, string[]>
             {
-                ["personaId"] = ["PersonaId es obligatorio al cubrir una Vacante."]
+                ["personaId"] = [mensaje]
             };
             return VacanteCommandResult.Failure(
                 new VacanteError(
                     ErrorCategoria.Validation,
-                    VacanteErrorCodigo.PersonaIdRequeridoParaCubrir,
-                    "PersonaId es obligatorio al cubrir una Vacante."),
+                    VacanteErrorCodigo.CubrirVacanteRequiereCrearOcupacion,
+                    mensaje),
                 fieldErrors);
         }
 
@@ -320,29 +322,6 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
             }
 
             await vacanteRepository.RegistrarCambioEstadoAsync(vacante, historial, cancellationToken).ConfigureAwait(false);
-
-            // N2: al Cubrir, crear la Ocupacion derivada en la MISMA
-            // transacción EF (una sola SaveChanges más abajo). EF agrupa
-            // ambas inserciones (vacante + historial + ocupacion) en un
-            // solo commit; si falla la Ocupacion, el cambio de estado de
-            // la Vacante también se revierte. El check de PersonaId arriba
-            // garantiza null-safety aquí.
-            if (destinoEsCubierta)
-            {
-                var ocupacionDerivada = new Ocupacion(
-                    personaId: request.PersonaId!.Value,
-                    puestoId: vacante.PuestoId,
-                    fechaInicio: DateOnly.FromDateTime(DateTime.UtcNow),
-                    tipoAsignacion: TipoAsignacion.Permanente,
-                    fechaFin: null,
-                    observaciones: null,
-                    vacanteId: vacante.Id);
-
-                await ocupacionRepository
-                    .AddAsync(ocupacionDerivada, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             var detailDto = MapToDetailDto(
