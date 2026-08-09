@@ -1,11 +1,11 @@
 ```yaml
 schema: gentle-ai.verify-result/v1
-evidence_revision: sha256:0f4a4d7be9da3e34d8e30a26d11a7a0e1d3b9c4f6a2c8b1d4e7f1c0a3b6d8e90
-verdict: pass-with-warnings
+evidence_revision: sha256:29d039b7a2c31c7189c63a3e2fa78321c0e73b97c2395028c093ee867ca06d07
+verdict: pass
 blockers: 0
-critical_findings: 1
-requirements: 2
-scenarios: 5
+critical_findings: 0
+requirements: 2/2
+scenarios: 6/6
 test_command: dotnet test SGV.slnx --filter "FullyQualifiedName~Get_Edit_ExcludesCubiertaFromDropdown"
 test_exit_code: 0
 test_output_hash: sha256:b8e37f2c303eb3e14d59fd90fb32eebba6fb0c92c7d3ff164fa007cb112fd4c5
