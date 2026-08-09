@@ -193,7 +193,9 @@ public sealed class EditModel(
         EstadosVacante = [];
         try
         {
-            EstadosVacante = await vacanteApiClient.ListarEstadosAsync(cancellationToken);
+            EstadosVacante = (await vacanteApiClient.ListarEstadosAsync(cancellationToken))
+                .Where(s => !s.EsCubierta)
+                .ToList();
             CatalogsReady = true;
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))

@@ -299,6 +299,37 @@ public sealed class VacantesCreateEditForbidTests
     }
 
     [Fact]
+    public async Task Get_Edit_ExcludesCubiertaFromDropdown()
+    {
+        var id = Guid.NewGuid();
+        var states = FakeVacanteApiClient.BuildStates();
+        var cubierta = Assert.Single(states, s => s.EsCubierta);
+        var cancelada = Assert.Single(states, s => !s.EsCubierta && s.EsTerminal);
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(id: id),
+            ListarEstadosResult = states
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
+            apiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/editar/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain(
+            $"value=\"{cubierta.Id:D}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"value=\"{cancelada.Id:D}\"",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Post_Edit_WhenSuccessful_InvokesStateChangeAndRedirectsToDetails()
     {
         var id = Guid.NewGuid();

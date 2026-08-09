@@ -164,9 +164,9 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
 
     public static IReadOnlyList<EstadoVacanteDto> BuildStates() =>
     [
-        new(Guid.NewGuid(), "ABIERTA", "Abierta", 1, false),
-        new(Guid.NewGuid(), "EN_SELECCION", "En selección", 2, false),
-        new(Guid.NewGuid(), "CUBIERTA", "Cubierta", 3, true),
-        new(Guid.NewGuid(), "CANCELADA", "Cancelada", 4, true)
+        new(Guid.NewGuid(), "ABIERTA", "Abierta", 1, false, false),
+        new(Guid.NewGuid(), "EN_SELECCION", "En selección", 2, false, false),
+        new(Guid.NewGuid(), "CUBIERTA", "Cubierta", 3, true, true),
+        new(Guid.NewGuid(), "CANCELADA", "Cancelada", 4, true, false)
     ];
 }

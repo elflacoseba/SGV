@@ -26,6 +26,7 @@ public sealed class EstadoVacanteServicioConsulta(IEstadoVacanteRepository repos
             estado.Codigo,
             estado.Nombre,
             estado.Orden,
-            estado.EsTerminal);
+            estado.EsTerminal,
+            estado.EsCubierta);
     }
 }

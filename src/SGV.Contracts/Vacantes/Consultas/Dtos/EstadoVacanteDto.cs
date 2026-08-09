@@ -8,4 +8,5 @@ public sealed record EstadoVacanteDto(
     string Codigo,
     string Nombre,
     int Orden,
-    bool EsTerminal);
+    bool EsTerminal,
+    bool EsCubierta);

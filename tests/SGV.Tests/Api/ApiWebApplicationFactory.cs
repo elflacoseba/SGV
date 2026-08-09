@@ -1303,10 +1303,10 @@ internal sealed class FakeEstadoVacanteServicioConsulta : IEstadoVacanteServicio
     {
         IReadOnlyList<EstadoVacanteDto> seed =
         [
-            new(Guid.Parse("20000000-0000-0000-0000-000000000001"), "Abierta", "Abierta", 1, false),
-            new(Guid.Parse("20000000-0000-0000-0000-000000000002"), "EnSeleccion", "En Selección", 2, false),
-            new(Guid.Parse("20000000-0000-0000-0000-000000000003"), "Cubierta", "Cubierta", 3, true),
-            new(Guid.Parse("20000000-0000-0000-0000-000000000004"), "Cancelada", "Cancelada", 4, true)
+            new(Guid.Parse("20000000-0000-0000-0000-000000000001"), "Abierta", "Abierta", 1, false, false),
+            new(Guid.Parse("20000000-0000-0000-0000-000000000002"), "EnSeleccion", "En Selección", 2, false, false),
+            new(Guid.Parse("20000000-0000-0000-0000-000000000003"), "Cubierta", "Cubierta", 3, true, true),
+            new(Guid.Parse("20000000-0000-0000-0000-000000000004"), "Cancelada", "Cancelada", 4, true, false)
         ];
         return Task.FromResult(seed);
     }
