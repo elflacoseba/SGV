@@ -64,6 +64,49 @@ public abstract class OcupacionFormPageModel : PageModel, IOcupacionForm
     public string? ErrorMessage { get; protected set; }
 
     /// <summary>
+    /// T2.6 (change <c>invertir-flujo-cubrir</c> / S2): hint informativo
+    /// proyectado en el card superior del <c>Create</c> cuando el alta
+    /// proviene de <c>?vacanteId=</c>. El <c>Create.cshtml</c> lo lee y
+    /// la <c>_Form.cshtml</c> lo proyecta junto al dropdown bloqueado de
+    /// PuestoId. Default <c>null</c> para que Edit y Create sin
+    /// <c>vacanteId</c> no muestren el hint.
+    /// </summary>
+    public string? VacanteHintLabel { get; protected set; }
+
+    /// <summary>
+    /// T2.10 (change <c>invertir-flujo-cubrir</c> / S2): <c>true</c>
+    /// cuando el dropdown de PuestoId debe renderearse bloqueado. Default
+    /// <c>false</c> para que Edit y Create sin <c>vacanteId</c>
+    /// mantengan el dropdown editable. El método explícito del
+    /// interface <see cref="IOcupacionForm.PuestoIdBloqueadoPorVacante"/>
+    /// delega acá para que la vista (que materializa
+    /// <c>@model IOcupacionForm</c>) lea el valor real del PageModel.
+    /// </summary>
+    bool IOcupacionForm.PuestoIdBloqueadoPorVacante => PuestoIdBloqueadoPorVacante;
+
+    /// <summary>
+    /// T2.6 (change <c>invertir-flujo-cubrir</c> / S2): hint informativo
+    /// proyectado en el card superior del <c>Create</c> cuando el alta
+    /// proviene de <c>?vacanteId=</c>. El <c>Create.cshtml</c> lo lee y
+    /// la <c>_Form.cshtml</c> lo proyecta junto al dropdown bloqueado de
+    /// PuestoId. Default <c>null</c> para que Edit y Create sin
+    /// <c>vacanteId</c> no muestren el hint. El método explícito del
+    /// interface <see cref="IOcupacionForm.VacanteHintLabel"/> delega
+    /// acá para que la vista (que materializa <c>@model IOcupacionForm</c>)
+    /// lea el valor real del PageModel.
+    /// </summary>
+    string? IOcupacionForm.VacanteHintLabel => VacanteHintLabel;
+
+    /// <summary>
+    /// T2.10 (change <c>invertir-flujo-cubrir</c> / S2): <c>true</c>
+    /// cuando el dropdown de PuestoId debe renderearse bloqueado. Default
+    /// <c>false</c> para que Edit y Create sin <c>vacanteId</c>
+    /// mantengan el dropdown editable. <see cref="IOcupacionForm.PuestoIdBloqueadoPorVacante"/>
+    /// expone este valor a la vista.
+    /// </summary>
+    public virtual bool PuestoIdBloqueadoPorVacante { get; protected set; }
+
+    /// <summary>
     /// Carga el catálogo de puestos vía <see cref="IPuestosApiClient.GetAllAsync"/>
     /// y, cuando <c>Input.PersonaId</c> está resuelto, enriquece la card
     /// llamando <see cref="EnriquecerPersonaAsync"/>. Cualquier excepción

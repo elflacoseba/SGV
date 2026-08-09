@@ -34,6 +34,14 @@ namespace SGV.Web.Pages.Organizacion.Ocupaciones;
 /// <c>PuestoOcupado</c> del backend se preservan en
 /// <see cref="OcupacionError.Code"/> y se mapean al campo correcto según
 /// REQ-OCC-FORM-005 vía <see cref="OcupacionFormPageModel.MapConflictToModelState"/>.
+/// <para>
+/// T2.8 (change <c>invertir-flujo-cubrir</c> / S2): si el GET trae
+/// <c>?vacanteId={guid}</c>, la página resuelve la Vacante vía
+/// <see cref="IVacanteApiClient.ObtenerPorIdAsync"/>. Abierta/En Selección
+/// precargan <see cref="OcupacionInputModel.PuestoId"/> y muestran el
+/// hint FORM-001; Cubierta/Cancelada/Inexistente muestran error legible
+/// sin renderear el form.
+/// </para>
 /// </remarks>
 [Authorize(Roles = RolesSgv.Administrador)]
 public sealed class CreateModel(
@@ -76,20 +84,43 @@ public sealed class CreateModel(
     private bool? _puestoTieneVacanteCache;
 
     /// <summary>
+    /// T2.10 (change <c>invertir-flujo-cubrir</c> / S2): <c>override</c>
+    /// de la propiedad base para que cuando el GET trae
+    /// <c>?vacanteId=</c> con Vacante Abierta/En Selección, el dropdown
+    /// se renderee bloqueado. El setter es <c>protected</c> en la base;
+    /// acá se expone como <c>private set</c> para que sólo el PageModel
+    /// lo controle (no es editable desde la vista).
+    /// </summary>
+    public override bool PuestoIdBloqueadoPorVacante { get; protected set; }
+
+    /// <summary>
     /// GET handler. Pre-carga <see cref="OcupacionInputModel.PersonaId"/>
     /// y <see cref="OcupacionInputModel.PuestoId"/> desde el query string
     /// (paridad con la página cruzada <c>PersonaOcupaciones</c> de Slice 3b)
     /// y carga los catálogos Persona/Puesto en paralelo.
+    /// T2.8: si viene <c>?vacanteId=</c> resuelve la Vacante y precarga
+    /// los campos del form con el flujo Cubrir invertido.
     /// </summary>
     public async Task<IActionResult> OnGetAsync(
         [FromQuery(Name = "personaId")] Guid? personaId = null,
         [FromQuery(Name = "puestoId")] Guid? puestoId = null,
+        [FromQuery(Name = "vacanteId")] Guid? vacanteId = null,
         CancellationToken cancellationToken = default)
     {
         Input.PersonaId ??= personaId;
         Input.PuestoId ??= puestoId;
 
         await LoadCatalogsAsync(personaApiClient, puestosApiClient, logger, cancellationToken);
+
+        // T2.8: si el GET trae ?vacanteId=, el flujo Cubrir tiene
+        // precedencia sobre ?puestoId= (mismo form, distinto entry point).
+        // Validar el estado de la Vacante y renderear el form con
+        // PuestoId resuelto y bloqueado, o cortar con error legible.
+        if (vacanteId.HasValue && vacanteId.Value != Guid.Empty)
+        {
+            return await ResolverVacanteParaCrearAsync(vacanteId.Value, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         // T-7.1: si el Puesto ya viene precargado, consultamos si tiene
         // Vacante abierta para mostrar el hint correcto. WU-4 guarda
@@ -107,6 +138,54 @@ public sealed class CreateModel(
     }
 
     /// <summary>
+    /// T2.8: resuelve la Vacante vía <see cref="IVacanteApiClient.ObtenerPorIdAsync"/>
+    /// y renderea el form según su estado. Abierta/En Selección →
+    /// <see cref="Input"/> precargado con <see cref="OcupacionInputModel.VacanteId"/>
+    /// y <see cref="OcupacionInputModel.PuestoId"/> y dropdown bloqueado;
+    /// Cubierta/Cancelada → error legible sin form; inexistente → error
+    /// legible sin form.
+    /// </summary>
+    private async Task<IActionResult> ResolverVacanteParaCrearAsync(
+        Guid vacanteId,
+        CancellationToken cancellationToken)
+    {
+        var vacante = await vacanteApiClient
+            .ObtenerPorIdAsync(vacanteId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (vacante is null)
+        {
+            ErrorMessage = "La Vacante no existe.";
+            return Page();
+        }
+
+        if (string.Equals(vacante.EstadoVacanteNombre, "Cubierta", StringComparison.OrdinalIgnoreCase))
+        {
+            ErrorMessage = "Esta Vacante ya está cubierta.";
+            return Page();
+        }
+
+        if (string.Equals(vacante.EstadoVacanteNombre, "Cancelada", StringComparison.OrdinalIgnoreCase))
+        {
+            ErrorMessage = "Esta Vacante está cancelada y no puede cubrirse.";
+            return Page();
+        }
+
+        // Estado Abierta o En Selección: renderear form con PuestoId
+        // resuelto y bloqueado, hint informativo FORM-009 invertido.
+        Input.VacanteId = vacante.Id;
+        Input.PuestoId = vacante.PuestoId;
+        PuestoIdBloqueadoPorVacante = true;
+        PuestoSinVacanteAbierta = false;
+        _puestoTieneVacanteCache = true;
+        VacanteHintLabel =
+            $"Esta Vacante del Puesto {vacante.PuestoNombre} se cubrirá al enviar "
+            + "el formulario. La Ocupación creada transitará la Vacante a Cubierta "
+            + "en la misma transacción.";
+        return Page();
+    }
+
+    /// <summary>
     /// POST handler. Valida <c>ModelState</c>; si pasa, llama
     /// <c>POST /api/v1/ocupaciones</c> y mapea el resultado. Sobre éxito
     /// redirige al listado (PRG) preservando filtros; sobre 409 mapea
@@ -114,6 +193,8 @@ public sealed class CreateModel(
     /// correspondiente; sobre 400 con <c>FieldErrors</c> los aplica al
     /// <c>ModelState</c>; cualquier fallo recuperable (transporte,
     /// serialización) muestra error general y conserva input + catálogos.
+    /// T2.8: si el form trae <c>VacanteId</c>, lo propaga al
+    /// <see cref="CrearOcupacionRequest"/> para el flujo Cubrir.
     /// </summary>
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken = default)
     {
@@ -128,7 +209,8 @@ public sealed class CreateModel(
             Input.PuestoId!.Value,
             Input.FechaInicio!.Value,
             Input.TipoAsignacion!.Value,
-            string.IsNullOrWhiteSpace(Input.Observaciones) ? null : Input.Observaciones.Trim());
+            string.IsNullOrWhiteSpace(Input.Observaciones) ? null : Input.Observaciones.Trim(),
+            Input.VacanteId);
 
         OcupacionCommandResult result;
         try
@@ -149,6 +231,14 @@ public sealed class CreateModel(
             PageFeedback.SetSuccess(
                 TempData,
                 $"La ocupación de {result.Value.PersonaNombre} en {result.Value.PuestoNombre} se creó correctamente.");
+
+            // T2.8: si el alta provenía de ?vacanteId=, redirigir al
+            // detalle de la Vacante para que el admin vea la transición
+            // a Cubierta y la Ocupación derivada.
+            if (Input.VacanteId.HasValue && Input.VacanteId.Value != Guid.Empty)
+            {
+                return RedirectToPage("/Organizacion/Vacantes/Details", new { id = Input.VacanteId.Value });
+            }
 
             return RedirectToPage("/Organizacion/Ocupaciones/Index");
         }

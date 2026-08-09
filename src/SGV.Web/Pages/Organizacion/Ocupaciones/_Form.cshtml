@@ -62,10 +62,25 @@
 
     <div class="col-md-6">
         <div class="form-floating">
+            @* T2.10 (change `invertir-flujo-cubrir` / S2): cuando el form
+               proviene de `?vacanteId=`, el dropdown de PuestoId queda
+               bloqueado. Se emite un primer `<select>` con `disabled`
+               para preservar la UX (la opción seleccionada se ve marcada
+               sin editar), más un `<input type="hidden">` adicional que
+               mantiene el valor para el model binding del POST. *@
+            @if (Model.Input.VacanteId.HasValue)
+            {
+                <input type="hidden" asp-for="Input.VacanteId" />
+            }
             <select asp-for="Input.PuestoId" class="form-select"
-                    asp-items="@(new SelectList(Model.PuestoOptions, "Id", "Nombre"))">
+                    asp-items="@(new SelectList(Model.PuestoOptions, "Id", "Nombre"))"
+                    disabled="@Model.PuestoIdBloqueadoPorVacante">
                 <option value="">Seleccionar puesto...</option>
             </select>
+            @if (Model.PuestoIdBloqueadoPorVacante)
+            {
+                <input type="hidden" asp-for="Input.PuestoId" />
+            }
             <label asp-for="Input.PuestoId">Puesto</label>
             <span asp-validation-for="Input.PuestoId" class="text-danger"></span>
         </div>

@@ -18,6 +18,16 @@
     <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
 }
 
+@* T2.9 (change `invertir-flujo-cubrir` / S2): hint informativo cuando
+   el alta proviene de `?vacanteId=` y la Vacante está Abierta/En Selección.
+   La partial `_Form.cshtml` replica este hint al lado del dropdown
+   bloqueado de PuestoId; este card superior lo proyecta para reforzar
+   el contexto antes de editar persona/fecha/tipo. *@
+@if (!string.IsNullOrWhiteSpace(Model.VacanteHintLabel))
+{
+    <div class="alert alert-info" role="status" data-crear-vacante-hint>@Model.VacanteHintLabel</div>
+}
+
 <div class="row">
     <div class="col-12 col-lg-8">
         <div class="card">
