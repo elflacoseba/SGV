@@ -52,7 +52,7 @@ else
                         {
                             <a class="btn btn-primary btn-sm"
                                href="@Url.Page("/Organizacion/Ocupaciones/Create", Model.NewOcupacionRouteValues)">
-                                <i class="ti ti-plus me-1"></i>Nueva ocupación
+                                <i class="ti ti-plus me-1"></i>@Model.NewOcupacionButtonLabel
                             </a>
                         }
                         @if (Model.VerOcupacionVigenteRouteValues is not null)
