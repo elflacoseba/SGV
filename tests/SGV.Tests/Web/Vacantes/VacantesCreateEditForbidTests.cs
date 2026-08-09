@@ -58,6 +58,35 @@ public sealed class VacantesCreateEditForbidTests
     }
 
     [Fact]
+    public async Task Get_Create_WhenMutationRole_LoadsPuestoChangeDismissScript()
+    {
+        // Issue #265: el alert-danger superior y el `asp-validation-summary`
+        // muestran el mensaje de PuestoOcupado hasta el próximo submit. El
+        // handler que los limpia al cambiar el SELECT vive en
+        // `/js/pages/vacantes-create.js`; este test protege contra
+        // regresión de la referencia (no del comportamiento JS, que
+        // requiere navegador).
+        var apiClient = new FakeVacanteApiClient
+        {
+            ListarEstadosResult = FakeVacanteApiClient.BuildStates(),
+            ListarPuestosResult = [new PuestoDto(
+                Guid.NewGuid(), "P-001", "Analista", null,
+                Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
+            apiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"Input_PuestoId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/vacantes-create.js", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Get_Create_WhenCatalogLoadFails_ShowsRecoverableErrorAndDisablesSave()
     {
         var apiClient = new FakeVacanteApiClient

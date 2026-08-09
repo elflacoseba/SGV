@@ -94,3 +94,11 @@
         </div>
     </div>
 </div>
+
+@section scripts {
+    @* Issue #265: tras un 409 PuestoOcupado el alert-danger superior y el
+       `asp-validation-summary` repiten el mensaje hasta el próximo submit.
+       El handler de cambio del SELECT de Puesto los oculta para que el
+       usuario no crea que el nuevo Puesto sigue bloqueado. *@
+    <script src="/js/pages/vacantes-create.js"></script>
+}
