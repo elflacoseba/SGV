@@ -9,6 +9,7 @@ using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
+using SGV.Contracts.Vacantes.Consultas.Dtos;
 using SGV.Tests.Web.Collections;
 using SGV.Tests.Web.Persona;
 using SGV.Tests.Web.Puesto;
@@ -806,5 +807,137 @@ public sealed class OcupacionCreatePageTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("id=\"Input_PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("/js/pages/ocupaciones-form.js", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ──────────────────────────────────────────────────
+    // T2.1 / T2.2 / T2.3 — change `invertir-flujo-cubrir` (S2).
+    // El `Create` de Ocupación acepta `?vacanteId={guid}` y resuelve la
+    // Vacante vía `IVacanteApiClient.ObtenerPorIdAsync`. El estado de la
+    // Vacante determina el render: Abierta → form rendereado con PuestoId
+    // bloqueado + hint; Cubierta → error legible "Esta Vacante ya está
+    // cubierta."; Inexistente → "La Vacante no existe.".
+    // Spec: web-ocupaciones-crear-editar / REQ-OCC-FORM-001.
+    // ──────────────────────────────────────────────────
+
+    private static VacanteDetailDto SampleVacanteAbierta(
+        Guid vacanteId,
+        Guid puestoId,
+        string puestoNombre = "Analista",
+        string estadoVacanteNombre = "Abierta")
+        => FakeVacanteApiClient.BuildDetail(
+            id: vacanteId,
+            puestoId: puestoId,
+            puestoNombre: puestoNombre,
+            estadoVacanteNombre: estadoVacanteNombre);
+
+    [Fact]
+    public async Task Get_Create_WithVacanteIdAbierta_RendereaFormConPuestoIdBloqueadoYVgHint()
+    {
+        var vacanteId = Guid.NewGuid();
+        var puestoId = Guid.NewGuid();
+        var vacanteApi = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = SampleVacanteAbierta(vacanteId, puestoId, "Analista Senior")
+        };
+        var personaClient = FakePersonaApiClient.WithPersonaList(SamplePersona());
+        var puestosClient = FakePuestosApiClient.WithPuestoList(
+            new PuestoDto(puestoId, "P-001", "Analista Senior", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null));
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient,
+            vacanteApi);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?vacanteId={vacanteId:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // La Vacante se resolvió vía el API client.
+        Assert.Equal(vacanteId, Assert.Single(vacanteApi.ObtenerPorIdCalls));
+
+        // El form se renderea (no se cortocircuita a error).
+        Assert.Contains("name=\"Input.VacanteId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Nueva ocupación", content, StringComparison.OrdinalIgnoreCase);
+
+        // Hidden que propaga el id hacia el POST.
+        Assert.Matches(
+            $@"<input(?=[^>]*name=""Input\.VacanteId"")(?=[^>]*value=""{vacanteId:D}"")[^>]*type=""hidden""[^>]*>",
+            content);
+
+        // El dropdown de PuestoId queda bloqueado (attribute `disabled`).
+        Assert.Matches(
+            @"<select\b[^>]*\bname=""Input\.PuestoId""[^>]*\bdisabled\b",
+            content);
+
+        // Hint informativo mencionando la Vacante.
+        Assert.Contains("Esta Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Analista Senior", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Create_WithVacanteIdCubierta_MuestraError_VacanteYaCubierta()
+    {
+        var vacanteId = Guid.NewGuid();
+        var puestoId = Guid.NewGuid();
+        var vacanteApi = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = SampleVacanteAbierta(vacanteId, puestoId, estadoVacanteNombre: "Cubierta")
+        };
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            FakePersonaApiClient.WithPersonaList(SamplePersona()),
+            FakePuestosApiClient.WithPuestoList(SamplePuesto()),
+            vacanteApi);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?vacanteId={vacanteId:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El error legible aparece en el HTML.
+        Assert.Contains("Esta Vacante ya está cubierta.", content, StringComparison.OrdinalIgnoreCase);
+
+        // El form NO se renderea: el hidden de VacanteId solo está presente
+        // cuando se muestra el form completo; verificar ausencia.
+        Assert.DoesNotContain("name=\"Input.VacanteId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            @"<select\b[^>]*\bname=""Input\.PuestoId""[^>]*\bdisabled\b",
+            content);
+    }
+
+    [Fact]
+    public async Task Get_Create_WithVacanteInexistente_MuestraError_VacanteNoExiste()
+    {
+        var vacanteId = Guid.NewGuid();
+        var vacanteApi = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = null
+        };
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            FakePersonaApiClient.WithPersonaList(SamplePersona()),
+            FakePuestosApiClient.WithPuestoList(SamplePuesto()),
+            vacanteApi);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?vacanteId={vacanteId:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El API client fue invocado con el id.
+        Assert.Equal(vacanteId, Assert.Single(vacanteApi.ObtenerPorIdCalls));
+
+        // El error legible aparece en el HTML.
+        Assert.Contains("La Vacante no existe.", content, StringComparison.OrdinalIgnoreCase);
+
+        // El form NO se renderea.
+        Assert.DoesNotContain("name=\"Input.VacanteId\"", content, StringComparison.OrdinalIgnoreCase);
     }
 }

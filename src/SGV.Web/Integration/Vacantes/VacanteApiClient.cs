@@ -227,4 +227,35 @@ public sealed class VacanteApiClient(HttpClient httpClient) : IVacanteApiClient
             return false;
         }
     }
+
+    /// <inheritdoc />
+    public async Task<VacanteDto?> ObtenerAbiertaPorPuestoAsync(
+        Guid puestoId,
+        CancellationToken cancellationToken = default)
+    {
+        // Q-T2 cerrado: reutiliza el listado segmentado "abiertas" filtrado
+        // por PuestoId. Toma la primera fila (el backend garantiza a lo sumo
+        // una Vacante abierta por Puesto vía el índice unique vigente;
+        // ActivePuestoIdUnique de Vacantes). Devuelve null si la lista
+        // está vacía o si el transporte falla (defensivo, alineado con
+        // la política de ExisteVacanteAbiertaParaPuestoAsync).
+        try
+        {
+            var query = new VacanteListQuery(
+                Page: 1,
+                PageSize: 1,
+                Search: null,
+                Sort: null,
+                Segmento: VacanteSegmentoListado.Abiertas,
+                PuestoId: puestoId);
+
+            var response = await ListarAsync(query, cancellationToken).ConfigureAwait(false);
+            return response.Items.FirstOrDefault();
+        }
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
+        {
+            _ = ex;
+            return null;
+        }
+    }
 }

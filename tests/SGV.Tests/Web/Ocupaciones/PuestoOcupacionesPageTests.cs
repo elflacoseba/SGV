@@ -425,4 +425,92 @@ public sealed class PuestoOcupacionesPageTests
             content,
             StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────────
+    // T2.4 / T2.5 — change `invertir-flujo-cubrir` (S2).
+    // El botón de alta contextual de PuestoOcupaciones cambia de label
+    // "Nueva ocupación" a "Cubrir Vacante" cuando hay Vacante abierta
+    // sin Ocupación activa. La ruta navega a `?vacanteId=` (no
+    // `?puestoId=`). Spec: web-ocupaciones-navegacion-contextual /
+    // REQ-OCC-NAV-006 / REQ-OCC-NAV-008.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_VacanteAbiertaSinOcupacion_LabelCubrirVacanteYRouteVacanteId()
+    {
+        var puestoId = Guid.NewGuid();
+        var vacanteId = Guid.NewGuid();
+        var puesto = BuildPuesto(puestoId);
+        var puestosApi = new FakePuestosApiClient
+        {
+            GetByIdResult = puesto,
+            GetAllResult = new[] { puesto }
+        };
+        var ocupacionApi = new FakeOcupacionApiClient
+        {
+            ListarResult = new PagedResult<OcupacionDto>([], 0, 1, 20)
+        };
+        var vacanteApi = new FakeVacanteApiClient
+        {
+            ExisteVacanteAbiertaParaPuestoResult = true,
+            ObtenerAbiertaPorPuestoResult = FakeVacanteApiClient.BuildDto(
+                id: vacanteId,
+                puestoId: puestoId,
+                estadoVacanteNombre: "Abierta")
+        };
+
+        await using var lease = await CreateLeaseAsync(puestosApi, ocupacionApi, vacanteApi, adminRole: true);
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/{puestoId:D}/ocupaciones");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Label dinámico "Cubrir Vacante".
+        Assert.Contains("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Nueva ocupación", content, StringComparison.OrdinalIgnoreCase);
+
+        // Ruta al Create con vacanteId (no puestoId).
+        Assert.Contains(
+            $"href=\"/organizacion/ocupaciones/crear?vacanteId={vacanteId:D}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            $"href=\"/organizacion/ocupaciones/crear?puestoId={puestoId:D}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+
+        // El cliente fue invocado con el PuestoId del route.
+        Assert.Equal(puestoId, Assert.Single(vacanteApi.ObtenerAbiertaPorPuestoCalls));
+    }
+
+    [Fact]
+    public async Task Get_VacanteAbiertaConOcupacion_LabelNuevaOcupacion()
+    {
+        var puestoId = Guid.NewGuid();
+        var puesto = BuildPuesto(puestoId);
+        var puestosApi = new FakePuestosApiClient
+        {
+            GetByIdResult = puesto,
+            GetAllResult = new[] { puesto }
+        };
+        var ocupacionApi = new FakeOcupacionApiClient
+        {
+            ListarResult = new PagedResult<OcupacionDto>(
+                [BuildOcupacion(puestoId)], 1, 1, 20)
+        };
+        var vacanteApi = new FakeVacanteApiClient
+        {
+            ExisteVacanteAbiertaParaPuestoResult = true
+        };
+
+        await using var lease = await CreateLeaseAsync(puestosApi, ocupacionApi, vacanteApi, adminRole: true);
+        var response = await lease.Client.GetAsync($"/organizacion/puestos/{puestoId:D}/ocupaciones");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Label "Nueva ocupación" (no aplica Cubrir: ya hay Ocupación activa).
+        Assert.Contains("Nueva ocupación", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+    }
 }
