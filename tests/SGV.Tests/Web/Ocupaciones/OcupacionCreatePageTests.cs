@@ -782,7 +782,7 @@ public sealed class OcupacionCreatePageTests
     // muestra "Debe escoger una persona" hasta el próximo submit. El
     // handler que lo limpia al cambiar el hidden (elegir o quitar
     // persona desde el modal) vive en
-    // `/js/pages/ocupaciones-create.js`; este test protege contra
+    // `/js/pages/ocupaciones-form.js`; este test protege contra
     // regresión de la referencia (no del comportamiento JS, que
     // requiere navegador).
     // ──────────────────────────────────────────────────
@@ -805,6 +805,6 @@ public sealed class OcupacionCreatePageTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("id=\"Input_PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("/js/pages/ocupaciones-create.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/ocupaciones-form.js", content, StringComparison.OrdinalIgnoreCase);
     }
 }

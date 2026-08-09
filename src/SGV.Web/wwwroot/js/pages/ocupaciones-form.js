@@ -1,5 +1,10 @@
 /**
- * Ocupaciones — Nueva Ocupación (Pages/Organizacion/Ocupaciones/Create.cshtml).
+ * Ocupaciones — Create y Edit (Pages/Organizacion/Ocupaciones/Create.cshtml
+ * y Edit.cshtml).
+ *
+ * Compartido por ambas vistas porque reusan el partial `_Form.cshtml`,
+ * donde el hidden `Input_PersonaId` tiene el mismo id y se vincula con
+ * la persona vía el modal `usuario-persona-buscador.js`.
  *
  * Issue #266: al guardar el form sin una persona seleccionada, el
  * `<span asp-validation-for="Input.PersonaId">` muestra

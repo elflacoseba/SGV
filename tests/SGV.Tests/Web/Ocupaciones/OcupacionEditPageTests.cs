@@ -591,7 +591,7 @@ public sealed class OcupacionEditPageTests
     // Issue #266: Edit comparte el mismo bug de "validation message
     // pegado" que Create. El form reusa `_Form.cshtml`, así que el
     // hidden `Input_PersonaId` está presente y el script de dismissal
-    // (`ocupaciones-create.js`) funciona tal cual. Este test protege
+    // (`ocupaciones-form.js`) funciona tal cual. Este test protege
     // contra regresión de la referencia desde Edit.cshtml.
     // ──────────────────────────────────────────────────
 
@@ -616,6 +616,6 @@ public sealed class OcupacionEditPageTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("id=\"Input_PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("/js/pages/ocupaciones-create.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/ocupaciones-form.js", content, StringComparison.OrdinalIgnoreCase);
     }
 }
