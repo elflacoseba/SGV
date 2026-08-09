@@ -9,7 +9,6 @@ using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Vacantes.Comandos;
 using SGV.Contracts.Vacantes.Consultas.Dtos;
-using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Vacantes;
 
 namespace SGV.Aplicacion.Vacantes.Comandos;
@@ -35,6 +34,15 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
     /// <summary>
     /// Primary constructor with the full DI dependency set.
     /// </summary>
+    /// <remarks>
+    /// T1.29 (invertir-flujo-cubrir): tras remover el bloque de creación
+    /// de Ocupación derivada en <see cref="CambiarEstadoAsync"/> (N2
+    /// invertido), <see cref="IOcupacionRepository"/> ya NO se usa en
+    /// <c>CambiarEstadoAsync</c>; la dependencia se conserva exclusivamente
+    /// para el check N1 (<c>ExistsActiveByPuestoAsync</c>) en
+    /// <see cref="CrearAsync"/>, que sigue vigente del change
+    /// <c>vacante-ocupacion-flow-alignment</c>. No es dead-code.
+    /// </remarks>
     public VacanteServicioComandos(
         IVacanteRepository vacanteRepository,
         IEstadoVacanteRepository estadoVacanteRepository,
