@@ -504,9 +504,13 @@ public sealed class VacanteServicioComandosTests
     [Fact]
     public async Task CambiarEstado_Cubrir_DevuelveRechazo_YNoPersiste()
     {
-        // Tras invertir-flujo-cubrir (T1.13), el flujo "Cubrir vía PATCH"
-        // ya NO crea Ocupación. La cobertura del path Cubrir se hace ahora
-        // en OcupacionServicioComandos.CrearAsync con VacanteId.
+        // T1.14-bis (invertir-flujo-cubrir): a diferencia de T1.13/T1.14
+        // (que usan FakeVacanteWriteRepository), este test usa
+        // TrackingVacanteWriteRepository para demostrar que la transición
+        // rechazada NO se stagea en la lista de cambios pendientes. Es
+        // decir, el rechazo ocurre ANTES de que el servicio invoque
+        // RegistrarCambioEstadoAsync, no después. Aporta valor único
+        // sobre T1.13/T1.14: verifica el momento del rechazo.
         var abierta = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = VacanteId1

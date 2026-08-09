@@ -19,10 +19,10 @@ using SGV.Dominio.Personas;
 using SGV.Dominio.Vacantes;
 using Xunit;
 
-namespace SGV.Tests.Aplicacion.Ocupaciones;
-
 // Acceso al FakeEstadoVacanteRepository compartido (definido en VacanteServicioComandosTests).
 using SGV.Tests.Aplicacion.Vacantes;
+
+namespace SGV.Tests.Aplicacion.Ocupaciones;
 
 public sealed class OcupacionServicioComandosTests
 {
@@ -1041,8 +1041,8 @@ public sealed class OcupacionServicioComandosTests
     [Fact]
     public async Task CrearAsync_ConVacanteId_FalloEnSaveChanges_NoCreaOcupacionYNoTransicionaVacante()
     {
-        // T1.6 — Atomicidad: FakeThrowingUnitOfWork lanza DbUpdateException al
-        // commit; ninguna inserción queda confirmada.
+        // T1.6 — Atomicidad: FakeUnitOfWork.ThrowOnSaveChanges lanza DbUpdateException
+        // al commit; ninguna inserción queda confirmada.
         var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
         var trackingRepo = new TrackingVacanteRepository();
         trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
@@ -1050,7 +1050,10 @@ public sealed class OcupacionServicioComandosTests
         var ocupacionRepo = new FakeOcupacionWriteRepository();
         var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
         var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
-        var uow = new FakeThrowingUnitOfWork();
+        var uow = new FakeUnitOfWork
+        {
+            ThrowOnSaveChanges = new DbUpdateException("Simulated constraint violation in T1.6 (invertir-flujo-cubrir).")
+        };
         var servicio = CrearServicio(ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo);
 
         var resultado = await servicio.CrearAsync(
@@ -1330,17 +1333,6 @@ internal sealed class FakePuestoWriteRepository : IPuestoRepository
         => Task.FromResult<(IReadOnlyList<Puesto>, int)>(([], 0));
 }
 
-internal sealed class FakeUnitOfWork : IUnitOfWork
-{
-    public int SaveChangesCount { get; private set; }
-
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        SaveChangesCount++;
-        return Task.FromResult(1);
-    }
-}
-
 internal sealed class FakeLogger<T> : ILogger<T>
 {
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -1389,9 +1381,10 @@ internal static class VacanteTestExtensions
 {
     public static Vacante WithEstadoVacante(this Vacante vacante, EstadoVacante estado)
     {
-        typeof(Vacante)
-            .GetProperty(nameof(Vacante.EstadoVacante))!
-            .SetValue(vacante, estado);
+        var prop = typeof(Vacante).GetProperty(nameof(Vacante.EstadoVacante))
+            ?? throw new InvalidOperationException(
+                $"Vacante.EstadoVacante no encontrada: refactor de la entidad.");
+        prop.SetValue(vacante, estado);
         return vacante;
     }
 }
@@ -1457,19 +1450,6 @@ internal sealed class FakeOcupacionWriteRepositoryConCobertura : FakeOcupacionWr
         => Task.FromResult(true);
 }
 
-/// <summary>
-/// <see cref="IUnitOfWork"/> que lanza <see cref="DbUpdateException"/> en
-/// <see cref="SaveChangesAsync"/>. Usado por T1.6 para verificar que el
-/// catch del servicio mapea la constraint a un error funcional y que el
-/// commit queda vacío (rollback declarativo).
-/// </summary>
-internal sealed class FakeThrowingUnitOfWork : IUnitOfWork
-{
-    public int SaveChangesCount { get; private set; }
-
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        SaveChangesCount++;
-        throw new DbUpdateException("Simulated constraint violation in T1.6 (invertir-flujo-cubrir).");
-    }
-}
+// T1.6 (invertir-flujo-cubrir) usa el FakeUnitOfWork con ThrowOnSaveChanges
+// declarado en este mismo assembly (SGV.Tests.Aplicacion.Vacantes) para
+// simular la constraint violation. No se necesita un fake separado.

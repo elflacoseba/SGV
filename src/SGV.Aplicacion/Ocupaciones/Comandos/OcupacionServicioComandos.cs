@@ -101,6 +101,14 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
     }
 
     /// <summary>
+    /// Motivo que se registra en el historial de la Vacante cuando la
+    /// transición a Cubierta se origina en la creación de una Ocupación
+    /// derivada (change <c>invertir-flujo-cubrir</c>). Orientado al
+    /// usuario que revisa el historial.
+    /// </summary>
+    private const string MotivoCubiertaPorOcupacionDerivada = "Cubierta por creación de Ocupación derivada.";
+
+    /// <summary>
     /// Groups FluentValidation failures into a per-field dictionary using
     /// camelCase keys so the HTTP contract matches the JSON casing of
     /// incoming requests.
@@ -229,6 +237,18 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
     /// Vacante a <c>Cubierta</c> dentro del mismo
     /// <see cref="IUnitOfWork.SaveChangesAsync"/>.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Trazabilidad de auditoría (follow-up)</b>: la transición de la
+    /// Vacante a Cubierta se registra con <c>usuarioId: null</c> porque la
+    /// signature de <see cref="CrearAsync"/> no expone ese dato. El
+    /// historial de la Vacante mostrará la transición a Cubierta sin
+    /// usuario asociado. Para resolverlo en un change futuro, propagar
+    /// <c>usuarioId</c> vía <c>CrearOcupacionRequest</c> (nuevo param
+    /// opcional) o vía <c>IHttpContextAccessor</c> en la capa de
+    /// composición, manteniendo la atomicidad de la transición.
+    /// </para>
+    /// </remarks>
     private async Task<OcupacionCommandResult> CrearOcupacionCubriendoVacanteAsync(
         CrearOcupacionRequest request,
         Persona persona,
@@ -335,7 +355,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             var historial = vacante.CambiarEstado(
                 estadoNuevoId: estadoCubierta.Id,
                 usuarioId: null,
-                motivo: "Cubierta por creación de Ocupación (REQ-OCC-FORM-010)",
+                motivo: MotivoCubiertaPorOcupacionDerivada,
                 cerrar: true);
             await vacanteRepository
                 .RegistrarCambioEstadoAsync(vacante, historial, cancellationToken)

@@ -5,6 +5,7 @@ using SGV.Contracts.Vacantes.Consultas;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Vacantes;
 using Xunit;
+using SGV.Tests.Aplicacion.Ocupaciones;
 
 namespace SGV.Tests.Aplicacion.Vacantes;
 
@@ -120,8 +121,7 @@ public sealed class VacanteServicioConsultaTests
         var v = new Vacante(PuestoId1, EstadoCubiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = id
-        };
-        typeof(Vacante).GetProperty(nameof(Vacante.EstadoVacante))!.SetValue(v, estadoCubierta);
+        }.WithEstadoVacante(estadoCubierta);
         return v;
     }
 
@@ -134,8 +134,7 @@ public sealed class VacanteServicioConsultaTests
         var v = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = id
-        };
-        typeof(Vacante).GetProperty(nameof(Vacante.EstadoVacante))!.SetValue(v, estadoAbierta);
+        }.WithEstadoVacante(estadoAbierta);
         return v;
     }
 }
