@@ -1197,6 +1197,16 @@ internal sealed class FakeVacanteServicioConsulta : IVacanteServicioConsulta
 
     public VacanteListQuery? LastQuery { get; private set; }
 
+    /// <summary>
+    /// T1.27 (invertir-flujo-cubrir): mapa opcional de respuestas de
+    /// detalle por id. Cuando un id está en este diccionario, el fake
+    /// devuelve el DTO configurado (con sus campos
+    /// <c>OcupacionDerivadaId</c>/<c>PersonaAsignadaNombre</c> opcionales).
+    /// Si el id no está, mantiene el comportamiento legacy (null para
+    /// ids distintos de <see cref="VacanteId1"/>).
+    /// </summary>
+    public Dictionary<Guid, VacanteDetailDto> DetallePorId { get; } = [];
+
     public Task<PagedResult<VacanteDto>> ListarAsync(VacanteListQuery query, CancellationToken ct = default)
     {
         LastQuery = query;
@@ -1215,6 +1225,10 @@ internal sealed class FakeVacanteServicioConsulta : IVacanteServicioConsulta
 
     public Task<VacanteDetailDto?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default)
     {
+        if (DetallePorId.TryGetValue(id, out var custom))
+        {
+            return Task.FromResult<VacanteDetailDto?>(custom);
+        }
         if (id != VacanteId1) return Task.FromResult<VacanteDetailDto?>(null);
         var dto = new VacanteDetailDto(
             VacanteId1,

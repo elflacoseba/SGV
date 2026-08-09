@@ -540,6 +540,85 @@ public sealed class OcupacionesControllerTests
         Assert.Contains("PuestoSinVacanteAbierta", problem!.Title ?? string.Empty);
     }
 
+    // ── REQ-OCC-FORM-010 (invertir-flujo-cubrir): Cubrir vía VacanteId ──
+
+    [Fact]
+    public async Task Create_ConVacanteId_Returns201Created()
+    {
+        // T1.24: POST /api/v1/ocupaciones con VacanteId válido → 201 Created.
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            CrearHandler = (_, _) => Task.FromResult(
+                OcupacionCommandResult.Success(
+                    new OcupacionDto(
+                        Guid.NewGuid(),
+                        FakeOcupacionServicioConsulta.PersonaId1,
+                        "Juan Pérez",
+                        FakeOcupacionServicioConsulta.PuestoId1,
+                        "Gerente General",
+                        new DateOnly(2026, 1, 1),
+                        null,
+                        OcupacionTipoAsignacion.Permanente,
+                        null,
+                        OcupacionEstado.Vigente)))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IOcupacionServicioComandos>();
+            services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+
+        var request = new CrearOcupacionRequest(
+            FakeOcupacionServicioConsulta.PersonaId1,
+            FakeOcupacionServicioConsulta.PuestoId1,
+            new DateOnly(2026, 1, 1),
+            OcupacionTipoAsignacion.Permanente,
+            null,
+            VacanteId: Guid.NewGuid());
+
+        var response = await client.PostAsJsonAsync("/api/v1/ocupaciones", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_ConVacanteId_VacanteYaCubierta_Returns409VacanteYaCubierta()
+    {
+        // T1.25: Vacante Cubierta (o con Ocupacion vigente previa) → 409
+        // Conflict con código VacanteYaCubierta.
+        var fakeComandos = new FakeOcupacionServicioComandos
+        {
+            CrearHandler = (_, _) => Task.FromResult(
+                OcupacionCommandResult.Failure(
+                    new(
+                        ErrorCategoria.Conflict,
+                        OcupacionErrorCodigo.VacanteYaCubierta,
+                        "La Vacante ya tiene una Ocupación vigente vinculada.")))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IOcupacionServicioComandos>();
+            services.AddSingleton<IOcupacionServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+
+        var request = new CrearOcupacionRequest(
+            FakeOcupacionServicioConsulta.PersonaId1,
+            FakeOcupacionServicioConsulta.PuestoId1,
+            new DateOnly(2026, 1, 1),
+            OcupacionTipoAsignacion.Permanente,
+            null,
+            VacanteId: Guid.NewGuid());
+
+        var response = await client.PostAsJsonAsync("/api/v1/ocupaciones", request);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("VacanteYaCubierta", problem!.Title ?? string.Empty);
+    }
+
     // ---- DELETE /api/v1/ocupaciones/{id} ----
 
     [Fact]

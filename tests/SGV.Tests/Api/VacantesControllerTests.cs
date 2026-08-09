@@ -522,4 +522,89 @@ public sealed class VacantesControllerTests
         var content = await response.Content.ReadFromJsonAsync<VacanteDetailDto>();
         Assert.NotNull(content);
     }
+
+    // ── T1.26 (invertir-flujo-cubrir): PATCH a Cubierta se rechaza con 400 + código nuevo ──
+
+    [Fact]
+    public async Task PatchEstado_A_Cubierta_Returns400ConMensajeUseCubrirVacante()
+    {
+        // T1.26: PATCH a Cubierta → 400 CubrirVacanteRequiereCrearOcupacion
+        // + mensaje de orientación al botón del Details.
+        var fakeComandos = new FakeVacanteServicioComandos
+        {
+            CambiarEstadoHandler = (_, _, _) => Task.FromResult(
+                VacanteCommandResult.Failure(
+                    new VacanteError(
+                        ErrorCategoria.Validation,
+                        VacanteErrorCodigo.CubrirVacanteRequiereCrearOcupacion,
+                        "Use el botón 'Cubrir Vacante' en el detalle de la Vacante para crear la Ocupación derivada."),
+                    new Dictionary<string, string[]>
+                    {
+                        ["personaId"] = ["Use el botón 'Cubrir Vacante' en el detalle de la Vacante para crear la Ocupación derivada."]
+                    }))
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IVacanteServicioComandos>();
+            services.AddSingleton<IVacanteServicioComandos>(fakeComandos);
+        });
+        var client = factory.CreateAdminClient();
+        var request = new CambiarEstadoVacanteRequest(
+            EstadoVacanteId: Guid.Parse("20000000-0000-0000-0000-000000000003"),
+            PersonaId: Guid.NewGuid());
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/v1/vacantes/{FakeVacanteServicioConsulta.VacanteId1}/estado",
+            request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains("Use el botón 'Cubrir Vacante'", problem!.Detail ?? string.Empty);
+        Assert.Contains("personaId", problem.Errors.Keys);
+    }
+
+    // ── T1.27 (invertir-flujo-cubrir): GET detail expone OcupacionDerivada ──
+
+    [Fact]
+    public async Task GetById_VacanteCubierta_RetornaOcupacionDerivadaIdYPersonaAsignada()
+    {
+        // T1.27: GET /api/v1/vacantes/{id} con Vacante Cubierta + Ocupacion
+        // derivada → DTO con OcupacionDerivadaId + PersonaAsignadaNombre.
+        var ocupacionDerivadaId = Guid.Parse("70000000-0000-0000-0000-000000000810");
+        var vacanteCubiertaId = Guid.Parse("90000000-0000-0000-0000-000000000005");
+        var fakeConsulta = new FakeVacanteServicioConsulta
+        {
+            DetallePorId =
+            {
+                [vacanteCubiertaId] = new VacanteDetailDto(
+                    vacanteCubiertaId,
+                    Guid.Parse("c0000000-0000-0000-0000-000000000001"),
+                    "Gerente General",
+                    Guid.Parse("20000000-0000-0000-0000-000000000003"),
+                    "Cubierta",
+                    new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+                    new DateTime(2026, 7, 15, 0, 0, 0, DateTimeKind.Utc),
+                    "Apertura inicial",
+                    null,
+                    [],
+                    ocupacionDerivadaId,
+                    "Juan Pérez")
+            }
+        };
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IVacanteServicioConsulta>();
+            services.AddSingleton<IVacanteServicioConsulta>(fakeConsulta);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync($"/api/v1/vacantes/{vacanteCubiertaId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadFromJsonAsync<VacanteDetailDto>();
+        Assert.NotNull(content);
+        Assert.Equal(ocupacionDerivadaId, content!.OcupacionDerivadaId);
+        Assert.Equal("Juan Pérez", content.PersonaAsignadaNombre);
+    }
 }
