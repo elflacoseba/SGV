@@ -63,5 +63,15 @@ else
        SOLO cuando el form está renderizado (no en estado recuperable). *@
     @section scripts {
         <script src="/js/pages/usuario-persona-buscador.js"></script>
+
+        @* Issue #266: tras un POST con persona faltante (o 409 que mapee a
+           `Input.PersonaId`), el alert-danger superior, el
+           `asp-validation-summary` y el `<span asp-validation-for="Input.PersonaId">`
+           muestran el mensaje "Debe escoger una persona" hasta el próximo submit.
+           El handler de cambio del hidden `Input_PersonaId` los oculta, ya que
+           `usuario-persona-buscador.js` lo dispara al elegir o quitar persona
+           desde el modal. El script es el mismo que Create porque ambos
+           formularios comparten `_Form.cshtml`. *@
+        <script src="/js/pages/ocupaciones-create.js"></script>
     }
 }

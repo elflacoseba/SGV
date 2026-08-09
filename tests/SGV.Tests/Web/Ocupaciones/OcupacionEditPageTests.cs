@@ -586,4 +586,36 @@ public sealed class OcupacionEditPageTests
         Assert.DoesNotContain("data-usuario-persona-card", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────────
+    // Issue #266: Edit comparte el mismo bug de "validation message
+    // pegado" que Create. El form reusa `_Form.cshtml`, así que el
+    // hidden `Input_PersonaId` está presente y el script de dismissal
+    // (`ocupaciones-create.js`) funciona tal cual. Este test protege
+    // contra regresión de la referencia desde Edit.cshtml.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Edit_WhenMutationRole_LoadsPersonaChangeDismissScript()
+    {
+        var id = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+        var puestoId = Guid.NewGuid();
+        var current = SampleDto(id: id, personaId: personaId, puestoId: puestoId);
+
+        var personaClient = FakePersonaApiClient.WithPersonaList(
+            new PersonaDto(personaId, "L-001", "Ana", "García", null, null, null, null, null, null, true));
+        var puestosClient = FakePuestosApiClient.WithPuestoList(
+            new PuestoDto(puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null));
+        var ocupacionClient = new FakeOcupacionApiClient { ObtenerPorIdResult = current };
+
+        await using var lease = await CreateLeaseAsync(ocupacionClient, personaClient, puestosClient);
+
+        var response = await lease.Client.GetAsync($"/organizacion/ocupaciones/editar/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"Input_PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/ocupaciones-create.js", content, StringComparison.OrdinalIgnoreCase);
+    }
 }
