@@ -776,4 +776,35 @@ public sealed class OcupacionCreatePageTests
         Assert.DoesNotContain("data-usuario-persona-quitar", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ana.garcia@example.com", content, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ──────────────────────────────────────────────────
+    // Issue #266: el `<span asp-validation-for="Input.PersonaId">`
+    // muestra "Debe escoger una persona" hasta el próximo submit. El
+    // handler que lo limpia al cambiar el hidden (elegir o quitar
+    // persona desde el modal) vive en
+    // `/js/pages/ocupaciones-create.js`; este test protege contra
+    // regresión de la referencia (no del comportamiento JS, que
+    // requiere navegador).
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Create_WhenMutationRole_LoadsPersonaChangeDismissScript()
+    {
+        var persona = SamplePersona();
+        var puesto = SamplePuesto();
+        var personaClient = FakePersonaApiClient.WithPersonaList(persona);
+        var puestosClient = FakePuestosApiClient.WithPuestoList(puesto);
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            personaClient,
+            puestosClient);
+
+        var response = await lease.Client.GetAsync("/organizacion/ocupaciones/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"Input_PersonaId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/js/pages/ocupaciones-create.js", content, StringComparison.OrdinalIgnoreCase);
+    }
 }
