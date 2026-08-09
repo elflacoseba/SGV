@@ -1,3 +1,4 @@
+using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Contracts.Vacantes.Consultas;
 using SGV.Contracts.Vacantes.Consultas.Dtos;
@@ -14,7 +15,9 @@ namespace SGV.Aplicacion.Vacantes.Consultas;
 /// here so the response is self-contained and the client doesn't need
 /// to round-trip to the catalog endpoints.
 /// </summary>
-public sealed class VacanteServicioConsulta(IVacanteRepository repository)
+public sealed class VacanteServicioConsulta(
+        IVacanteRepository repository,
+        IOcupacionRepository ocupacionRepository)
     : IVacanteServicioConsulta
 {
     public async Task<PagedResult<VacanteDto>> ListarAsync(
@@ -43,7 +46,31 @@ public sealed class VacanteServicioConsulta(IVacanteRepository repository)
             .GetByIdForUpdateAsync(id, cancellationToken)
             .ConfigureAwait(false);
 
-        return vacante is null ? null : MapToDetailDto(vacante);
+        if (vacante is null)
+        {
+            return null;
+        }
+
+        // D-3 (invertir-flujo-cubrir): hidratar OcupacionDerivadaId y
+        // PersonaAsignadaNombre desde IOcupacionRepository sólo cuando la
+        // Vacante está Cubierta. Para Vacantes no Cubiertas el round-trip
+        // extra no aplica (defensivo + ahorro de query). El path defensivo
+        // "Cubierta sin Ocupacion" retorna ambos campos null sin lanzar.
+        Guid? ocupacionDerivadaId = null;
+        string? personaAsignadaNombre = null;
+        if (vacante.EstadoVacante?.EsCubierta == true)
+        {
+            var cobertura = await ocupacionRepository
+                .ObtenerVigentePorVacanteAsync(vacante.Id, cancellationToken)
+                .ConfigureAwait(false);
+            if (cobertura is { } c)
+            {
+                ocupacionDerivadaId = c.Id;
+                personaAsignadaNombre = c.PersonaNombre;
+            }
+        }
+
+        return MapToDetailDto(vacante, ocupacionDerivadaId, personaAsignadaNombre);
     }
 
     private static VacanteDto MapToDto(Vacante vacante)
@@ -60,7 +87,10 @@ public sealed class VacanteServicioConsulta(IVacanteRepository repository)
             vacante.Observaciones);
     }
 
-    private static VacanteDetailDto MapToDetailDto(Vacante vacante)
+    private static VacanteDetailDto MapToDetailDto(
+        Vacante vacante,
+        Guid? ocupacionDerivadaId,
+        string? personaAsignadaNombre)
     {
         var historial = vacante.HistorialEstados
             .Select(h => new HistorialEstadoVacanteDto(
@@ -81,6 +111,8 @@ public sealed class VacanteServicioConsulta(IVacanteRepository repository)
             vacante.FechaCierre,
             vacante.Motivo,
             vacante.Observaciones,
-            historial);
+            historial,
+            ocupacionDerivadaId,
+            personaAsignadaNombre);
     }
 }
