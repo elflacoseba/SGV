@@ -1044,7 +1044,84 @@ Una sola taxonomía `ErrorCategoria` definida como `enum` append-only en `src/SG
 - `OcupacionCommandResult` (vivía en `SGV.Aplicacion`): ✅ **Migrado a `ErrorCategoria` por el change `2026-07-28-web-ocupaciones-issue-208`** (PRs #212, #213, #214, #215). Ahora vive en `SGV.Contracts/Ocupaciones/Comandos/` con `Categoria: ErrorCategoria`. El enum legacy `OcupacionErrorType` queda `[Obsolete]` como compat hasta el archivado del change #125.
 - Los `ApiResults.Map*Status` de `SGV.Api/Infrastructure/Results/ApiResults.cs` se centralizan en un `MapCategoria(ErrorCategoria)` exhaustivo en el Slice 4 (issue #125, PR #4).
 
-## Frontend / JS compartido
+## Inversión del flujo Cubrir (change `invertir-flujo-cubrir`)
+
+> Change: `invertir-flujo-cubrir`. Artefactos SDD completos en
+> `openspec/changes/invertir-flujo-cubrir/`. Chain strategy:
+> `stacked-to-main` con 3 PRs encadenados (S1 backend + wire, S2
+> frontend Create, S3 frontend Details) hacia `develop`. Esta entrada
+> documenta D-1, D-3 y D-4 del `design.md` aplicables a S1.
+
+### Contexto y problema
+
+El change archivado `vacante-ocupacion-flow-alignment` (2026-08-07)
+implementó N2 como "Cubrir una Vacante vía
+`PATCH /api/v1/vacantes/{id}/estado` crea la Ocupación derivada",
+exigiendo `PersonaId` en el body. El frontend de Edit de Vacante no
+expone ese campo y el dropdown ya excluye Cubierta (issue #268); el
+Administrador no podía cerrar el ciclo Crear Vacante → Cubrir desde
+la UI. Se invirtió el flujo: ahora "Cubrir Vacante" es un botón en el
+Details de la Vacante que abre el form de `Ocupaciones/Create` con
+`?vacanteId={id}`, y la creación de la Ocupación + transición a
+Cubierta se materializa en `OcupacionServicioComandos.CrearAsync`
+cuando el request incluye `VacanteId`.
+
+### D-1 — Inversión del flujo Cubrir
+
+`OcupacionServicioComandos.CrearAsync` agrega una rama cuando
+`request.VacanteId.HasValue`:
+
+1. Carga la Vacante vía `IVacanteRepository.GetByIdForUpdateAsync`.
+2. Si `null` → `404 VacanteNoEncontrada`.
+3. Si `EstadoVacante.EsTerminal` → `400 VacanteNoAbierta` (cubre
+   Cubierta y Cancelada).
+4. Si `IOcupacionRepository.ExistsActiveByVacanteAsync` → `409 VacanteYaCubierta`.
+5. Si `request.PuestoId` viene vacío, se resuelve desde
+   `vacante.PuestoId`; si viene poblado y no coincide → `400 PuestoIdNoCoincideConVacante`.
+6. Crea la `Ocupacion` con `VacanteId` y persiste vía el mismo
+   `IUnitOfWork.SaveChangesAsync` que invoca
+   `vacante.CambiarEstado(Cubierta, …, cerrar: true)` +
+   `vacanteRepository.RegistrarCambioEstadoAsync`. EF agrupa ambas
+   escrituras en una sola transacción; el catch vigente de
+   `DbUpdateException` cubre el rollback.
+
+`VacanteServicioComandos.CambiarEstadoAsync` rechaza cualquier destino
+`EsCubierta` con `400 CubrirVacanteRequiereCrearOcupacion` + mensaje
+"Use el botón 'Cubrir Vacante' en el detalle de la Vacante para
+crear la Ocupación derivada.". El campo legacy `PersonaId` se ignora
+silenciosamente. El bloque de creación de Ocupación derivado (líneas
+que instanciaban `new Ocupacion(...)`) se eliminó por completo — la
+responsabilidad Cubrir ya no vive en este servicio.
+
+### D-3 — Hidratación defensiva de `VacanteDetailDto`
+
+`VacanteDetailDto` extiende con `OcupacionDerivadaId?: Guid` y
+`PersonaAsignadaNombre?: string` (nullables, default `null`). El
+servicio de consulta `VacanteServicioConsulta.ObtenerPorIdAsync`
+inyecta `IOcupacionRepository` y llama
+`ObtenerVigentePorVacanteAsync` **solo cuando**
+`vacante.EstadoVacante?.EsCubierta == true`. Vacantes no Cubiertas
+evitan el round-trip. Estados inconsistentes (Cubierta sin Ocupación)
+resultan en `null`/`null` sin lanzar — el contrato defensivo protege
+el endpoint.
+
+### D-4 — Renombre del código de error legacy
+
+`VacanteErrorCodigo.CubrirVacanteRequiereCrearOcupacion` reemplaza a
+`PersonaIdRequeridoParaCubrir`. El código viejo se conserva marcado
+como `[Obsolete("Use CubrirVacanteRequiereCrearOcupacion. El flujo
+Cubrir vive en OcupacionServicioComandos.CrearAsync con VacanteId;
+este código ya no se devuelve en runtime.")]` para no romper
+clientes cacheados. Los tests nuevos referencian exclusivamente el
+nombre vigente; el código `PersonaIdRequeridoParaCubrir` ya no se
+devuelve en runtime post-change.
+
+`CambiarEstadoVacanteRequest.PersonaId` queda en el record como
+deprecated (XML doc actualizado para T1.30). El servicio lo ignora
+silenciosamente — ningún cliente integrado puede enviar un valor
+válido que cambie la semántica.
+
+
 
 ### Patrón defensivo en `usuario-persona-buscador.js` (issue #224)
 
