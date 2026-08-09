@@ -29,6 +29,18 @@ public sealed class OcupacionInputModel
     [Display(Name = "Puesto")]
     public Guid? PuestoId { get; set; }
 
+    /// <summary>
+    /// T2.6 (change <c>invertir-flujo-cubrir</c> / S2): identificador de
+    /// la Vacante que esta Ocupación cubre. Se popula cuando el alta
+    /// proviene de <c>?vacanteId=</c> en <c>Ocupaciones/Create</c>
+    /// (REQ-OCC-FORM-001 invertido). Es opcional para conservar el
+    /// camino de alta directa sin Vacante existente (N3). El partial
+    /// <c>_Form.cshtml</c> lo renderiza como <c>hidden</c>; cuando está
+    /// setado, el dropdown de <see cref="PuestoId"/> se bloquea.
+    /// </summary>
+    [Display(Name = "Vacante")]
+    public Guid? VacanteId { get; set; }
+
     /// <summary>Fecha de inicio de la ocupación (formato <c>yyyy-MM-dd</c>).</summary>
     [Required(ErrorMessage = "La fecha de inicio es obligatoria.")]
     [Display(Name = "Fecha de inicio")]

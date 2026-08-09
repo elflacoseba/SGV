@@ -29,6 +29,7 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
     public List<CrearVacanteRequest> CrearCalls { get; } = [];
     public List<(Guid Id, CambiarEstadoVacanteRequest Request)> CambiarEstadoCalls { get; } = [];
     public List<int> ListarPuestosCalls { get; } = [];
+    public List<Guid> ObtenerAbiertaPorPuestoCalls { get; } = [];
 
     public Task<PagedResult<VacanteDto>> ListarAsync(
         VacanteListQuery query,
@@ -117,6 +118,21 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
         Guid puestoId,
         CancellationToken cancellationToken = default)
         => Task.FromResult(ExisteVacanteAbiertaParaPuestoResult);
+
+    /// <summary>
+    /// T2.13 (change <c>invertir-flujo-cubrir</c> / S2): tests pueden
+    /// setear el resultado del helper que devuelve la Vacante abierta
+    /// para un Puesto. Default = <see langword="null"/>.
+    /// </summary>
+    public VacanteDto? ObtenerAbiertaPorPuestoResult { get; set; }
+
+    public Task<VacanteDto?> ObtenerAbiertaPorPuestoAsync(
+        Guid puestoId,
+        CancellationToken cancellationToken = default)
+    {
+        ObtenerAbiertaPorPuestoCalls.Add(puestoId);
+        return Task.FromResult(ObtenerAbiertaPorPuestoResult);
+    }
 
     public static VacanteDto BuildDto(
         Guid? id = null,

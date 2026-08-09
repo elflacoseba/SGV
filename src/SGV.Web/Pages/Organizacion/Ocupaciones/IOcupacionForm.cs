@@ -59,4 +59,26 @@ public interface IOcupacionForm
 
     /// <summary>Mensaje de error general recuperable (catálogo caído, error de transporte en POST, etc.).</summary>
     string? ErrorMessage { get; }
+
+    /// <summary>
+    /// T2.6 (change <c>invertir-flujo-cubrir</c> / S2): hint informativo
+    /// que se muestra en el <c>Create</c> cuando el alta proviene de
+    /// <c>?vacanteId=</c> (REQ-OCC-FORM-009 invertido). Cuando es
+    /// <see langword="null"/> el form asume que NO hay Vacante precargada
+    /// y se renderiza el hint vigente de flujo "alta directa".
+    /// </summary>
+    string? VacanteHintLabel => null;
+
+    /// <summary>
+    /// T2.10 (change <c>invertir-flujo-cubrir</c> / S2): <c>true</c>
+    /// cuando el dropdown de PuestoId debe renderearse bloqueado
+    /// (caso <c>?vacanteId=</c> con Vacante Abierta/En Selección). El
+    /// partial <c>_Form.cshtml</c> lo consume para agregar <c>disabled</c>
+    /// al <c>select</c> y un <c>hidden</c> adicional que preserva el
+    /// valor para el model binding. La implementación por defecto vive
+    /// en <see cref="OcupacionFormPageModel.PuestoIdBloqueadoPorVacante"/>
+    /// para integrarse con el binding de Razor (la vista materializa el
+    /// contrato a través de la partial y los PageModels concretos).
+    /// </summary>
+    bool PuestoIdBloqueadoPorVacante { get; }
 }

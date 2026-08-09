@@ -126,6 +126,17 @@ public interface IOcupacionesCrossList
     /// ocupaciones de una Persona no requieren este alta contextual).
     /// </summary>
     string? AbrirVacanteUrl { get; }
+
+    /// <summary>
+    /// T2.7 (change <c>invertir-flujo-cubrir</c> / S2): label del botón
+    /// de alta contextual que <c>_CrossList.cshtml</c> renderea. Default
+    /// <c>"Nueva ocupación"</c> — preserva el comportamiento vigente
+    /// para <see cref="Personas.PersonaOcupacionesModel"/>. Solo
+    /// <see cref="Puestos.PuestoOcupacionesModel"/> lo overridea a
+    /// <c>"Cubrir Vacante"</c> cuando hay Vacante abierta sin Ocupación
+    /// activa (REQ-OCC-NAV-008).
+    /// </summary>
+    string NewOcupacionButtonLabel => "Nueva ocupación";
 }
 
 /// <summary>

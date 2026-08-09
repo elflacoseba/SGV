@@ -101,6 +101,16 @@ public sealed class PuestoOcupacionesModel(
     /// </summary>
     public bool HayOcupacionActiva => TotalCount > 0;
 
+    /// <summary>
+    /// T2.11 (change <c>invertir-flujo-cubrir</c> / S2): id de la Vacante
+    /// abierta del Puesto, resuelto vía <see cref="IVacanteApiClient.ObtenerAbiertaPorPuestoAsync"/>
+    /// en <see cref="OnGetAsync"/>. <c>null</c> cuando el Puesto no tiene
+    /// Vacante abierta (no se consulta el endpoint) o cuando la consulta
+    /// devolvió null (defensivo). Se usa para alimentar
+    /// <see cref="PuestoOcupacionesModel.NewOcupacionRouteValues"/>.
+    /// </summary>
+    private Guid? _vacanteAbiertaId;
+
     // ── IOcupacionesCrossList ─────────────────────────────────────────────
 
     /// <inheritdoc/>
@@ -145,9 +155,42 @@ public sealed class PuestoOcupacionesModel(
 
     /// <inheritdoc/>
     object? IOcupacionesCrossList.NewOcupacionRouteValues
+    {
+        get
+        {
+            // Spec REQ-OCC-NAV-006 / REQ-OCC-NAV-008:
+            //   - HayVacanteAbierta=true + HayOcupacionActiva=false → alta
+            //     con `?vacanteId=` (T2.11 invertido, flujo Cubrir).
+            //   - HayVacanteAbierta=true + HayOcupacionActiva=true → alta
+            //     con `?puestoId=` (inconsistencia tolerada por la vista,
+            //     el botón se mantiene con el label genérico).
+            //   - HayVacanteAbierta=false → no se renderea el botón; la
+            //     vista muestra "Abrir Vacante" (NAV-007) en su lugar.
+            if (!HayVacanteAbierta)
+            {
+                return null;
+            }
+
+            if (HayOcupacionActiva)
+            {
+                return new { puestoId = PuestoId };
+            }
+
+            // T2.11 (change `invertir-flujo-cubrir` / S2): alta con
+            // `?vacanteId=`. Si no se pudo resolver el id de la Vacante
+            // (defensivo, p.ej. transporte), fallback al comportamiento
+            // previo con `?puestoId=` para no romper el flujo.
+            return _vacanteAbiertaId.HasValue
+                ? new { vacanteId = _vacanteAbiertaId.Value }
+                : new { puestoId = PuestoId };
+        }
+    }
+
+    /// <inheritdoc/>
+    string IOcupacionesCrossList.NewOcupacionButtonLabel
         => HayVacanteAbierta && !HayOcupacionActiva
-            ? new { puestoId = PuestoId }
-            : null;
+            ? "Cubrir Vacante"
+            : "Nueva ocupación";
 
     /// <inheritdoc/>
     object? IOcupacionesCrossList.VerOcupacionVigenteRouteValues
@@ -270,5 +313,19 @@ public sealed class PuestoOcupacionesModel(
         HayVacanteAbierta = await vacanteApiClient
             .ExisteVacanteAbiertaParaPuestoAsync(id, cancellationToken)
             .ConfigureAwait(false);
+
+        // T2.11 (change `invertir-flujo-cubrir` / S2): cuando hay Vacante
+        // abierta y NO hay Ocupación activa, el alta contextual va al
+        // Create con `?vacanteId=`. Resolvemos el id de la Vacante vía
+        // Q-T2 (reusando el listado segmentado `abiertas` filtrado por
+        // PuestoId). El cliente degrada a null ante fallo de transporte,
+        // lo que cae al fallback `?puestoId=` en NewOcupacionRouteValues.
+        if (HayVacanteAbierta && !HayOcupacionActiva)
+        {
+            var vacanteAbierta = await vacanteApiClient
+                .ObtenerAbiertaPorPuestoAsync(id, cancellationToken)
+                .ConfigureAwait(false);
+            _vacanteAbiertaId = vacanteAbierta?.Id;
+        }
     }
 }

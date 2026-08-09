@@ -55,4 +55,18 @@ public interface IVacanteApiClient
     Task<bool> ExisteVacanteAbiertaParaPuestoAsync(
         Guid puestoId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// T2.13 (change <c>invertir-flujo-cubrir</c> / S2): obtiene la Vacante
+    /// abierta para <paramref name="puestoId"/>, si existe. Consumido por
+    /// <c>PuestoOcupaciones</c> para alimentar <c>?vacanteId=</c> en el botón
+    /// "Cubrir Vacante" (REQ-OCC-NAV-006 invertido): el alta contextual va
+    /// al Create de Ocupación con el id de la Vacante abierta (no con el
+    /// <c>PuestoId</c>), de modo que el POST sea transaccional con la
+    /// transición a Cubierta. <see langword="null"/> cuando el Puesto no
+    /// tiene Vacante abierta (incluye 404 defensivo).
+    /// </summary>
+    Task<VacanteDto?> ObtenerAbiertaPorPuestoAsync(
+        Guid puestoId,
+        CancellationToken cancellationToken = default);
 }
