@@ -59,6 +59,24 @@ else
         </div>
     </div>
 
+    @if (Model.EsCubierta && vacante.OcupacionDerivadaId.HasValue)
+    {
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header"><h5 class="card-title mb-0">Persona asignada</h5></div>
+                    <div class="card-body">
+                        <p class="mb-2"><span class="text-muted">Persona asignada:</span> @(string.IsNullOrWhiteSpace(vacante.PersonaAsignadaNombre) ? "—" : vacante.PersonaAsignadaNombre)</p>
+                        @if (!string.IsNullOrWhiteSpace(vacante.PersonaAsignadaNombre))
+                        {
+                            <a class="btn btn-outline-primary" href="@($"/organizacion/ocupaciones/detalles/{vacante.OcupacionDerivadaId}")">Ver ocupación</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="row mt-3">
         <div class="col-12">
             <div class="card">
@@ -93,6 +111,10 @@ else
     </div>
 
     <div class="row mt-3"><div class="col-12 d-flex gap-2">
+        @if (Model.EsCubrible)
+        {
+            <a class="btn btn-primary" href="/organizacion/ocupaciones/crear?vacanteId=@vacante.Id.ToString()&amp;returnUrl=@($"/organizacion/vacantes/detalles/{vacante.Id}")">Cubrir Vacante</a>
+        }
         @if (Model.CanMutate && !vacante.EsCerrada)
         {
             <a class="btn btn-warning" href="@Model.BuildEditUrl()">Editar</a>
