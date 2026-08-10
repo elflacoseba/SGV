@@ -221,6 +221,36 @@ public sealed class VacantesDetailsAndSidenavTests
         Assert.DoesNotContain("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Documenta el contrato de <c>EsCubrible</c> cuando el backend
+    /// devuelve un nombre de estado vacío o null (escenario defensivo):
+    /// el botón "Cubrir Vacante" se renderea porque string vacío no es
+    /// "Cubierta" ni "Cancelada". Esto es intencional para no bloquear
+    /// el flujo ante datos incompletos del API; si se prefiere un
+    /// allow-list, cambiar <c>EsCubrible</c> en
+    /// <c>VacanteDetailViewModel</c> a una comparación explícita contra
+    /// los estados cubribles y ajustar este test.
+    /// </summary>
+    [Fact]
+    public async Task Get_Details_EstadoVacio_BotonCubrirVisible()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: string.Empty)
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task Sidenav_WhenAuthenticatedNonMutator_RendersListadoButNotNueva()
     {

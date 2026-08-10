@@ -113,7 +113,7 @@ else
     <div class="row mt-3"><div class="col-12 d-flex gap-2">
         @if (Model.EsCubrible)
         {
-            <a class="btn btn-primary" href="/organizacion/ocupaciones/crear?vacanteId=@vacante.Id.ToString()&amp;returnUrl=@($"/organizacion/vacantes/detalles/{vacante.Id}")">Cubrir Vacante</a>
+            <a class="btn btn-primary" href="/organizacion/ocupaciones/crear?vacanteId=@vacante.Id.ToString()&amp;returnUrl=@Uri.EscapeDataString($"/organizacion/vacantes/detalles/{vacante.Id}")">Cubrir Vacante</a>
         }
         @if (Model.CanMutate && !vacante.EsCerrada)
         {
