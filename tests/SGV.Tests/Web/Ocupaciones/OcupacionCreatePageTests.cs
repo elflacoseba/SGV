@@ -920,6 +920,135 @@ public sealed class OcupacionCreatePageTests
             content);
     }
 
+    // ──────────────────────────────────────────────────
+    // W-1 (verify-report §WARNING-1) / change `invertir-flujo-cubrir`:
+    // el escenario `?vacanteId` con Vacante **Cancelada** del spec
+    // `web-ocupaciones-crear-editar / REQ-OCC-FORM-001` no tenía test
+    // dedicado. T2.8 (S2) implementó el branch en
+    // `Create.cshtml.cs:168-172` con el mensaje "Esta Vacante está
+    // cancelada y no puede cubrirse.", pero faltaba cobertura. Este
+    // test es paralelo a `Get_Create_WithVacanteIdCubierta_MuestraError_*`
+    // (T2.2) — triangulación por estado terminal del switch exhaustivo.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Create_WithVacanteIdCancelada_MuestraError_VacanteCancelada()
+    {
+        var vacanteId = Guid.NewGuid();
+        var puestoId = Guid.NewGuid();
+        var vacanteApi = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = SampleVacanteAbierta(vacanteId, puestoId, estadoVacanteNombre: "Cancelada")
+        };
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            FakePersonaApiClient.WithPersonaList(SamplePersona()),
+            FakePuestosApiClient.WithPuestoList(SamplePuesto()),
+            vacanteApi);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?vacanteId={vacanteId:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El API client fue invocado con el id (la Vacante existe; sólo
+        // su estado es Cancelada).
+        Assert.Equal(vacanteId, Assert.Single(vacanteApi.ObtenerPorIdCalls));
+
+        // El error legible aparece en el HTML.
+        Assert.Contains("Esta Vacante está cancelada y no puede cubrirse.", content, StringComparison.OrdinalIgnoreCase);
+
+        // El form NO se renderea: el hidden de VacanteId y el dropdown
+        // bloqueado de PuestoId sólo aparecen cuando la Vacante es
+        // Abierta/En Selección. Verificar ausencia (paridad con T2.2).
+        Assert.DoesNotContain("name=\"Input.VacanteId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            @"<select\b[^>]*\bname=""Input\.PuestoId""[^>]*\bdisabled\b",
+            content);
+    }
+
+    // ──────────────────────────────────────────────────
+    // W-2 (verify-report §WARNING-2) / change `invertir-flujo-cubrir`:
+    // el escenario `?vacanteId` enviado — POST con `VacanteId` y redirect
+    // a vacante Details del spec `web-ocupaciones-crear-editar /
+    // REQ-OCC-FORM-001` no tenía test dedicado. T2.8 (S2) implementó
+    // el branch en `Create.cshtml.cs:235-241` que propaga el VacanteId
+    // al `CrearOcupacionRequest` y redirige a
+    // `/Organizacion/Vacantes/Details?id={vacanteId}`. Faltaba cobertura
+    // end-to-end del POST happy-path con `VacanteId`.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Post_Create_WithVacanteId_CreaOcupacionYRedirigeAVacanteDetails()
+    {
+        var vacanteId = Guid.NewGuid();
+        var puestoId = Guid.NewGuid();
+        var personaId = Guid.NewGuid();
+
+        var personaClient = FakePersonaApiClient.WithPersonaList(
+            new PersonaDto(personaId, "L-001", "Ana", "García", null, null, null, null, null, null, true));
+        var puestosClient = FakePuestosApiClient.WithPuestoList(
+            new PuestoDto(puestoId, "P-001", "Analista Senior", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null));
+        var vacanteApi = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = SampleVacanteAbierta(vacanteId, puestoId, "Analista Senior")
+        };
+        var ocupacionClient = new FakeOcupacionApiClient
+        {
+            CrearResult = OcupacionCommandResult.Success(SampleDto(
+                personaId: personaId,
+                puestoId: puestoId,
+                personaNombre: "Ana García",
+                puestoNombre: "Analista Senior"))
+        };
+
+        await using var lease = await CreateLeaseAsync(
+            ocupacionClient, personaClient, puestosClient, vacanteApi);
+
+        // GET inicial: el form se renderea con el hidden Input.VacanteId
+        // poblado por T2.8 y el dropdown PuestoId bloqueado.
+        var getResponse = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?vacanteId={vacanteId:D}");
+        var antiforgery = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+
+        var response = await lease.Client.PostAsync(
+            "/organizacion/ocupaciones/crear",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgery,
+                ["Input.PersonaId"] = personaId.ToString(),
+                ["Input.PuestoId"] = puestoId.ToString(),
+                ["Input.VacanteId"] = vacanteId.ToString(),
+                ["Input.FechaInicio"] = "2026-02-01",
+                ["Input.TipoAsignacion"] = ((int)OcupacionTipoAsignacion.Permanente).ToString(),
+                ["Input.Observaciones"] = string.Empty
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+
+        // T2.8 (Create.cshtml.cs:240): RedirectToPage(
+        //   "/Organizacion/Vacantes/Details", new { id = Input.VacanteId.Value }).
+        // El @page del Details resuelve a /organizacion/vacantes/detalles/{id:guid}.
+        Assert.Contains("/organizacion/vacantes/detalles/", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(vacanteId.ToString(), location, StringComparison.OrdinalIgnoreCase);
+
+        // El POST a /api/v1/ocupaciones incluyó el VacanteId en el payload
+        // (T2.8 propaga Input.VacanteId al CrearOcupacionRequest).
+        var sent = Assert.Single(ocupacionClient.CrearCalls);
+        Assert.Equal(vacanteId, sent.VacanteId);
+        Assert.Equal(personaId, sent.PersonaId);
+        Assert.Equal(puestoId, sent.PuestoId);
+        Assert.Equal(new DateOnly(2026, 2, 1), sent.FechaInicio);
+        Assert.Equal(OcupacionTipoAsignacion.Permanente, sent.TipoAsignacion);
+
+        // La Vacante también se consultó vía el API client (T2.8
+        // ResolverVacanteParaCrearAsync → IVacanteApiClient.ObtenerPorIdAsync).
+        Assert.Equal(vacanteId, Assert.Single(vacanteApi.ObtenerPorIdCalls));
+    }
+
     [Fact]
     public async Task Get_Create_WithVacanteInexistente_MuestraError_VacanteNoExiste()
     {
