@@ -193,6 +193,34 @@ public sealed class VacantesDetailsAndSidenavTests
         Assert.DoesNotContain("Persona asignada", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Triangulación (T3.1-T3.4 cubren 4 estados × admin): un usuario
+    /// con `CanMutate=false` (no es Administrador ni GestorVacantes)
+    /// NO debe ver el botón aunque la Vacante esté Abierta. Mismo path
+    /// lógico que T3.1 pero ejerciendo la otra rama de la conjunción
+    /// <c>EsCubrible = ViewModel.EsCubrible &amp;&amp; CanMutate</c>.
+    /// Spec: vacante-web / escenario "Usuario sin rol de mutación".
+    /// </summary>
+    [Fact]
+    public async Task Get_Details_VacanteAbierta_NonMutator_BotonCubrirOculto()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "Abierta")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: false);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task Sidenav_WhenAuthenticatedNonMutator_RendersListadoButNotNueva()
     {
