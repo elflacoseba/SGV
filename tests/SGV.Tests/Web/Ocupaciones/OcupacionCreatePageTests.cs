@@ -920,6 +920,55 @@ public sealed class OcupacionCreatePageTests
             content);
     }
 
+    // ──────────────────────────────────────────────────
+    // W-1 (verify-report §WARNING-1) / change `invertir-flujo-cubrir`:
+    // el escenario `?vacanteId` con Vacante **Cancelada** del spec
+    // `web-ocupaciones-crear-editar / REQ-OCC-FORM-001` no tenía test
+    // dedicado. T2.8 (S2) implementó el branch en
+    // `Create.cshtml.cs:168-172` con el mensaje "Esta Vacante está
+    // cancelada y no puede cubrirse.", pero faltaba cobertura. Este
+    // test es paralelo a `Get_Create_WithVacanteIdCubierta_MuestraError_*`
+    // (T2.2) — triangulación por estado terminal del switch exhaustivo.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Create_WithVacanteIdCancelada_MuestraError_VacanteCancelada()
+    {
+        var vacanteId = Guid.NewGuid();
+        var puestoId = Guid.NewGuid();
+        var vacanteApi = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = SampleVacanteAbierta(vacanteId, puestoId, estadoVacanteNombre: "Cancelada")
+        };
+
+        await using var lease = await CreateLeaseAsync(
+            new FakeOcupacionApiClient(),
+            FakePersonaApiClient.WithPersonaList(SamplePersona()),
+            FakePuestosApiClient.WithPuestoList(SamplePuesto()),
+            vacanteApi);
+
+        var response = await lease.Client.GetAsync(
+            $"/organizacion/ocupaciones/crear?vacanteId={vacanteId:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El API client fue invocado con el id (la Vacante existe; sólo
+        // su estado es Cancelada).
+        Assert.Equal(vacanteId, Assert.Single(vacanteApi.ObtenerPorIdCalls));
+
+        // El error legible aparece en el HTML.
+        Assert.Contains("Esta Vacante está cancelada y no puede cubrirse.", content, StringComparison.OrdinalIgnoreCase);
+
+        // El form NO se renderea: el hidden de VacanteId y el dropdown
+        // bloqueado de PuestoId sólo aparecen cuando la Vacante es
+        // Abierta/En Selección. Verificar ausencia (paridad con T2.2).
+        Assert.DoesNotContain("name=\"Input.VacanteId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            @"<select\b[^>]*\bname=""Input\.PuestoId""[^>]*\bdisabled\b",
+            content);
+    }
+
     [Fact]
     public async Task Get_Create_WithVacanteInexistente_MuestraError_VacanteNoExiste()
     {
