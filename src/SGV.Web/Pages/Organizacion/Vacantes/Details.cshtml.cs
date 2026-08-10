@@ -46,6 +46,24 @@ public sealed class DetailsModel(
     /// <summary>Whether the current user may navigate to Edit.</summary>
     public bool CanMutate => User.IsInRole(RolesSgv.Administrador) || User.IsInRole(RolesSgv.GestorVacantes);
 
+    /// <summary>
+    /// True cuando la Vacante admite "Cubrir Vacante" desde el frontend
+    /// (estado no Cubierta/no Cancelada) y el usuario tiene permiso de
+    /// mutación. Combina <see cref="VacanteDetailViewModel.EsCubrible"/>
+    /// con <see cref="CanMutate"/>. Cambio del flow
+    /// <c>invertir-flujo-cubrir</c> / S3.
+    /// </summary>
+    public bool EsCubrible => ViewModel is not null && ViewModel.EsCubrible && CanMutate;
+
+    /// <summary>
+    /// True cuando la Vacante ya está Cubierta (estado terminal cubrible).
+    /// Usado por la vista para decidir si renderear el bloque "Persona
+    /// asignada".
+    /// </summary>
+    public bool EsCubierta
+        => ViewModel is not null
+            && string.Equals(ViewModel.EstadoVacanteNombre?.Trim(), "Cubierta", StringComparison.OrdinalIgnoreCase);
+
     public async Task OnGetAsync(
         Guid id,
         [FromQuery(Name = "p")] int currentPage = 1,

@@ -80,6 +80,177 @@ public sealed class VacantesDetailsAndSidenavTests
         Assert.Equal(id, Assert.Single(apiClient.ObtenerPorIdCalls));
     }
 
+    // ──────────────────────────────────────────────────
+    // T3.1–T3.4 (change `invertir-flujo-cubrir` / S3): la página Details
+    // expone el botón "Cubrir Vacante" cuando la Vacante está Abierta
+    // o En Selección (CanMutate=true). Para Cubierta, oculta el botón
+    // y renderea el bloque "Persona asignada" con link "Ver ocupación".
+    // Para Cancelada, oculta el botón y el bloque.
+    // Spec: vacante-web / ADDED Requirements.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Details_VacanteAbierta_BotonCubrirVisible()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "Abierta")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"/organizacion/ocupaciones/crear?vacanteId={id:D}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_VacanteEnSeleccion_BotonCubrirVisible()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "En selección")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"/organizacion/ocupaciones/crear?vacanteId={id:D}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_VacanteCubierta_BotonCubrirOculto_BloquePersonaAsignadaVisible()
+    {
+        var id = Guid.NewGuid();
+        var ocupacionDerivadaId = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "Cubierta",
+                fechaCierre: new DateTime(2026, 2, 10),
+                ocupacionDerivadaId: ocupacionDerivadaId,
+                personaAsignadaNombre: "Juan Pérez")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Botón "Cubrir Vacante" NO se renderea para Cubierta.
+        Assert.DoesNotContain("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+
+        // Bloque "Persona asignada" + link "Ver ocupación" presentes.
+        Assert.Contains("Persona asignada", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Juan Pérez", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"/organizacion/ocupaciones/detalles/{ocupacionDerivadaId:D}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_VacanteCancelada_BotonCubrirOculto()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "Cancelada",
+                fechaCierre: new DateTime(2026, 2, 12))
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Persona asignada", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Triangulación (T3.1-T3.4 cubren 4 estados × admin): un usuario
+    /// con `CanMutate=false` (no es Administrador ni GestorVacantes)
+    /// NO debe ver el botón aunque la Vacante esté Abierta. Mismo path
+    /// lógico que T3.1 pero ejerciendo la otra rama de la conjunción
+    /// <c>EsCubrible = ViewModel.EsCubrible &amp;&amp; CanMutate</c>.
+    /// Spec: vacante-web / escenario "Usuario sin rol de mutación".
+    /// </summary>
+    [Fact]
+    public async Task Get_Details_VacanteAbierta_NonMutator_BotonCubrirOculto()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "Abierta")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: false);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Documenta el contrato de <c>EsCubrible</c> cuando el backend
+    /// devuelve un nombre de estado vacío o null (escenario defensivo):
+    /// el botón "Cubrir Vacante" se renderea porque string vacío no es
+    /// "Cubierta" ni "Cancelada". Esto es intencional para no bloquear
+    /// el flujo ante datos incompletos del API; si se prefiere un
+    /// allow-list, cambiar <c>EsCubrible</c> en
+    /// <c>VacanteDetailViewModel</c> a una comparación explícita contra
+    /// los estados cubribles y ajustar este test.
+    /// </summary>
+    [Fact]
+    public async Task Get_Details_EstadoVacio_BotonCubrirVisible()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: string.Empty)
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task Sidenav_WhenAuthenticatedNonMutator_RendersListadoButNotNueva()
     {
