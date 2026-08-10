@@ -165,7 +165,9 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
         DateTime? fechaCierre = null,
         string motivo = "Cobertura de puesto",
         string? observaciones = null,
-        IReadOnlyList<HistorialEstadoVacanteDto>? historial = null)
+        IReadOnlyList<HistorialEstadoVacanteDto>? historial = null,
+        Guid? ocupacionDerivadaId = null,
+        string? personaAsignadaNombre = null)
         => new(
             id ?? Guid.NewGuid(),
             puestoId ?? Guid.NewGuid(),
@@ -176,7 +178,9 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
             fechaCierre,
             motivo,
             observaciones,
-            historial ?? []);
+            historial ?? [],
+            ocupacionDerivadaId,
+            personaAsignadaNombre);
 
     public static IReadOnlyList<EstadoVacanteDto> BuildStates() =>
     [

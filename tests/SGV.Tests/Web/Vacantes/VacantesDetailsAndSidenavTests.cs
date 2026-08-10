@@ -80,6 +80,119 @@ public sealed class VacantesDetailsAndSidenavTests
         Assert.Equal(id, Assert.Single(apiClient.ObtenerPorIdCalls));
     }
 
+    // ──────────────────────────────────────────────────
+    // T3.1–T3.4 (change `invertir-flujo-cubrir` / S3): la página Details
+    // expone el botón "Cubrir Vacante" cuando la Vacante está Abierta
+    // o En Selección (CanMutate=true). Para Cubierta, oculta el botón
+    // y renderea el bloque "Persona asignada" con link "Ver ocupación".
+    // Para Cancelada, oculta el botón y el bloque.
+    // Spec: vacante-web / ADDED Requirements.
+    // ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Get_Details_VacanteAbierta_BotonCubrirVisible()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "Abierta")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"/organizacion/ocupaciones/crear?vacanteId={id:D}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_VacanteEnSeleccion_BotonCubrirVisible()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "En selección")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"/organizacion/ocupaciones/crear?vacanteId={id:D}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_VacanteCubierta_BotonCubrirOculto_BloquePersonaAsignadaVisible()
+    {
+        var id = Guid.NewGuid();
+        var ocupacionDerivadaId = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "Cubierta",
+                fechaCierre: new DateTime(2026, 2, 10),
+                ocupacionDerivadaId: ocupacionDerivadaId,
+                personaAsignadaNombre: "Juan Pérez")
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // Botón "Cubrir Vacante" NO se renderea para Cubierta.
+        Assert.DoesNotContain("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+
+        // Bloque "Persona asignada" + link "Ver ocupación" presentes.
+        Assert.Contains("Persona asignada", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Juan Pérez", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"/organizacion/ocupaciones/detalles/{ocupacionDerivadaId:D}",
+            content,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Get_Details_VacanteCancelada_BotonCubrirOculto()
+    {
+        var id = Guid.NewGuid();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ObtenerPorIdResult = FakeVacanteApiClient.BuildDetail(
+                id: id,
+                estadoVacanteNombre: "Cancelada",
+                fechaCierre: new DateTime(2026, 2, 12))
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync($"/organizacion/vacantes/detalles/{id:D}");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("Cubrir Vacante", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Persona asignada", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task Sidenav_WhenAuthenticatedNonMutator_RendersListadoButNotNueva()
     {
