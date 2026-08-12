@@ -1,4 +1,3 @@
-using System.Net.Sockets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
@@ -35,18 +34,20 @@ public sealed class SgvDbContextFactory : IDesignTimeDbContextFactory<SgvDbConte
               + "Nunca commitees credenciales reales en appsettings.");
         }
 
-        ServerVersion serverVersion;
-        try
+        // Versión externalizable vía `MySql:ServerVersion` (default 8.0.36),
+        // misma fuente que el runtime en Program.cs. Diseño fail-loud: versión
+        // inválida aborta `dotnet ef` con mensaje explícito.
+        var rawServerVersion = configuration["MySql:ServerVersion"] ?? "8.0.36";
+        if (!Version.TryParse(rawServerVersion, out var serverVersionNumber)
+            || serverVersionNumber.Major <= 0)
         {
-            serverVersion = ServerVersion.AutoDetect(connectionString);
+            throw new InvalidOperationException(
+                $"MySql:ServerVersion '{rawServerVersion}' inválida: "
+              + "debe ser un Version parseable (ej. 8.0.36). "
+              + "Configurala en appsettings.Development.json "
+              + "o vía la variable de entorno MySql__ServerVersion.");
         }
-        catch (Exception ex) when (ex is SocketException
-                                    or MySqlConnector.MySqlException
-                                    or TimeoutException
-                                    or InvalidOperationException)
-        {
-            serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
-        }
+        var serverVersion = new MySqlServerVersion(serverVersionNumber);
 
         var opciones = new DbContextOptionsBuilder<SgvDbContext>()
             .UseMySql(connectionString, serverVersion)

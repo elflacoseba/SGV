@@ -92,10 +92,23 @@ if (!connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase)
         typeof(DbContextOptions<SgvDbContext>),
         ["ConnectionStrings:SgvDatabase inválida: debe incluir Server= y Database=."]);
 
+// Versión de servidor MySQL externalizable vía config (default 8.0.36).
+// Esto evita ServerVersion.AutoDetect, que abre una conexión TCP al construir
+// las opciones del DbContext y bloquea el primer request autenticado cuando
+// MySQL está transitoriamente inalcanzable. Ver docs/decisiones-implementacion.md §6.
+var rawServerVersion = builder.Configuration["MySql:ServerVersion"] ?? "8.0.36";
+if (!Version.TryParse(rawServerVersion, out var serverVersionNumber)
+    || serverVersionNumber.Major <= 0)
+    throw new OptionsValidationException(
+        nameof(DbContextOptions<SgvDbContext>),
+        typeof(DbContextOptions<SgvDbContext>),
+        [$"MySql:ServerVersion '{rawServerVersion}' inválida: debe ser un Version parseable (ej. 8.0.36)."]);
+var serverVersion = new MySqlServerVersion(serverVersionNumber);
+
 builder.Services.AddScoped<AuditoriaSaveChangesInterceptor>();
 builder.Services.AddDbContext<SgvDbContext>((sp, options) =>
 {
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
+    options.UseMySql(connectionString, serverVersion)
            .AddInterceptors(sp.GetRequiredService<AuditoriaSaveChangesInterceptor>());
 });
 

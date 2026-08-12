@@ -679,21 +679,25 @@ Los dos probes son anónimos en API y Web. Cada `MapHealthChecks(...)` aplica `.
 
 ### Timeout de conexión recomendado
 
-La connection string productiva **DEBE** incluir `Connection Timeout=5` (cinco segundos) para acotar el `Open()` de `MySqlConnector` tanto en el readiness check como en el primer `ServerVersion.AutoDetect` de `SgvDbContext`. Sin esta configuración, `MySqlConnector` cae al default de plataforma (típicamente 15 segundos), y un MySQL inalcanzable puede colgar el primer request del proceso durante ese presupuesto.
+La connection string productiva **DEBE** incluir `Connection Timeout=5` (cinco segundos) para acotar el `Open()` de `MySqlConnector` tanto en el readiness check como en la primera apertura de `MySqlConnection` que EF Core dispara al ejecutar la primera consulta. Sin esta configuración, `MySqlConnector` cae al default de plataforma (típicamente 15 segundos), y un MySQL inalcanzable puede colgar el primer request del proceso durante ese presupuesto.
 
-El chequeo del runtime no aborta al `Build()` si falta `Connection Timeout`: la advertencia queda cubierta por esta documentación operativa (`.NET 10` no expone `ValidateOptionsResult.Warn`, ver `design.md` §4.E). En cambio, una connection string ausente, whitespace o sin `Server=` y `Database=` sí aborta el host.
+El chequeo del runtime no aborta al `Build()` si falta `Connection Timeout`: la advertencia queda cubierta por esta documentación operativa (`.NET 10` no expone `ValidateOptionsResult.Warn`, ver `design.md` §4.E). En cambio, una connection string ausente, whitespace o sin `Server=` y `Database=` sí aborta el host; y un `MySql:ServerVersion` no parseable aborta el host con `OptionsValidationException`.
 
-### `ServerVersion.AutoDetect`
+### Versión de servidor MySQL (`MySql:ServerVersion`)
 
-`ServerVersion.AutoDetect(connectionString)` se ejecuta la primera vez que `SgvDbContext` se resuelve (es decir, en el primer request HTTP que use la DB). No se pre-calienta en el readiness check ni en el `Build()`. El costo de la detección queda diferido al primer uso real. Operadores pueden mitigar el riesgo con:
+`ServerVersion.AutoDetect(connectionString)` quedó **descartado del runtime** por su costo operacional: abría una conexión TCP al construir las opciones del `SgvDbContext` y bloqueaba el primer request autenticado cuando MySQL estaba transitoriamente inalcanzable (visible en stack frames de `Sgv.Api.Seguridad.RevalidatorCredenciales`). En su lugar, tanto `Program.cs` (runtime) como `SgvDbContextFactory` (design-time) construyen un `MySqlServerVersion` a partir de la clave de configuración:
 
-- **Pre-warm externo** (`curl` desde el load balancer, un warm-up job o un `initContainer` que pegue a una ruta que resuelva el contexto antes de marcar el pod como `Ready`).
-- **Versión fija** en `SgvDbContextFactory` design-time (`MySqlServerVersion(8.0.36)`) ya está aplicada. Replicar esa decisión en runtime es una decisión separada que excede el alcance de este change.
+- **Clave**: `MySql:ServerVersion`
+- **Formato**: `MAJOR.MINOR.PATCH` (ej. `8.0.36`).
+- **Default**: `8.0.36`.
+- **Override por ambiente**: variable de entorno `MySql__ServerVersion` (convención `__` de ASP.NET Core).
+- **Validación**: parseo fail-loud tanto en `Program.cs` (throw temprano `OptionsValidationException`) como en `SgvDbContextOptionsValidator` (`IValidateOptions<DbContextOptions<SgvDbContext>>` con `ValidateOnStart`) y en `SgvDbContextFactory` (`InvalidOperationException`). Una versión malformada aborta el host antes de cualquier request.
+- **Por qué no se sigue pre-calentando**: el costo quedó eliminado. No hay tráfico de red durante la construcción de opciones; el primer request que use la DB resuelve `SgvDbContext` con la versión fija y abre su conexión con el `Connection Timeout` configurado.
 
 ### Separación design-time vs runtime
 
-- `SgvDbContextFactory` (design-time, en `src/SGV.Infraestructura/`) usa `MySqlServerVersion(8.0.36)` fija y aplica el principio fail-loud. Sirve únicamente para `dotnet ef` (migraciones, scripting). El host de la API **no** lo invoca.
-- `Program.cs` (runtime, en `src/SGV.Api`) usa `ServerVersion.AutoDetect(connectionString)` en el registro de `SgvDbContext`. La lambda se evalúa al resolver el contexto, no necesariamente durante `builder.Build()`.
+- `SgvDbContextFactory` (design-time, en `src/SGV.Infraestructura/`) lee `MySql:ServerVersion` desde `appsettings*.json` + env vars (`MySql__ServerVersion`) y aplica el principio fail-loud. Sirve únicamente para `dotnet ef` (migraciones, scripting). El host de la API **no** lo invoca.
+- `Program.cs` (runtime, en `src/SGV.Api`) usa `MySqlServerVersion` construido a partir de `MySql:ServerVersion` (misma fuente). El parseo valida en startup con `OptionsValidationException`; el `IValidateOptions` registrado corrobora el formato vía `ValidateOnStart`.
 - Esta coexistencia no rompe el contrato de migraciones: `dotnet ef migrations` lee `SgvDbContextFactory`; la API runtime usa la registrada en DI. Los tests usan `TestSgvDbContextFactory`, completamente independiente.
 
 ### Ubicación de los secretos por ambiente

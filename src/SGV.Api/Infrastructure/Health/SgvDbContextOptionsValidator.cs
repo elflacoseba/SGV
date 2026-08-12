@@ -35,8 +35,20 @@ public sealed class SgvDbContextOptionsValidator(IConfiguration configuration)
         if (!connectionString.Contains("Connection Timeout=", StringComparison.OrdinalIgnoreCase))
         {
             // Not a hard failure — the host continues but operators should add
-            // Connection Timeout to avoid long hangs during AutoDetect.
+            // Connection Timeout to avoid long hangs.
             return ValidateOptionsResult.Success;
+        }
+
+        // Validate MySql:ServerVersion is parseable as MAJOR.MINOR.PATCH.
+        // Failing loud here protects against typos like "8.0" or "v8.0.36"
+        // breaking the host at the first DbContext resolution.
+        var rawServerVersion = configuration["MySql:ServerVersion"] ?? "8.0.36";
+        if (!Version.TryParse(rawServerVersion, out var serverVersionNumber)
+            || serverVersionNumber.Major <= 0)
+        {
+            return ValidateOptionsResult.Fail(
+                $"MySql:ServerVersion '{rawServerVersion}' inválida: "
+              + "debe ser un Version parseable (ej. 8.0.36).");
         }
 
         return ValidateOptionsResult.Success;
