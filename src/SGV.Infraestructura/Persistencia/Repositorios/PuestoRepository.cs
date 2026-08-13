@@ -217,7 +217,7 @@ public sealed class PuestoRepository(SgvDbContext context)
     /// </summary>
     public async Task<IReadOnlyList<Puesto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default)
     {
-        var entities = await BuildReadOnlyIQueryable()
+        var entities = await BuildActivosCompletosIQueryable()
             .Where(p => !Context.Set<OcupacionEntity>()
                 .Where(o => o.PuestoId == p.Id)
                 .Where(OcupacionEntitySpecs.EsVigente)
@@ -236,16 +236,28 @@ public sealed class PuestoRepository(SgvDbContext context)
 
     /// <summary>
     /// Raíz read-only reutilizable para métodos de lectura que necesitan
-    /// el shape completo de <see cref="PuestoEntity"/> más
-    /// <c>UnidadOrganizativa</c> + <c>Cargo</c>:
+    /// el shape completo de <see cref="PuestoEntity"/> con sus joins
+    /// estándar (<c>UnidadOrganizativa</c> + <c>Cargo</c>), filtrada a
+    /// Puestos **activos y no borrados**:
     /// <c>AsNoTracking + (IsActive &amp;&amp; !IsDeleted) + Includes</c>.
-    /// Distinto de <see cref="Query"/> (que sólo aplica <c>IsActive</c> y
-    /// es la base de listados administrativos que abarcan eliminados) y
-    /// de <see cref="QueryAsync"/> (que necesita filtrar por segmento
-    /// activo vs. eliminado). Úselo en métodos nuevos que pidan
-    /// "puestos activos-no-borrados con joins de UnidadOrganizativa/Cargo".
+    /// <para>
+    /// Distinto de <see cref="Query"/> (sólo aplica <c>IsActive</c>; base
+    /// de listados administrativos que abarcan eliminados) y de
+    /// <see cref="QueryAsync"/> (filtra por segmento activo vs. eliminado
+    /// según <c>PuestoListQuery</c>). Este helper asume que el llamador
+    /// quiere únicamente el subconjunto activo-no-borrado, lo que lo hace
+    /// adecuado para endpoints públicos o de auto-servicio como
+    /// <c>ListarDisponiblesAsync</c>.
+    /// </para>
+    /// <para>
+    /// Los métodos nuevos que pidan el shape "puestos activos-no-borrados
+    /// con joins de UnidadOrganizativa/Cargo" deben consumir este helper;
+    /// los filtros de disponibilidad específicos (<c>NOT EXISTS</c> sobre
+    /// Ocupaciones/Vacantes, ordenamiento, etc.) se aplican encima del
+    /// helper, no dentro.
+    /// </para>
     /// </summary>
-    private IQueryable<PuestoEntity> BuildReadOnlyIQueryable() =>
+    private IQueryable<PuestoEntity> BuildActivosCompletosIQueryable() =>
         Context.Set<PuestoEntity>()
             .AsNoTracking()
             .Where(p => p.IsActive && !p.IsDeleted)
