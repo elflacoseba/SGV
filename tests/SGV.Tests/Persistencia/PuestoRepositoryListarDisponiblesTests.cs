@@ -142,17 +142,7 @@ public sealed class PuestoRepositoryListarDisponiblesTests
                 cleanup.Add(vacante!);
                 cleanup.Add(estadoAbierta);
             }
-            var ordered = cleanup.OrderBy(e => e switch
-            {
-                VacanteEntity => 0,
-                OcupacionEntity => 1,
-                CargoEntity => 3,
-                UnidadOrganizativaEntity => 4,
-                EstadoVacanteEntity => 5,
-                PersonaEntity => 6,
-                _ => 99
-            });
-            await CleanupAsync(context, ordered.ToArray());
+            await CleanupAsync(context, OrderForCleanup(cleanup).ToArray());
         }
     }
 
@@ -346,17 +336,7 @@ public sealed class PuestoRepositoryListarDisponiblesTests
         // Sin esto, EF lanza "association severed" al intentar remover un
         // Puesto mientras su Vacante (FK RESTRICT) o su Ocupacion
         // (FK RESTRICT) siguen trackeadas.
-        var ordered = entities.OrderBy(e => e switch
-        {
-            VacanteEntity => 0,
-            OcupacionEntity => 1,
-            PuestoEntity => 2,
-            CargoEntity => 3,
-            UnidadOrganizativaEntity => 4,
-            EstadoVacanteEntity => 5,
-            PersonaEntity => 6,
-            _ => 99,
-        });
+        var ordered = OrderForCleanup(entities);
 
         foreach (var entity in ordered)
         {
@@ -388,4 +368,24 @@ public sealed class PuestoRepositoryListarDisponiblesTests
 
         await context.SaveChangesAsync();
     }
+
+    /// <summary>
+    /// Ordena las entidades para cleanup topológico compatible con FK RESTRICT:
+    /// dependientes primero (Vacante, Ocupacion), principales al final
+    /// (Persona, EstadoVacante, UnidadOrganizativa). Las prioridades son
+    /// explícitas y consecutivas para que agregar un nuevo tipo (por ejemplo,
+    /// AreaEntity) sea trivial sin recalcular offsets implícitos.
+    /// </summary>
+    private static IEnumerable<object> OrderForCleanup(IEnumerable<object> entities) =>
+        entities.OrderBy(e => e switch
+        {
+            VacanteEntity => 0,
+            OcupacionEntity => 1,
+            PuestoEntity => 2,
+            CargoEntity => 3,
+            UnidadOrganizativaEntity => 4,
+            EstadoVacanteEntity => 5,
+            PersonaEntity => 6,
+            _ => int.MaxValue,
+        });
 }
