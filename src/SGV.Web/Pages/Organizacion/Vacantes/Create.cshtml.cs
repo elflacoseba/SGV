@@ -230,13 +230,14 @@ public sealed class CreateModel(
             // La regla "toda vacante nueva = Abierta" vive en la capa de
             // Aplicación (VacanteServicioComandos.CrearAsync).
             //
-            // Cambio vacante-crear-puestos-libres (WU-4 / T-15): el dropdown
-            // de Puesto consume el endpoint dedicado /api/v1/puestos/disponibles
-            // para mostrar únicamente puestos sin Ocupación vigente ni
-            // Vacante abierta (defense-in-depth UX). La validación N1 + el
-            // constraint ActivePuestoIdUnique siguen siendo la fuente de
-            // verdad en el backend. `ListarPuestosAsync` se preserva para
-            // otros consumers potenciales.
+            // REQ-PTO-DISP-001 (defense-in-depth UX): el dropdown de Puesto
+            // consume el endpoint dedicado /api/v1/puestos/disponibles para
+            // mostrar únicamente puestos sin Ocupación vigente ni Vacante
+            // abierta. La validación N1 y el constraint ActivePuestoIdUnique
+            // del backend siguen siendo la fuente de verdad — este endpoint
+            // sólo evita fricción post-factum (409) en el formulario.
+            // `ListarPuestosAsync` se preserva intacto para otros
+            // consumidores potenciales.
             Puestos = await vacanteApiClient.ListarPuestosDisponiblesAsync(cancellationToken);
             PuestosReady = true;
         }

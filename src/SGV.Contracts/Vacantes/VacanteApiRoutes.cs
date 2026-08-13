@@ -17,12 +17,12 @@ public static class VacanteApiRoutes
     public const string PuestosBase = "api/v1/puestos";
     public const string PuestosRoot = "/" + PuestosBase;
 
-    // Cambio vacante-crear-puestos-libres (WU-4 / T-10): el dropdown de
-    // Puesto en Vacantes/Create consume el sub-recurso dedicado
-    // GET /api/v1/puestos/disponibles para mostrar únicamente puestos sin
-    // Ocupación vigente ni Vacante Abierta (defense-in-depth UX; la
-    // validación N1 + constraint ActivePuestoIdUnique siguen siendo la
-    // fuente de verdad en el backend).
+    // Endpoint dedicado para el dropdown de Puesto en Vacantes/Create
+    // (REQ-PTO-DISP-001, defense-in-depth UX): devuelve únicamente puestos
+    // sin Ocupación vigente ni Vacante abierta. La validación N1 y el
+    // constraint ActivePuestoIdUnique siguen siendo la fuente de verdad
+    // en el backend; este endpoint sólo evita fricción post-factum en el
+    // formulario.
     public const string PuestosDisponiblesBase = PuestosBase + "/disponibles";
     public const string PuestosDisponiblesRoot = "/" + PuestosDisponiblesBase;
 
