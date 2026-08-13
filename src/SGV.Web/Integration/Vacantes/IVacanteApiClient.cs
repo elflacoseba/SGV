@@ -35,12 +35,13 @@ public interface IVacanteApiClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Cambio <c>vacante-crear-puestos-libres</c> (WU-4 / T-11): obtiene los
-    /// Puestos efectivamente disponibles para el dropdown de
-    /// <c>Vacantes/Create</c> — sin Ocupación vigente ni Vacante Abierta.
-    /// Backed by <c>GET /api/v1/puestos/disponibles</c>. <see cref="ListarPuestosAsync"/>
-    /// permanece intacto para preservar el contrato existente y otros
-    /// consumers potenciales.
+    /// Devuelve los Puestos efectivamente disponibles para poblar el
+    /// dropdown de <c>Vacantes/Create</c>. Backed by
+    /// <c>GET <see cref="VacanteApiRoutes.PuestosDisponiblesBase"/></c>
+    /// (REQ-PTO-DISP-001, defense-in-depth UX — ver justificación canónica
+    /// del recurso en <see cref="VacanteApiRoutes"/>).
+    /// <see cref="ListarPuestosAsync"/> permanece intacto para preservar
+    /// el contrato existente y otros consumidores potenciales.
     /// </summary>
     Task<IReadOnlyList<PuestoDto>> ListarPuestosDisponiblesAsync(
         CancellationToken cancellationToken = default);
