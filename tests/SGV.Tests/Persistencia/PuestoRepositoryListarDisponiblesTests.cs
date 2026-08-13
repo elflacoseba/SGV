@@ -94,16 +94,21 @@ public sealed class PuestoRepositoryListarDisponiblesTests
         var estadoAbierta = CrearEstadoVacante($"PT-DISP-MX-EST-{suffix}", "Abierta", esTerminal: false);
         var puesto = RepositoryTestData.CreatePuesto($"PT-DISP-MX-PTO-{suffix}", unidad, cargo);
 
+        OcupacionEntity? ocupacion = null;
+        VacanteEntity? vacante = null;
+
         var seed = new List<object> { unidad, cargo, puesto };
         if (conOcupacionVigente)
         {
             seed.Add(persona);
-            seed.Add(CrearOcupacion(persona.Id, puesto.Id, $"PT-DISP-MX-{suffix}", fechaFin: null));
+            ocupacion = CrearOcupacion(persona.Id, puesto.Id, $"PT-DISP-MX-{suffix}", fechaFin: null);
+            seed.Add(ocupacion);
         }
         if (conVacanteAbierta)
         {
             seed.Add(estadoAbierta);
-            seed.Add(CrearVacante(puesto.Id, estadoAbierta.Id, $"PT-DISP-MX-{suffix}", fechaCierre: null));
+            vacante = CrearVacante(puesto.Id, estadoAbierta.Id, $"PT-DISP-MX-{suffix}", fechaCierre: null);
+            seed.Add(vacante);
         }
         await SeedAsync(context, seed.ToArray());
 
@@ -123,11 +128,20 @@ public sealed class PuestoRepositoryListarDisponiblesTests
         }
         finally
         {
+            // Cleanup topológico: Vacante → Ocupación → Puesto → Cargo → UO → ...
+            // Si no incluimos explícitamente la Ocupación/Vacante seedeada, EF
+            // lanza "association severed" al intentar remover el Puesto.
             var cleanup = new List<object> { cargo, unidad, puesto };
-            if (conOcupacionVigente) cleanup.Add(persona);
-            if (conVacanteAbierta) cleanup.Add(estadoAbierta);
-            // CleanupAsync aplica orden topológico: Vacante → Ocupación → Puesto → ...
-            // Reordeno explícitamente para que las dependencias se eliminen primero.
+            if (conOcupacionVigente)
+            {
+                cleanup.Add(ocupacion!);
+                cleanup.Add(persona);
+            }
+            if (conVacanteAbierta)
+            {
+                cleanup.Add(vacante!);
+                cleanup.Add(estadoAbierta);
+            }
             var ordered = cleanup.OrderBy(e => e switch
             {
                 VacanteEntity => 0,
