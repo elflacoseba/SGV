@@ -38,13 +38,13 @@
 
 ## Phase 4: Web integration (WU-4)
 
-- [ ] **T-10** [Frontend] Agregar `PuestosDisponiblesBase`/`PuestosDisponiblesRoot` a `VacanteApiRoutes.cs`.
-- [ ] **T-11** [Frontend] Agregar `ListarPuestosDisponiblesAsync` a `IVacanteApiClient.cs`. `ListarPuestosAsync` intacto.
-- [ ] **T-12** [Frontend] Implementar `ListarPuestosDisponiblesAsync` en `VacanteApiClient.cs` (espejo de `ListarPuestosAsync`).
-- [ ] **T-13** [Test] Crear `VacanteApiClientListarPuestosDisponiblesTests.cs` con 4 tests (espejo del existente): ruta `/api/v1/puestos/disponibles`, 500→`HttpRequestException`, token pre-cancelado, transport fails (`[Theory]`).
-- [ ] **T-14** [Test] Extender `FakeVacanteApiClient.cs` con `ListarPuestosDisponiblesResult`/`Calls`/`Exception` + método.
-- [ ] **T-15** [Frontend] Cambiar línea 232 de `Create.cshtml.cs`: `ListarPuestosAsync` → `ListarPuestosDisponiblesAsync`. `try/catch` y markup sin cambios.
-- [ ] **T-16** [Test] Adaptar `Get_Create_WhenMutationRole_RendersFormWithCatalogs` con `ListarPuestosDisponiblesResult` + `Assert.Empty(apiClient.ListarPuestosCalls)`. Migrar 4 tests hermanos (líneas 76, 106, 156, 202, 244) y `ListarPuestosException` → `ListarPuestosDisponiblesException` (línea 124). Agregar `Get_Create_DropdownSoloIncluyeDisponibles`.
+- [x] **T-10** [Frontend] Agregar `PuestosDisponiblesBase`/`PuestosDisponiblesRoot` a `VacanteApiRoutes.cs`.
+- [x] **T-11** [Frontend] Agregar `ListarPuestosDisponiblesAsync` a `IVacanteApiClient.cs`. `ListarPuestosAsync` intacto.
+- [x] **T-12** [Frontend] Implementar `ListarPuestosDisponiblesAsync` en `VacanteApiClient.cs` (espejo de `ListarPuestosAsync`).
+- [x] **T-13** [Test] Crear `VacanteApiClientListarPuestosDisponiblesTests.cs` con 4 tests (espejo del existente): ruta `/api/v1/puestos/disponibles`, 500→`HttpRequestException`, token pre-cancelado, transport fails (`[Theory]`).
+- [x] **T-14** [Test] Extender `FakeVacanteApiClient.cs` con `ListarPuestosDisponiblesResult`/`Calls`/`Exception` + método.
+- [x] **T-15** [Frontend] Cambiar línea 232 de `Create.cshtml.cs`: `ListarPuestosAsync` → `ListarPuestosDisponiblesAsync`. `try/catch` y markup sin cambios.
+- [x] **T-16** [Test] Adaptar `Get_Create_WhenMutationRole_RendersFormWithCatalogs` con `ListarPuestosDisponiblesResult` + `Assert.Empty(apiClient.ListarPuestosCalls)`. Migrar 4 tests hermanos (líneas 76, 106, 156, 202, 244) y `ListarPuestosException` → `ListarPuestosDisponiblesException` (línea 124). Agregar `Get_Create_DropdownSoloIncluyeDisponibles`.
 
 ## Phase 5: Verification (WU-5)
 
@@ -131,3 +131,40 @@ NO modifica: agregados de dominio, validación N1, constraint `ActivePuestoIdUni
 - **Desviaciones**: el tests `GetAll_NoModificaShape_GetDisponiblesTambien` explota la nueva divergencia de la `FakePuestoServicio` por defecto (`ListAsync` → seed, `ListarDisponiblesAsync` → `[]`). Si en el futuro `GetAll` se cambiara por accidente a delegar en `ListarDisponiblesAsync`, `GetAll` devolvería `[]` y este test fallaría con un mensaje claro (`Assert.NotEmpty(all)` antes de `Assert.Empty(disponibles)`).
 - **Sin cambios** en dominio, repo, servicio, web, ni `PuestoRepository.cs` (WU-1 ya cerrado). Cero cambios en migraciones.
 - **Tree SHA (evidence_revision)**: `8add5d6c07f58b71f184192849944eb74a36757d` (commit `625c6a57`).
+
+## Apply Progress WU-4
+
+- **Commit**: `9a711e17` — `feat(web): Vacantes/Create consume puestos disponibles (WU-4)`
+- **Diff**: 7 files changed, 226 insertions(+), 9 deletions(-)
+  - `src/SGV.Contracts/Vacantes/VacanteApiRoutes.cs` — agregadas constantes `PuestosDisponiblesBase` (`api/v1/puestos/disponibles`) y `PuestosDisponiblesRoot` (`/api/v1/puestos/disponibles`); comentario explica el porqué (T-10).
+  - `src/SGV.Web/Integration/Vacantes/IVacanteApiClient.cs` — nuevo `ListarPuestosDisponiblesAsync(CancellationToken)`; `ListarPuestosAsync` intacto (T-11).
+  - `src/SGV.Web/Integration/Vacantes/VacanteApiClient.cs` — implementación espejo de `ListarPuestosAsync` apuntado a `PuestosDisponiblesRoute`; `ThrowIfCancellationRequested` + `GetAsync` + `EnsureSuccessStatusCode` + `ReadFromJsonAsync<IReadOnlyList<PuestoDto>>` + `?? []` (T-12).
+  - `src/SGV.Web/Pages/Organizacion/Vacantes/Create.cshtml.cs` — línea 232 (`LoadPuestosAsync`): `ListarPuestosAsync` → `ListarPuestosDisponiblesAsync`; `try/catch`, markup `Create.cshtml` y variables (`Puestos`, `PuestosReady`) sin cambios (T-15).
+  - `tests/SGV.Tests/Web/Vacantes/FakeVacanteApiClient.cs` — propiedades `ListarPuestosDisponiblesResult` / `ListarPuestosDisponiblesCalls` / `ListarPuestosDisponiblesException` + método `ListarPuestosDisponiblesAsync` que respeta el contrato del fake (counter, exception, result) (T-14).
+  - `tests/SGV.Tests/Web/Vacantes/VacanteApiClientListarPuestosDisponiblesTests.cs` (nuevo, T-13) — 4 tests espejo de `VacanteApiClientListarPuestosTests`:
+    1. `ListarPuestosDisponiblesAsync_WhenApiReturnsOk_ReturnsDtoArray` — 200 + ruta `/api/v1/puestos/disponibles`.
+    2. `ListarPuestosDisponiblesAsync_WhenApiReturns500_ThrowsHttpRequestException` — non-JSON 500 → `HttpRequestException`.
+    3. `ListarPuestosDisponiblesAsync_WhenTokenPreCanceled_ThrowsOperationCanceledException` — pre-canceled token sin pegada al handler.
+    4. `ListarPuestosDisponiblesAsync_WhenHttpRequestFails_PropagatesTransportFailure` — `[Theory]` × 3 filas de `HttpClientExceptionScenarios.TransportExceptionData` (`TaskCanceled`, `HttpRequest`, `DnsFailure`).
+  - `tests/SGV.Tests/Web/Vacantes/VacantesCreateEditForbidTests.cs` (T-16) — 5 tests adaptados al contrato nuevo + 1 nuevo:
+    - `Get_Create_WhenMutationRole_RendersFormWithCatalogs`: usa `ListarPuestosDisponiblesResult` + `Assert.Single(ListarPuestosDisponiblesCalls)` + `Assert.Empty(ListarPuestosCalls)`.
+    - `Get_Create_OmiteDropdownDeEstado`: usa `ListarPuestosDisponiblesResult` + asserts de Calls.
+    - `Get_Create_WhenMutationRole_LoadsPuestoChangeDismissScript`: usa `ListarPuestosDisponiblesResult` + asserts de Calls.
+    - `Get_Create_WhenPuestoCatalogLoadFails_ShowsRecoverableErrorAndDisablesSave`: `ListarPuestosException` → `ListarPuestosDisponiblesException`.
+    - `Post_Create_WhenSuccessful_RedirectsToDetails`: usa `ListarPuestosDisponiblesResult` (1 call, GET only) + `Assert.Empty(ListarPuestosCalls)`.
+    - `Post_Create_WhenApiReturnsFieldValidationError_ShowsFieldErrorAndPreservesInput`: `ListarPuestosResult` → `ListarPuestosDisponiblesResult` + asserts (2 calls: GET + ApplyFailureAsync).
+    - `Post_Create_WhenApiReturnsConflict_ShowsMessageAndPreservesInput`: `ListarPuestosResult` → `ListarPuestosDisponiblesResult` + asserts (2 calls: GET + ApplyFailureAsync).
+    - **NUEVO** `Get_Create_DropdownSoloIncluyeDisponibles`: setea ambos `ListarPuestosResult` (Puesto Ocupado) y `ListarPuestosDisponiblesResult` (Puesto Libre); verifica que el HTML contiene el Id del Libre y NO contiene el Id del Ocupado. Guardarraíl contra regresiones que re-introduzcan el consumo del endpoint general.
+- **Tests added**: 7 ejecuciones nuevas (6 de T-13: 3 `[Fact]` + 3 filas de `[Theory]`; 1 de T-16: nuevo `[Fact]`) + 5 tests adaptados (sin cambio de cuenta).
+- **Tests passing**:
+  - `VacanteApiClientListarPuestosDisponiblesTests` (nuevo): **6/6** ejecuciones.
+  - `VacanteApiClientListarPuestosTests` (existente, intacto): **6/6**.
+  - `VacantesCreateEditForbidTests`: **13/13** (12 previos adaptados + 1 nuevo).
+  - `Web.Vacantes` (filtrado): **44/44**.
+  - `SGV.slnx` (suite completa): **3520/3520** passed, 0 failed, 0 skipped.
+- **Build**: `dotnet build SGV.slnx --nologo` → 0 errors, 76 warnings (preexistentes, no introducidos por WU-4).
+- **Desviaciones**:
+  - Las aserciones para los 2 tests POST que re-renderizan por validación/conflicto del backend usan `Assert.Equal(2, apiClient.ListarPuestosDisponiblesCalls.Count)` en lugar de `Assert.Single` porque `LoadPuestosAsync` se invoca 2× (GET inicial + re-render desde `ApplyFailureAsync`). El test de POST exitoso (Redirect) sí conserva `Assert.Single` (1 sola llamada durante GET).
+  - El delta de tests publicados en la consigna era "+8 ejecuciones"; el delta real es **+7** (5 métodos nuevos: 4 de T-13 + 1 de T-16; ejecuciones: 6 de T-13 [3 Fact + 3 Theory rows] + 1 de T-16 = 7). El conteo de métodos cuadra exactamente con el spec; el conteo de ejecuciones difiere porque las 3 filas del `[Theory]` se cuentan individualmente en xUnit.
+- **Sin cambios** en dominio, repo, servicio, controller, ni migraciones. `IVacanteApiClient.ListarPuestosAsync` y `VacanteApiClient.ListarPuestosAsync` permanecen intactos para otros consumers potenciales.
+- **Tree SHA (evidence_revision)**: `752ca352ea2dcd344c68c1b20faf936bf9b64cf5` (commit `9a711e17`).
