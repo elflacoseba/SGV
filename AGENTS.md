@@ -12,7 +12,12 @@ SGV es una solución .NET 10 con Clean Architecture, ASP.NET Core API, Razor Pag
 4. Si tocás `src/SGV.Web`, instalá dependencias frontend con `bun install` dentro de `src/SGV.Web` y validá el bundle con `bun run build`.
 5. Si tocás persistencia o integración, validá también contra MySQL.
 6. Antes de planificar o implementar, revisá `openspec/` y `docs/decisiones-implementacion.md`.
-7. Antes del primer `dotnet run` de `SGV.Api`, generá una clave JWT propia con `dotnet user-secrets set "Jwt:SigningKey" "<random ≥32 bytes>" --project src/SGV.Api`. Sin esto, el host **no arranca** (`OptionsValidationException`). El placeholder dev en `src/SGV.Api/appsettings.Development.json` también sirve para un primer arranque, pero **NO es apto para producción ni commits**. Ver sección "Gestión de secretos JWT" en `docs/decisiones-implementacion.md`.
+7. Antes del primer `dotnet run` de `SGV.Api`, configurá los secretos locales con `dotnet user-secrets`:
+   - Clave JWT (obligatoria): `dotnet user-secrets set "Jwt:SigningKey" "<random ≥32 bytes>" --project src/SGV.Api`.
+   - Connection string de MySQL (obligatoria): `dotnet user-secrets set "ConnectionStrings:SgvDatabase" "<server=...;database=sgv;user=...;password=...;>" --project src/SGV.Api`.
+   - Si no querés tocar `secrets.json`, podés setear `ConnectionStrings__SgvDatabase` (doble guion bajo) como variable de entorno — el provider de env vars la mapea a la misma clave.
+   - El placeholder dev en `src/SGV.Api/appsettings.Development.json` también sirve para un primer arranque, pero **NO es apto para producción ni commits**. Sin estos secretos, el host **no arranca** (`OptionsValidationException`). Ver sección "Gestión de secretos JWT" en `docs/decisiones-implementacion.md`.
+   > ⚠️ **Las claves con `:` en user-secrets deben tipearse SIN espacios.** `dotnet user-secrets list` siempre imprime con un espacio después de `:` como formato de **display** (p. ej. `ConnectionStrings: SgvDatabase = ...`); ese espacio **no** es parte de la clave. Si al setear tipeás `ConnectionStrings: SgvDatabase` (con espacio), la CLI guarda el espacio literal y `Configuration.GetConnectionString("SgvDatabase")` devuelve `null` — el host arranca y revienta en `Program.cs` con `Debe configurar ConnectionStrings:SgvDatabase antes de iniciar la API.`. Si pasa, revisá el archivo físico en `~/.microsoft/usersecrets/<UserSecretsId>/secrets.json` y borrá la línea con espacio.
 8. **No hay GitHub CI.** Los tests que requieren MySQL (`[MySqlFact]`) se skipean solos cuando no hay conexión. Corré toda la suite local con `dotnet test SGV.slnx`.
 
 ## Estructura del Proyecto y Organización
