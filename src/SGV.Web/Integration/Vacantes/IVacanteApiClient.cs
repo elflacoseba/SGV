@@ -36,13 +36,12 @@ public interface IVacanteApiClient
 
     /// <summary>
     /// Devuelve los Puestos efectivamente disponibles para poblar el
-    /// dropdown de <c>Vacantes/Create</c> — aquellos sin Ocupación vigente
-    /// ni Vacante abierta (REQ-PTO-DISP-001, defense-in-depth UX). La
-    /// validación N1 y el constraint <c>ActivePuestoIdUnique</c> siguen
-    /// siendo la fuente de verdad en el backend.
-    /// Backed by <c>GET /api/v1/puestos/disponibles</c>.
-    /// <see cref="ListarPuestosAsync"/> permanece intacto para preservar el
-    /// contrato existente y otros consumidores potenciales.
+    /// dropdown de <c>Vacantes/Create</c>. Backed by
+    /// <c>GET <see cref="VacanteApiRoutes.PuestosDisponiblesBase"/></c>
+    /// (REQ-PTO-DISP-001, defense-in-depth UX — ver justificación canónica
+    /// del recurso en <see cref="VacanteApiRoutes"/>).
+    /// <see cref="ListarPuestosAsync"/> permanece intacto para preservar
+    /// el contrato existente y otros consumidores potenciales.
     /// </summary>
     Task<IReadOnlyList<PuestoDto>> ListarPuestosDisponiblesAsync(
         CancellationToken cancellationToken = default);
