@@ -708,5 +708,11 @@ public sealed class PuestosControllerTests
                     FakePuestoServicio.CargoId1, "Director", null)],
                 1, query.Page, query.PageSize));
         }
+
+        public Task<IReadOnlyList<PuestoDto>> ListarDisponiblesAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PuestoDto>>(
+                [new(FakePuestoServicio.PuestoId1, "GER-001", "Gerente General", null,
+                    FakePuestoServicio.UnidadId1, "Gerencia General",
+                    FakePuestoServicio.CargoId1, "Director", null)]);
     }
 }

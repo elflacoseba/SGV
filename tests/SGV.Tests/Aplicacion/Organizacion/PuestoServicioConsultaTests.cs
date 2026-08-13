@@ -312,11 +312,59 @@ public sealed class PuestoServicioConsultaTests
             new PuestoListQuery(1, 10, null, null), default);
         Assert.Equal(3, sinSearch.TotalCount);
     }
+
+    // ---- REQ-PTO-DISP-001: ListarDisponiblesAsync ----
+
+    [Fact]
+    public async Task ListarDisponiblesAsync_DelegaEnRepositorioYDevuelveDtos()
+    {
+        var puesto = CrearPuestoConNavigations();
+        var repo = new FakePuestoRepository { Datos = [puesto] };
+        var servicio = new PuestoServicioConsulta(repo);
+
+        var resultado = await servicio.ListarDisponiblesAsync(default);
+
+        Assert.Equal(1, repo.ListarDisponiblesAsyncCallCount);
+        var dto = Assert.Single(resultado);
+        Assert.Equal(PuestoId, dto.Id);
+        Assert.Equal("GER-001", dto.Codigo);
+        Assert.Equal("Gerente General", dto.Nombre);
+    }
+
+    [Fact]
+    public async Task ListarDisponiblesAsync_CuandoNoHayDisponibles_RetornaListaVacia()
+    {
+        var repo = new FakePuestoRepository { Datos = [] };
+        var servicio = new PuestoServicioConsulta(repo);
+
+        var resultado = await servicio.ListarDisponiblesAsync(default);
+
+        Assert.Equal(1, repo.ListarDisponiblesAsyncCallCount);
+        Assert.Empty(resultado);
+    }
+
+    [Fact]
+    public async Task ListarDisponiblesAsync_DevuelveDtosConResumenRelaciones()
+    {
+        var puesto = CrearPuestoConNavigations();
+        var repo = new FakePuestoRepository { Datos = [puesto] };
+        var servicio = new PuestoServicioConsulta(repo);
+
+        var resultado = await servicio.ListarDisponiblesAsync(default);
+
+        var dto = Assert.Single(resultado);
+        Assert.Equal(UnidadId, dto.UnidadOrganizativaId);
+        Assert.Equal("Gerencia General", dto.UnidadOrganizativaNombre);
+        Assert.Equal(CargoId, dto.CargoId);
+        Assert.Equal("Director", dto.CargoNombre);
+    }
 }
 
 internal sealed class FakePuestoRepository : IPuestoRepository
 {
     public List<Puesto> Datos { get; set; } = [];
+
+    public int ListarDisponiblesAsyncCallCount { get; private set; }
 
     public Task<Puesto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
@@ -399,4 +447,10 @@ internal sealed class FakePuestoRepository : IPuestoRepository
             "nombre_asc" => source.OrderBy(static p => p.Nombre, StringComparer.OrdinalIgnoreCase),
             _ => source.OrderBy(static p => p.Codigo, StringComparer.OrdinalIgnoreCase)
         };
+
+    public Task<IReadOnlyList<Puesto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default)
+    {
+        ListarDisponiblesAsyncCallCount++;
+        return Task.FromResult<IReadOnlyList<Puesto>>(Datos.ToList());
+    }
 }
