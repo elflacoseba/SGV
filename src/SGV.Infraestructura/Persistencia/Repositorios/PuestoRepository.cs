@@ -3,6 +3,7 @@ using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Entidades;
+using SGV.Infraestructura.Persistencia.Especificaciones;
 using SGV.Infraestructura.Persistencia.Mapeos;
 
 namespace SGV.Infraestructura.Persistencia.Repositorios;
@@ -195,20 +196,36 @@ public sealed class PuestoRepository(SgvDbContext context)
 
     /// <summary>
     /// Devuelve los Puestos activos y no soft-deleted que NO tienen
-    /// una Ocupacion vigente (<c>!IsDeleted AND FechaFin IS NULL</c>) NI
-    /// una Vacante abierta (<c>!IsDeleted AND FechaCierre IS NULL</c>).
-    /// Usa <see cref="EntityFrameworkQueryableExtensions.ToListAsync{T}"/>
-    /// sobre navigation-based correlated subqueries
-    /// (<c>p.Ocupaciones.Any</c> / <c>p.Vacantes.Any</c>) para que EF Core
-    /// traduzca a <c>NOT EXISTS</c> en MySQL. Orden estable
-    /// <c>Nombre ASC, Codigo ASC</c> para alimentar el dropdown de
-    /// <c>Vacantes/Create</c>.
+    /// una Ocupacion vigente (REQ-PTO-DISP-001) NI una Vacante abierta.
+    /// Las definiciones de "vigente" y "abierta" viven centralizadas en
+    /// <see cref="OcupacionEntitySpecs.EsVigente"/> y
+    /// <see cref="VacanteEntitySpecs.EsAbierta"/> para evitar drift
+    /// entre el filtro UX y la validación N1/N4.
+    /// <para>
+    /// Implementación: dos subqueries EXISTS correlacionados contra los
+    /// DbSets (no contra las nav collections) porque el overload
+    /// <c>Any(Expression&lt;Func&lt;T, bool&gt;&gt;)</c> sólo está
+    /// disponible sobre <see cref="IQueryable{T}"/>, y
+    /// <c>p.Ocupaciones</c> es <see cref="IEnumerable{T}"/>. Ambos
+    /// patrones traducen al mismo SQL <c>NOT EXISTS</c> en MySQL;
+    /// usar el DbSet explícito permite componer la
+    /// <c>Expression&lt;Func&lt;T, bool&gt;&gt;</c> centralizada sin
+    /// envolverla en un lambda in-line.
+    /// </para>
+    /// Orden estable <c>Nombre ASC, Codigo ASC</c> para alimentar el
+    /// dropdown de <c>Vacantes/Create</c>.
     /// </summary>
     public async Task<IReadOnlyList<Puesto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default)
     {
         var entities = await BuildReadOnlyIQueryable()
-            .Where(p => !p.Ocupaciones.Any(o => !o.IsDeleted && o.FechaFin == null))
-            .Where(p => !p.Vacantes.Any(v => !v.IsDeleted && v.FechaCierre == null))
+            .Where(p => !Context.Set<OcupacionEntity>()
+                .Where(o => o.PuestoId == p.Id)
+                .Where(OcupacionEntitySpecs.EsVigente)
+                .Any())
+            .Where(p => !Context.Set<VacanteEntity>()
+                .Where(v => v.PuestoId == p.Id)
+                .Where(VacanteEntitySpecs.EsAbierta)
+                .Any())
             .OrderBy(p => p.Nombre)
             .ThenBy(p => p.Codigo)
             .ToListAsync(cancellationToken)

@@ -5,6 +5,7 @@ using SGV.Contracts.Ocupaciones.Consultas;
 using SGV.Contracts.Ocupaciones.Enums;
 using SGV.Dominio.Ocupaciones;
 using SGV.Infraestructura.Persistencia.Entidades;
+using SGV.Infraestructura.Persistencia.Especificaciones;
 using SGV.Infraestructura.Persistencia.Mapeos;
 
 namespace SGV.Infraestructura.Persistencia.Repositorios;
@@ -62,13 +63,25 @@ public sealed class OcupacionRepository(SgvDbContext context)
         OcupacionListQuery request,
         CancellationToken cancellationToken = default)
     {
-        var query = Context.Set<OcupacionEntity>()
+        // Tipo explícito IQueryable<...> (no var): el patrón include +
+        // where preservado requiere asignar múltiples veces y un cambio
+        // del tipo inferido haría divergir el query chain. El segmento
+        // "Activas" reutiliza la noción centralizada de "Ocupación
+        // vigente" para evitar drift con los filtros de disponibilidad
+        // de PuestoRepository.
+        IQueryable<OcupacionEntity> query = Context.Set<OcupacionEntity>()
             .AsNoTracking()
             .Include(o => o.Persona)
-            .Include(o => o.Puesto)
-            .Where(o => request.Segmento == OcupacionSegmentoListado.Activas
-                ? !o.IsDeleted && o.FechaFin == null
-                : o.IsDeleted || o.FechaFin != null);
+            .Include(o => o.Puesto);
+
+        if (request.Segmento == OcupacionSegmentoListado.Activas)
+        {
+            query = query.Where(OcupacionEntitySpecs.EsVigente);
+        }
+        else
+        {
+            query = query.Where(o => o.IsDeleted || o.FechaFin != null);
+        }
 
         if (request.PersonaId is { } personaId)
         {
@@ -135,7 +148,9 @@ public sealed class OcupacionRepository(SgvDbContext context)
             .Set<OcupacionEntity>()
             .Include(o => o.Persona)
             .Include(o => o.Puesto)
-            .FirstOrDefaultAsync(o => o.Id == id && !o.IsDeleted && o.FechaFin == null, cancellationToken)
+            .Where(o => o.Id == id)
+            .Where(OcupacionEntitySpecs.EsVigente)
+            .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return entity is null ? null : MapToDomain(entity);
@@ -175,12 +190,9 @@ public sealed class OcupacionRepository(SgvDbContext context)
     {
         return await Context
             .Set<OcupacionEntity>()
-            .AnyAsync(o =>
-                o.PuestoId == puestoId &&
-                !o.IsDeleted &&
-                o.FechaFin == null &&
-                o.Id != excludingId,
-                cancellationToken)
+            .Where(o => o.PuestoId == puestoId && o.Id != excludingId)
+            .Where(OcupacionEntitySpecs.EsVigente)
+            .AnyAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -192,13 +204,9 @@ public sealed class OcupacionRepository(SgvDbContext context)
     {
         return await Context
             .Set<OcupacionEntity>()
-            .AnyAsync(o =>
-                o.PersonaId == personaId &&
-                o.PuestoId == puestoId &&
-                !o.IsDeleted &&
-                o.FechaFin == null &&
-                o.Id != excludingId,
-                cancellationToken)
+            .Where(o => o.PersonaId == personaId && o.PuestoId == puestoId && o.Id != excludingId)
+            .Where(OcupacionEntitySpecs.EsVigente)
+            .AnyAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -213,11 +221,9 @@ public sealed class OcupacionRepository(SgvDbContext context)
     {
         return await Context
             .Set<OcupacionEntity>()
-            .AnyAsync(o =>
-                o.VacanteId == vacanteId &&
-                !o.IsDeleted &&
-                o.FechaFin == null,
-                cancellationToken)
+            .Where(o => o.VacanteId == vacanteId)
+            .Where(OcupacionEntitySpecs.EsVigente)
+            .AnyAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -235,7 +241,8 @@ public sealed class OcupacionRepository(SgvDbContext context)
         var projection = await Context
             .Set<OcupacionEntity>()
             .AsNoTracking()
-            .Where(o => o.VacanteId == vacanteId && !o.IsDeleted && o.FechaFin == null)
+            .Where(o => o.VacanteId == vacanteId)
+            .Where(OcupacionEntitySpecs.EsVigente)
             .Select(o => new
             {
                 o.Id,
