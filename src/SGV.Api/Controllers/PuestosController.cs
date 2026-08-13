@@ -45,6 +45,21 @@ public class PuestosController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene los puestos disponibles (sin Ocupación vigente ni Vacante abierta).
+    /// </summary>
+    /// <response code="200">Lista de puestos disponibles devuelta correctamente.</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    [HttpGet("disponibles")]
+    [ProducesResponseType(typeof(IReadOnlyList<PuestoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IReadOnlyList<PuestoDto>>> GetDisponibles(
+        CancellationToken cancellationToken)
+    {
+        var result = await _servicio.ListarDisponiblesAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Obtiene un puesto por su identificador único.
     /// </summary>
     /// <response code="200">Puesto encontrado.</response>

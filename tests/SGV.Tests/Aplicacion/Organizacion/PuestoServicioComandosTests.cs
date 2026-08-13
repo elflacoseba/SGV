@@ -613,6 +613,9 @@ internal sealed class FakePuestoWriteRepository : IPuestoRepository
 
         return Task.CompletedTask;
     }
+
+    public Task<IReadOnlyList<Puesto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("FakePuestoWriteRepository: ListarDisponiblesAsync no soportado en tests de comandos.");
 }
 
 /// <summary>

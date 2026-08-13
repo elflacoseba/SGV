@@ -59,4 +59,12 @@ public interface IPuestoRepository : IReadOnlyRepository<Puesto>
         string? sort = null,
         PuestoSegmentoListado segmento = PuestoSegmentoListado.Activas,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns active, non-deleted puestos that have NO active Ocupacion
+    /// (<c>IsDeleted = 0 AND FechaFin IS NULL</c>) AND NO open Vacante
+    /// (<c>IsDeleted = 0 AND FechaCierre IS NULL</c>). Defense-in-depth
+    /// query used by <c>GET /api/v1/puestos/disponibles</c>.
+    /// </summary>
+    Task<IReadOnlyList<Puesto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default);
 }

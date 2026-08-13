@@ -192,4 +192,32 @@ public sealed class PuestoRepository(SgvDbContext context)
             _ => query.OrderBy(p => p.Codigo)
         };
     }
+
+    /// <summary>
+    /// Devuelve los Puestos activos y no soft-deleted que NO tienen
+    /// una Ocupacion vigente (<c>!IsDeleted AND FechaFin IS NULL</c>) NI
+    /// una Vacante abierta (<c>!IsDeleted AND FechaCierre IS NULL</c>).
+    /// Usa <see cref="EntityFrameworkQueryableExtensions.ToListAsync{T}"/>
+    /// sobre navigation-based correlated subqueries
+    /// (<c>p.Ocupaciones.Any</c> / <c>p.Vacantes.Any</c>) para que EF Core
+    /// traduzca a <c>NOT EXISTS</c> en MySQL. Orden estable
+    /// <c>Nombre ASC, Codigo ASC</c> para alimentar el dropdown de
+    /// <c>Vacantes/Create</c>.
+    /// </summary>
+    public async Task<IReadOnlyList<Puesto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default)
+    {
+        var entities = await Context.Set<PuestoEntity>()
+            .AsNoTracking()
+            .Where(p => p.IsActive && !p.IsDeleted)
+            .Where(p => !p.Ocupaciones.Any(o => !o.IsDeleted && o.FechaFin == null))
+            .Where(p => !p.Vacantes.Any(v => !v.IsDeleted && v.FechaCierre == null))
+            .Include(p => p.UnidadOrganizativa)
+            .Include(p => p.Cargo)
+            .OrderBy(p => p.Nombre)
+            .ThenBy(p => p.Codigo)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return entities.Select(MapToDomain).ToArray();
+    }
 }

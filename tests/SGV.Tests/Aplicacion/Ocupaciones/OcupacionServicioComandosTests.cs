@@ -1331,6 +1331,9 @@ internal sealed class FakePuestoWriteRepository : IPuestoRepository
         PuestoSegmentoListado segmento = PuestoSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
         => Task.FromResult<(IReadOnlyList<Puesto>, int)>(([], 0));
+
+    public Task<IReadOnlyList<Puesto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Read-only fake for reference checking.");
 }
 
 internal sealed class FakeLogger<T> : ILogger<T>

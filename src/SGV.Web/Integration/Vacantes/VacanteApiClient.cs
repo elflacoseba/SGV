@@ -20,6 +20,7 @@ public sealed class VacanteApiClient(HttpClient httpClient) : IVacanteApiClient
     private const string BaseRoute = "/" + VacanteApiRoutes.Base;
     private const string EstadosRoute = "/" + VacanteApiRoutes.EstadosVacanteBase;
     private const string PuestosRoute = "/" + VacanteApiRoutes.PuestosBase;
+    private const string PuestosDisponiblesRoute = "/" + VacanteApiRoutes.PuestosDisponiblesBase;
 
     /// <inheritdoc />
     public async Task<PagedResult<VacanteDto>> ListarAsync(
@@ -86,6 +87,23 @@ public sealed class VacanteApiClient(HttpClient httpClient) : IVacanteApiClient
 
         var response = await httpClient
             .GetAsync(PuestosRoute, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content
+            .ReadFromJsonAsync<IReadOnlyList<PuestoDto>>(cancellationToken)
+            .ConfigureAwait(false)
+            ?? [];
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<PuestoDto>> ListarPuestosDisponiblesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var response = await httpClient
+            .GetAsync(PuestosDisponiblesRoute, cancellationToken)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 

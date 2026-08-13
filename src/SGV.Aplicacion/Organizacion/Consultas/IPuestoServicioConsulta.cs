@@ -23,4 +23,10 @@ public interface IPuestoServicioConsulta
     /// requested page and the total count matching the filters.
     /// </summary>
     Task<PagedResult<PuestoDto>> QueryAsync(PuestoListQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns active puestos without active Ocupacion nor open Vacante.
+    /// Defense-in-depth query used by <c>GET /api/v1/puestos/disponibles</c>.
+    /// </summary>
+    Task<IReadOnlyList<PuestoDto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default);
 }

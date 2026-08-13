@@ -352,6 +352,9 @@ internal sealed class FakePuestoServicio : IPuestoServicioConsulta
             .ToList();
         return Task.FromResult(new PagedResult<PuestoDto>(items, total, query.Page, query.PageSize));
     }
+
+    public Task<IReadOnlyList<PuestoDto>> ListarDisponiblesAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<PuestoDto>>([]);
 }
 
 internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta

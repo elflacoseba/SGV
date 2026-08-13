@@ -38,7 +38,7 @@ public sealed class VacantesCreateEditForbidTests
         var apiClient = new FakeVacanteApiClient
         {
             ListarEstadosResult = states,
-            ListarPuestosResult = [puesto]
+            ListarPuestosDisponiblesResult = [puesto]
         };
 
         await using var lease = await _fixture.CreateVacanteLeaseAsync(
@@ -58,7 +58,53 @@ public sealed class VacantesCreateEditForbidTests
         Assert.DoesNotContain("Input.EstadoVacanteId", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("name=\"Input.EstadoVacanteId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Input.PuestoId", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Single(apiClient.ListarPuestosCalls);
+        // Cambio vacante-crear-puestos-libres (WU-4 / T-16): el dropdown de
+        // Puesto consume el endpoint /api/v1/puestos/disponibles (defense-in-depth
+        // UX) y NO invoca el listado general de Puestos.
+        Assert.Single(apiClient.ListarPuestosDisponiblesCalls);
+        Assert.Empty(apiClient.ListarPuestosCalls);
+    }
+
+    /// <summary>
+    /// Cambio <c>vacante-crear-puestos-libres</c> (WU-4 / T-16): el HTML del
+    /// dropdown de Puesto en <c>Vacantes/Create</c> debe contener
+    /// EXCLUSIVAMENTE los puestos devueltos por
+    /// <c>GET /api/v1/puestos/disponibles</c>. Configuramos el listado
+    /// general con un puesto "Ocupado" y el listado de disponibles con un
+    /// puesto distinto "Libre"; el HTML no debe contener el Id del Ocupado.
+    /// Es el guardarraíl contra regresiones que re-introduzcan el consumo
+    /// del endpoint general en el dropdown del Create.
+    /// </summary>
+    [Fact]
+    public async Task Get_Create_DropdownSoloIncluyeDisponibles()
+    {
+        var ocupado = new PuestoDto(
+            Guid.NewGuid(), "P-OCUP", "Puesto Ocupado", null,
+            Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null);
+        var libre = new PuestoDto(
+            Guid.NewGuid(), "P-LIB", "Puesto Libre", null,
+            Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null);
+        var apiClient = new FakeVacanteApiClient
+        {
+            ListarEstadosResult = FakeVacanteApiClient.BuildStates(),
+            ListarPuestosResult = [ocupado],
+            ListarPuestosDisponiblesResult = [libre]
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
+            apiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"value=\"{libre.Id:D}\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Puesto Libre", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"value=\"{ocupado.Id:D}\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Puesto Ocupado", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(apiClient.ListarPuestosDisponiblesCalls);
+        Assert.Empty(apiClient.ListarPuestosCalls);
     }
 
     /// <summary>
@@ -73,7 +119,7 @@ public sealed class VacantesCreateEditForbidTests
         var apiClient = new FakeVacanteApiClient
         {
             ListarEstadosResult = states,
-            ListarPuestosResult = [new PuestoDto(
+            ListarPuestosDisponiblesResult = [new PuestoDto(
                 Guid.NewGuid(), "P-001", "Analista", null,
                 Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
         };
@@ -89,6 +135,8 @@ public sealed class VacantesCreateEditForbidTests
         Assert.DoesNotContain("<label asp-for=\"Input.EstadoVacanteId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("name=\"Input.EstadoVacanteId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Seleccione un estado", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(apiClient.ListarPuestosDisponiblesCalls);
+        Assert.Empty(apiClient.ListarPuestosCalls);
     }
 
     [Fact]
@@ -103,7 +151,7 @@ public sealed class VacantesCreateEditForbidTests
         var apiClient = new FakeVacanteApiClient
         {
             ListarEstadosResult = FakeVacanteApiClient.BuildStates(),
-            ListarPuestosResult = [new PuestoDto(
+            ListarPuestosDisponiblesResult = [new PuestoDto(
                 Guid.NewGuid(), "P-001", "Analista", null,
                 Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
         };
@@ -118,6 +166,8 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("id=\"Input_PuestoId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("/js/pages/vacantes-create.js", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(apiClient.ListarPuestosDisponiblesCalls);
+        Assert.Empty(apiClient.ListarPuestosCalls);
     }
 
     [Fact]
@@ -125,7 +175,7 @@ public sealed class VacantesCreateEditForbidTests
     {
         var apiClient = new FakeVacanteApiClient
         {
-            ListarPuestosException = new HttpRequestException("upstream returned 503")
+            ListarPuestosDisponiblesException = new HttpRequestException("upstream returned 503")
         };
 
         await using var lease = await _fixture.CreateVacanteLeaseAsync(
@@ -138,6 +188,8 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("No se pudieron cargar los catálogos. Intentá nuevamente.", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("disabled=\"disabled\">Guardar", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(apiClient.ListarPuestosDisponiblesCalls);
+        Assert.Empty(apiClient.ListarPuestosCalls);
     }
 
     [Fact]
@@ -153,7 +205,7 @@ public sealed class VacantesCreateEditForbidTests
         {
             CrearResult = VacanteCommandResult.Success(created),
             ListarEstadosResult = FakeVacanteApiClient.BuildStates(),
-            ListarPuestosResult = [new PuestoDto(
+            ListarPuestosDisponiblesResult = [new PuestoDto(
                 puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
         };
 
@@ -184,6 +236,10 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Equal(puestoId, request.PuestoId);
         Assert.Null(request.EstadoVacanteId);
         Assert.Equal("Urgente", request.Observaciones);
+        // Cambio vacante-crear-puestos-libres (WU-4 / T-16): el dropdown
+        // inicial invoca disponibles, no el listado general.
+        Assert.Single(apiClient.ListarPuestosDisponiblesCalls);
+        Assert.Empty(apiClient.ListarPuestosCalls);
     }
 
     [Fact]
@@ -199,7 +255,7 @@ public sealed class VacantesCreateEditForbidTests
                 new VacanteError(ErrorCategoria.Validation, "ValidationFailed", "La vacante contiene datos inválidos."),
                 new Dictionary<string, string[]> { ["Motivo"] = [fieldError] }),
             ListarEstadosResult = states,
-            ListarPuestosResult = [new PuestoDto(
+            ListarPuestosDisponiblesResult = [new PuestoDto(
                 puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
         };
 
@@ -227,6 +283,10 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Contains(fieldError, content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"value=\"{motivo}\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Single(apiClient.CrearCalls);
+        // Cambio vacante-crear-puestos-libres (WU-4 / T-16): GET + re-render
+        // post-failure → 2 invocaciones a disponibles; 0 al listado general.
+        Assert.Equal(2, apiClient.ListarPuestosDisponiblesCalls.Count);
+        Assert.Empty(apiClient.ListarPuestosCalls);
     }
 
     [Fact]
@@ -241,7 +301,7 @@ public sealed class VacantesCreateEditForbidTests
             CrearResult = VacanteCommandResult.Failure(
                 new VacanteError(ErrorCategoria.Conflict, "PuestoConVacanteAbierta", conflictMessage)),
             ListarEstadosResult = states,
-            ListarPuestosResult = [new PuestoDto(
+            ListarPuestosDisponiblesResult = [new PuestoDto(
                 puestoId, "P-001", "Analista", null, Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
         };
 
@@ -268,6 +328,10 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Contains(conflictMessage, content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"value=\"{motivo}\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Single(apiClient.CrearCalls);
+        // Cambio vacante-crear-puestos-libres (WU-4 / T-16): GET + re-render
+        // post-conflict → 2 invocaciones a disponibles; 0 al listado general.
+        Assert.Equal(2, apiClient.ListarPuestosDisponiblesCalls.Count);
+        Assert.Empty(apiClient.ListarPuestosCalls);
     }
 
     [Fact]

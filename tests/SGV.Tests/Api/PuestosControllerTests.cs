@@ -113,6 +113,70 @@ public sealed class PuestosControllerTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // ---- REQ-PTO-DISP-001: GET /api/v1/puestos/disponibles ----
+
+    [Fact]
+    public async Task GetDisponibles_ReturnsOkWithDtoArray()
+    {
+        var capture = new SortCapturingFake();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPuestoServicioConsulta>();
+            services.AddSingleton<IPuestoServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/puestos/disponibles");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dtos = JsonSerializer.Deserialize<List<PuestoDto>>(
+            await response.Content.ReadAsStringAsync(), JsonOptions);
+        Assert.NotNull(dtos);
+        Assert.Equal(FakePuestoServicio.PuestoId1, dtos![0].Id);
+        Assert.Equal("GER-001", dtos[0].Codigo);
+        Assert.Equal("Gerente General", dtos[0].Nombre);
+        Assert.Equal("Gerencia General", dtos[0].UnidadOrganizativaNombre);
+        Assert.Equal("Director", dtos[0].CargoNombre);
+    }
+
+    [Fact]
+    public async Task GetDisponibles_WithoutCredentials_ReturnsUnauthorized()
+    {
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/puestos/disponibles");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAll_NoModificaShape_GetDisponiblesTambien()
+    {
+        // Fake de fábrica: `ListAsync` devuelve el seed completo (1 PuestoId1),
+        // `ListarDisponiblesAsync` devuelve [] (filtro excluye todo). Esto protege
+        // el contrato contra una regresión donde `GetAll` se cambie accidentalmente
+        // para delegar en `ListarDisponiblesAsync` — el listado vigente dejaría
+        // de devolver el seed.
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateAdminClient();
+
+        var allResponse = await client.GetAsync("/api/v1/puestos");
+        Assert.Equal(HttpStatusCode.OK, allResponse.StatusCode);
+        var all = JsonSerializer.Deserialize<List<PuestoDto>>(
+            await allResponse.Content.ReadAsStringAsync(), JsonOptions);
+        Assert.NotNull(all);
+        Assert.NotEmpty(all!);
+        Assert.Equal(FakePuestoServicio.PuestoId1, all![0].Id);
+
+        var disponiblesResponse = await client.GetAsync("/api/v1/puestos/disponibles");
+        Assert.Equal(HttpStatusCode.OK, disponiblesResponse.StatusCode);
+        var disponibles = JsonSerializer.Deserialize<List<PuestoDto>>(
+            await disponiblesResponse.Content.ReadAsStringAsync(), JsonOptions);
+        Assert.NotNull(disponibles);
+        Assert.Empty(disponibles!);
+    }
+
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
@@ -708,5 +772,11 @@ public sealed class PuestosControllerTests
                     FakePuestoServicio.CargoId1, "Director", null)],
                 1, query.Page, query.PageSize));
         }
+
+        public Task<IReadOnlyList<PuestoDto>> ListarDisponiblesAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PuestoDto>>(
+                [new(FakePuestoServicio.PuestoId1, "GER-001", "Gerente General", null,
+                    FakePuestoServicio.UnidadId1, "Gerencia General",
+                    FakePuestoServicio.CargoId1, "Director", null)]);
     }
 }

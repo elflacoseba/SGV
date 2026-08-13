@@ -37,6 +37,12 @@ public sealed class PuestoServicioConsulta(IPuestoRepository repository)
             query.PageSize);
     }
 
+    public async Task<IReadOnlyList<PuestoDto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default)
+    {
+        var entities = await repository.ListarDisponiblesAsync(cancellationToken);
+        return entities.Select(MapToDto).ToList();
+    }
+
     private static PuestoDto MapToDto(Puesto entity)
     {
         return new PuestoDto(
