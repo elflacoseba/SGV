@@ -65,23 +65,19 @@ public sealed class OcupacionRepository(SgvDbContext context)
     {
         // Tipo explícito IQueryable<...> (no var): el patrón include +
         // where preservado requiere asignar múltiples veces y un cambio
-        // del tipo inferido haría divergir el query chain. El segmento
-        // "Activas" reutiliza la noción centralizada de "Ocupación
-        // vigente" para evitar drift con los filtros de disponibilidad
-        // de PuestoRepository.
+        // del tipo inferido haría divergir el query chain. Ambos segmentos
+        // (Activas / Eliminadas) consumen los predicados centralizados en
+        // OcupacionEntitySpecs para que cualquier evolución de la regla
+        // base (por ejemplo, agregar un bound de FechaInicio) se propague
+        // automáticamente al complemento sin duplicar la expresión inline.
         IQueryable<OcupacionEntity> query = Context.Set<OcupacionEntity>()
             .AsNoTracking()
             .Include(o => o.Persona)
             .Include(o => o.Puesto);
 
-        if (request.Segmento == OcupacionSegmentoListado.Activas)
-        {
-            query = query.Where(OcupacionEntitySpecs.EsVigente);
-        }
-        else
-        {
-            query = query.Where(o => o.IsDeleted || o.FechaFin != null);
-        }
+        query = request.Segmento == OcupacionSegmentoListado.Activas
+            ? query.Where(OcupacionEntitySpecs.EsVigente)
+            : query.Where(OcupacionEntitySpecs.NoEsVigente);
 
         if (request.PersonaId is { } personaId)
         {
