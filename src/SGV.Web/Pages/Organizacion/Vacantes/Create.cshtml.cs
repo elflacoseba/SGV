@@ -38,8 +38,8 @@ public sealed class CreateModel(
     /// <summary>Available positions for the create dropdown.</summary>
     public IReadOnlyList<SGV.Contracts.Organizacion.Consultas.Dtos.PuestoDto> Puestos { get; private set; } = [];
 
-    /// <summary>Whether both catalogs loaded successfully.</summary>
-    public bool CatalogsReady { get; private set; }
+    /// <summary>Whether the Puestos catalog loaded successfully.</summary>
+    public bool PuestosReady { get; private set; }
 
     /// <summary>Recoverable catalog/API error.</summary>
     public string? ErrorMessage { get; private set; }
@@ -91,7 +91,7 @@ public sealed class CreateModel(
 
         ReturnUrl = NormalizeReturn(returnUrl);
 
-        await LoadCatalogsAsync(cancellationToken);
+        await LoadPuestosAsync(cancellationToken);
         return Page();
     }
 
@@ -119,7 +119,7 @@ public sealed class CreateModel(
 
         if (!ModelState.IsValid)
         {
-            await LoadCatalogsAsync(cancellationToken);
+            await LoadPuestosAsync(cancellationToken);
             return Page();
         }
 
@@ -148,7 +148,7 @@ public sealed class CreateModel(
             logger.LogError(ex, "Vacante create transport failure.");
             ErrorMessage = PageFeedback.TransportMessage;
             ModelState.AddModelError(string.Empty, ErrorMessage);
-            await LoadCatalogsAsync(cancellationToken);
+            await LoadPuestosAsync(cancellationToken);
             return Page();
         }
 
@@ -176,7 +176,7 @@ public sealed class CreateModel(
         {
             ErrorMessage = "No se pudo crear la vacante.";
             ModelState.AddModelError(string.Empty, ErrorMessage);
-            await LoadCatalogsAsync(cancellationToken);
+            await LoadPuestosAsync(cancellationToken);
             return;
         }
 
@@ -214,13 +214,13 @@ public sealed class CreateModel(
             ModelState.AddModelError(string.Empty, ErrorMessage);
         }
 
-        await LoadCatalogsAsync(cancellationToken);
+        await LoadPuestosAsync(cancellationToken);
     }
 
-    private async Task LoadCatalogsAsync(CancellationToken cancellationToken)
+    private async Task LoadPuestosAsync(CancellationToken cancellationToken)
     {
         ErrorMessage = null;
-        CatalogsReady = false;
+        PuestosReady = false;
         Puestos = [];
 
         try
@@ -230,7 +230,7 @@ public sealed class CreateModel(
             // La regla "toda vacante nueva = Abierta" vive en la capa de
             // Aplicación (VacanteServicioComandos.CrearAsync).
             Puestos = await vacanteApiClient.ListarPuestosAsync(cancellationToken);
-            CatalogsReady = true;
+            PuestosReady = true;
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))
         {

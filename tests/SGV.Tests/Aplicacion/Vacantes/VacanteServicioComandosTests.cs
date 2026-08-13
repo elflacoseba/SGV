@@ -1046,6 +1046,12 @@ internal sealed class FakeEstadoVacanteRepository : IEstadoVacanteRepository
     public Task<EstadoVacante?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
 
+    public Task<EstadoVacante?> GetByCodigoAsync(string codigo, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
+        return Task.FromResult(Datos.FirstOrDefault(e => e.Codigo == codigo));
+    }
+
     public Task<IReadOnlyList<EstadoVacante>> ListAllAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<EstadoVacante>>(
             SoloCubierta ? Datos.Where(e => e.EsCubierta).ToList() : Datos);

@@ -27,6 +27,19 @@ public sealed class EstadoVacanteRepository(SgvDbContext context) : IEstadoVacan
         return entity is null ? null : PersistenceToDomainMapper.ToDomain(entity);
     }
 
+    public async Task<EstadoVacante?> GetByCodigoAsync(string codigo, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
+
+        var entity = await context
+            .Set<EstadoVacanteEntity>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Codigo == codigo, cancellationToken)
+            .ConfigureAwait(false);
+
+        return entity is null ? null : PersistenceToDomainMapper.ToDomain(entity);
+    }
+
     public async Task<IReadOnlyList<EstadoVacante>> ListAllAsync(CancellationToken cancellationToken = default)
     {
         var entities = await context

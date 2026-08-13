@@ -44,7 +44,7 @@
                         }
                         else
                         {
-                            <select asp-for="Input.PuestoId" class="form-select" disabled="@(Model.CatalogsReady ? null : "disabled")">
+                            <select asp-for="Input.PuestoId" class="form-select" disabled="@(Model.PuestosReady ? null : "disabled")">
                                 <option value="">Seleccione un puesto</option>
                                 @foreach (var puesto in Model.Puestos)
                                 {
@@ -82,7 +82,7 @@
                     </div>
 
                     <div class="d-flex gap-2 mt-4">
-                        <button type="submit" class="btn btn-primary" disabled="@(Model.CatalogsReady ? null : "disabled")">Guardar</button>
+                        <button type="submit" class="btn btn-primary" disabled="@(Model.PuestosReady ? null : "disabled")">Guardar</button>
                         <a class="btn btn-light" href="/organizacion/vacantes">Cancelar</a>
                     </div>
                 </form>
