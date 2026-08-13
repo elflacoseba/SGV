@@ -1,5 +1,20 @@
 namespace SGV.Contracts.Vacantes;
 
+/// <summary>
+/// Constantes de rutas HTTP consumidas por el cliente tipado
+/// <c>VacanteApiClient</c> (capas <c>SGV.Web</c>).
+/// <para>
+/// <b>Legacy — rutas de Puestos dentro del namespace de Vacantes.</b>
+/// Las constantes <see cref="PuestosBase"/> / <see cref="PuestosRoot"/> /
+/// <see cref="PuestosDisponiblesBase"/> / <see cref="PuestosDisponiblesRoot"/>
+/// viven aquí —no en <c>SGV.Contracts.Organizacion</c>— por el acoplamiento
+/// histórico del cliente de Vacantes al dropdown de Puesto del formulario
+/// Create (issue #235: la página no debe depender de
+/// <c>IPuestosApiClient</c> cross-module). Centralizarlas en un futuro
+/// <c>OrganizacionApiRoutes</c> requiere revisar el blast-radius de los
+/// otros <c>*ApiClient</c> que hoy usan estas constantes indirectamente.
+/// </para>
+/// </summary>
 public static class VacanteApiRoutes
 {
     public const string Base = "api/v1/vacantes";
