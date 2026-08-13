@@ -33,8 +33,8 @@
 
 ## Phase 3: API layer (WU-3)
 
-- [ ] **T-08** [Backend] Agregar `[HttpGet("disponibles")] GetDisponibles(CancellationToken)` en `PuestosController.cs` con `[ProducesResponseType]` 200/401. `[Authorize]` heredado.
-- [ ] **T-09** [Test] 3 `[Fact]` en `PuestosControllerTests.cs`: `GetDisponibles_ReturnsOkWithDtoArray`, `…_WithoutCredentials_ReturnsUnauthorized`, `GetAll_NoModificaShape_GetDisponiblesTambien`.
+- [x] **T-08** [Backend] Agregar `[HttpGet("disponibles")] GetDisponibles(CancellationToken)` en `PuestosController.cs` con `[ProducesResponseType]` 200/401. `[Authorize]` heredado.
+- [x] **T-09** [Test] 3 `[Fact]` en `PuestosControllerTests.cs`: `GetDisponibles_ReturnsOkWithDtoArray`, `…_WithoutCredentials_ReturnsUnauthorized`, `GetAll_NoModificaShape_GetDisponiblesTambien`.
 
 ## Phase 4: Web integration (WU-4)
 
@@ -115,3 +115,19 @@ NO modifica: agregados de dominio, validación N1, constraint `ActivePuestoIdUni
 - **Desviaciones**: la lista de escenarios del `tasks.md` original (línea 32) nombraba 7 escenarios bautizados como `ConOcupacionVigenteAunSiSoftDeleted` y `ConVacanteAbiertaAunSiSoftDeleted`; los nombres canónicos adoptados (alineados con el `spec.md` y el `design.md`) son `OcupacionFinalizada_NoExcluye` y `VacanteCubierta_NoExcluye`. La cobertura es idéntica: ambos verifican que el sistema de soft-delete de Ocupacion/Vacante libera al Puesto. Sin impacto sobre el WU-3.
 - **Patrones aplicados**: `try/finally` por test, `SeedAsync`/`CleanupAsync` en orden topológico (Vacante → Ocupacion → Puesto → Cargo → UnidadOrganizativa → EstadoVacante → Persona) para evitar "association severed" por FK RESTRICT. Suffix único `Guid.NewGuid().ToString("N")[..8]` por test. Aserciones filtran por Id al comparar subsets (no se confía en `Assert.Single` contra la coleccion completa porque la DB de tests es compartida).
 - **Tree SHA (evidence_revision)**: `46f7c36f59451cb0d3fd97485793654c81ff58bc` (sha256 tree: `7f57d8a0cb12c77fe93c0b574c3576a82def5901f5aef147ef116e4c58542df7`).
+
+## Apply Progress WU-3
+
+- **Commit**: `625c6a57` — `feat(api): GET /api/v1/puestos/disponibles (WU-3)`
+- **Diff**: 3 files changed, 80 insertions(+), 1 deletion(-)
+  - `src/SGV.Api/Controllers/PuestosController.cs` — agregado action `GetDisponibles` entre `GetAll` y `GetById` (el literal `disponibles` se resuelve antes que `{id:guid}` por la route table).
+  - `tests/SGV.Tests/Api/PuestosControllerTests.cs` — 3 nuevos `[Fact]` (`GetDisponibles_ReturnsOkWithDtoArray`, `GetDisponibles_WithoutCredentials_ReturnsUnauthorized`, `GetAll_NoModificaShape_GetDisponiblesTambien`).
+  - `tests/SGV.Tests/Api/ApiWebApplicationFactory.cs` — `FakePuestoServicio.ListarDisponiblesAsync` reemplazó `Task.FromResult(_data)` por `Task.FromResult<IReadOnlyList<PuestoDto>>([])` (filtro excluye todo en el escenario por defecto). El `SortCapturingFake` quedó intacto (ya devolvía un DTO seed en T-08).
+- **Tests added**: 3 — `GetDisponibles_ReturnsOkWithDtoArray`, `GetDisponibles_WithoutCredentials_ReturnsUnauthorized`, `GetAll_NoModificaShape_GetDisponiblesTambien`.
+- **Tests passing**:
+  - `PuestosControllerTests`: **38/38** (35 previos + 3 nuevos)
+  - `SGV.slnx` (suite completa): **3513/3513** passed, 0 failed, 0 skipped
+- **Build**: `dotnet build SGV.slnx --nologo` → 0 errors, 76 warnings (preexistentes, no introducidos por WU-3).
+- **Desviaciones**: el tests `GetAll_NoModificaShape_GetDisponiblesTambien` explota la nueva divergencia de la `FakePuestoServicio` por defecto (`ListAsync` → seed, `ListarDisponiblesAsync` → `[]`). Si en el futuro `GetAll` se cambiara por accidente a delegar en `ListarDisponiblesAsync`, `GetAll` devolvería `[]` y este test fallaría con un mensaje claro (`Assert.NotEmpty(all)` antes de `Assert.Empty(disponibles)`).
+- **Sin cambios** en dominio, repo, servicio, web, ni `PuestoRepository.cs` (WU-1 ya cerrado). Cero cambios en migraciones.
+- **Tree SHA (evidence_revision)**: `8add5d6c07f58b71f184192849944eb74a36757d` (commit `625c6a57`).
