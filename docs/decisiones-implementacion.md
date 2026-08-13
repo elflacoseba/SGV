@@ -716,6 +716,19 @@ Las migraciones EF Core **no se ejecutan al startup** de `SGV.Api`. Corren fuera
 
 Si `ConnectionStrings:SgvDatabase` falta, está whitespace, o no incluye `Server=` y `Database=`, `SGV.Api` aborta el `Build()` con `Microsoft.Extensions.Options.OptionsValidationException` citando la clave `ConnectionStrings:SgvDatabase` y la causa específica. El host **no** continúa con `ServerVersion.AutoDetect` ni con el registro del contexto. Esto coincide con el patrón fail-loud vigente para JWT (`Program.cs` de ambos proyectos) y para `SgvApi:BaseUrl` en `SGV.Web`. La validación es diferida (`IValidateOptions<DbContextOptions<SgvDbContext>>`) y se ejecuta en el primer resolve del contexto vía `ValidateOnStart`; además hay un throw temprano inline en `Program.cs` para cortar antes de cualquier override de `WebApplicationFactory.ConfigureAppConfiguration`.
 
+### Compatibilidad validada con MySQL 8.4 LTS
+
+**Validado empíricamente** (2026-08-12) contra MySQL 8.4.11 LTS remoto en una DB efímera: las 17 migraciones del repo aplican limpias desde cero. Las 11 columnas `ActiveXxxUnique` quedan como `STORED GENERATED` y los `IX_*_Active*Unique` existen como `UNIQUE` (`NON_UNIQUE=0`). Ver `openspec/changes/archive/2026-08-12-fix-mysql84-compat/apply-progress.md`.
+
+Restricciones y lecciones operativas derivadas:
+
+- **UNIQUE INDEX sobre GENERATED VIRTUAL**: aceptado por MySQL 8.4.11 LTS con el mismo comportamiento de MySQL 8.0. La conversión explícita `VIRTUAL → STORED` que hace la migración `20260729145632_MariaDbStoredColumnsAndCollation` (julio 29) sigue siendo necesaria para compatibilidad con **MariaDB** (donde el UNIQUE INDEX sobre VIRTUAL sí se rechaza) y como preparación para futuros motores. No es un workaround para MySQL.
+- **`migrationBuilder.Sql()` con statements multi-`;` rompe el script `--idempotent`**: el script generator de Pomelo envuelve cada `mb.Sql()` en `DROP PROCEDURE IF EXISTS MigrationsScript; DELIMITER // CREATE PROCEDURE MigrationsScript() BEGIN IF NOT EXISTS(...) THEN <contenido> END IF; END // DELIMITER ; CALL MigrationsScript(); DROP PROCEDURE;`. Cualquier `;` interno que no sea el cierre del statement migracional se interpreta como cierre del `BEGIN ... END` y produce error de sintaxis. Patrones prohibidos dentro de `mb.Sql()` cuando la migración entra al script `--idempotent`:
+  - `BEGIN ... END` con statements internos separados por `;`.
+  - `CREATE PROCEDURE ... BEGIN ... END` (anidado en otro procedure — ilegal en MySQL directamente, además de romper el wrapper).
+  - `SET @sql := ...; PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;` (4 statements, 4 `;`).
+  - Para lógica condicional idempotente en migraciones que entran al script idempotent, preferir **múltiples `mb.Sql()` separados**, cada uno con **UN SOLO** statement que internamente es atómico (e.g. `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...` o `DROP PROCEDURE IF EXISTS ...`).
+
 ## Mapa de bloques GUID reservados por catálogo
 
 Para que los catálogos inmutables seedeados por migración tengan IDs estables y predecibles — y para evitar colisiones accidentales entre catálogos que crezcan a futuro — el proyecto reserva bloques contiguos de 16 bits del espacio de GUIDs. Cada bloque agrupa `2^16 = 65536` filas (suficiente para catálogos pequeños/medianos); el primer byte del `Guid` (little-endian byte 0) identifica el catálogo al que pertenece la fila. Todos los IDs son persistidos como `CHAR(36) COLLATE ascii_general_ci` en MySQL.
