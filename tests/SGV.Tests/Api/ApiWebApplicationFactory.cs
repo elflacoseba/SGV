@@ -354,7 +354,7 @@ internal sealed class FakePuestoServicio : IPuestoServicioConsulta
     }
 
     public Task<IReadOnlyList<PuestoDto>> ListarDisponiblesAsync(CancellationToken ct = default)
-        => Task.FromResult(_data);
+        => Task.FromResult<IReadOnlyList<PuestoDto>>([]);
 }
 
 internal sealed class FakeHabilidadServicio : IHabilidadServicioConsulta
