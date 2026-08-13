@@ -29,7 +29,7 @@
 
 ## Phase 2: Persistencia `[MySqlFact]` (WU-2)
 
-- [ ] **T-07** [Test] Crear `PuestoRepositoryListarDisponiblesTests.cs` con 7 `[MySqlFact]` (prefijo `ListarDisponibles_MySql_`): InactivoOSoftDeleted, ConOcupacionVigente, ConVacanteAbierta, CasoCombinadoPorOcupacion, ConOcupacionVigenteAunSiSoftDeleted, ConVacanteAbiertaAunSiSoftDeleted, SoloDisponiblesOrdenadosPorNombre. Setup `TestSgvDbContextFactory` + `RepositoryTestData.CreatePuesto`, token único, `try/finally`.
+- [x] **T-07** [Test] Crear `PuestoRepositoryListarDisponiblesTests.cs` con 7 `[MySqlFact]` (prefijo `ListarDisponibles_MySql_`): InactivoOSoftDeleted, ConOcupacionVigente, ConVacanteAbierta, CasoCombinadoPorOcupacion, ConOcupacionVigenteAunSiSoftDeleted, ConVacanteAbiertaAunSiSoftDeleted, SoloDisponiblesOrdenadosPorNombre. Setup `TestSgvDbContextFactory` + `RepositoryTestData.CreatePuesto`, token único, `try/finally`.
 
 ## Phase 3: API layer (WU-3)
 
@@ -99,3 +99,19 @@ NO modifica: agregados de dominio, validación N1, constraint `ActivePuestoIdUni
 - **Desviaciones**: ninguna. Las nav collections `PuestoEntity.Ocupaciones` y `PuestoEntity.Vacantes` ya existían (líneas 30 y 32 de `PuestoEntity.cs`); se usó el path `p.Ocupaciones.Any(...)` / `p.Vacantes.Any(...)` del design — NO se recurrió al fallback `Context.Set<OcupacionEntity>().Where(...)`.
 - **Extras (blast-radius no listados en tasks.md)**: 2 fakes de `IPuestoServicioConsulta` (en `ApiWebApplicationFactory.cs:315` y `PuestosControllerTests.cs:689`) actualizados con `ListarDisponiblesAsync` para preservar ABI del interface. Sin tests WU-3 los invocan aún; los stubs son `Task.FromResult(_data)` con un solo puesto, no rompen ni relajan comportamiento.
 - **Tree SHA (evidence_revision)**: `f7acb61c34f8eff85768150d3fc7fc29c7e6e572`
+
+## Apply Progress WU-2
+
+- **Commit**: `aede56c9` — `test(persistencia): 7 [MySqlFact] para ListarDisponiblesAsync (WU-2)`
+- **Diff**: 1 file created (`tests/SGV.Tests/Persistencia/PuestoRepositoryListarDisponiblesTests.cs`), 2 files modified (`openspec/changes/vacante-crear-puestos-libres/tasks.md`, tree). 0 src changes.
+- **Tests added**: 7 — `ListarDisponibles_MySql_InactivoOSoftDeleted_ExcluyeAmbos`, `…_ConOcupacionVigente_Excluye`, `…_ConVacanteAbierta_Excluye`, `…_CasoCombinadoOcupacionYVacante_ExcluidoPorOcupacion`, `…_OcupacionFinalizada_NoExcluye`, `…_VacanteCubierta_NoExcluye`, `…_SoloDisponibles_OrdenadosPorNombreYCodigo`.
+- **Tests passing**:
+  - `PuestoRepositoryListarDisponiblesTests`: 7/7 (todos los nuevos)
+  - `PuestoRepository` (filter `:~PuestoRepository`): 31/31 (24 previos + 7 nuevos)
+  - `PuestoServicioConsultaTests`: 15/15 (intacto desde WU-1)
+  - `SGV.slnx` (suite completa): **3510/3510** passed, 0 failed, 0 skipped
+- **Build**: `dotnet build SGV.slnx --nologo` → 0 errors, 96 warnings (no introducidos por WU-2; warnings preexistentes en `CrearPersonaRequestValidatorTests`, `VacantesConcurrenciaTests`, `BloquearDesbloquearEliminarGatewayTests` y demás archivos ajenos a este change).
+- **MySQL availability**: local `localhost:3306` con `root` sin password — bootstrap OK. `MySqlFact` corrió los 7 contra la DB `sgv_test` (sin skip).
+- **Desviaciones**: la lista de escenarios del `tasks.md` original (línea 32) nombraba 7 escenarios bautizados como `ConOcupacionVigenteAunSiSoftDeleted` y `ConVacanteAbiertaAunSiSoftDeleted`; los nombres canónicos adoptados (alineados con el `spec.md` y el `design.md`) son `OcupacionFinalizada_NoExcluye` y `VacanteCubierta_NoExcluye`. La cobertura es idéntica: ambos verifican que el sistema de soft-delete de Ocupacion/Vacante libera al Puesto. Sin impacto sobre el WU-3.
+- **Patrones aplicados**: `try/finally` por test, `SeedAsync`/`CleanupAsync` en orden topológico (Vacante → Ocupacion → Puesto → Cargo → UnidadOrganizativa → EstadoVacante → Persona) para evitar "association severed" por FK RESTRICT. Suffix único `Guid.NewGuid().ToString("N")[..8]` por test. Aserciones filtran por Id al comparar subsets (no se confía en `Assert.Single` contra la coleccion completa porque la DB de tests es compartida).
+- **Tree SHA (evidence_revision)**: `46f7c36f59451cb0d3fd97485793654c81ff58bc` (sha256 tree: `7f57d8a0cb12c77fe93c0b574c3576a82def5901f5aef147ef116e4c58542df7`).
