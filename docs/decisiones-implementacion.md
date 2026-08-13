@@ -1552,4 +1552,57 @@ Si el setup completo se hace en otro nodo antes de que la cache local expire, el
 - **Re-autenticación automática post-setup** (out of scope original) — el usuario debe volver a `/auth/sign-in` y tipear credenciales. Mejora futura: emitir cookie/JWT directamente al completar el setup.
 - **Email de verificación** (out of scope original) — el setup crea la cuenta y termina; no hay flujo de confirmación.
 
+## Issue #273 — correcciones en el módulo "Nueva Vacante"
+
+### Contexto y problema
+
+La issue #273 consolidó tres correcciones puntuales reportadas por
+el usuario sobre el módulo `Vacantes/Create` (`src/SGV.Web/Pages/Organizacion/Vacantes/Create.cshtml`):
+
+- **(A) Ocultar dropdown de Estado al crear.** Una vacante nueva
+  SIEMPRE debe crearse en estado "Abierta". El usuario no debería
+  poder elegir el estado inicial.
+- **(B) Mojibake "En SelecciÃ³n".** La fila persistida del catálogo
+  `EstadosVacante` (`Codigo='EnSeleccion'`) tenía el `Nombre`
+  corrupto por encoding Latin-1 de bytes UTF-8. El seed estaba
+  correcto (`DatosSemilla.cs:58`); el problema era de filas
+  pre-existentes con charset mal negociado.
+- **(C) Dropdown de Puestos ordenado alfabéticamente.** Los dropdowns
+  de selección de Puesto (en `Vacantes/Create`, `Puestos/Create`,
+  `Puestos/Edit` y `Ocupaciones/Create`) deben ordenar por `Nombre`
+  ascendente.
+
+### Decisiones técnicas
+
+| # | Decisión | Justificación compacta |
+|---|----------|------------------------|
+| §273.1 | **Regla "vacante nueva = Abierta" en la capa de Aplicación, NO en la UI.** `VacanteServicioComandos.CrearAsync` resuelve el `EstadoVacanteId` desde el catálogo cuando el request trae `null` o `Guid.Empty`, buscando el `Codigo == "Abierta"`. Si el catálogo no contiene "Abierta", devuelve `Unexpected + EstadoVacanteInexistente`. | Centralizar la invariante en la capa de servicio la hace robusta: si alguien crea una vacante desde otro consumer (API directa, integraciones, tests), no tiene que recordar la regla. La UI sólo deja de mostrar el dropdown; el contrato `CrearVacanteRequest.EstadoVacanteId` pasa a ser `Guid?` nullable. |
+| §273.2 | **ID "Abierta" se resuelve por `Codigo` en el catálogo, NO por constante hardcoded.** El servicio llama a `IEstadoVacanteRepository.GetByCodigoAsync("Abierta")` (método agregado en esta segunda iteración del change, §273.8) y usa la constante `EstadoVacanteCodigos.Abierta` expuesta desde `SGV.Contracts` (§273.9). | `SGV.Contracts` no referencia `SGV.Infraestructura`; la constante `EstadoVacanteConstantes.AbiertaId` es `internal` a Infraestructura y no es accesible desde Aplicación. Resolver por `Codigo` mantiene la capa limpia y tolera re-seeds con IDs distintos. |
+| §273.3 | **Validación de `EstadoVacanteId` removida del validador.** `CrearVacanteRequestValidator` ya no rechaza `null` ni `Guid.Empty`; el campo es opcional a nivel contrato. | Toda la lógica de catálogo + estado terminal vive en el servicio. La validación previa (`NotEqual(Guid.Empty)`) rechazaba un input que el nuevo diseño quiere aceptar y resolver. |
+| §273.4 | **`VacanteInputModel.EstadoVacanteId` conserva `[Required]`.** La propiedad compartida por `Create` y `Edit` mantiene el atributo para que `Edit` siga validando el cambio de estado explícito. `Create.cshtml.cs.OnPostAsync` limpia `ModelState.Remove("Input.EstadoVacanteId")` antes de validar, ya que el campo no se envía. | El `[Required]` beneficia a `Edit` (cambio de estado es requerido) sin afectar a `Create` (donde el campo se omite del form). Eliminarlo afectaría el flujo de cambio de estado. |
+| §273.5 | **Migración de datos forward-only e idempotente para el mojibake.** Nueva migración `20260813120000_FixEstadoVacanteEnSeleccionEncoding` ejecuta `UPDATE EstadosVacante SET Nombre='En Selección' WHERE Codigo='EnSeleccion' AND Nombre LIKE '%Ã³%'`. `Down()` queda vacío. | El `WHERE LIKE '%Ã³%'` es la firma canónica del mojibake: bytes `0xC3 0xB3` que Latin-1 renderiza como "Ã³". Filas correctas ("En Selección" UTF-8) no se tocan, garantizando idempotencia. La detección por bytes mal codificados evita riesgos de falsos positivos sobre acentos correctos. |
+| §273.6 | **Orden por defecto de `PuestoRepository.ListAllAsync` cambia a `Nombre ASC, Codigo ASC` (era `Codigo ASC`).** Aplica a TODA la app porque `ListAllAsync` alimenta `GET /api/v1/puestos`, consumido por los dropdowns de `Vacantes/Create`, `Puestos/Create`, `Puestos/Edit` y `Ocupaciones/Create`. | El orden por `Nombre` es lo que el usuario espera al escanear visualmente un dropdown; `Codigo` queda como tiebreaker estable para tests determinísticos. La paginación server-side (`QueryAsync`) sigue aceptando `?sort=codigo_asc/nombre_asc/...` explícito, sin cambio. |
+| §273.7 | **`Get_Create_WhenCatalogLoadFails_ShowsRecoverableErrorAndDisablesSave` se elimina.** Ese test verificaba el alert-danger cuando fallaba `ListarEstadosAsync`; como `Create` ya no carga estados, el path es obsoleto. | Cobertura equivalente se mantiene en `Get_Create_WhenPuestoCatalogLoadFails_ShowsRecoverableErrorAndDisablesSave` (falla de `ListarPuestosAsync`). El test eliminado no aportaba valor post-cambio. |
+| §273.8 | **Se agrega `IEstadoVacanteRepository.GetByCodigoAsync(string codigo)`** siguiendo el patrón de `INivelCargoRepository.GetByCodigoAsync`. `VacanteServicioComandos.CrearAsync` lo usa en lugar de `ListAllAsync` + `FirstOrDefault(c => c.Codigo == "Abierta")` para resolver el estado inicial. | Con 4 filas la diferencia es despreciable, pero el método expone la intención real ("busco por código, no traigo todo") y deja la puerta abierta a un `WHERE Codigo = ?` directo en DB en lugar de materializar el catálogo en memoria. El método agrega valor semántico más allá de la optimización. |
+| §273.9 | **Constantes de códigos de catálogo se exponen en `SGV.Contracts/Vacantes/Catalogos/EstadoVacanteCodigos.cs`** (`Abierta`, `EnSeleccion`, `Cubierta`, `Cancelada`). `VacanteServicioComandos.CrearAsync` usa `EstadoVacanteCodigos.Abierta` en vez del magic string literal `"Abierta"`. | Los IDs siguen viviendo en `SGV.Infraestructura.Persistencia.Catalogos.EstadoVacanteConstantes` (single source of truth del seed), pero los códigos son parte del contrato de negocio que la capa de Aplicación necesita para resolver la regla. Mantener el ID en Infraestructura (donde se genera) y el código en Contracts (donde se consume) evita exponer detalles de seed. |
+| §273.10 | **Rename local en `Create.cshtml.cs`: `LoadCatalogsAsync` → `LoadPuestosAsync` y `CatalogsReady` → `PuestosReady`.** El método y la propiedad quedan en singular porque la página sólo carga un catálogo (el de EstadosVacante se removió en §273.1). | El nombre colectivo era engañoso para un reader futuro. El cambio es interno a Create y no toca Edit (que sí carga múltiples catálogos). Las dos referencias en `Create.cshtml` (`Model.PuestosReady` en el `disabled` del dropdown y del botón Guardar) se actualizaron en paralelo. |
+
+### Archivos clave
+
+- `src/SGV.Contracts/Vacantes/Comandos/CrearVacanteRequest.cs` — `EstadoVacanteId` ahora es `Guid?`.
+- `src/SGV.Contracts/Vacantes/Catalogos/EstadoVacanteCodigos.cs` — **nuevo** (§273.9): constantes públicas de los códigos canónicos del catálogo (`Abierta`, `EnSeleccion`, `Cubierta`, `Cancelada`).
+- `src/SGV.Aplicacion/Vacantes/Comandos/VacanteServicioComandos.cs` — `CrearAsync` resuelve "Abierta" del catálogo con `GetByCodigoAsync(EstadoVacanteCodigos.Abierta)` cuando el ID viene null/empty.
+- `src/SGV.Aplicacion/Vacantes/Consultas/IEstadoVacanteRepository.cs` — **getter nuevo** (`GetByCodigoAsync`) agregado en §273.8, sigue el patrón de `INivelCargoRepository`.
+- `src/SGV.Infraestructura/Persistencia/Repositorios/EstadoVacanteRepository.cs` — implementación de `GetByCodigoAsync` con `ArgumentException.ThrowIfNullOrWhiteSpace` defensivo.
+- `src/SGV.Aplicacion/Vacantes/Comandos/Validaciones/CrearVacanteRequestValidator.cs` — removida la regla de validación de `EstadoVacanteId`.
+- `src/SGV.Infraestructura/Persistencia/Repositorios/PuestoRepository.cs` — `ListAllAsync` ordena por `Nombre, Codigo`.
+- `src/SGV.Infraestructura/Persistencia/Migraciones/20260813120000_FixEstadoVacanteEnSeleccionEncoding.cs` — migración nueva, forward-only, idempotente.
+- `src/SGV.Web/Pages/Organizacion/Vacantes/Create.cshtml` — bloque del dropdown de Estado eliminado; `Model.CatalogsReady` → `Model.PuestosReady` en los dos `disabled` (§273.10).
+- `src/SGV.Web/Pages/Organizacion/Vacantes/Create.cshtml.cs` — removida la propiedad `EstadosVacante`, la carga de `ListarEstadosAsync()` y el binding al POST; `ModelState.Remove("Input.EstadoVacanteId")` en `OnPostAsync`. Rename local: `LoadCatalogsAsync` → `LoadPuestosAsync`, `CatalogsReady` → `PuestosReady` (§273.10).
+- `tests/SGV.Tests/Aplicacion/Vacantes/VacanteServicioComandosTests.cs` — 4 tests nuevos (`Crear_ConEstadoVacanteIdNull_…`, `Crear_ConEstadoVacanteIdVacio_…`, `Crear_ConEstadoVacanteIdValido_UsaElIdProvisto`, `Crear_CatalogoSinEstadoAbierta_LanzaUnexpectedFailure`); el test viejo `Crear_EstadoVacanteIdVacio_RetornaValidationFailure` se reemplazó por el nuevo de resolución. `FakeEstadoVacanteRepository` ahora también implementa `GetByCodigoAsync`.
+- `tests/SGV.Tests/Persistencia/EstadoVacanteRepositoryTests.cs` — **nuevo** (§273.8): 4 `[MySqlFact]` cubriendo `GetByCodigoAsync` para `Abierta`, `EnSeleccion`, código inexistente y codigo vacío.
+- `tests/SGV.Tests/Persistencia/PuestoRepositoryTests.cs` — nuevo `[MySqlFact] ListAllAsync_OrdenaPorNombreAscendenteYDesempataPorCodigo`.
+- `tests/SGV.Tests/Persistencia/MigracionEstadoVacanteEncodingTests.cs` — 2 nuevos `[MySqlFact]` cubriendo idempotencia de la migración.
+- `tests/SGV.Tests/Web/Vacantes/VacantesCreateEditForbidTests.cs` — `Get_Create_WhenMutationRole_RendersFormWithCatalogs` ajustado (dropdown ya no aparece); nuevo `Get_Create_OmiteDropdownDeEstado`; 3 tests de POST Create dejan de enviar `Input.EstadoVacanteId`; `Get_Create_WhenCatalogLoadFails_…` (estados) eliminado.
+
 

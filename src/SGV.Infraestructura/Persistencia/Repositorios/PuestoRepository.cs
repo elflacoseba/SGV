@@ -20,8 +20,15 @@ public sealed class PuestoRepository(SgvDbContext context)
 
     public override async Task<IReadOnlyList<Puesto>> ListAllAsync(CancellationToken cancellationToken = default)
     {
+        // Issue #273 (Slice C): el orden por defecto es por Nombre ascendente
+        // con Codigo como tiebreaker estable. Esta consulta alimenta
+        // GET /api/v1/puestos (no la paginada QueryAsync, que sigue
+        // aceptando ?sort= explícito). El cambio aplica a TODOS los
+        // dropdowns que consumen este endpoint: Vacantes/Create,
+        // Puestos/Create, Puestos/Edit y Ocupaciones/Create.
         var entities = await Query
-            .OrderBy(p => p.Codigo)
+            .OrderBy(p => p.Nombre)
+            .ThenBy(p => p.Codigo)
             .ToListAsync(cancellationToken);
 
         return entities.Select(MapToDomain).ToArray();

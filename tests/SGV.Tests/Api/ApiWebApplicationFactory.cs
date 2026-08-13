@@ -1257,12 +1257,15 @@ internal sealed class FakeVacanteServicioComandos : IVacanteServicioComandos
         CancellationToken cancellationToken = default)
     {
         if (CrearHandler is not null) return CrearHandler(request, cancellationToken);
+        // Issue #273 (Slice A): EstadoVacanteId ahora es Guid?; el fake
+        // propaga Guid.Empty cuando el request NO provee estado. La API
+        // real resuelve "Abierta" del catálogo y emite un Guid válido.
         return Task.FromResult(VacanteCommandResult.Success(
             new VacanteDetailDto(
                 DefaultVacanteId,
                 request.PuestoId,
                 "Gerente General",
-                request.EstadoVacanteId,
+                request.EstadoVacanteId ?? Guid.Empty,
                 "Abierta",
                 request.FechaApertura,
                 null,

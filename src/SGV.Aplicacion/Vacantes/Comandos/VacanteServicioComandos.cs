@@ -7,6 +7,7 @@ using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Vacantes.Comandos.Validaciones;
 using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
+using SGV.Contracts.Vacantes.Catalogos;
 using SGV.Contracts.Vacantes.Comandos;
 using SGV.Contracts.Vacantes.Consultas.Dtos;
 using SGV.Dominio.Vacantes;
@@ -133,16 +134,43 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
                 BuildFieldErrors(validationResult.Errors));
         }
 
-        var estadoVacante = await estadoVacanteRepository
-            .GetByIdAsync(request.EstadoVacanteId, cancellationToken)
-            .ConfigureAwait(false);
-        if (estadoVacante is null)
+        // Issue #273 (Slice A): si el request NO provee EstadoVacanteId
+        // (null o Guid.Empty), la regla de negocio "toda vacante nueva
+        // arranca en Abierta" se resuelve aquí consultando el catálogo
+        // por Codigo. Esto centraliza la invariante en Aplicación: el
+        // frontend puede omitir el campo y otros consumers (API,
+        // integraciones) reciben el mismo comportamiento sin tener que
+        // recordar la regla. El código "Abierta" vive en
+        // SGV.Contracts.Vacantes.Catalogos.EstadoVacanteCodigos para no
+        // acoplar esta capa a Infraestructura ni a un Guid hardcoded.
+        EstadoVacante? estadoVacante;
+        if (!request.EstadoVacanteId.HasValue || request.EstadoVacanteId.Value == Guid.Empty)
         {
-            return VacanteCommandResult.Failure(
-                new VacanteError(
-                    ErrorCategoria.NotFound,
-                    VacanteErrorCodigo.EstadoVacanteInexistente,
-                    "El estado de vacante referenciado no existe."));
+            estadoVacante = await estadoVacanteRepository
+                .GetByCodigoAsync(EstadoVacanteCodigos.Abierta, cancellationToken)
+                .ConfigureAwait(false);
+            if (estadoVacante is null)
+            {
+                return VacanteCommandResult.Failure(
+                    new VacanteError(
+                        ErrorCategoria.Unexpected,
+                        VacanteErrorCodigo.EstadoVacanteInexistente,
+                        $"El catálogo de estados de vacante no contiene el estado '{EstadoVacanteCodigos.Abierta}' requerido para crear una vacante."));
+            }
+        }
+        else
+        {
+            estadoVacante = await estadoVacanteRepository
+                .GetByIdAsync(request.EstadoVacanteId.Value, cancellationToken)
+                .ConfigureAwait(false);
+            if (estadoVacante is null)
+            {
+                return VacanteCommandResult.Failure(
+                    new VacanteError(
+                        ErrorCategoria.NotFound,
+                        VacanteErrorCodigo.EstadoVacanteInexistente,
+                        "El estado de vacante referenciado no existe."));
+            }
         }
 
         // El estado inicial no puede ser terminal: "abrir vacante" requiere estado no terminal.
@@ -188,7 +216,7 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
         {
             var vacante = new Vacante(
                 request.PuestoId,
-                request.EstadoVacanteId,
+                estadoVacante.Id,
                 request.FechaApertura,
                 request.Motivo)
             {

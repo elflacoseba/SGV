@@ -86,6 +86,65 @@ public sealed class PuestoRepositoryTests
         }
     }
 
+    /// <summary>
+    /// Issue #273 (Slice C): <c>PuestoRepository.ListAllAsync</c> (que
+    /// alimenta <c>GET /api/v1/puestos</c>) debe ordenar por
+    /// <c>Nombre</c> ascendente con <c>Codigo</c> como tiebreaker estable.
+    /// Esto fija el orden por defecto en TODA la app: dropdowns de selección
+    /// de Puestos en <c>Vacantes/Create</c>, <c>Puestos/Create</c>,
+    /// <c>Puestos/Edit</c> y <c>Ocupaciones/Create</c>. El test usa tres
+    /// puestos con nombres y códigos mezclados para forzar empates
+    /// determinísticos.
+    /// </summary>
+    [MySqlFact]
+    public async Task ListAllAsync_OrdenaPorNombreAscendenteYDesempataPorCodigo()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var unidad = RepositoryTestData.CreateUnidadOrganizativa("PUESTO-ORD-UO");
+        var cargo = RepositoryTestData.CreateCargo("PUESTO-ORD-CARGO");
+        // Nombres mezclados: dos con nombre "A" (uno con codigo "PRIMERO",
+        // otro con "TERCERO") y uno con nombre "B". El orden esperado es
+        // "A-PRIMERO", "A-TERCERO", "B-…".
+        var primero = RepositoryTestData.CreatePuesto(
+            "PUESTO-ORD-A-PRIMERO", unidad, cargo);
+        primero.Nombre = "A";
+        var tercero = RepositoryTestData.CreatePuesto(
+            "PUESTO-ORD-A-TERCERO", unidad, cargo);
+        tercero.Nombre = "A";
+        var segundo = RepositoryTestData.CreatePuesto(
+            "PUESTO-ORD-B", unidad, cargo);
+        segundo.Nombre = "B";
+
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<PuestoEntity>().AddRangeAsync([primero, tercero, segundo]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new PuestoRepository(context);
+            // Filtra sólo los puestos de este test (el context es compartido
+            // por toda la sesión de [MySqlFact]).
+            var entidades = await repo.ListAllAsync(default);
+            var subset = entidades
+                .Where(e => e.Id == primero.Id || e.Id == segundo.Id || e.Id == tercero.Id)
+                .ToArray();
+
+            Assert.Equal(3, subset.Length);
+            // Orden esperado: A-PRIMERO, A-TERCERO, B-…
+            Assert.Equal(primero.Id, subset[0].Id);
+            Assert.Equal(tercero.Id, subset[1].Id);
+            Assert.Equal(segundo.Id, subset[2].Id);
+        }
+        finally
+        {
+            context.Set<PuestoEntity>().RemoveRange(primero, tercero, segundo);
+            context.Set<CargoEntity>().Remove(cargo);
+            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
+            await context.SaveChangesAsync();
+        }
+    }
+
     [MySqlFact]
     public async Task GetByIdAsync_IncluyeRelaciones()
     {

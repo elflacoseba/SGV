@@ -19,6 +19,14 @@ public interface IEstadoVacanteRepository
     Task<EstadoVacante?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the <c>EstadoVacante</c> identified by its unique
+    /// <c>Codigo</c> (e.g. <c>"Abierta"</c>, <c>"EnSeleccion"</c>),
+    /// or <see langword="null"/> when no row matches. Mirrors the pattern
+    /// of <c>INivelCargoRepository.GetByCodigoAsync</c>.
+    /// </summary>
+    Task<EstadoVacante?> GetByCodigoAsync(string codigo, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns all catalog rows ordered by <c>Orden</c> ascending.
     /// </summary>
     Task<IReadOnlyList<EstadoVacante>> ListAllAsync(CancellationToken cancellationToken = default);
