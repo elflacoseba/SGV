@@ -55,17 +55,13 @@
                         <span asp-validation-for="Input.PuestoId" class="text-danger"></span>
                     </div>
 
-                    <div class="mb-3">
-                        <label asp-for="Input.EstadoVacanteId" class="form-label"></label>
-                        <select asp-for="Input.EstadoVacanteId" class="form-select" disabled="@(Model.CatalogsReady ? null : "disabled")">
-                            <option value="">Seleccione un estado</option>
-                            @foreach (var estado in Model.EstadosVacante)
-                            {
-                                <option value="@estado.Id">@estado.Nombre</option>
-                            }
-                        </select>
-                        <span asp-validation-for="Input.EstadoVacanteId" class="text-danger"></span>
-                    </div>
+                    @* Issue #273 (Slice A): el dropdown de Estado se retiró del
+                       formulario Create. Toda vacante nueva se crea en estado
+                       "Abierta" — la regla vive en la capa de Aplicación
+                       (VacanteServicioComandos.CrearAsync) y resuelve el ID
+                       del catálogo cuando el request no trae EstadoVacanteId.
+                       El cambio aplica sólo al Create; Edit mantiene su flujo
+                       de cambio de estado explícito. *@
 
                     <div class="mb-3">
                         <label asp-for="Input.FechaApertura" class="form-label"></label>

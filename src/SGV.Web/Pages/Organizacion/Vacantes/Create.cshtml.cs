@@ -38,9 +38,6 @@ public sealed class CreateModel(
     /// <summary>Available positions for the create dropdown.</summary>
     public IReadOnlyList<SGV.Contracts.Organizacion.Consultas.Dtos.PuestoDto> Puestos { get; private set; } = [];
 
-    /// <summary>Available vacancy states for the create dropdown.</summary>
-    public IReadOnlyList<SGV.Contracts.Vacantes.Consultas.Dtos.EstadoVacanteDto> EstadosVacante { get; private set; } = [];
-
     /// <summary>Whether both catalogs loaded successfully.</summary>
     public bool CatalogsReady { get; private set; }
 
@@ -112,6 +109,14 @@ public sealed class CreateModel(
             ModelState.AddModelError("Input.Motivo", "El motivo es obligatorio al crear una vacante.");
         }
 
+        // Issue #273 (Slice A): el campo EstadoVacanteId ya no se envía en
+        // el formulario Create. La regla "vacante nueva = Abierta" vive en
+        // la capa de Aplicación. Limpiamos cualquier error de ModelState
+        // residual sobre ese campo para que no bloquee el POST (el modelo
+        // compartido VacanteInputModel conserva [Required] para que Edit
+        // siga validándolo explícitamente).
+        ModelState.Remove("Input.EstadoVacanteId");
+
         if (!ModelState.IsValid)
         {
             await LoadCatalogsAsync(cancellationToken);
@@ -128,7 +133,11 @@ public sealed class CreateModel(
             result = await vacanteApiClient.CrearAsync(
                 new CrearVacanteRequest(
                     Input.PuestoId!.Value,
-                    Input.EstadoVacanteId!.Value,
+                    // Issue #273 (Slice A): el campo EstadoVacanteId se
+                    // retira del formulario Create. Toda vacante nueva se
+                    // crea en estado "Abierta" — la capa de Aplicación
+                    // resuelve el ID del catálogo cuando llega null.
+                    EstadoVacanteId: null,
                     Input.FechaApertura!.Value,
                     Input.Motivo!.Trim(),
                     Normalize(Input.Observaciones)),
@@ -213,15 +222,14 @@ public sealed class CreateModel(
         ErrorMessage = null;
         CatalogsReady = false;
         Puestos = [];
-        EstadosVacante = [];
 
         try
         {
-            var puestosTask = vacanteApiClient.ListarPuestosAsync(cancellationToken);
-            var estadosTask = vacanteApiClient.ListarEstadosAsync(cancellationToken);
-            await Task.WhenAll(puestosTask, estadosTask);
-            Puestos = await puestosTask;
-            EstadosVacante = await estadosTask;
+            // Issue #273 (Slice A): el dropdown de Estado se retiró del
+            // formulario Create; ya no se cargan los EstadosVacante aquí.
+            // La regla "toda vacante nueva = Abierta" vive en la capa de
+            // Aplicación (VacanteServicioComandos.CrearAsync).
+            Puestos = await vacanteApiClient.ListarPuestosAsync(cancellationToken);
             CatalogsReady = true;
         }
         catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(ex))

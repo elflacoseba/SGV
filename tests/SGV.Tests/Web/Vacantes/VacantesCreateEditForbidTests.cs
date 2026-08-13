@@ -51,10 +51,44 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Nueva vacante", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Analista", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Abierta", content, StringComparison.OrdinalIgnoreCase);
+        // Issue #273 (Slice A): el dropdown de Estado se retiró del
+        // formulario. "Abierta" ya no debe aparecer como opción visible en
+        // el Create; el estado inicial lo resuelve la capa de aplicación.
+        Assert.DoesNotContain("Seleccione un estado", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Input.EstadoVacanteId", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("name=\"Input.EstadoVacanteId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Input.PuestoId", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Input.EstadoVacanteId", content, StringComparison.OrdinalIgnoreCase);
         Assert.Single(apiClient.ListarPuestosCalls);
+    }
+
+    /// <summary>
+    /// Issue #273 (Slice A): el HTML del formulario Create de Vacante no
+    /// debe contener ningún rastro del dropdown de Estado. Protege contra
+    /// regresiones que re-introduzcan el control por accidente.
+    /// </summary>
+    [Fact]
+    public async Task Get_Create_OmiteDropdownDeEstado()
+    {
+        var states = FakeVacanteApiClient.BuildStates();
+        var apiClient = new FakeVacanteApiClient
+        {
+            ListarEstadosResult = states,
+            ListarPuestosResult = [new PuestoDto(
+                Guid.NewGuid(), "P-001", "Analista", null,
+                Guid.NewGuid(), "Ventas", Guid.NewGuid(), "Vendedor", null)]
+        };
+
+        await using var lease = await _fixture.CreateVacanteLeaseAsync(
+            apiClient,
+            adminRole: true);
+
+        var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("<label asp-for=\"Input.EstadoVacanteId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("name=\"Input.EstadoVacanteId\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Seleccione un estado", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -84,26 +118,6 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("id=\"Input_PuestoId\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("/js/pages/vacantes-create.js", content, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task Get_Create_WhenCatalogLoadFails_ShowsRecoverableErrorAndDisablesSave()
-    {
-        var apiClient = new FakeVacanteApiClient
-        {
-            ListarEstadosException = new HttpRequestException("upstream returned 503")
-        };
-
-        await using var lease = await _fixture.CreateVacanteLeaseAsync(
-            apiClient,
-            adminRole: true);
-
-        var response = await lease.Client.GetAsync("/organizacion/vacantes/crear");
-        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("No se pudieron cargar los catálogos. Intentá nuevamente.", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("disabled=\"disabled\">Guardar", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -149,13 +163,16 @@ public sealed class VacantesCreateEditForbidTests
 
         var getResponse = await lease.Client.GetAsync("/organizacion/vacantes/crear");
         var token = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+        // Issue #273 (Slice A): el formulario Create ya no incluye el campo
+        // Input.EstadoVacanteId (lo resuelve la capa de aplicación). El POST
+        // lo omite y el request llega con EstadoVacanteId = null al backend,
+        // que debe seguir creando correctamente.
         var response = await lease.Client.PostAsync(
             "/organizacion/vacantes/crear",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
                 ["Input.PuestoId"] = puestoId.ToString("D"),
-                ["Input.EstadoVacanteId"] = estadoId.ToString("D"),
                 ["Input.FechaApertura"] = "2026-02-01",
                 ["Input.Motivo"] = "Cobertura",
                 ["Input.Observaciones"] = "Urgente"
@@ -165,7 +182,7 @@ public sealed class VacantesCreateEditForbidTests
         Assert.Contains($"/organizacion/vacantes/detalles/{created.Id:D}", response.Headers.Location?.OriginalString ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         var request = Assert.Single(apiClient.CrearCalls);
         Assert.Equal(puestoId, request.PuestoId);
-        Assert.Equal(estadoId, request.EstadoVacanteId);
+        Assert.Null(request.EstadoVacanteId);
         Assert.Equal("Urgente", request.Observaciones);
     }
 
@@ -174,7 +191,6 @@ public sealed class VacantesCreateEditForbidTests
     {
         var puestoId = Guid.NewGuid();
         var states = FakeVacanteApiClient.BuildStates();
-        var estadoId = states[0].Id;
         const string motivo = "Cobertura con datos inválidos";
         const string fieldError = "El motivo no cumple las reglas de negocio.";
         var apiClient = new FakeVacanteApiClient
@@ -193,13 +209,13 @@ public sealed class VacantesCreateEditForbidTests
 
         var getResponse = await lease.Client.GetAsync("/organizacion/vacantes/crear");
         var token = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+        // Issue #273 (Slice A): el campo Input.EstadoVacanteId ya no se envía.
         var response = await lease.Client.PostAsync(
             "/organizacion/vacantes/crear",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
                 ["Input.PuestoId"] = puestoId.ToString("D"),
-                ["Input.EstadoVacanteId"] = estadoId.ToString("D"),
                 ["Input.FechaApertura"] = "2026-02-01",
                 ["Input.Motivo"] = motivo,
                 ["Input.Observaciones"] = "Conservar observaciones"
@@ -218,7 +234,6 @@ public sealed class VacantesCreateEditForbidTests
     {
         var puestoId = Guid.NewGuid();
         var states = FakeVacanteApiClient.BuildStates();
-        var estadoId = states[0].Id;
         const string motivo = "Cobertura del puesto conflictivo";
         const string conflictMessage = "El puesto ya tiene una vacante abierta.";
         var apiClient = new FakeVacanteApiClient
@@ -236,13 +251,13 @@ public sealed class VacantesCreateEditForbidTests
 
         var getResponse = await lease.Client.GetAsync("/organizacion/vacantes/crear");
         var token = await WebTestBuilders.ExtractAntiforgeryTokenAsync(getResponse);
+        // Issue #273 (Slice A): el campo Input.EstadoVacanteId ya no se envía.
         var response = await lease.Client.PostAsync(
             "/organizacion/vacantes/crear",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
                 ["Input.PuestoId"] = puestoId.ToString("D"),
-                ["Input.EstadoVacanteId"] = estadoId.ToString("D"),
                 ["Input.FechaApertura"] = "2026-02-01",
                 ["Input.Motivo"] = motivo,
                 ["Input.Observaciones"] = "Conservar observaciones"

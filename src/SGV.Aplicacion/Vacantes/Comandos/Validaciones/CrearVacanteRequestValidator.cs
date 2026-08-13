@@ -17,9 +17,12 @@ public class CrearVacanteRequestValidator : AbstractValidator<CrearVacanteReques
             .NotEqual(Guid.Empty)
             .WithMessage("El puesto es obligatorio.");
 
-        RuleFor(x => x.EstadoVacanteId)
-            .NotEqual(Guid.Empty)
-            .WithMessage("El estado de la vacante es obligatorio.");
+        // Issue #273 (Slice A): NO validamos EstadoVacanteId acá. El campo
+        // es opcional y la capa de Aplicación resuelve el estado:
+        //   - null o Guid.Empty → busca "Abierta" en el catálogo.
+        //   - Guid válido → respeta el ID provisto y verifica EsTerminal.
+        // Toda la lógica de catálogo + estado terminal vive en
+        // VacanteServicioComandos.CrearAsync.
 
         RuleFor(x => x.FechaApertura)
             .NotEqual(default(DateTime))

@@ -136,21 +136,135 @@ public sealed class VacanteServicioComandosTests
         Assert.Empty(repo.Datos);
     }
 
+    /// <summary>
+    /// Issue #273 (Slice A): cuando el request llega con <c>EstadoVacanteId = null</c>,
+    /// el comando debe resolver "Abierta" consultando el catálogo y persistir la
+    /// nueva vacante con ese estado. El frontend ya no muestra el dropdown;
+    /// la regla "vacante nueva = Abierta" vive en la capa de aplicación.
+    /// </summary>
     [Fact]
-    public async Task Crear_EstadoVacanteIdVacio_RetornaValidationFailure()
+    public async Task Crear_ConEstadoVacanteIdNull_ResuelveAbiertaYPersiste()
     {
         var repo = new FakeVacanteWriteRepository();
         var estadoRepo = new FakeEstadoVacanteRepository();
         var uow = new FakeUnitOfWork();
         var servicio = CrearServicio(repo, estadoRepo, uow);
 
-        var request = CrearRequestValido(estadoVacanteId: Guid.Empty);
+        // Construimos el request directamente (NO vía CrearRequestValido) para
+        // forzar EstadoVacanteId = null literal; el helper tiene default
+        // EstadoAbiertaId y enmascararía el caso bajo prueba.
+        var request = new CrearVacanteRequest(
+            PuestoId: PuestoId1,
+            EstadoVacanteId: null,
+            FechaApertura: new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+            Motivo: "Apertura de vacante",
+            Observaciones: null);
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(EstadoAbiertaId, resultado.Value!.EstadoVacanteId);
+        Assert.Equal(1, uow.SaveChangesCount);
+        Assert.Single(repo.Datos);
+        Assert.Equal(EstadoAbiertaId, repo.Datos[0].EstadoVacanteId);
+    }
+
+    /// <summary>
+    /// Issue #273 (Slice A): <c>Guid.Empty</c> en <c>EstadoVacanteId</c> es
+    /// equivalente a "no provisto": el comando resuelve "Abierta" del catálogo
+    /// y persiste. La antigua semántica de rechazar con 400 Validation está
+    /// reemplazada por la resolución automática; el frontend ya no envía el
+    /// campo y la API sigue siendo robusta si llega vacío por accidente.
+    /// </summary>
+    [Fact]
+    public async Task Crear_ConEstadoVacanteIdVacio_ResuelveAbiertaYPersiste()
+    {
+        var repo = new FakeVacanteWriteRepository();
+        var estadoRepo = new FakeEstadoVacanteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, estadoRepo, uow);
+
+        var request = new CrearVacanteRequest(
+            PuestoId: PuestoId1,
+            EstadoVacanteId: Guid.Empty,
+            FechaApertura: new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+            Motivo: "Apertura de vacante",
+            Observaciones: null);
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(EstadoAbiertaId, resultado.Value!.EstadoVacanteId);
+        Assert.Equal(1, uow.SaveChangesCount);
+        Assert.Single(repo.Datos);
+        Assert.Equal(EstadoAbiertaId, repo.Datos[0].EstadoVacanteId);
+    }
+
+    /// <summary>
+    /// Issue #273 (Slice A): si el request trae un <c>EstadoVacanteId</c>
+    /// explícito (no null, no Guid.Empty), el comando NO lo sobreescribe:
+    /// respeta la elección del cliente. Esto preserva los consumers
+    /// programáticos que ya envían el estado (tests de API, integraciones).
+    /// </summary>
+    [Fact]
+    public async Task Crear_ConEstadoVacanteIdValido_UsaElIdProvisto()
+    {
+        var repo = new FakeVacanteWriteRepository();
+        var estadoRepo = new FakeEstadoVacanteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, estadoRepo, uow);
+
+        // EstadoEnSeleccionId NO es terminal; pasar al catálogo está permitido.
+        var request = new CrearVacanteRequest(
+            PuestoId: PuestoId1,
+            EstadoVacanteId: EstadoEnSeleccionId,
+            FechaApertura: new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+            Motivo: "Apertura de vacante",
+            Observaciones: null);
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(EstadoEnSeleccionId, resultado.Value!.EstadoVacanteId);
+        Assert.Single(repo.Datos);
+    }
+
+    /// <summary>
+    /// Issue #273 (Slice A): si el catálogo no contiene "Abierta" (datos
+    /// corruptos o seed incompleto), el comando debe fallar CLARO con
+    /// <c>ErrorCategoria.Unexpected</c> y código
+    /// <see cref="VacanteErrorCodigo.EstadoVacanteInexistente"/>, sin
+    /// persistir nada. La regla "vacante nueva = Abierta" exige ese estado
+    /// en el catálogo como invariante de operación.
+    /// </summary>
+    [Fact]
+    public async Task Crear_CatalogoSinEstadoAbierta_LanzaUnexpectedFailure()
+    {
+        var repo = new FakeVacanteWriteRepository();
+        // Fake configurado para simular catálogo sin "Abierta": quitamos
+        // la fila Abierta del seed antes de invocar el servicio.
+        var estadoRepo = new FakeEstadoVacanteRepository
+        {
+            Datos = FakeEstadoVacanteRepository.BuildSeed()
+                .Where(e => e.Codigo != "Abierta")
+                .ToList()
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, estadoRepo, uow);
+
+        var request = new CrearVacanteRequest(
+            PuestoId: PuestoId1,
+            EstadoVacanteId: null,
+            FechaApertura: new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+            Motivo: "Apertura de vacante",
+            Observaciones: null);
         var resultado = await servicio.CrearAsync(request, default);
 
         Assert.False(resultado.IsSuccess);
-        Assert.Equal(ErrorCategoria.Validation, resultado.Error!.Categoria);
-        Assert.Contains("estadoVacanteId", resultado.FieldErrors!.Keys);
+        Assert.Equal(ErrorCategoria.Unexpected, resultado.Error!.Categoria);
+        Assert.Equal(VacanteErrorCodigo.EstadoVacanteInexistente, resultado.Error.Code);
+        Assert.Contains("Abierta", resultado.Error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Empty(repo.Datos);
     }
 
     [Fact]
@@ -912,14 +1026,22 @@ internal sealed class FakeEstadoVacanteRepository : IEstadoVacanteRepository
 
     public FakeEstadoVacanteRepository()
     {
-        Datos =
-        [
-            new EstadoVacante("Abierta", "Abierta", 1, false) { Id = Guid.Parse("20000000-0000-0000-0000-000000000001") },
-            new EstadoVacante("EnSeleccion", "En Selección", 2, false) { Id = Guid.Parse("20000000-0000-0000-0000-000000000002") },
-            new EstadoVacante("Cubierta", "Cubierta", 3, true, esCubierta: true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000003") },
-            new EstadoVacante("Cancelada", "Cancelada", 4, true, esCancelada: true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000004") }
-        ];
+        Datos = BuildSeed();
     }
+
+    /// <summary>
+    /// Issue #273 (Slice A): helper público para que los tests puedan
+    /// reusar el seed del catálogo de <c>EstadoVacante</c> y mutar
+    /// variantes (p.ej. remover "Abierta" para forzar el path de catálogo
+    /// incompleto) sin duplicar la lista de filas.
+    /// </summary>
+    public static List<EstadoVacante> BuildSeed() =>
+    [
+        new EstadoVacante("Abierta", "Abierta", 1, false) { Id = Guid.Parse("20000000-0000-0000-0000-000000000001") },
+        new EstadoVacante("EnSeleccion", "En Selección", 2, false) { Id = Guid.Parse("20000000-0000-0000-0000-000000000002") },
+        new EstadoVacante("Cubierta", "Cubierta", 3, true, esCubierta: true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000003") },
+        new EstadoVacante("Cancelada", "Cancelada", 4, true, esCancelada: true) { Id = Guid.Parse("20000000-0000-0000-0000-000000000004") }
+    ];
 
     public Task<EstadoVacante?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => Task.FromResult(Datos.FirstOrDefault(e => e.Id == id));
