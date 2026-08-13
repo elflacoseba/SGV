@@ -10,11 +10,14 @@ namespace SGV.Tests.Persistencia;
 /// <summary>
 /// Tests <c>[MySqlFact]</c> para <see cref="PuestoRepository.ListarDisponiblesAsync"/>
 /// (REQ-PTO-DISP-001). Cubren los dos <c>NOT EXISTS</c> sobre <c>Ocupaciones</c>
-/// y <c>Vacantes</c>, la exclusion de puestos inactivos / soft-deleted y el
-/// orden estable <c>Nombre ASC, Codigo ASC</c>. Espejo de
-/// <c>PuestoRepositoryQueryAsyncTests</c> en estructura (1 metodo por
-/// escenario, <c>try/finally</c> con cleanup topologico). Se skipean limpio
-/// sin MySQL disponible (configuracion estandar del repo).
+/// y <c>Vacantes</c>, la exclusion de puestos inactivos / soft-deleted, el
+/// boundary de <c>EsVigente</c> / <c>EsAbierta</c> por FechaFin / FechaCierre
+/// no nulos y el orden estable <c>Nombre ASC, Codigo ASC</c>. Estructura:
+/// un <c>[Theory]+[InlineData]</c> para la matrix Ocupación-vigente ×
+/// Vacante-abierta (4 cuadrantes) más métodos <c>[MySqlFact]</c> discretos
+/// para los ejes ortogonales (soft-delete, boundary, orden). <c>try/finally</c>
+/// con cleanup topológico en cada escenario. Se skipean limpio sin MySQL
+/// disponible (configuración estándar del repo).
 /// </summary>
 public sealed class PuestoRepositoryListarDisponiblesTests
 {
@@ -59,100 +62,83 @@ public sealed class PuestoRepositoryListarDisponiblesTests
         }
     }
 
-    [MySqlFact]
-    public async Task ListarDisponibles_MySql_ConOcupacionVigente_Excluye()
+    /// <summary>
+    /// Cuadrantes estrictos del filtro de disponibilidad sobre el Puesto
+    /// bajo prueba — parametrización de la combinación binaria
+    /// (con Ocupación vigente × con Vacante abierta). Cubre los cuatro
+    /// cuadrantes: ni vigente ni abierta → incluido; vigente → excluido;
+    /// abierta → excluido; ambas → excluido (cualquiera basta). La
+    /// parametrización colapsa lo que antes eran tres MySqlFact discretos
+    /// (<c>ConOcupacionVigente_Excluye</c>, <c>ConVacanteAbierta_Excluye</c>,
+    /// <c>CasoCombinadoOcupacionYVacante_ExcluidoPorOcupacion</c>) sin
+    /// reducir la cobertura de la matrix. Los escenarios ortogonales
+    /// (soft-delete, boundary de <c>EsVigente</c>/<c>EsAbierta</c> por
+    /// FechaFin/FechaCierre no nulos, orden estable) quedan cubiertos
+    /// por separado más abajo.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, true)]   // sin Ocupación vigente + sin Vacante abierta → incluido
+    [InlineData(true, false, false)]   // Ocupación vigente + sin Vacante abierta   → excluido (N1)
+    [InlineData(false, true, false)]   // sin Ocupación vigente + Vacante abierta   → excluido
+    [InlineData(true, true, false)]    // ambas vigentes/abiertas                    → excluido
+    public async Task ListarDisponibles_MySql_MatrixOcupacionYVacante_ClasificaCorrectamente(
+        bool conOcupacionVigente,
+        bool conVacanteAbierta,
+        bool puestoDebeEstarIncluido)
     {
         await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
         var suffix = UniqueSuffix();
-        var unidad = RepositoryTestData.CreateUnidadOrganizativa($"PT-DISP-OCV-UO-{suffix}");
-        var cargo = RepositoryTestData.CreateCargo($"PT-DISP-OCV-CARGO-{suffix}");
-        var persona = RepositoryTestData.CreatePersona($"PT-DISP-OCV-PER-{suffix}");
-        var ocupado = RepositoryTestData.CreatePuesto($"PT-DISP-OCV-OCU-{suffix}", unidad, cargo);
-        var ocupacion = CrearOcupacion(persona.Id, ocupado.Id, $"PT-DISP-OCV-{suffix}", fechaFin: null);
-        var libre = RepositoryTestData.CreatePuesto($"PT-DISP-OCV-LIB-{suffix}", unidad, cargo);
+        var unidad = RepositoryTestData.CreateUnidadOrganizativa($"PT-DISP-MX-UO-{suffix}");
+        var cargo = RepositoryTestData.CreateCargo($"PT-DISP-MX-CARGO-{suffix}");
+        var persona = RepositoryTestData.CreatePersona($"PT-DISP-MX-PER-{suffix}");
+        var estadoAbierta = CrearEstadoVacante($"PT-DISP-MX-EST-{suffix}", "Abierta", esTerminal: false);
+        var puesto = RepositoryTestData.CreatePuesto($"PT-DISP-MX-PTO-{suffix}", unidad, cargo);
 
-        await SeedAsync(context, unidad, cargo, persona, ocupado, libre, ocupacion);
+        var seed = new List<object> { unidad, cargo, puesto };
+        if (conOcupacionVigente)
+        {
+            seed.Add(persona);
+            seed.Add(CrearOcupacion(persona.Id, puesto.Id, $"PT-DISP-MX-{suffix}", fechaFin: null));
+        }
+        if (conVacanteAbierta)
+        {
+            seed.Add(estadoAbierta);
+            seed.Add(CrearVacante(puesto.Id, estadoAbierta.Id, $"PT-DISP-MX-{suffix}", fechaCierre: null));
+        }
+        await SeedAsync(context, seed.ToArray());
 
         try
         {
             var repo = new PuestoRepository(context);
             var todos = await repo.ListarDisponiblesAsync(default);
 
-            var subset = todos
-                .Where(p => p.Id == ocupado.Id || p.Id == libre.Id)
-                .ToArray();
-
-            Assert.Single(subset);
-            Assert.Equal(libre.Id, subset[0].Id);
-            Assert.DoesNotContain(todos, p => p.Id == ocupado.Id);
+            if (puestoDebeEstarIncluido)
+            {
+                Assert.Contains(todos, p => p.Id == puesto.Id);
+            }
+            else
+            {
+                Assert.DoesNotContain(todos, p => p.Id == puesto.Id);
+            }
         }
         finally
         {
-            await CleanupAsync(context, unidad, cargo, persona, ocupado, libre, ocupacion);
-        }
-    }
-
-    [MySqlFact]
-    public async Task ListarDisponibles_MySql_ConVacanteAbierta_Excluye()
-    {
-        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
-        var suffix = UniqueSuffix();
-        var unidad = RepositoryTestData.CreateUnidadOrganizativa($"PT-DISP-VAB-UO-{suffix}");
-        var cargo = RepositoryTestData.CreateCargo($"PT-DISP-VAB-CARGO-{suffix}");
-        var estadoAbierta = CrearEstadoVacante($"PT-DISP-VAB-EST-{suffix}", "Abierta", esTerminal: false);
-        var conVacante = RepositoryTestData.CreatePuesto($"PT-DISP-VAB-VAC-{suffix}", unidad, cargo);
-        var vacante = CrearVacante(conVacante.Id, estadoAbierta.Id, $"PT-DISP-VAB-{suffix}", fechaCierre: null);
-        var libre = RepositoryTestData.CreatePuesto($"PT-DISP-VAB-LIB-{suffix}", unidad, cargo);
-
-        await SeedAsync(context, unidad, cargo, estadoAbierta, conVacante, libre, vacante);
-
-        try
-        {
-            var repo = new PuestoRepository(context);
-            var todos = await repo.ListarDisponiblesAsync(default);
-
-            var subset = todos
-                .Where(p => p.Id == conVacante.Id || p.Id == libre.Id)
-                .ToArray();
-
-            Assert.Single(subset);
-            Assert.Equal(libre.Id, subset[0].Id);
-            Assert.DoesNotContain(todos, p => p.Id == conVacante.Id);
-        }
-        finally
-        {
-            await CleanupAsync(context, unidad, cargo, estadoAbierta, conVacante, libre, vacante);
-        }
-    }
-
-    [MySqlFact]
-    public async Task ListarDisponibles_MySql_CasoCombinadoOcupacionYVacante_ExcluidoPorOcupacion()
-    {
-        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
-        var suffix = UniqueSuffix();
-        var unidad = RepositoryTestData.CreateUnidadOrganizativa($"PT-DISP-CTB-UO-{suffix}");
-        var cargo = RepositoryTestData.CreateCargo($"PT-DISP-CTB-CARGO-{suffix}");
-        var persona = RepositoryTestData.CreatePersona($"PT-DISP-CTB-PER-{suffix}");
-        var estadoAbierta = CrearEstadoVacante($"PT-DISP-CTB-EST-{suffix}", "Abierta", esTerminal: false);
-        var combinado = RepositoryTestData.CreatePuesto($"PT-DISP-CTB-COMBO-{suffix}", unidad, cargo);
-        var ocupacion = CrearOcupacion(persona.Id, combinado.Id, $"PT-DISP-CTB-{suffix}", fechaFin: null);
-        var vacante = CrearVacante(combinado.Id, estadoAbierta.Id, $"PT-DISP-CTB-{suffix}", fechaCierre: null);
-
-        await SeedAsync(context, unidad, cargo, persona, estadoAbierta, combinado, ocupacion, vacante);
-
-        try
-        {
-            var repo = new PuestoRepository(context);
-            var todos = await repo.ListarDisponiblesAsync(default);
-
-            // La exclusion es por Ocupacion vigente (primera condicion que
-            // falla); el filtro de Vacante tampoco pasaria, pero alcanza
-            // con uno para excluir.
-            Assert.DoesNotContain(todos, p => p.Id == combinado.Id);
-        }
-        finally
-        {
-            await CleanupAsync(context, vacante, ocupacion, combinado, cargo, unidad, estadoAbierta, persona);
+            var cleanup = new List<object> { cargo, unidad, puesto };
+            if (conOcupacionVigente) cleanup.Add(persona);
+            if (conVacanteAbierta) cleanup.Add(estadoAbierta);
+            // CleanupAsync aplica orden topológico: Vacante → Ocupación → Puesto → ...
+            // Reordeno explícitamente para que las dependencias se eliminen primero.
+            var ordered = cleanup.OrderBy(e => e switch
+            {
+                VacanteEntity => 0,
+                OcupacionEntity => 1,
+                CargoEntity => 3,
+                UnidadOrganizativaEntity => 4,
+                EstadoVacanteEntity => 5,
+                PersonaEntity => 6,
+                _ => 99
+            });
+            await CleanupAsync(context, ordered.ToArray());
         }
     }
 
