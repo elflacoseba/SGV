@@ -14,6 +14,7 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
     public VacanteDetailDto? ObtenerPorIdResult { get; set; }
     public IReadOnlyList<EstadoVacanteDto> ListarEstadosResult { get; set; } = [];
     public IReadOnlyList<PuestoDto> ListarPuestosResult { get; set; } = [];
+    public IReadOnlyList<PuestoDto> ListarPuestosDisponiblesResult { get; set; } = [];
     public VacanteCommandResult CrearResult { get; set; } = new(false, null, null);
     public VacanteCommandResult CambiarEstadoResult { get; set; } = new(false, null, null);
 
@@ -21,6 +22,7 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
     public Exception? ObtenerPorIdException { get; set; }
     public Exception? ListarEstadosException { get; set; }
     public Exception? ListarPuestosException { get; set; }
+    public Exception? ListarPuestosDisponiblesException { get; set; }
     public Exception? CrearException { get; set; }
     public Exception? CambiarEstadoException { get; set; }
 
@@ -29,6 +31,7 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
     public List<CrearVacanteRequest> CrearCalls { get; } = [];
     public List<(Guid Id, CambiarEstadoVacanteRequest Request)> CambiarEstadoCalls { get; } = [];
     public List<int> ListarPuestosCalls { get; } = [];
+    public List<int> ListarPuestosDisponiblesCalls { get; } = [];
     public List<Guid> ObtenerAbiertaPorPuestoCalls { get; } = [];
 
     public Task<PagedResult<VacanteDto>> ListarAsync(
@@ -79,6 +82,27 @@ internal sealed class FakeVacanteApiClient : IVacanteApiClient
         }
 
         return Task.FromResult(ListarPuestosResult);
+    }
+
+    /// <summary>
+    /// Cambio <c>vacante-crear-puestos-libres</c> (WU-4 / T-14): espejo del
+    /// método <see cref="ListarPuestosAsync"/> apuntado al endpoint
+    /// <c>GET /api/v1/puestos/disponibles</c>. El dropdown de
+    /// <c>Vacantes/Create</c> consume este resultado (T-15); <c>ListarPuestosResult</c>
+    /// queda disponible para tests que verifiquen que <c>ListarPuestosAsync</c>
+    /// NO se invoca desde el Create.
+    /// </summary>
+    public Task<IReadOnlyList<PuestoDto>> ListarPuestosDisponiblesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ListarPuestosDisponiblesCalls.Add(1);
+
+        if (ListarPuestosDisponiblesException is not null)
+        {
+            throw ListarPuestosDisponiblesException;
+        }
+
+        return Task.FromResult(ListarPuestosDisponiblesResult);
     }
 
     public Task<VacanteCommandResult> CrearAsync(
