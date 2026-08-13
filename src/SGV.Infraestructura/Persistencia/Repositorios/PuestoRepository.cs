@@ -206,13 +206,9 @@ public sealed class PuestoRepository(SgvDbContext context)
     /// </summary>
     public async Task<IReadOnlyList<Puesto>> ListarDisponiblesAsync(CancellationToken cancellationToken = default)
     {
-        var entities = await Context.Set<PuestoEntity>()
-            .AsNoTracking()
-            .Where(p => p.IsActive && !p.IsDeleted)
+        var entities = await BuildReadOnlyIQueryable()
             .Where(p => !p.Ocupaciones.Any(o => !o.IsDeleted && o.FechaFin == null))
             .Where(p => !p.Vacantes.Any(v => !v.IsDeleted && v.FechaCierre == null))
-            .Include(p => p.UnidadOrganizativa)
-            .Include(p => p.Cargo)
             .OrderBy(p => p.Nombre)
             .ThenBy(p => p.Codigo)
             .ToListAsync(cancellationToken)
@@ -220,4 +216,22 @@ public sealed class PuestoRepository(SgvDbContext context)
 
         return entities.Select(MapToDomain).ToArray();
     }
+
+    /// <summary>
+    /// Raíz read-only reutilizable para métodos de lectura que necesitan
+    /// el shape completo de <see cref="PuestoEntity"/> más
+    /// <c>UnidadOrganizativa</c> + <c>Cargo</c>:
+    /// <c>AsNoTracking + (IsActive &amp;&amp; !IsDeleted) + Includes</c>.
+    /// Distinto de <see cref="Query"/> (que sólo aplica <c>IsActive</c> y
+    /// es la base de listados administrativos que abarcan eliminados) y
+    /// de <see cref="QueryAsync"/> (que necesita filtrar por segmento
+    /// activo vs. eliminado). Úselo en métodos nuevos que pidan
+    /// "puestos activos-no-borrados con joins de UnidadOrganizativa/Cargo".
+    /// </summary>
+    private IQueryable<PuestoEntity> BuildReadOnlyIQueryable() =>
+        Context.Set<PuestoEntity>()
+            .AsNoTracking()
+            .Where(p => p.IsActive && !p.IsDeleted)
+            .Include(p => p.UnidadOrganizativa)
+            .Include(p => p.Cargo);
 }
