@@ -36,6 +36,14 @@ public enum SetupErrorCode
     LegajoDuplicado,
 
     /// <summary>
+    /// La combinación tipo + número de documento colisiona con una
+    /// persona activa existente (<c>PersonaServicioComandos</c>
+    /// uniqueness check sobre <c>Personas</c>).
+    /// → HTTP 409.
+    /// </summary>
+    DocumentoDuplicado,
+
+    /// <summary>
     /// La persona ya tiene un usuario Identity asociado
     /// (defensa lógica del gateway).
     /// → HTTP 409.

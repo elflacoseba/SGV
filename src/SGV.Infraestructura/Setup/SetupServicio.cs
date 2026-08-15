@@ -235,7 +235,7 @@ public sealed class SetupServicio(
         {
             "LegajoDuplicado" => SetupErrorCode.LegajoDuplicado,
             "EmailDuplicado" => SetupErrorCode.EmailDuplicado,
-            "DocumentoDuplicado" => SetupErrorCode.EmailDuplicado,
+            "DocumentoDuplicado" => SetupErrorCode.DocumentoDuplicado,
             "DatosInvalidos" => SetupErrorCode.DatosInvalidos,
             _ => SetupErrorCode.ValidacionIdentity,
         };
