@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SGV.Api.Infrastructure.Health;
@@ -122,6 +123,22 @@ builder.Services.ConfigureHttpClientDefaults(http =>
         PooledConnectionLifetime = TimeSpan.FromMinutes(2)
     });
 });
+
+// Override the per-client Timeout = 10s applied by every AddHttpClient below
+// with a 30s ceiling. PostConfigure runs AFTER every Configure (including the
+// individual AddHttpClient callbacks), so the final state of every HttpClient
+// created by IHttpClientFactory is 30s. This absorbs the realistic latency of
+// the SGV.Api ← Tailscale ← satellite-link path: a single MySqlConnection
+// handshake + auth + TLS round-trip already exceeds 2s in that topology, and
+// any non-trivial Razor Page request stacks 2-3 sequential HTTP calls to the
+// API. 10s was producing OperationCanceledException mid-query for the
+// Usuarios detail (and any other GetById-shaped call) on first use after a
+// production cold start of the MySqlConnector pool.
+builder.Services.AddOptions<HttpClientFactoryOptions>()
+    .PostConfigure(options =>
+    {
+        options.HttpClientActions.Add(client => client.Timeout = TimeSpan.FromSeconds(30));
+    });
 
 // Named HTTP client for health probe (anonymous, no bearer token).
 builder.Services.AddHttpClient(SgvApiHealthProbeHttpClient.Name, (sp, client) =>

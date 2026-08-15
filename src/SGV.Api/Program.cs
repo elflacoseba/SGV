@@ -108,7 +108,15 @@ var serverVersion = new MySqlServerVersion(serverVersionNumber);
 builder.Services.AddScoped<AuditoriaSaveChangesInterceptor>();
 builder.Services.AddDbContext<SgvDbContext>((sp, options) =>
 {
-    options.UseMySql(connectionString, serverVersion)
+    // CommandTimeout(30) is paired with the shell web's 30s HttpClient.Timeout
+    // to absorb the realistic latency of the SGV.Api ← Tailscale ← satellite
+    // link: a single MySqlConnection handshake + auth + TLS already exceeds 2s,
+    // and any non-trivial Razor Page request stacks 2-3 sequential HTTP calls.
+    // Without this, the per-command default (30s) plus the HttpClient default
+    // (100s) still races the propagated client cancellation once the upstream
+    // path gets slow. Configured here so every DbContext in the API inherits it.
+    options.UseMySql(connectionString, serverVersion, mySqlOptions =>
+            mySqlOptions.CommandTimeout(30))
            .AddInterceptors(sp.GetRequiredService<AuditoriaSaveChangesInterceptor>());
 });
 
