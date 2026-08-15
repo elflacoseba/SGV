@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -104,6 +105,23 @@ builder.Services.AddScoped<IAuthSessionRedirector, AuthSessionRedirector>();
 // así que el reemplazo del cache estático previo por construcción por llamada
 // (issue #121) es seguro y no introduce contención entre tests paralelos.
 builder.Services.AddSingleton<IAuthSessionFactory, AuthSessionFactory>();
+
+// Cross-cutting default for every HttpClient created by IHttpClientFactory:
+// recycle pooled connections after 2 minutes so we never reuse a socket that
+// Kestrel already closed silently. The default SocketsHttpHandler keeps
+// connections in the pool forever (PooledConnectionLifetime = null) which
+// produces sporadic ObjectDisposedException in SslStream.ReadAsync during
+// sequential calls to SGV.Api (e.g. the Usuarios listing refresh) when the
+// server has timed out the idle keep-alive connection. Recommended by
+// Microsoft from .NET 6+:
+// https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines#pooled-connection-lifetime
+builder.Services.ConfigureHttpClientDefaults(http =>
+{
+    http.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+    });
+});
 
 // Named HTTP client for health probe (anonymous, no bearer token).
 builder.Services.AddHttpClient(SgvApiHealthProbeHttpClient.Name, (sp, client) =>
