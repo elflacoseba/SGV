@@ -22,21 +22,34 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
         UnidadOrganizativaQuery query,
         CancellationToken cancellationToken = default)
     {
+        // Issue #278: clamp page/pageSize to the contract's documented range
+        // before invoking the repository, so `Skip((page - 1) * pageSize)`
+        // cannot receive a negative count and `Take(pageSize)` cannot exceed
+        // `UnidadOrganizativaQuery.MaxPageSize`. Without this guard, `page=0`
+        // (or any negative page) and a huge `pageSize` (DoS-by-amplification)
+        // reach the persistence layer and trigger runtime failures.
+        var page = query.Page < 1 ? 1 : query.Page;
+        var pageSize = query.PageSize < UnidadOrganizativaQuery.MinPageSize
+            ? UnidadOrganizativaQuery.MinPageSize
+            : (query.PageSize > UnidadOrganizativaQuery.MaxPageSize
+                ? UnidadOrganizativaQuery.MaxPageSize
+                : query.PageSize);
+
         var (items, totalCount) = await repository.QueryAsync(
             query.Search,
             query.TipoUnidadOrganizativaId,
             query.UnidadPadreId,
             query.VigenteEn,
-            query.Page,
-            query.PageSize,
+            page,
+            pageSize,
             query.Segmento,
             cancellationToken);
 
         return new PagedResult<UnidadOrganizativaDto>(
             items.Select(MapToDto).ToList(),
             totalCount,
-            query.Page,
-            query.PageSize);
+            page,
+            pageSize);
     }
 
     public async Task<UnidadOrganizativaArbolResponse> GetTreeAsync(

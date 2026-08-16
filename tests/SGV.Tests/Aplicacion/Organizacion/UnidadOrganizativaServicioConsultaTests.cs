@@ -259,6 +259,115 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         Assert.Equal(0, resultado.TotalCount);
     }
 
+    // ===== Clamp de page/pageSize (issue #278) =====
+    // El servicio clampea los valores del query antes de invocar al repo
+    // para evitar que `Skip((page - 1) * pageSize)` reciba un count
+    // negativo y que `Take(pageSize)` exceda el tope de respuesta.
+
+    [Fact]
+    public async Task QueryAsync_PageCero_ClampaAUnoYReportaUno()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(Page: 0, PageSize: 10), default);
+
+        // El servicio reporta el valor EFFECTIVO (clamped).
+        Assert.Equal(1, resultado.Page);
+        Assert.Equal(10, resultado.PageSize);
+        // Y entrega el valor clamped al repo, no el original.
+        Assert.Equal(1, repo.LastReceivedPage);
+    }
+
+    [Fact]
+    public async Task QueryAsync_PageNegativo_ClampaAUno()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(Page: -5, PageSize: 10), default);
+
+        Assert.Equal(1, resultado.Page);
+        Assert.Equal(1, repo.LastReceivedPage);
+    }
+
+    [Fact]
+    public async Task QueryAsync_PageSizeCero_ClampaAMinPageSize()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(Page: 1, PageSize: 0), default);
+
+        Assert.Equal(UnidadOrganizativaQuery.MinPageSize, resultado.PageSize);
+        Assert.Equal(UnidadOrganizativaQuery.MinPageSize, repo.LastReceivedPageSize);
+    }
+
+    [Fact]
+    public async Task QueryAsync_PageSizeNegativo_ClampaAMinPageSize()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(Page: 1, PageSize: -10), default);
+
+        Assert.Equal(UnidadOrganizativaQuery.MinPageSize, resultado.PageSize);
+        Assert.Equal(UnidadOrganizativaQuery.MinPageSize, repo.LastReceivedPageSize);
+    }
+
+    [Fact]
+    public async Task QueryAsync_PageSizeExcesivo_ClampaAMaxPageSize()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(Page: 1, PageSize: 1_000_000), default);
+
+        Assert.Equal(UnidadOrganizativaQuery.MaxPageSize, resultado.PageSize);
+        Assert.Equal(UnidadOrganizativaQuery.MaxPageSize, repo.LastReceivedPageSize);
+    }
+
+    [Fact]
+    public async Task QueryAsync_PageYPageSizeEnRango_NoModificaValores()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(Page: 3, PageSize: 25), default);
+
+        Assert.Equal(3, resultado.Page);
+        Assert.Equal(25, resultado.PageSize);
+        Assert.Equal(3, repo.LastReceivedPage);
+        Assert.Equal(25, repo.LastReceivedPageSize);
+    }
+
+    [Fact]
+    public async Task QueryAsync_PageSizeEnBorde_NoModificaValores()
+    {
+        // El límite MaxPageSize debe pasar tal cual (no clampa hacia abajo).
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var resultado = await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(Page: 1, PageSize: UnidadOrganizativaQuery.MaxPageSize), default);
+
+        Assert.Equal(UnidadOrganizativaQuery.MaxPageSize, resultado.PageSize);
+        Assert.Equal(UnidadOrganizativaQuery.MaxPageSize, repo.LastReceivedPageSize);
+    }
+
     // ---- GetTreeAsync tests (Task 3.1 / 3.3) ----
 
     [Fact]
@@ -507,6 +616,23 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
 {
     public List<UnidadOrganizativa> Datos { get; set; } = [];
 
+    /// <summary>
+    /// Último valor de <c>page</c> recibido por el repo. El servicio
+    /// aplica un clamp antes de invocar el repo (issue #278), por lo que
+    /// este campo siempre debe estar dentro del rango seguro
+    /// <c>[1, ∞)</c> en escenarios normales.
+    /// </summary>
+    public int? LastReceivedPage { get; private set; }
+
+    /// <summary>
+    /// Último valor de <c>pageSize</c> recibido por el repo. El servicio
+    /// aplica un clamp antes de invocar el repo (issue #278), por lo que
+    /// este campo siempre debe estar dentro del rango
+    /// <c>[<see cref="UnidadOrganizativaQuery.MinPageSize"/>,
+    /// <see cref="UnidadOrganizativaQuery.MaxPageSize"/>]</c>.
+    /// </summary>
+    public int? LastReceivedPageSize { get; private set; }
+
     public Task AddAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
@@ -578,6 +704,9 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
         UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {
+        LastReceivedPage = page;
+        LastReceivedPageSize = pageSize;
+
         var filtered = Datos.AsEnumerable();
 
         // Apply segmento filter first
