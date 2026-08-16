@@ -10,9 +10,16 @@ namespace SGV.Infraestructura.Persistencia.Repositorios;
 public sealed class UnidadOrganizativaRepository(SgvDbContext context)
     : ReadOnlyRepository<UnidadOrganizativaEntity, UnidadOrganizativa>(context), IUnidadOrganizativaRepository
 {
+    // Issue #280: el filtro `!u.IsDeleted` ya viene del `ReadOnlyRepository.Query`
+    // base, pero lo declaramos explícito aquí como defensa en profundidad: si el
+    // contrato del base cambiara en el futuro, este override seguiría garantizando
+    // que el `ListAllAsync` y `GetByIdAsync` heredado NO devuelvan filas con
+    // `IsActive = true && IsDeleted = true` (escenario posible tras una migración
+    // manual, script de fix o condición de carrera que invierta el estado del
+    // soft-delete). Ver escenarios cubiertos por tests `[MySqlFact]` abajo.
     protected override IQueryable<UnidadOrganizativaEntity> Query => base
         .Query
-        .Where(u => u.IsActive)
+        .Where(u => u.IsActive && !u.IsDeleted)
         .Include(u => u.TipoUnidadOrganizativa)
         .Include(u => u.UnidadPadre);
 
@@ -112,13 +119,18 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
         Guid? excludingId = null,
         CancellationToken cancellationToken = default)
     {
+        // Issue #280: `u.Id != excludingId` con `excludingId = null` se reescribe
+        // por EF Core como `u.Id <> NULL` (siempre desconocido en SQL de tres
+        // valores). Funciona por la semántica de `AnyAsync` (falsy → false), pero
+        // depende del proveedor y no está cubierto contra MySQL real. La forma
+        // explícita es portable y trivialmente legible.
         return await Context
             .Set<UnidadOrganizativaEntity>()
             .AnyAsync(u =>
                 u.Codigo == codigo &&
                 u.IsActive &&
                 !u.IsDeleted &&
-                u.Id != excludingId,
+                (excludingId == null || u.Id != excludingId.Value),
                 cancellationToken)
             .ConfigureAwait(false);
     }

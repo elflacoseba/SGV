@@ -419,6 +419,210 @@ public sealed class UnidadOrganizativaRepositoryTests
         await cmd.ExecuteNonQueryAsync();
     }
 
+    // ===================== Issue #280 regression tests =====================
+
+    /// <summary>
+    /// Issue #280 regression test: si una fila queda con <c>IsActive = true</c> Y
+    /// <c>IsDeleted = true</c> (escenario anómalo posible tras una migración
+    /// manual, un script de fix o una condición de carrera), el <c>Query</c>
+    /// base del repository debe seguir excluyéndola de <c>ListAllAsync</c>.
+    /// La grieta histórica era que el <c>Where(u =&gt; u.IsActive)</c> la
+    /// dejaba pasar; el fix declara explícito <c>!u.IsDeleted</c> en el
+    /// override (defensa en profundidad contra cambios futuros del base).
+    ///
+    /// Siembra la fila vía SQL crudo porque EF no permite persistir un estado
+    /// inconsistente por la vía normal. <c>ActiveCodigoUnique</c> es una
+    /// columna calculada que devuelve <c>NULL</c> cuando <c>IsDeleted = 1</c>,
+    /// por lo que el índice único no se rompe al coexistir con el código
+    /// original sembrado por el helper estándar.
+    /// </summary>
+    [MySqlFact]
+    public async Task ListAllAsync_ExcluyeFilaZombieConIsActiveEIsDeletedTrue()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+
+        // 1) Fila activa "normal" sembrada vía EF con código único nuevo.
+        var visible = RepositoryTestData.CreateUnidadOrganizativa("UO-ZOMBIE-OK");
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(visible);
+        await context.SaveChangesAsync();
+
+        // 2) Fila zombie: IsActive=true && IsDeleted=true con código distinto
+        // para que ActiveCodigoUnique (que devuelve NULL cuando IsDeleted=1)
+        // no choque con el índice único.
+        var zombie = new UnidadOrganizativaEntity
+        {
+            Id = Guid.NewGuid(),
+            Codigo = $"UO-ZOMBIE-{Guid.NewGuid():N}".Substring(0, 20),
+            Nombre = "Zombie",
+            TipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId,
+            IsActive = true
+        };
+
+        var conn = (MySqlConnection)context.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open)
+        {
+            await conn.OpenAsync();
+        }
+
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = @"INSERT INTO UnidadesOrganizativas
+                (Id, Codigo, Nombre, IsActive, IsDeleted,
+                 TipoUnidadOrganizativaId, CreatedAt)
+                VALUES
+                (@Id, @Codigo, @Nombre, 1, 1,
+                 @TipoUnidadId, UTC_TIMESTAMP(6))";
+            cmd.Parameters.AddWithValue("@Id", zombie.Id.ToString());
+            cmd.Parameters.AddWithValue("@Codigo", zombie.Codigo);
+            cmd.Parameters.AddWithValue("@Nombre", zombie.Nombre);
+            cmd.Parameters.AddWithValue("@TipoUnidadId", zombie.TipoUnidadOrganizativaId.ToString());
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            var entidades = await repo.ListAllAsync(default);
+
+            Assert.Contains(entidades, e => e.Id == visible.Id);
+            Assert.DoesNotContain(entidades, e => e.Id == zombie.Id);
+        }
+        finally
+        {
+            // Limpieza mixta: la fila normal vía EF, la zombie vía SQL porque
+            // EF no la ve por el filtro del base (ReadOnlyRepository).
+            context.Set<UnidadOrganizativaEntity>().Remove(visible);
+            await context.SaveChangesAsync();
+
+            await using (var del = conn.CreateCommand())
+            {
+                del.CommandText = "DELETE FROM UnidadesOrganizativas WHERE Id = @Id";
+                var p = del.CreateParameter();
+                p.ParameterName = "@Id";
+                p.Value = zombie.Id.ToString();
+                del.Parameters.Add(p);
+                await del.ExecuteNonQueryAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Issue #280 regression test: cuando hay dos filas con el mismo código y
+    /// una de ellas está activa y la otra eliminada, <c>ExistsActiveCodeAsync</c>
+    /// con <c>excludingId = null</c> debe reportar <c>true</c> (la activa cuenta).
+    /// Cubre el cambio a la forma explícita <c>excludingId == null || u.Id != excludingId.Value</c>
+    /// que elimina la dependencia frágil de la reescritura null de EF/Pomelo.
+    /// </summary>
+    [MySqlFact]
+    public async Task ExistsActiveCodeAsync_CodigoCompartidoEntreActivaYEliminada_ConNullExcluyendo_RetornaTrue()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var codigoCompartido = $"UO-COMP-{Guid.NewGuid():N}".Substring(0, 18);
+        var activa = new UnidadOrganizativaEntity
+        {
+            Id = Guid.NewGuid(),
+            Codigo = codigoCompartido,
+            Nombre = "Activa",
+            TipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId,
+            IsActive = true
+        };
+        var eliminada = new UnidadOrganizativaEntity
+        {
+            Id = Guid.NewGuid(),
+            Codigo = codigoCompartido,
+            Nombre = "Eliminada",
+            TipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId,
+            IsActive = false,
+            IsDeleted = true,
+            DeletedAt = DateTime.UtcNow
+        };
+
+        await context.Set<UnidadOrganizativaEntity>().AddRangeAsync([activa, eliminada]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            var exists = await repo.ExistsActiveCodeAsync(codigoCompartido, cancellationToken: default);
+
+            Assert.True(exists);
+        }
+        finally
+        {
+            context.Set<UnidadOrganizativaEntity>().RemoveRange(activa, eliminada);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Issue #280 regression test: cuando la única fila con un código está
+    /// eliminada, <c>ExistsActiveCodeAsync("COD", null)</c> debe retornar
+    /// <c>false</c>. Garantiza que el <c>!IsDeleted</c> corta el resultado
+    /// incluso si el <c>excludingId == null</c> está activo.
+    /// </summary>
+    [MySqlFact]
+    public async Task ExistsActiveCodeAsync_UnicaFilaEliminada_ConNullExcluyendo_RetornaFalse()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var codigoUnico = $"UO-ONLYDEL-{Guid.NewGuid():N}".Substring(0, 20);
+        var eliminada = new UnidadOrganizativaEntity
+        {
+            Id = Guid.NewGuid(),
+            Codigo = codigoUnico,
+            Nombre = "Solo eliminada",
+            TipoUnidadOrganizativaId = TipoUnidadOrganizativaConstantes.AreaId,
+            IsActive = false,
+            IsDeleted = true,
+            DeletedAt = DateTime.UtcNow
+        };
+
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(eliminada);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            var exists = await repo.ExistsActiveCodeAsync(codigoUnico, cancellationToken: default);
+
+            Assert.False(exists);
+        }
+        finally
+        {
+            context.Set<UnidadOrganizativaEntity>().Remove(eliminada);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Issue #280 regression test: <c>ExistsActiveCodeAsync("COD", idActiva)</c>
+    /// debe retornar <c>false</c> cuando la única fila con ese código es la
+    /// propia activa (la estamos excluyendo). Cubre la rama explícita
+    /// <c>u.Id != excludingId.Value</c> bajo MySQL real, donde antes la
+    /// reescritura <c>u.Id &lt;&gt; NULL</c> podía enmascarar un bug si EF
+    /// cambiara su semántica.
+    /// </summary>
+    [MySqlFact]
+    public async Task ExistsActiveCodeAsync_ExcluyendoPropiaActivaConFormaExplicita_RetornaFalse()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var entity = RepositoryTestData.CreateUnidadOrganizativa("UO-EXPL");
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(entity);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+            var exists = await repo.ExistsActiveCodeAsync(entity.Codigo, entity.Id, default);
+
+            Assert.False(exists);
+        }
+        finally
+        {
+            context.Set<UnidadOrganizativaEntity>().Remove(entity);
+            await context.SaveChangesAsync();
+        }
+    }
+
     // ===================== HasActiveChildrenAsync tests =====================
 
     [MySqlFact]
