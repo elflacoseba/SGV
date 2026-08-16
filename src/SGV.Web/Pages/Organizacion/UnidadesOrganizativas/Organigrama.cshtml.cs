@@ -25,7 +25,8 @@ public sealed class OrganigramaModel(IUnidadOrganizativaApiClient unidadOrganiza
         try
         {
             var result = await unidadOrganizativaApiClient.GetTreeAsync(cancellationToken);
-            TreeItems = result.Arbol.Select(MapToViewModel).ToArray();
+            var hoy = DateOnly.FromDateTime(DateTime.Today);
+            TreeItems = result.Arbol.Select(node => MapToViewModel(node, hoy)).ToArray();
             CyclicNodeIds = result.NodosConCiloDetectado;
         }
         catch (Exception ex)
@@ -39,11 +40,14 @@ public sealed class OrganigramaModel(IUnidadOrganizativaApiClient unidadOrganiza
         return Page();
     }
 
-    private static UnidadOrganizativaTreeNodeViewModel MapToViewModel(UnidadOrganizativaTreeNodeDto item)
+    private static UnidadOrganizativaTreeNodeViewModel MapToViewModel(UnidadOrganizativaTreeNodeDto item, DateOnly hoy)
         => new(
             item.Id,
             item.Codigo,
             item.Nombre,
             item.TipoUnidadNombre,
-            item.Hijas.Select(MapToViewModel).ToArray());
+            // El wire type UnidadOrganizativaTreeNodeDto no expone VigenteDesde/Hasta;
+            // hasta que la API extienda /arbol, todos los nodos muestran "Vigencia abierta".
+            VigenciaViewModel.Desde(null, null, hoy),
+            item.Hijas.Select(child => MapToViewModel(child, hoy)).ToArray());
 }

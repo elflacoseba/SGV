@@ -1605,4 +1605,78 @@ el usuario sobre el módulo `Vacantes/Create` (`src/SGV.Web/Pages/Organizacion/V
 - `tests/SGV.Tests/Persistencia/MigracionEstadoVacanteEncodingTests.cs` — 2 nuevos `[MySqlFact]` cubriendo idempotencia de la migración.
 - `tests/SGV.Tests/Web/Vacantes/VacantesCreateEditForbidTests.cs` — `Get_Create_WhenMutationRole_RendersFormWithCatalogs` ajustado (dropdown ya no aparece); nuevo `Get_Create_OmiteDropdownDeEstado`; 3 tests de POST Create dejan de enviar `Input.EstadoVacanteId`; `Get_Create_WhenCatalogLoadFails_…` (estados) eliminado.
 
+## Issue #281 — `VigenteDesde`/`Hasta` como etiqueta informativa + filtro `vigenteEn` en UI
+
+### Contexto y problema
+
+El repo ya persistía `VigenteDesde`/`VigenteHasta` en `UnidadOrganizativa`
+como metadata informativa (constraint `Hasta >= Desde`, sin rechazo de
+operaciones). El wire type `UnidadOrganizativaQuery` ya soportaba el
+filtro `vigenteEn` en la API (`GET /api/v1/unidades-organizativas/consulta?vigenteEn=YYYY-MM-DD`),
+pero la UI nunca lo enviaba. La issue #281 pidió la **Opción C
+(híbrido)**: hacer visible el estado de vigencia en la UI del listado,
+detalle y árbol, y propagar el filtro por todos los route values.
+
+El cambio es **no funcional**: no rechaza operaciones; sólo expone
+información. El repo LINQ y el controller no se tocan.
+
+### Decisiones técnicas
+
+| # | Decisión | Justificación compacta |
+|---|----------|------------------------|
+| §281.1 | **Helper `EsVigente(DateOnly fechaReferencia)` en el dominio.** Semántica: `VigenteDesde > fechaReferencia → false`; `VigenteHasta < fechaReferencia → false`; cualquier otro caso (incluyendo ambos `null`) → `true`. Regla puramente informativa, NO rechaza operaciones. | Testeable en aislamiento sin acoplarse a `DateTime.Today`. Reutilizable desde la UI (la página inyecta `hoy`). Centralizar la regla en dominio deja lugar a un futuro uso desde API si se decidiera rechazar operaciones (no es este change). |
+| §281.2 | **`VigenciaViewModel(Texto, BadgeClass)` en `SGV.Web.Integration.Organizacion`** (no en `SGV.Web.Pages`) con factory estática `Desde(DateOnly? desde, DateOnly? hasta, DateOnly hoy)`. | El record `UnidadOrganizativaListItemViewModel` ya vive en `Integration` (lo consume `IUnidadOrganizativaApiClient`); poner `VigenciaViewModel` en `Pages` crearía dependencia circular `Integration → Pages`. La convención del repo es mantener `Integration` como capa de wire/viewmodels compartidos por Pages y Api client. |
+| §281.3 | **Badge CSS opcional.** Sin badge cuando la ventana contiene a `hoy` o ambos extremos son `null`; `badge-soft-warning` para "Fuera de vigencia" (`VigenteHasta < hoy`); `badge-soft-info` para "Aún no vigente" (`VigenteDesde > hoy`). Patrón copiado de `Ocupaciones/Index.cshtml:101` (badge-soft-success/warning/danger). | Inspinia provee `badge-soft-info` y `badge-soft-warning`; amarillo suave indica "vencido/atención" sin generar alarma (no es un error, sólo un rango pasado). El azul info indica "futuro" sin urgencia. |
+| §281.4 | **Formato `yyyy-MM-dd` invariante para query string y formularios.** `DateOnly.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)` en el `FormatVigenteEn` del page model. | `DateOnly.ToString()` sin formato usa la cultura actual, que puede dar `dd/MM/yyyy` u otro formato dependiendo del locale del servidor/cliente. Forzar ISO evita binding fallido al volver al Index con `vigenteEn=01/15/2024` mal parseado. |
+| §281.5 | **Captura de `VigenteEn` en `OnGetAsync` como parámetro, NO `[BindProperty(SupportsGet = true)]`.** | Coincide con el patrón vigente del PageModel (`search`/`sort`/`status` son parámetros del handler). El binder de ASP.NET Core 10 parsea `DateOnly?` desde `?vigenteEn=YYYY-MM-DD` sin configuración adicional. |
+| §281.6 | **`vigenteEn` se propaga en TODOS los route values del Index.** `ReturnToListRouteValues`, `CreateRouteValues`, `BuildDetailsRouteValues`, `BuildEditRouteValues`, `BuildViewToggleRouteValues`, links de sort (3), links de paginación (3), forms de delete/reactivate (3) y form de search. En cada lugar se serializa con `FormatVigenteEn(VigenteEn)` (yyyy-MM-dd) o `null` cuando no hay filtro. | El filtro debe sobrevivir a cualquier interacción dentro del listado: sort, paginación, segment toggle (Activas/Eliminadas), abrir detalle/editar, ejecutar delete/reactivate y volver al listado. |
+| §281.7 | **Round-trip a través de Details/Edit/Create con `returnVigenteEn`.** Patrón análogo a `returnView`/`returnStatus`/`returnSort` ya vigentes: `BuildDetailsRouteValues` y `BuildEditRouteValues` emiten `returnVigenteEn`; DetailsModel/EditModel/CreateModel aceptan `vigenteEn` y `returnVigenteEn` con fallback `returnVigenteEn ?? vigenteEn`. `BuildReturnToListUrl` agrega `vigenteEn` a la query string del URL de retorno. | Sin esta propagación, abrir el detalle desde el listado con filtro `vigenteEn=2024-01-15` y volver al listado pierde el filtro. La inconsistencia sería una regresión UX vs. el patrón ya vigente para `search`/`sort`/`status`. |
+| §281.8 | **Árbol muestra "Vigencia abierta" sin badge por hoy.** `UnidadOrganizativaTreeNodeViewModel.Vigencia` se popula desde `null/null` en `MapToViewModel` (Organigrama.cshtml.cs) y `MapToTreeViewModel` (Index.cshtml.cs tree view) porque el wire type `UnidadOrganizativaTreeNodeDto` no expone `VigenteDesde`/`VigenteHasta`. | El wire type del tree es parte del contrato API y no se extiende en este change. La infraestructura (`TreeNodeViewModel` + helper) queda en su lugar para que un follow-up que extienda la API del tree habilite badges reales sin más cambios en UI. El render server-side de `_TreeNode.cshtml` ya muestra el badge cuando hay datos (preparado). |
+| §281.9 | **Organigrama client-side (Google OrgChart) NO muestra badge de vigencia.** `organigrama.js` no se tocó porque (a) no expone `Vigencia` en el JSON serializado por `Organigrama.cshtml` y (b) renderizar badges en celdas de Google OrgChart requiere HTML customization que está fuera del scope "no funcional" del change. | Cuando el wire type `TreeNodeDto` extienda sus campos (§281.8) y se decida extender el JS, el badge se podrá agregar sin tocar el modelo de dominio ni los viewmodels. Reportado como follow-up. |
+| §281.10 | **Se mantienen los warnings preexistentes de tests** (xUnit1031, xUnit2029, xUnit2013, EF1002) — sin cambios en archivos de tests preexistentes. | El scope del change es agregar 6 tests nuevos de `EsVigente` y nada más. No se tocan tests preexistentes. |
+
+### Limitaciones y decisiones de producto pendientes
+
+- **§281.8 + §281.9**: el árbol (`Organigrama` y tree view en `Index`) y el Organigrama client-side no muestran badges reales de vigencia. La UI está **preparada** (`VigenciaViewModel` en `UnidadOrganizativaTreeNodeViewModel`, helper de badge en `_TreeNode.cshtml`); sólo falta extender el wire type `UnidadOrganizativaTreeNodeDto` para que lleve `VigenteDesde`/`VigenteHasta`, y opcionalmente `organigrama.js` para renderizar en Google OrgChart. Esto **requiere decisión de producto**: ¿queremos badges reales en el árbol aunque el árbol de Google Charts no los muestre inicialmente? Si sí, hay que extender el wire type (toca API).
+- **Decisión de UX (no técnica)**: ¿cómo se captura `vigenteEn` en la UI? El change implementa la captura desde query string (`?vigenteEn=YYYY-MM-DD`) pero **no agrega un control de input** en `Index.cshtml` para setear el filtro desde la UI. Las opciones son: (a) date picker en el header de filtros junto al search box, (b) presets tipo "Vigentes hoy" / "Vigentes en 2030", (c) sin control por ahora y depender de deep-links. Esto requiere decisión de producto (no resuelta en este change).
+
+### Archivos clave
+
+**Dominio**
+- `src/SGV.Dominio/Organizacion/UnidadOrganizativa.cs` — XML doc de `VigenteDesde`/`VigenteHasta` aclarando uso informativo; nuevo `EsVigente(DateOnly fechaReferencia)`.
+
+**Web Integration**
+- `src/SGV.Web/Integration/Organizacion/VigenciaViewModel.cs` — **nuevo**: record `(Texto, BadgeClass)` + factory estática `Desde(DateOnly?, DateOnly?, DateOnly)`.
+- `src/SGV.Web/Integration/Organizacion/UnidadOrganizativaListItemViewModel.cs` — `UnidadOrganizativaListItemViewModel.Vigencia` ahora es `VigenciaViewModel` (era `string`); `UnidadOrganizativaListQuery` agrega `DateOnly? VigenteEn = null`.
+- `src/SGV.Web/Integration/Organizacion/UnidadOrganizativaApiClient.cs` — `BuildQueryUri` agrega parámetro `DateOnly? vigenteEn` y serializa como `vigenteEn=yyyy-MM-dd` (CultureInfo.InvariantCulture).
+- `src/SGV.Web/Integration/Organizacion/UnidadOrganizativaFormHelpers.cs` — `BuildReturnToListUrl` agrega parámetro `string? vigenteEn` y lo agrega a la query string cuando presente.
+
+**Web Pages**
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/UnidadOrganizativaTreeNodeViewModel.cs` — agrega `VigenciaViewModel Vigencia` al record (necesario para tree view en Index y Organigrama).
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Index.cshtml.cs` — propiedad `DateOnly? VigenteEn`; `VigenteEn` se agrega a `OnGetAsync`/`OnPostDeleteAsync`/`OnPostReactivateAsync`; preservado en `ReturnToListRouteValues`, `CreateRouteValues`, `BuildDetailsRouteValues` (`returnVigenteEn`), `BuildEditRouteValues` (`returnVigenteEn`), `BuildViewToggleRouteValues`; `MapToViewModel` y `MapToTreeViewModel` usan `VigenciaViewModel.Desde(...)` con `hoy = DateOnly.FromDateTime(DateTime.Today)`; helper privado `FormatVigenteEn(DateOnly?)` para serialización invariante.
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Index.cshtml` — celda `@item.Vigencia` reemplaza por badge condicional; hidden input `vigenteEn` en search/delete/reactivate forms y el form del alert de éxito; `vigenteEn` agregado a los 3 sort headers, 3 links de paginación, 2 links de segmento (Activas/Eliminadas) y al botón Crear (via `Model.CreateRouteValues`).
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Details.cshtml.cs` — `ReturnVigenteEn` (string) + `VigenciaViewModel? Vigencia` (calculado en `OnGetAsync` cuando `Unidad` está disponible); `OnGetAsync` acepta `vigenteEn` y `returnVigenteEn` con fallback; `OnPostReactivateAsync` lee `returnVigenteEn` del form; `ReturnToListUrl` lo propaga.
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Details.cshtml` — celda Vigencia reemplaza la lógica inline de 4 ramas por badge condicional sobre `Model.Vigencia`; hidden `returnVigenteEn` en el form de Reactivar; link Edit incluye `returnVigenteEn`.
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml.cs` — `[BindProperty] string? ReturnVigenteEn` + parámetros `vigenteEn` y `returnVigenteEn` en `OnGetAsync`; `OnPostAsync` y `OnPostReactivateAsync` leen `returnVigenteEn` del form y lo propagan en los tres `RedirectToPage`.
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Edit.cshtml` — hidden `<input type="hidden" asp-for="ReturnVigenteEn">` en el form principal; hidden manual `name="returnVigenteEn"` en el form de Reactivar del alert.
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml.cs` — `[BindProperty] string? ReturnVigenteEn` + parámetros `vigenteEn`/`returnVigenteEn` en `OnGetAsync`; redirect a Details propaga `returnVigenteEn`.
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Create.cshtml` — hidden `<input type="hidden" asp-for="ReturnVigenteEn">`.
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/Organigrama.cshtml.cs` — `MapToViewModel` toma `DateOnly hoy` y popula `Vigencia` con `VigenciaViewModel.Desde(null, null, hoy)` (limitación §281.8).
+- `src/SGV.Web/Pages/Organizacion/UnidadesOrganizativas/_TreeNode.cshtml` — bloque del badge de tipo reagrupado en un `d-flex` junto al badge de vigencia (preparado para §281.8).
+
+**Tests**
+- `tests/SGV.Tests/Dominio/Organizacion/UnidadOrganizativaTests.cs` — 6 tests nuevos `EsVigente_*` cubriendo: sin ventana, VigenteDesde futuro (antes/después), VigenteHasta pasado, VigenteHasta futuro (incluyendo límite), rango completo (antes/dentro/después). Total de tests en el archivo: 23 (17 preexistentes + 6 nuevos).
+
+### Validación
+
+- `dotnet build SGV.slnx`: 0 errores, 90 warnings (todos preexistentes — xUnit1031, xUnit2029, xUnit2013, EF1002 — ninguno en archivos tocados por este change).
+- `dotnet test SGV.slnx --no-build`: 3557 passed, 1 failed, 0 skipped. El único fallo (`UnidadOrganizativaRepositoryTests.IsDescendantAsync_ConCicloDirecto_LanzaCicloJerarquicoEnTiempoAcotado`) **es preexistente** (verificado con `git stash` + re-run sobre `develop` antes del change): `Assert.ThrowsAsync<InvalidOperationException>` espera `CicloJerarquico` pero el repo no lanza. Probable regresión del fix de #280 sobre el path de triggers anti-ciclo en MySQL real — **no relacionado con #281**, no se modifica.
+- `[MySqlFact]` sin MySQL local: los tests con `[MySqlFact]` que requieren conexión corren contra MySQL disponible en el ambiente (CI provee `mysql:8.0`); localmente los tests que sembraban el ciclo (`IsDescendantAsync_ConCicloDirecto`) sí corren y revelan la falla preexistente.
+
+### Decisiones D1/D2/D3 tomadas (consolidado)
+
+- **D1 — Lógica "está vigente a fecha X":** agregada al dominio como `public bool EsVigente(DateOnly fechaReferencia)` (§281.1). Sin cambios en validaciones existentes (sigue habiendo `ValidarVigencia` que sólo verifica `Hasta >= Desde`).
+- **D2 — Render de vigencia en UI:** `VigenciaViewModel(Texto, BadgeClass)` en `SGV.Web.Integration.Organizacion` (§281.2). Sin badge en ventana dentro de rango; `badge-soft-warning` para "Fuera de vigencia"; `badge-soft-info` para "Aún no vigente".
+- **D3 — Captura de `VigenteEn` en IndexModel:** parámetro del handler `OnGetAsync` (§281.5), preservado en todos los route values y propagado vía `returnVigenteEn` a Details/Edit/Create. Formato `yyyy-MM-dd` invariante para evitar binding frágil (§281.4).
+
 

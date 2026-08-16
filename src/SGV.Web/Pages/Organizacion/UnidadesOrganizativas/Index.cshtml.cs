@@ -44,6 +44,13 @@ public sealed class IndexModel(
 
     public string? Sort { get; private set; }
 
+    /// <summary>
+    /// Fecha de referencia para el filtro de vigencia. Se persiste como
+    /// query string <c>vigenteEn</c> en todos los route values generados
+    /// por este PageModel (issue #281).
+    /// </summary>
+    public DateOnly? VigenteEn { get; private set; }
+
     public string? LoadErrorMessage { get; private set; }
 
     public string CurrentView { get; private set; } = ListView;
@@ -68,13 +75,14 @@ public sealed class IndexModel(
 
     public bool HasLastDeleted => !string.IsNullOrWhiteSpace(LastDeletedId);
 
-    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, Guid? deletedId = null, string? status = null, CancellationToken cancellationToken = default)
+    public async Task OnGetAsync([FromQuery(Name = "p")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, Guid? deletedId = null, string? status = null, DateOnly? vigenteEn = null, CancellationToken cancellationToken = default)
     {
         CurrentPage = Math.Max(1, currentPage);
         Search = Normalize(search);
         Sort = Normalize(sort);
         CurrentView = NormalizeView(view);
         Segmento = NormalizeSegmento(status);
+        VigenteEn = vigenteEn;
 
         if (deletedId.HasValue)
         {
@@ -84,7 +92,7 @@ public sealed class IndexModel(
         await LoadAsync(cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, string? status = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, string? status = null, DateOnly? vigenteEn = null, CancellationToken cancellationToken = default)
     {
         var normalizedSearch = Normalize(search);
         var normalizedSort = Normalize(sort);
@@ -96,10 +104,10 @@ public sealed class IndexModel(
 
         if (result.Succeeded)
         {
-            var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, cancellationToken);
+            var redirectPage = await ResolveRedirectPageAsync(currentPage, normalizedSearch, normalizedSort, vigenteEn, cancellationToken);
             TempData[nameof(StatusMessage)] = "La unidad organizativa se eliminó correctamente.";
             TempData[nameof(StatusKind)] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, deletedId = id, status = normalizedSegmento });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = redirectPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, deletedId = id, status = normalizedSegmento, vigenteEn = FormatVigenteEn(vigenteEn) });
         }
 
         // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
@@ -124,10 +132,10 @@ public sealed class IndexModel(
         TempData[nameof(StatusMessage)] = message;
         TempData[nameof(StatusKind)] = "danger";
 
-        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, status = normalizedSegmento });
+        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, status = normalizedSegmento, vigenteEn = FormatVigenteEn(vigenteEn) });
     }
 
-    public async Task<IActionResult> OnPostReactivateAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, string? status = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnPostReactivateAsync(Guid id, [FromForm(Name = "page")] int currentPage = 1, string? search = null, string? sort = null, string? view = null, string? status = null, DateOnly? vigenteEn = null, CancellationToken cancellationToken = default)
     {
         var normalizedSearch = Normalize(search);
         var normalizedSort = Normalize(sort);
@@ -143,7 +151,7 @@ public sealed class IndexModel(
             TempData[nameof(StatusKind)] = "success";
             ClearLastDeleted();
             // After success, redirect to activas list
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, vigenteEn = FormatVigenteEn(vigenteEn) });
         }
 
         // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.
@@ -170,7 +178,7 @@ public sealed class IndexModel(
         TempData[nameof(StatusKind)] = "danger";
 
         // After failure, stay in the same segment (eliminadas) so user can retry
-        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, status = normalizedSegmento });
+        return RedirectToPage("/Organizacion/UnidadesOrganizativas/Index", new { p = currentPage, search = normalizedSearch, sort = normalizedSort, view = normalizedView, status = normalizedSegmento, vigenteEn = FormatVigenteEn(vigenteEn) });
     }
 
     public string GetSortRoute(string column)
@@ -196,7 +204,7 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// Builds query-string parameters for return-to-list links, preserving the current page, search, sort, and segmento.
+    /// Builds query-string parameters for return-to-list links, preserving the current page, search, sort, segmento, and vigencia (issue #281).
     /// </summary>
     public object ReturnToListRouteValues => new
     {
@@ -204,11 +212,12 @@ public sealed class IndexModel(
         search = Search,
         sort = Sort,
         view = IsTreeView ? CurrentView : null,
-        status = IsTreeView ? null : Segmento
+        status = IsTreeView ? null : Segmento,
+        vigenteEn = FormatVigenteEn(VigenteEn)
     };
 
     /// <summary>
-    /// Builds the return URL for the listado, preserving current page, search, sort, and segmento.
+    /// Builds the return URL for the listado, preserving current page, search, sort, segmento, and vigencia (issue #281).
     /// </summary>
     public string ReturnToListUrl => Url.Page("/Organizacion/UnidadesOrganizativas/Index", ReturnToListRouteValues) ?? "/organizacion/unidades-organizativas";
 
@@ -218,7 +227,8 @@ public sealed class IndexModel(
         search = Search,
         sort = Sort,
         view = IsTreeView ? CurrentView : null,
-        status = IsTreeView ? null : Segmento
+        status = IsTreeView ? null : Segmento,
+        vigenteEn = FormatVigenteEn(VigenteEn)
     };
 
     public object BuildDetailsRouteValues(Guid id) => new
@@ -228,7 +238,8 @@ public sealed class IndexModel(
         search = Search,
         sort = Sort,
         returnView = IsTreeView ? CurrentView : null,
-        returnStatus = IsTreeView ? null : Segmento
+        returnStatus = IsTreeView ? null : Segmento,
+        returnVigenteEn = FormatVigenteEn(VigenteEn)
     };
 
     public object BuildEditRouteValues(Guid id) => new
@@ -238,7 +249,8 @@ public sealed class IndexModel(
         search = Search,
         sort = Sort,
         returnView = IsTreeView ? CurrentView : null,
-        returnStatus = IsTreeView ? null : Segmento
+        returnStatus = IsTreeView ? null : Segmento,
+        returnVigenteEn = FormatVigenteEn(VigenteEn)
     };
 
     public object BuildViewToggleRouteValues(string view) => new
@@ -247,7 +259,8 @@ public sealed class IndexModel(
         search = Search,
         sort = Sort,
         view = NormalizeView(view),
-        status = string.Equals(view, ListView, StringComparison.OrdinalIgnoreCase) ? Segmento : null
+        status = string.Equals(view, ListView, StringComparison.OrdinalIgnoreCase) ? Segmento : null,
+        vigenteEn = FormatVigenteEn(VigenteEn)
     };
 
     private async Task LoadAsync(CancellationToken cancellationToken)
@@ -267,13 +280,14 @@ public sealed class IndexModel(
     {
         try
         {
-            var result = await unidadOrganizativaApiClient.QueryAsync(new UnidadOrganizativaListQuery(CurrentPage, DefaultPageSize, Search, Sort, Segmento), cancellationToken);
+            var result = await unidadOrganizativaApiClient.QueryAsync(new UnidadOrganizativaListQuery(CurrentPage, DefaultPageSize, Search, Sort, Segmento, VigenteEn), cancellationToken);
             CurrentPage = Math.Max(1, result.Page);
             TotalCount = Math.Max(0, result.TotalCount);
             TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, result.PageSize)));
 
+            var hoy = DateOnly.FromDateTime(DateTime.Today);
             Items = ApplyVisibleSort(result.Items, Sort)
-                .Select(MapToViewModel)
+                .Select(item => MapToViewModel(item, hoy))
                 .ToArray();
             TreeItems = [];
         }
@@ -293,7 +307,8 @@ public sealed class IndexModel(
         try
         {
             var result = await unidadOrganizativaApiClient.GetTreeAsync(cancellationToken);
-            TreeItems = result.Arbol.Select(MapToTreeViewModel).ToArray();
+            var hoy = DateOnly.FromDateTime(DateTime.Today);
+            TreeItems = result.Arbol.Select(node => MapToTreeViewModel(node, hoy)).ToArray();
             Items = [];
             TotalCount = CountTreeNodes(TreeItems);
             TotalPages = 1;
@@ -311,7 +326,7 @@ public sealed class IndexModel(
         }
     }
 
-    private async Task<int> ResolveRedirectPageAsync(int currentPage, string? search, string? sort, CancellationToken cancellationToken)
+    private async Task<int> ResolveRedirectPageAsync(int currentPage, string? search, string? sort, DateOnly? vigenteEn, CancellationToken cancellationToken)
     {
         if (currentPage <= 1)
         {
@@ -320,7 +335,7 @@ public sealed class IndexModel(
 
         try
         {
-            var refreshed = await unidadOrganizativaApiClient.QueryAsync(new UnidadOrganizativaListQuery(currentPage, DefaultPageSize, search, sort), cancellationToken);
+            var refreshed = await unidadOrganizativaApiClient.QueryAsync(new UnidadOrganizativaListQuery(currentPage, DefaultPageSize, search, sort, Status: null, VigenteEn: vigenteEn), cancellationToken);
             return refreshed.Items.Count == 0 ? currentPage - 1 : currentPage;
         }
         catch (Exception ex)
@@ -354,7 +369,7 @@ public sealed class IndexModel(
         return ordered.ToArray();
     }
 
-    private static UnidadOrganizativaListItemViewModel MapToViewModel(UnidadOrganizativaDto item)
+    private static UnidadOrganizativaListItemViewModel MapToViewModel(UnidadOrganizativaDto item, DateOnly hoy)
         => new(
             item.Id,
             item.Codigo,
@@ -362,38 +377,29 @@ public sealed class IndexModel(
             item.TipoUnidadNombre,
             item.Descripcion,
             item.UnidadPadreId,
-            BuildVigencia(item.VigenteDesde, item.VigenteHasta));
+            VigenciaViewModel.Desde(item.VigenteDesde, item.VigenteHasta, hoy));
 
-    private static UnidadOrganizativaTreeNodeViewModel MapToTreeViewModel(UnidadOrganizativaTreeNodeDto item)
+    private static UnidadOrganizativaTreeNodeViewModel MapToTreeViewModel(UnidadOrganizativaTreeNodeDto item, DateOnly hoy)
         => new(
             item.Id,
             item.Codigo,
             item.Nombre,
             item.TipoUnidadNombre,
-            item.Hijas.Select(MapToTreeViewModel).ToArray());
+            // El wire type UnidadOrganizativaTreeNodeDto no expone VigenteDesde/Hasta;
+            // hasta que la API extienda /arbol, todos los nodos muestran "Vigencia abierta".
+            VigenciaViewModel.Desde(null, null, hoy),
+            item.Hijas.Select(child => MapToTreeViewModel(child, hoy)).ToArray());
 
     private static int CountTreeNodes(IReadOnlyList<UnidadOrganizativaTreeNodeViewModel> nodes)
         => nodes.Sum(static node => 1 + CountTreeNodes(node.Children));
 
-    private static string BuildVigencia(DateOnly? vigenteDesde, DateOnly? vigenteHasta)
-    {
-        if (vigenteDesde is null && vigenteHasta is null)
-        {
-            return "Vigencia abierta";
-        }
-
-        if (vigenteDesde is not null && vigenteHasta is null)
-        {
-            return $"Desde {vigenteDesde:dd/MM/yyyy}";
-        }
-
-        if (vigenteDesde is null)
-        {
-            return $"Hasta {vigenteHasta:dd/MM/yyyy}";
-        }
-
-        return $"{vigenteDesde:dd/MM/yyyy} - {vigenteHasta:dd/MM/yyyy}";
-    }
+    /// <summary>
+    /// Serializa <see cref="VigenteEn"/> a <c>yyyy-MM-dd</c> para query
+    /// strings y formularios. Devuelve <c>null</c> cuando no hay filtro
+    /// (issue #281).
+    /// </summary>
+    private static string? FormatVigenteEn(DateOnly? vigenteEn)
+        => vigenteEn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private static string NormalizeView(string? view)
         => string.Equals(view, TreeView, StringComparison.OrdinalIgnoreCase) ? TreeView : ListView;

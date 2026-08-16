@@ -115,4 +115,73 @@ public sealed class UnidadOrganizativaTests
         var tipoUnidadProp = typeof(UnidadOrganizativa).GetProperty("TipoUnidad");
         Assert.Null(tipoUnidadProp);
     }
+
+    // ── EsVigente (issue #281) ───────────────────────────────────
+
+    [Fact]
+    public void EsVigente_SinVentanaDefinida_DevuelveTrue()
+    {
+        var unidad = new UnidadOrganizativa("COD-V1", "Sin ventana", TipoUnidadValido);
+
+        Assert.True(unidad.EsVigente(new DateOnly(2025, 6, 15)));
+    }
+
+    [Fact]
+    public void EsVigente_ConVigenteDesdeFuturo_DevuelveFalseAntesDelInicio()
+    {
+        var unidad = new UnidadOrganizativa("COD-V2", "Desde futuro", TipoUnidadValido);
+        unidad.DefinirVigencia(new DateOnly(2030, 1, 1), null);
+
+        Assert.False(unidad.EsVigente(new DateOnly(2025, 6, 15)));
+        Assert.False(unidad.EsVigente(new DateOnly(2029, 12, 31)));
+    }
+
+    [Fact]
+    public void EsVigente_ConVigenteDesdeFuturo_DevuelveTrueEnODespuesDelInicio()
+    {
+        var unidad = new UnidadOrganizativa("COD-V3", "Desde futuro activo", TipoUnidadValido);
+        unidad.DefinirVigencia(new DateOnly(2025, 1, 1), null);
+
+        Assert.True(unidad.EsVigente(new DateOnly(2025, 1, 1)));
+        Assert.True(unidad.EsVigente(new DateOnly(2025, 6, 15)));
+        Assert.True(unidad.EsVigente(new DateOnly(2099, 12, 31)));
+    }
+
+    [Fact]
+    public void EsVigente_ConVigenteHastaPasado_DevuelveFalse()
+    {
+        var unidad = new UnidadOrganizativa("COD-V4", "Hasta pasado", TipoUnidadValido);
+        unidad.DefinirVigencia(null, new DateOnly(2024, 12, 31));
+
+        Assert.False(unidad.EsVigente(new DateOnly(2025, 1, 1)));
+        Assert.False(unidad.EsVigente(new DateOnly(2030, 6, 15)));
+    }
+
+    [Fact]
+    public void EsVigente_ConVigenteHastaFuturo_DevuelveTrueIncluyendoLimite()
+    {
+        var unidad = new UnidadOrganizativa("COD-V5", "Hasta futuro", TipoUnidadValido);
+        unidad.DefinirVigencia(null, new DateOnly(2030, 12, 31));
+
+        Assert.True(unidad.EsVigente(new DateOnly(2025, 6, 15)));
+        Assert.True(unidad.EsVigente(new DateOnly(2030, 12, 31)));
+    }
+
+    [Fact]
+    public void EsVigente_ConRangoCompleto_DevuelveTrueDentro_FalseFuera()
+    {
+        var unidad = new UnidadOrganizativa("COD-V6", "Rango completo", TipoUnidadValido);
+        unidad.DefinirVigencia(new DateOnly(2025, 1, 1), new DateOnly(2030, 12, 31));
+
+        // Antes del rango → false (aún no vigente)
+        Assert.False(unidad.EsVigente(new DateOnly(2024, 12, 31)));
+
+        // Dentro del rango (incluyendo los límites) → true
+        Assert.True(unidad.EsVigente(new DateOnly(2025, 1, 1)));
+        Assert.True(unidad.EsVigente(new DateOnly(2025, 6, 15)));
+        Assert.True(unidad.EsVigente(new DateOnly(2030, 12, 31)));
+
+        // Después del rango → false (fuera de vigencia)
+        Assert.False(unidad.EsVigente(new DateOnly(2031, 1, 1)));
+    }
 }
