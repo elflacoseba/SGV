@@ -21,6 +21,23 @@
     <div class="alert alert-danger" role="alert">@Model.LoadErrorMessage</div>
 }
 
+@if (Model.HasCyclicNodes)
+{
+    // Issue #277: si la API detectó nodos involucrados en ciclos,
+    // mostramos un warning explícito para que el operador sepa que
+    // el árbol visible está incompleto. Los IDs se renderizan en
+    // formato MonoSpace para facilitar copy/paste al DBA.
+    <div class="alert alert-warning" role="alert">
+        <h6 class="alert-heading mb-1"><i class="mdi mdi-alert-octagram-outline me-1"></i> Ciclos detectados en la jerarquía</h6>
+        <p class="mb-1">
+            El backend reportó <strong>@Model.CyclicNodeIds.Count</strong> nodo(s) que participan en al menos un ciclo. No se incluyen en el árbol renderizado. Corregí la jerarquía vía el portal admin o vía <code>PATCH /api/v1/unidades-organizativas/{id}/unidad-padre</code>.
+        </p>
+        <p class="mb-0 small text-muted">
+            IDs: @foreach (var (id, idx) in Model.CyclicNodeIds.Select((x, i) => (x, i))) {<code>@id.ToString()</code>@if (idx < Model.CyclicNodeIds.Count - 1) {<span>, </span>}}
+        </p>
+    </div>
+}
+
 <div class="row">
     <div class="col-12">
         <div class="card">
