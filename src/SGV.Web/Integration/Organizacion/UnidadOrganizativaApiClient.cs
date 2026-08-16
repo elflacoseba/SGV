@@ -83,13 +83,13 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken cancellationToken = default)
+    public async Task<UnidadOrganizativaArbolResponse> GetTreeAsync(CancellationToken cancellationToken = default)
     {
         var response = await httpClient.GetAsync($"{BaseRoute}/arbol", cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>(cancellationToken)
-            ?? [];
+        return await response.Content.ReadFromJsonAsync<UnidadOrganizativaArbolResponse>(cancellationToken)
+            ?? new UnidadOrganizativaArbolResponse([], []);
     }
 
     /// <inheritdoc />

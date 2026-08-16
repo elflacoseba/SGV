@@ -175,11 +175,11 @@ internal sealed class FakeUnidadOrganizativaServicio : IUnidadOrganizativaServic
         return Task.FromResult(new PagedResult<UnidadOrganizativaDto>(items, total, query.Page, query.PageSize));
     }
 
-    public Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken ct = default)
+    public Task<UnidadOrganizativaArbolResponse> GetTreeAsync(CancellationToken ct = default)
     {
         var roots = _activas.Where(d => d.UnidadPadreId is null).ToList();
         var tree = roots.Select(r => BuildTreeNode(r, _activas)).ToList();
-        return Task.FromResult<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>(tree);
+        return Task.FromResult(new UnidadOrganizativaArbolResponse(tree, []));
     }
 
     private static UnidadOrganizativaTreeNodeDto BuildTreeNode(

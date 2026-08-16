@@ -17,7 +17,7 @@ public sealed class OrganigramaModel(IUnidadOrganizativaApiClient unidadOrganiza
         try
         {
             var result = await unidadOrganizativaApiClient.GetTreeAsync(cancellationToken);
-            TreeItems = result.Select(MapToViewModel).ToArray();
+            TreeItems = result.Arbol.Select(MapToViewModel).ToArray();
         }
         catch (Exception ex)
         {

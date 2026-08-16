@@ -50,7 +50,7 @@ public sealed partial class UnidadOrganizativaWebTests
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(Guid.NewGuid(), "DIR", "Dirección")];
-        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse([new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])], []);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;
@@ -116,7 +116,7 @@ public sealed partial class UnidadOrganizativaWebTests
             new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "ValidationError", "One or more fields are invalid."),
             new Dictionary<string, string[]> { ["Codigo"] = ["El código ya existe."] });
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
-        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse([new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])], []);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;

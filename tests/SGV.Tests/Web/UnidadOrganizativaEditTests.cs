@@ -94,7 +94,7 @@ public sealed partial class UnidadOrganizativaWebTests
             unitId, "DEPT01", "Departamento Test", Guid.NewGuid(), "Departamento",
             null, null, null, parentId, "RECT", "Rectorado");
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(Guid.NewGuid(), "DIR", "Dirección")];
-        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse([new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])], []);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;
@@ -285,7 +285,7 @@ public sealed partial class UnidadOrganizativaWebTests
         apiClient.CommandResult = UnidadOrganizativaCommandResult.Failure(
             new UnidadOrganizativaError(UnidadOrganizativaErrorType.Conflict, "Conflict", "La unidad tiene dependencias activas.", Categoria: ErrorCategoria.Conflict));
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
-        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse([new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])], []);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;
@@ -328,7 +328,7 @@ public sealed partial class UnidadOrganizativaWebTests
             new UnidadOrganizativaError(UnidadOrganizativaErrorType.Validation, "ValidationError", "One or more fields are invalid."),
             new Dictionary<string, string[]> { ["nombre"] = ["El nombre es obligatorio."] });
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
-        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse([new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])], []);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;
@@ -367,7 +367,7 @@ public sealed partial class UnidadOrganizativaWebTests
             unitId, "DEPT01", "Departamento Test", tipoId, "Departamento",
             null, null, null, null, null, null);
         apiClient.TiposResult = [new TipoUnidadOrganizativaDto(tipoId, "DIR", "Dirección")];
-        apiClient.TreeResult = [new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])];
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse([new UnidadOrganizativaTreeNodeDto(Guid.NewGuid(), "RECT", "Rectorado", Guid.NewGuid(), "Institución", [])], []);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;

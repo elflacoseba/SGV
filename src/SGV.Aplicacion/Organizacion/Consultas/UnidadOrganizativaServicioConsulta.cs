@@ -39,11 +39,54 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
             query.PageSize);
     }
 
-    public async Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(
+    public async Task<UnidadOrganizativaArbolResponse> GetTreeAsync(
         CancellationToken cancellationToken = default)
     {
         var all = await repository.ListTreeAsync(cancellationToken);
-        return BuildTree(all, null, ancestors: null);
+        var arbolexclusion = DetectCiclosJerarquicos(all);
+        var cyclicNodes = new HashSet<Guid>(arbolexclusion);
+        var tree = BuildTree(all, null, ancestors: null, cyclicNodes);
+        return new UnidadOrganizativaArbolResponse(tree, arbolexclusion);
+    }
+
+    /// <summary>
+    /// Walks the padre chain from every active node and reports the set of
+    /// ids that participate in at least one cycle. O(N²) worst-case on a
+    /// graph with a single FK per row, acceptable for SGV tree sizes
+    /// (≤10³ rows). Returns ids in stable order (sorted ascending) so the
+    /// response is repeatable across runs.
+    /// </summary>
+    private static IReadOnlyList<Guid> DetectCiclosJerarquicos(
+        IReadOnlyList<UnidadOrganizativa> all)
+    {
+        var byId = all.ToDictionary(u => u.Id);
+        var cyclicNodes = new HashSet<Guid>();
+
+        foreach (var node in all)
+        {
+            var path = new List<Guid> { node.Id };
+            var current = node;
+            while (current.UnidadPadreId.HasValue
+                   && byId.TryGetValue(current.UnidadPadreId.Value, out var parent))
+            {
+                if (path.Contains(parent.Id))
+                {
+                    // Cycle: mark every node from the entry point onward.
+                    var entryIdx = path.IndexOf(parent.Id);
+                    for (var i = entryIdx; i < path.Count; i++)
+                    {
+                        cyclicNodes.Add(path[i]);
+                    }
+
+                    break;
+                }
+
+                path.Add(parent.Id);
+                current = parent;
+            }
+        }
+
+        return cyclicNodes.OrderBy(id => id).ToList();
     }
 
     /// <summary>
@@ -58,17 +101,29 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
     /// path is propagated by copy at every step so siblings do not falsely
     /// detect cycles between each other — a unit can appear multiple times
     /// in the dataset as the child of multiple parents without being a
-    /// cycle, only a repeat on the current path counts.
+    /// cycle, only a repeat on the current path counts. The optional
+    /// <paramref name="cyclicNodes"/> filter further excludes nodes that
+    /// <see cref="DetectCiclosJerarquicos"/> flagged so the API can present
+    /// just the acyclic portion of the tree.
     /// </remarks>
     private static List<UnidadOrganizativaTreeNodeDto> BuildTree(
         IReadOnlyList<UnidadOrganizativa> all,
         Guid? parentId,
-        HashSet<Guid>? ancestors)
+        HashSet<Guid>? ancestors,
+        HashSet<Guid>? cyclicNodes = null)
     {
         var currentPath = ancestors ?? new HashSet<Guid>();
         var result = new List<UnidadOrganizativaTreeNodeDto>();
         foreach (var u in all.Where(x => x.UnidadPadreId == parentId))
         {
+            if (cyclicNodes is not null && cyclicNodes.Contains(u.Id))
+            {
+                // Cycle-pre-detected: omit from the canonical tree so
+                // the consumer can render the partial hierarchy without
+                // emitting duplicate nodes from a closed loop.
+                continue;
+            }
+
             if (!currentPath.Add(u.Id))
             {
                 // Cycle: id already present on the current path from root
@@ -83,7 +138,7 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
                 u.Nombre,
                 u.TipoUnidadOrganizativaId,
                 u.TipoUnidadOrganizativa?.Nombre ?? string.Empty,
-                BuildTree(all, u.Id, childPath)));
+                BuildTree(all, u.Id, childPath, cyclicNodes)));
         }
 
         return result;

@@ -297,7 +297,7 @@ public sealed class EditModel(
             await Task.WhenAll(tiposTask, treeTask);
 
             TipoOptions = tiposTask.Result;
-            ParentOptions = UnidadOrganizativaFormHelpers.FlattenTree(treeTask.Result, excludeSubtreeRootId: currentId);
+            ParentOptions = UnidadOrganizativaFormHelpers.FlattenTree(treeTask.Result.Arbol, excludeSubtreeRootId: currentId);
         }
         catch (Exception ex)
         {

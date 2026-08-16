@@ -24,9 +24,10 @@ public interface IUnidadOrganizativaApiClient
     Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the hierarchical tree of unidades organizativas.
+    /// Gets the hierarchical tree of unidades organizativas together with
+    /// the list of node ids that participate in a hierarchy cycle.
     /// </summary>
-    Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken cancellationToken = default);
+    Task<UnidadOrganizativaArbolResponse> GetTreeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets all tipos de unidad organizativa.

@@ -293,7 +293,7 @@ public sealed class IndexModel(
         try
         {
             var result = await unidadOrganizativaApiClient.GetTreeAsync(cancellationToken);
-            TreeItems = result.Select(MapToTreeViewModel).ToArray();
+            TreeItems = result.Arbol.Select(MapToTreeViewModel).ToArray();
             Items = [];
             TotalCount = CountTreeNodes(TreeItems);
             TotalPages = 1;

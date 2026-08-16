@@ -13,24 +13,25 @@ public sealed partial class UnidadOrganizativaWebTests
         var facultyId = Guid.NewGuid();
         var departmentId = Guid.NewGuid();
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
-        apiClient.TreeResult =
-        [
-            new UnidadOrganizativaTreeNodeDto(
-                facultyId,
-                "RECT",
-                "Rectorado",
-                Guid.NewGuid(),
-                "Institución",
-                [
-                    new UnidadOrganizativaTreeNodeDto(
-                        departmentId,
-                        "FI",
-                        "Facultad de Ingeniería",
-                        Guid.NewGuid(),
-                        "Facultad",
-                        [])
-                ])
-        ];
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse(
+            [
+                new UnidadOrganizativaTreeNodeDto(
+                    facultyId,
+                    "RECT",
+                    "Rectorado",
+                    Guid.NewGuid(),
+                    "Institución",
+                    [
+                        new UnidadOrganizativaTreeNodeDto(
+                            departmentId,
+                            "FI",
+                            "Facultad de Ingeniería",
+                            Guid.NewGuid(),
+                            "Facultad",
+                            [])
+                    ])
+            ],
+            []);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;
@@ -59,7 +60,7 @@ public sealed partial class UnidadOrganizativaWebTests
     public async Task Get_Organigrama_WhenTreeIsEmpty_ShowsEmptyState()
     {
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
-        apiClient.TreeResult = [];
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse([], []);
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;
