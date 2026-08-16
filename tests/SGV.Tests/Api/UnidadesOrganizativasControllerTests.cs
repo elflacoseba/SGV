@@ -799,8 +799,12 @@ public sealed class UnidadesOrganizativasControllerTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadAsStringAsync();
-        var tree = JsonSerializer.Deserialize<List<UnidadOrganizativaTreeNodeDto>>(json, JsonOptions);
+        // Issue #277: contract changed from `IReadOnlyList<TreeNodeDto>`
+        // to `UnidadOrganizativaArbolResponse(Arbol, NodosConCiloDetectado)`.
+        var tree = JsonSerializer.Deserialize<UnidadOrganizativaArbolResponse>(json, JsonOptions);
         Assert.NotNull(tree);
+        Assert.NotNull(tree!.Arbol);
+        Assert.NotNull(tree.NodosConCiloDetectado);
     }
 
     [Fact]
@@ -810,9 +814,11 @@ public sealed class UnidadesOrganizativasControllerTests
         var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync("/api/v1/unidades-organizativas/arbol");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await response.Content.ReadAsStringAsync();
+        // Issue #277: navigate into the `arbol` field of the response.
         var doc = JsonDocument.Parse(json);
-        var first = doc.RootElement.EnumerateArray().First();
+        var first = doc.RootElement.GetProperty("arbol").EnumerateArray().First();
 
         Assert.True(first.TryGetProperty("tipoUnidadOrganizativaId", out _),
             "Tree node MUST include 'tipoUnidadOrganizativaId'");
