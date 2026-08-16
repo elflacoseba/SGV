@@ -234,6 +234,98 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ===== WU-2: PUT valida integridad del padre (issue #277) =====
+    // Spec: "PUT con padre inexistente retorna 404 sin persistir"
+    //       "PUT con padre descendiente retorna 409 sin persistir"
+    //       "PUT con padre válido persiste normalmente"
+    //       "PUT con padre null persiste normalmente"
+
+    [Fact]
+    public async Task ActualizarAsync_PadreInexistente_RetornaNotFoundYSinGuardar()
+    {
+        var existente = CrearUnidadActiva("GER", UnidadId);
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Gerencia Actualizada",
+            TipoUnidadOrganizativaConstantes.InstitucionId,
+            null, null, null, Guid.NewGuid());
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.NotFound, resultado.Error!.Type);
+        Assert.Equal("UnidadPadreNoEncontrada", resultado.Error.Code);
+        Assert.Equal(0, repo.UpdateCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_PadreDescendiente_RetornaConflictYSinGuardar()
+    {
+        // padre → hijo (hijo es descendiente de padre). Intentar cambiar padre del padre a hijo = ciclo.
+        var padre = CrearUnidadActiva("PADRE", PadreId);
+        var hijo = CrearUnidadActiva("HIJO", HijoId, PadreId);
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Padre a reasignar",
+            TipoUnidadOrganizativaConstantes.InstitucionId,
+            null, null, null, HijoId);
+
+        var resultado = await servicio.ActualizarAsync(PadreId, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CicloJerarquico", resultado.Error.Code);
+        Assert.Equal(0, repo.UpdateCallCount);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_PadreValidoYPersisteNormalmente()
+    {
+        // padre != existente, y no es descendiente de existente.
+        var padre = CrearUnidadActiva("PADRE-OK", PadreId);
+        var existente = CrearUnidadActiva("EXIST", UnidadId);
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Exist actualizado",
+            TipoUnidadOrganizativaConstantes.AreaId,
+            null, null, null, PadreId);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(PadreId, resultado.Value!.UnidadPadreId);
+        Assert.Equal(1, repo.UpdateCallCount);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_PadreNull_PersisteNormalmente()
+    {
+        var existente = CrearUnidadActiva("EXIST", UnidadId, unidadPadreId: PadreId);
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Exist sin padre",
+            TipoUnidadOrganizativaConstantes.AreaId,
+            null, null, null, null);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Null(resultado.Value!.UnidadPadreId);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
     [Fact]
     public async Task CambiarUnidadPadreAsync_PadreValido_RetornaDtoYGuarda()
     {
@@ -801,9 +893,17 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
     public Task<bool> IsDescendantAsync(Guid candidateDescendantId, Guid ancestorId, CancellationToken cancellationToken = default)
     {
         IsDescendantCallCount++;
+        // Mirror production (issue #277): visited-set bound so a cycle in
+        // the fake data raises the canonical code instead of looping.
+        var visited = new HashSet<Guid>(capacity: 16);
         var current = Datos.FirstOrDefault(d => d.Id == candidateDescendantId);
         while (current is not null && current.UnidadPadreId.HasValue)
         {
+            if (!visited.Add(current.Id))
+            {
+                throw new InvalidOperationException("CicloJerarquico");
+            }
+
             if (current.UnidadPadreId == ancestorId)
             {
                 return Task.FromResult(true);
