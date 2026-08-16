@@ -289,6 +289,54 @@ public sealed class UnidadOrganizativaRepositoryTests
         }
     }
 
+    /// <summary>
+    /// Regression test for issue #277 (cycle hang): when the DB contains an
+    /// active cycle (A→B→A), <see cref="IUnidadOrganizativaRepository.IsDescendantAsync"/>
+    /// MUST not loop forever. The repository must detect the revisita and
+    /// raise <see cref="InvalidOperationException"/> with the canonical code
+    /// <c>CicloJerarquico</c> so the command service can translate that into
+    /// a <c>409 Conflict</c>. The previous implementation relied on a
+    /// <c>while</c> over the parent chain without a visited-set; that loop
+    /// never terminates when the chain is a cycle.
+    /// </summary>
+    /// <remarks>
+    /// Required by spec <c>unidad-organizativa-crud</c> /
+    /// "Detección de descendencia nunca cuelga ante ciclos" — scenario
+    /// "IsDescendantAsync corta ante ciclo pre-existente sin colgar".
+    /// </remarks>
+    [MySqlFact]
+    public async Task IsDescendantAsync_ConCicloDirecto_LanzaCicloJerarquicoEnTiempoAcotado()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var a = RepositoryTestData.CreateUnidadOrganizativa("UO-CICLO-A");
+        var b = RepositoryTestData.CreateUnidadOrganizativa("UO-CICLO-B");
+        a.UnidadPadreId = b.Id;
+        b.UnidadPadreId = a.Id;
+
+        await context.Set<UnidadOrganizativaEntity>().AddRangeAsync([a, b]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repo.IsDescendantAsync(a.Id, b.Id, default));
+
+            Assert.Equal("CicloJerarquico", ex.Message);
+        }
+        finally
+        {
+            // Break the cycle before removing so EF doesn't try to
+            // cascade NULL through the FK and trip the check constraint.
+            a.UnidadPadreId = null;
+            b.UnidadPadreId = null;
+            await context.SaveChangesAsync();
+            context.Set<UnidadOrganizativaEntity>().RemoveRange(a, b);
+            await context.SaveChangesAsync();
+        }
+    }
+
     // ===================== HasActiveChildrenAsync tests =====================
 
     [MySqlFact]
