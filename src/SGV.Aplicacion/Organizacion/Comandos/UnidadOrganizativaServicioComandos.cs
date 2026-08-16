@@ -90,7 +90,13 @@ public sealed class UnidadOrganizativaServicioComandos(
             await repository.AddAsync(unidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return UnidadOrganizativaCommandResult.Success(MapToDto(unidad));
+            // Issue #279: la instancia recién agregada no tiene las
+            // navegaciones hidratadas, así que re-leemos con el método base
+            // del repo (que carga TipoUnidadOrganizativa y UnidadPadre vía
+            // Include) para devolver un DTO con tipoUnidadNombre,
+            // unidadPadreCodigo y unidadPadreNombre correctos.
+            var recargada = await repository.GetByIdAsync(unidad.Id, cancellationToken).ConfigureAwait(false);
+            return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -181,7 +187,13 @@ public sealed class UnidadOrganizativaServicioComandos(
             await repository.UpdateAsync(unidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return UnidadOrganizativaCommandResult.Success(MapToDto(unidad));
+            // Issue #279: la navegación TipoUnidadOrganizativa cargada por
+            // GetByIdForUpdateAsync queda stale si el request cambió el
+            // tipo, y UnidadPadre nunca se cargó. Re-leemos con el método
+            // base del repo para devolver un DTO con ambas navegaciones
+            // frescas (incluyendo el padre nuevo cuando aplique).
+            var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+            return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -232,7 +244,11 @@ public sealed class UnidadOrganizativaServicioComandos(
             await repository.UpdateAsync(unidad, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return UnidadOrganizativaCommandResult.Success(MapToDto(unidad));
+            // Issue #279: GetByIdForUpdateAsync sólo carga TipoUnidadOrganizativa,
+            // nunca UnidadPadre. Re-leemos para que el DTO de respuesta traiga
+            // unidadPadreCodigo y unidadPadreNombre del nuevo padre.
+            var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+            return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -308,7 +324,12 @@ public sealed class UnidadOrganizativaServicioComandos(
             await repository.ReactivateAsync(id, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return UnidadOrganizativaCommandResult.Success(MapToDto(unidad));
+            // Issue #279: GetByIdIncludingDeletedAsync sólo carga TipoUnidadOrganizativa.
+            // Tras reactivar, la unidad vuelve a estar activa, así que usamos el
+            // método base del repo para devolver un DTO con ambas navegaciones
+            // frescas.
+            var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+            return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {

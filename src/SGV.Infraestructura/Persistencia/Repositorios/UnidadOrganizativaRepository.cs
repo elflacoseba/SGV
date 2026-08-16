@@ -39,6 +39,7 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
         var entity = await Context
             .Set<UnidadOrganizativaEntity>()
             .Include(u => u.TipoUnidadOrganizativa)
+            .Include(u => u.UnidadPadre)
             .FirstOrDefaultAsync(u => u.Id == id && u.IsActive && !u.IsDeleted, cancellationToken)
             .ConfigureAwait(false);
 
@@ -50,6 +51,7 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
         var entity = await Context
             .Set<UnidadOrganizativaEntity>()
             .Include(u => u.TipoUnidadOrganizativa)
+            .Include(u => u.UnidadPadre)
             .FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
             .ConfigureAwait(false);
 

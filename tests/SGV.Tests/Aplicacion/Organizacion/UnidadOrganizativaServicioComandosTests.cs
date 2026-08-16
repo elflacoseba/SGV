@@ -793,6 +793,132 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    // ===== Issue #279: DTO de respuesta con navegaciones hidratadas =====
+    // Spec: "POST/PUT/PATCH /{id}/unidad-padre/PATCH /{id}/reactivar deben
+    //        devolver tipoUnidadNombre, unidadPadreCodigo y unidadPadreNombre
+    //        correctos, no strings vacíos ni nulls, cuando los IDs
+    //        referenciados existen."
+
+    private static FakeUnidadOrganizativaWriteRepository RepoConTipo()
+    {
+        // El fake simula el `Include` del repo de producción sólo cuando
+        // TipoRepo está seteado. Los tests de issue #279 lo asignan para
+        // que la rehidratación post-save exponga las navegaciones en el DTO.
+        return new FakeUnidadOrganizativaWriteRepository { TipoRepo = FakeTipoRepo };
+    }
+
+    [Fact]
+    public async Task CrearAsync_DtoIncluyeTipoUnidadNombreYPadreSiExisten()
+    {
+        var padre = CrearUnidadActiva("PADRE-279", PadreId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
+        var repo = RepoConTipo();
+        repo.Datos.Add(padre);
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new CrearUnidadOrganizativaRequest(
+            "HIJO-279", "Hijo 279",
+            TipoUnidadOrganizativaConstantes.FacultadId, null, null, null, PadreId);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.NotNull(resultado.Value);
+        // tipoUnidadOrganizativaId=FacultadId -> Nombre="Facultad"
+        Assert.Equal("Facultad", resultado.Value!.TipoUnidadNombre);
+        Assert.Equal(padre.Codigo, resultado.Value.UnidadPadreCodigo);
+        Assert.Equal(padre.Nombre, resultado.Value.UnidadPadreNombre);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CambiaTipo_RetornaNombreTipoNuevoEnDto()
+    {
+        var existente = CrearUnidadActiva("EXIST-279", UnidadId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
+        var repo = RepoConTipo();
+        repo.Datos.Add(existente);
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Exist actualizado",
+            TipoUnidadOrganizativaConstantes.DireccionId,
+            null, null, null, null);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        // La nav stale apuntaría a "Institución" (el tipo original). El re-fetch
+        // vía GetByIdAsync debe traer el nombre del nuevo tipo.
+        Assert.Equal("Dirección", resultado.Value!.TipoUnidadNombre);
+        Assert.Equal(TipoUnidadOrganizativaConstantes.DireccionId, resultado.Value.TipoUnidadOrganizativaId);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CambiaPadre_RetornaCodigoYNombrePadreNuevoEnDto()
+    {
+        var padre = CrearUnidadActiva("PADRE-279", PadreId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
+        var existente = CrearUnidadActiva("EXIST-279", UnidadId);
+        var repo = RepoConTipo();
+        repo.Datos.Add(padre);
+        repo.Datos.Add(existente);
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Exist con padre",
+            TipoUnidadOrganizativaConstantes.AreaId,
+            null, null, null, PadreId);
+
+        var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(padre.Codigo, resultado.Value!.UnidadPadreCodigo);
+        Assert.Equal(padre.Nombre, resultado.Value.UnidadPadreNombre);
+        Assert.Equal(PadreId, resultado.Value.UnidadPadreId);
+    }
+
+    [Fact]
+    public async Task CambiarUnidadPadreAsync_Exitoso_DtoIncluyeCodigoYNombreNuevoPadre()
+    {
+        var padre = CrearUnidadActiva("NUEVO-PADRE", PadreId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
+        var unidad = CrearUnidadActiva("EXIST", UnidadId, tipoId: TipoUnidadOrganizativaConstantes.FacultadId);
+        var repo = RepoConTipo();
+        repo.Datos.Add(unidad);
+        repo.Datos.Add(padre);
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+
+        var resultado = await servicio.CambiarUnidadPadreAsync(UnidadId, new CambiarUnidadPadreRequest(PadreId), default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(padre.Codigo, resultado.Value!.UnidadPadreCodigo);
+        Assert.Equal(padre.Nombre, resultado.Value.UnidadPadreNombre);
+    }
+
+    [Fact]
+    public async Task ReactivarAsync_Exitoso_DtoIncluyeNavegacionesHidratas()
+    {
+        var padre = new UnidadOrganizativa("PADRE", "Padre Activo", TipoUnidadOrganizativaConstantes.InstitucionId, null, null)
+        {
+            Id = PadreId
+        };
+        var hijo = new UnidadOrganizativa("HIJO", "Hijo 279", TipoUnidadOrganizativaConstantes.FacultadId, null, PadreId)
+        {
+            Id = HijoId
+        };
+        hijo.Desactivar();
+        var repo = RepoConTipo();
+        repo.Datos.Add(padre);
+        repo.Datos.Add(hijo);
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+
+        var resultado = await servicio.ReactivarAsync(HijoId, default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal("Facultad", resultado.Value!.TipoUnidadNombre);
+        Assert.Equal(padre.Codigo, resultado.Value.UnidadPadreCodigo);
+        Assert.Equal(padre.Nombre, resultado.Value.UnidadPadreNombre);
+    }
+
     private static UnidadOrganizativa CrearUnidadActiva(
         string codigo, Guid? id = null, Guid? unidadPadreId = null, Guid? tipoId = null)
     {
@@ -838,6 +964,16 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
     /// </summary>
     public Dictionary<Guid, List<Puesto>> PuestosPorUnidad { get; set; } = [];
 
+    /// <summary>
+    /// Optional: when set, the read methods rebuild the returned domain entity with
+    /// <see cref="UnidadOrganizativa.TipoUnidadOrganizativa"/> and
+    /// <see cref="UnidadOrganizativa.UnidadPadre"/> navigations resolved from this
+    /// repo and the sibling entries in <see cref="Datos"/>. This mirrors the
+    /// production <c>Include(...)</c> behavior so issue #279 tests can assert on
+    /// DTO nav fields without hitting EF Core.
+    /// </summary>
+    public ITipoUnidadOrganizativaRepository? TipoRepo { get; set; }
+
     public Task AddAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
     {
         AddCallCount++;
@@ -873,21 +1009,64 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
     {
         GetByIdCallCount++;
         var unidad = Datos.FirstOrDefault(d => d.Id == id && d.IsActive && !d.IsDeleted);
-        return Task.FromResult(unidad);
+        return Task.FromResult(HidratarConNavegaciones(unidad));
     }
 
     public Task<UnidadOrganizativa?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
     {
         GetByIdForUpdateCallCount++;
         var unidad = Datos.FirstOrDefault(d => d.Id == id && d.IsActive && !d.IsDeleted);
-        return Task.FromResult(unidad);
+        return Task.FromResult(HidratarConNavegaciones(unidad));
     }
 
     public Task<UnidadOrganizativa?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
     {
         GetByIdIncludingDeletedCallCount++;
         var unidad = Datos.FirstOrDefault(d => d.Id == id);
-        return Task.FromResult(unidad);
+        return Task.FromResult(HidratarConNavegaciones(unidad));
+    }
+
+    /// <summary>
+    /// Re-hydrates the unit with navigation properties populated via the
+    /// factory <see cref="UnidadOrganizativa.Reconstitute"/> (internal), so the
+    /// returned instance carries TipoUnidadOrganizativa + UnidadPadre like the
+    /// production EF query does. When <see cref="TipoRepo"/> is null (legacy
+    /// tests that don't care about navs) the original instance is returned.
+    /// </summary>
+    private UnidadOrganizativa? HidratarConNavegaciones(UnidadOrganizativa? source)
+    {
+        if (source is null || TipoRepo is null)
+        {
+            return source;
+        }
+
+        var tipo = TipoRepo.GetByIdAsync(source.TipoUnidadOrganizativaId).GetAwaiter().GetResult();
+        UnidadOrganizativa? padre = null;
+        if (source.UnidadPadreId.HasValue)
+        {
+            padre = Datos.FirstOrDefault(d => d.Id == source.UnidadPadreId.Value && d.IsActive && !d.IsDeleted);
+            padre = HidratarConNavegaciones(padre);
+        }
+
+        return UnidadOrganizativa.Reconstitute(
+            source.Id,
+            source.Codigo,
+            source.Nombre,
+            source.TipoUnidadOrganizativaId,
+            source.Descripcion,
+            source.UnidadPadreId,
+            source.VigenteDesde,
+            source.VigenteHasta,
+            source.IsActive,
+            padre,
+            tipo,
+            source.CreatedAt,
+            source.CreatedByUserId,
+            source.UpdatedAt,
+            source.UpdatedByUserId,
+            source.IsDeleted,
+            source.DeletedAt,
+            source.DeletedByUserId);
     }
 
     public Task<bool> IsDescendantAsync(Guid candidateDescendantId, Guid ancestorId, CancellationToken cancellationToken = default)
