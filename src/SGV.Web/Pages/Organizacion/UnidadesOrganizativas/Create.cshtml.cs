@@ -134,7 +134,7 @@ public sealed class CreateModel(
             await Task.WhenAll(tiposTask, treeTask);
 
             TipoOptions = tiposTask.Result;
-            ParentOptions = UnidadOrganizativaFormHelpers.FlattenTree(treeTask.Result);
+            ParentOptions = UnidadOrganizativaFormHelpers.FlattenTree(treeTask.Result.Arbol);
         }
         catch (Exception ex)
         {

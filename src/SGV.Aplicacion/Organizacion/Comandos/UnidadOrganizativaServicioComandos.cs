@@ -127,6 +127,44 @@ public sealed class UnidadOrganizativaServicioComandos(
                     "El tipo de unidad organizativa referenciado no existe."));
         }
 
+        // Issue #277 (WU-2): PUT previously skipped padre integrity entirely,
+        // letting padre-inexistente or padre-descendiente slip through and
+        // poisoning the hierarchy. Mirror the validation block already used
+        // by CambiarUnidadPadreAsync: existence -> 404; cycle -> 409.
+        // Self-reference is still caught by Dominio.Actualizar via
+        // `InvalidOperationException("...padre de sí misma")` inside the
+        // try below (translates to "DatosInvalidos"). See spec
+        // unidad-organizativa-crud "PUT valida integridad del padre".
+        if (request.UnidadPadreId.HasValue)
+        {
+            var padre = await repository.GetByIdAsync(request.UnidadPadreId.Value, cancellationToken).ConfigureAwait(false);
+            if (padre is null)
+            {
+                return UnidadOrganizativaCommandResult.Failure(
+                    new(UnidadOrganizativaErrorType.NotFound, "UnidadPadreNoEncontrada",
+                        "La unidad padre especificada no existe."));
+            }
+
+            try
+            {
+                if (await repository.IsDescendantAsync(request.UnidadPadreId.Value, id, cancellationToken).ConfigureAwait(false))
+                {
+                    return UnidadOrganizativaCommandResult.Failure(
+                        new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico",
+                            "No se puede asignar como padre una unidad descendiente."));
+                }
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "CicloJerarquico")
+            {
+                // Pre-existing cycle in BD would otherwise cause an
+                // infinite loop in IsDescendantAsync; the repository
+                // raises the canonical code which we translate to 409.
+                return UnidadOrganizativaCommandResult.Failure(
+                    new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico",
+                        "No se puede asignar como padre una unidad descendiente."));
+            }
+        }
+
         try
         {
             // El codigo se preserva por contrato: Actualizar no acepta codigo

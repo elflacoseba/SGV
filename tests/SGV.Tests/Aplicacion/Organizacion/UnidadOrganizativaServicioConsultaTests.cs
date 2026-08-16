@@ -269,15 +269,16 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         var repo = new FakeUnidadOrganizativaRepository { Datos = [padre, hija] };
         var servicio = new UnidadOrganizativaServicioConsulta(repo);
 
-        var arbol = await servicio.GetTreeAsync(default);
+        var response = await servicio.GetTreeAsync(default);
 
         // The root should be the padre (no UnidadPadreId)
-        var raiz = Assert.Single(arbol);
+        var raiz = Assert.Single(response.Arbol);
         Assert.Equal(padre.Nombre, raiz.Nombre);
         Assert.Single(raiz.Hijas);
         Assert.Equal("AREA-01", raiz.Hijas[0].Codigo);
         Assert.Equal("Área", raiz.Hijas[0].TipoUnidadNombre);
         Assert.Empty(raiz.Hijas[0].Hijas);
+        Assert.Empty(response.NodosConCiloDetectado);
     }
 
     [Fact]
@@ -286,9 +287,9 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         var repo = new FakeUnidadOrganizativaRepository { Datos = [] };
         var servicio = new UnidadOrganizativaServicioConsulta(repo);
 
-        var arbol = await servicio.GetTreeAsync(default);
+        var response = await servicio.GetTreeAsync(default);
 
-        Assert.Empty(arbol);
+        Assert.Empty(response.Arbol);
     }
 
     // ---- QueryAsync segmento tests (Phase 1) ----
@@ -369,11 +370,128 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
         var servicio = new UnidadOrganizativaServicioConsulta(repo);
 
-        var arbol = await servicio.GetTreeAsync(default);
+        var response = await servicio.GetTreeAsync(default);
 
-        var raiz = Assert.Single(arbol);
+        var raiz = Assert.Single(response.Arbol);
         Assert.Equal(TipoUnidadOrganizativaConstantes.DireccionId, raiz.TipoUnidadOrganizativaId);
         Assert.Equal("Dirección", raiz.TipoUnidadNombre);
+    }
+
+    // ===== WU-3: BuildTree nunca crashea ante ciclos (issue #277) =====
+    // Spec: "Construcción del árbol nunca crashea ante ciclos" — scenario
+    // "BuildTree retorna árbol parcial y reporta ciclos sin StackOverflow".
+    // El escenario MySQL siembra el ciclo directo en BD; este unit test
+    // ejercita la misma defensa visited-set contra un dataset ciclado
+    // para evitar regresiones futuras si BuildTree cambia su traversal.
+
+    [Fact]
+    public async Task GetTreeAsync_ConCicloEnDatos_NoStackOverflowYRetornaSinExplotar()
+    {
+        // Cycle A↔B (A.UnidadPadreId == B.Id, B.UnidadPadreId == A.Id)
+        // ambos colgando de un root real R. La cadena canónica de R se
+        // rompe cuando A se reasigna, pero BuildTree debe tolerarlo
+        // sin StackOverflow. La defensa visited-set acota la recursión
+        // en cualquier configuración donde un id aparezca dos veces
+        // en la cadena.
+        var idR = Guid.Parse("90000000-0000-0000-0000-000000000001");
+        var idA = Guid.Parse("91000000-0000-0000-0000-000000000001");
+        var idB = Guid.Parse("91000000-0000-0000-0000-000000000002");
+
+        var r = CrearUnidadActiva();
+        r.Id = idR;
+        SetNavigation(r, nameof(UnidadOrganizativa.TipoUnidadOrganizativa), new TipoUnidadOrganizativa("Direccion", "Dirección")
+        {
+            Id = TipoUnidadOrganizativaConstantes.DireccionId
+        });
+
+        var a = CrearUnidadActivaHija(idA, idR, "A", "A");
+        var b = CrearUnidadActivaHija(idB, idA, "B", "B");
+        a.CambiarUnidadPadre(idB); // ciclo A↔B
+
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [r, a, b] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var response = await servicio.GetTreeAsync(default);
+
+        // No debe lanzar. La estructura concreta depende del orden en
+        // que `a` queda apuntando a `b`, lo que importa es que el método
+        // retorna sin StackOverflow y devuelve una respuesta con `arbol`
+        // poblado o vacío según el padre. Pre-WU-4 este test pasaba con
+        // `IReadOnlyList<TreeNodeDto>`; post-WU-4 debe ser el nuevo DTO.
+        Assert.NotNull(response);
+        Assert.NotNull(response.Arbol);
+        Assert.NotNull(response.NodosConCiloDetectado);
+    }
+
+    // ===== WU-4: GetTreeAsync retorna NodosConCiloDetectado (issue #277) =====
+    // Spec: "Construcción del árbol nunca crashea ante ciclos" — scenario
+    // "BuildTree retorna árbol parcial y reporta ciclos sin StackOverflow".
+
+    [Fact]
+    public async Task GetTreeAsync_ConCiclo_RetornaNodosConCiloDetectadoYSubArbolParcial()
+    {
+        // Root real: R.
+        // Sub-árbol acíclico: X (hijo de R).
+        // Ciclo cerrado (sin raíz): A↔B.
+        // Esperado:
+        //   Arbol: contiene a R (con su hijo X), NO contiene A ni B.
+        //   NodosConCiloDetectado: contiene exactamente {A.Id, B.Id}.
+        var idR = Guid.Parse("92000000-0000-0000-0000-000000000001");
+        var idX = Guid.Parse("92000000-0000-0000-0000-000000000002");
+        var idA = Guid.Parse("92000000-0000-0000-0000-000000000003");
+        var idB = Guid.Parse("92000000-0000-0000-0000-000000000004");
+
+        var r = CrearUnidadActiva();
+        r.Id = idR;
+        SetNavigation(r, nameof(UnidadOrganizativa.TipoUnidadOrganizativa), new TipoUnidadOrganizativa("Direccion", "Dirección")
+        {
+            Id = TipoUnidadOrganizativaConstantes.DireccionId
+        });
+
+        var x = CrearUnidadActivaHija(idX, idR, "X", "X");
+        var a = new UnidadOrganizativa("A", "A", TipoUnidadOrganizativaConstantes.AreaId, null, null) { Id = idA };
+        SetNavigation(a, nameof(UnidadOrganizativa.TipoUnidadOrganizativa), new TipoUnidadOrganizativa("Area", "Área")
+        {
+            Id = TipoUnidadOrganizativaConstantes.AreaId
+        });
+        var b = CrearUnidadActivaHija(idB, idA, "B", "B");
+        a.CambiarUnidadPadre(idB); // ciclo A↔B (ambos no-root)
+
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [r, x, a, b] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var response = await servicio.GetTreeAsync(default);
+
+        Assert.NotNull(response);
+
+        // El sub-árbol acíclico (R + X) debe estar presente.
+        var raiz = Assert.Single(response.Arbol);
+        Assert.Equal(idR, raiz.Id);
+        Assert.Single(raiz.Hijas);
+        Assert.Equal(idX, raiz.Hijas[0].Id);
+
+        // Los nodos cíclicos deben aparecer en NodosConCiloDetectado.
+        Assert.Equal(2, response.NodosConCiloDetectado.Count);
+        Assert.Contains(idA, response.NodosConCiloDetectado);
+        Assert.Contains(idB, response.NodosConCiloDetectado);
+    }
+
+    [Fact]
+    public async Task GetTreeAsync_SinCiclos_RetornaArbolCompletoYListaVacia()
+    {
+        // Spec: "BuildTree retorna árbol completo cuando no hay ciclos" —
+        // el campo nodosConCiloDetectado MUST ser colección vacía.
+        var padre = CrearUnidadActiva();
+        var hija = CrearUnidadActivaHija(OtraUnidadId, UnidadId, "AREA-01", "Área Operativa");
+
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [padre, hija] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var response = await servicio.GetTreeAsync(default);
+
+        Assert.NotNull(response);
+        Assert.NotEmpty(response.Arbol);
+        Assert.Empty(response.NodosConCiloDetectado);
     }
 
     private static void SetNavigation<TEntity, TNav>(TEntity entity, string propertyName, TNav value)

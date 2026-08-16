@@ -13,6 +13,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using SGV.Aplicacion;
+using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Seguridad;
 using SGV.Contracts.Auth;
 using SGV.Contracts.Seguridad;
@@ -341,6 +342,53 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Issue #277: diagnóstico de integridad jerárquica al arranque. Un fallo
+// del diagnóstico NO debe abortar el startup (la app puede operar y la
+// corrección puede ser operativa vía el script SQL); sólo se registra
+// un WARNING. La detección corre en su propio scope manual porque
+// IDiagnosticoJerarquiaService depende de SgvDbContext (scoped) y la
+// invocación ocurre fuera del request pipeline.
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var diagnostico = scope.ServiceProvider
+                .GetRequiredService<IDiagnosticoJerarquiaService>();
+            var logger = scope.ServiceProvider
+                .GetRequiredService<ILogger<Program>>();
+            var ciclos = await diagnostico.DiagnosticarAsync();
+
+            if (ciclos.Count == 0)
+            {
+                logger.LogInformation(
+                    "SGV: diagnóstico de jerarquía OK (sin ciclos detectados en UnidadesOrganizativas).");
+                return;
+            }
+
+            foreach (var ciclo in ciclos)
+            {
+                var idsCsv = string.Join(", ", ciclo.Nodos.Select(n => n.ToString()));
+                logger.LogWarning(
+                    "SGV: ciclo jerárquico detectado en UnidadesOrganizativas. Nodos participantes: {Nodos}",
+                    idsCsv);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Fallo del diagnóstico no debe abortar el arranque. La
+            // corrección es operativa (script SQL idempotente).
+            var bootstrapLogger = app.Services
+                .GetRequiredService<ILogger<Program>>();
+            bootstrapLogger.LogWarning(
+                ex,
+                "SGV: el diagnóstico de jerarquía falló en el arranque y fue ignorado.");
+        }
+    });
+});
 
 // Middleware pipeline
 app.UseExceptionHandler();

@@ -17,6 +17,7 @@ using SGV.Aplicacion.Setup;
 using SGV.Aplicacion.Vacantes.Comandos;
 using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Infraestructura.Email;
+using SGV.Infraestructura.Organizacion;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Infraestructura.Seguridad;
@@ -122,6 +123,12 @@ public static class DependencyInjection
         // transacción EF única. Scoped porque depende de UserManager y
         // SgvDbContext.
         services.AddScoped<ISetupServicio, SetupServicio>();
+
+        // Diagnóstico de integridad jerárquica (issue #277). Una corrida al
+        // arranque (Program.cs) y uso on-demand por operadores. Scoped
+        // porque depende de SgvDbContext y la invocación del arranque crea
+        // su propio scope manual.
+        services.AddScoped<IDiagnosticoJerarquiaService, DiagnosticoJerarquiaService>();
 
         return services;
     }

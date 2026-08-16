@@ -67,7 +67,7 @@ public sealed class FakeUnidadOrganizativaApiClient : IUnidadOrganizativaApiClie
     public Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         => throw new NotImplementedException($"FakeUnidadOrganizativaApiClient.GetByIdAsync({id}) no está cableado.");
 
-    public Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken cancellationToken = default)
+    public Task<UnidadOrganizativaArbolResponse> GetTreeAsync(CancellationToken cancellationToken = default)
         => throw new NotImplementedException("FakeUnidadOrganizativaApiClient.GetTreeAsync no está cableado.");
 
     public Task<IReadOnlyList<TipoUnidadOrganizativaDto>> GetTiposAsync(CancellationToken cancellationToken = default)

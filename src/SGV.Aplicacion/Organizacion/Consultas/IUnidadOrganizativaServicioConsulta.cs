@@ -25,8 +25,16 @@ public interface IUnidadOrganizativaServicioConsulta
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns the hierarchical tree of active organizational units.
+    /// Returns the hierarchical tree of active organizational units together
+    /// with the list of node ids whose padre chain participates in at least
+    /// one cycle (issue #277).
     /// </summary>
-    Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(
+    /// <returns>
+    /// A response with <c>Arbol</c> containing the non-cyclic sub-trees and
+    /// <c>NodosConCiloDetectado</c> listing every node id that would be
+    /// reached by a cyclic padre edge. Always non-null; the cycle list is
+    /// empty when the dataset is acyclic.
+    /// </returns>
+    Task<UnidadOrganizativaArbolResponse> GetTreeAsync(
         CancellationToken cancellationToken = default);
 }

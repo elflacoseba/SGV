@@ -222,9 +222,26 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Issue #277: previously this loop used only a sibling check on
+        // current.UnidadPadreId against ancestorId and trusted the chain
+        // would terminate. If the DB ever stores an active cycle (e.g. a
+        // bug allowed it before this fix), the while never terminated and
+        // the request thread hung forever. The visited-set bounds the
+        // walk to O(depth) in every case and surfaces a clean code
+        // ("CicloJerarquico") that the application service translates to
+        // 409 Conflict. Capacity is sized to typical hierarchies to avoid
+        // rehashing; bound remains O(depth) regardless.
+        var visited = new HashSet<Guid>(capacity: 16);
         var current = hierarchy.FirstOrDefault(n => n.Id == candidateDescendantId);
         while (current is not null && current.UnidadPadreId.HasValue)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!visited.Add(current.Id))
+            {
+                throw new InvalidOperationException("CicloJerarquico");
+            }
+
             if (current.UnidadPadreId == ancestorId)
             {
                 return true;

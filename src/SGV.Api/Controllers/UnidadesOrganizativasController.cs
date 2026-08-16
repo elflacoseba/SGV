@@ -196,15 +196,19 @@ public class UnidadesOrganizativasController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene el árbol jerárquico de unidades organizativas activas.
+    /// Obtiene el árbol jerárquico de unidades organizativas activas junto
+    /// con los ids de los nodos involucrados en ciclos detectados (issue #277).
     /// </summary>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
-    /// <returns>Lista de nodos raíz con sus descendientes activos.</returns>
+    /// <returns>
+    /// Respuesta con <c>arbol</c> (sub-árbol parcial, sin ciclos) y
+    /// <c>nodosConCiloDetectado</c> (ids cíclicos para advertencia al usuario).
+    /// </returns>
     /// <response code="200">Árbol jerárquico devuelto correctamente.</response>
     [HttpGet("arbol")]
-    [ProducesResponseType(typeof(IReadOnlyList<UnidadOrganizativaTreeNodeDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UnidadOrganizativaArbolResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<IReadOnlyList<UnidadOrganizativaTreeNodeDto>>> GetTree(
+    public async Task<ActionResult<UnidadOrganizativaArbolResponse>> GetTree(
         CancellationToken cancellationToken)
     {
         var result = await _servicio.GetTreeAsync(cancellationToken);

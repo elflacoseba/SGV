@@ -247,7 +247,7 @@ main().catch(error => {
 
         public UnidadOrganizativaDto? GetByIdResult { get; set; }
 
-        public IReadOnlyList<UnidadOrganizativaTreeNodeDto> TreeResult { get; set; } = [];
+        public UnidadOrganizativaArbolResponse TreeResult { get; set; } = new([], []);
 
         public Exception? TreeException { get; set; }
 
@@ -282,7 +282,7 @@ main().catch(error => {
         public Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => Task.FromResult(GetByIdResult);
 
-        public Task<IReadOnlyList<UnidadOrganizativaTreeNodeDto>> GetTreeAsync(CancellationToken cancellationToken = default)
+        public Task<UnidadOrganizativaArbolResponse> GetTreeAsync(CancellationToken cancellationToken = default)
         {
             TreeCalls++;
 

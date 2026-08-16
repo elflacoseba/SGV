@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using MySqlConnector;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Catalogos;
@@ -7,6 +8,7 @@ using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Dominio.Organizacion;
 using System.Data;
+using SGV.Tests.Integration;
 using Xunit;
 
 namespace SGV.Tests.Persistencia;
@@ -15,6 +17,7 @@ namespace SGV.Tests.Persistencia;
 /// MySQL repository integration tests for UnidadOrganizativa writes, soft-delete code reuse,
 /// active-code uniqueness, and hierarchy checks. Skipped when MySQL is unavailable.
 /// </summary>
+[Collection(MySqlIntegrationCollection.Name)]
 public sealed class UnidadOrganizativaRepositoryTests
 {
     // ===================== Read tests (existing) =====================
@@ -287,6 +290,133 @@ public sealed class UnidadOrganizativaRepositoryTests
             context.Set<UnidadOrganizativaEntity>().RemoveRange(unidad1, unidad2);
             await context.SaveChangesAsync();
         }
+    }
+
+    /// <summary>
+    /// Regression test for issue #277 (cycle hang): when the DB contains an
+    /// active cycle (A→B→A), <see cref="IUnidadOrganizativaRepository.IsDescendantAsync"/>
+    /// MUST not loop forever. The repository must detect the revisita and
+    /// raise <see cref="InvalidOperationException"/> with the canonical code
+    /// <c>CicloJerarquico</c> so the command service can translate that into
+    /// a <c>409 Conflict</c>. The previous implementation relied on a
+    /// <c>while</c> over the parent chain without a visited-set; that loop
+    /// never terminates when the chain is a cycle.
+    /// </summary>
+    /// <remarks>
+    /// Required by spec <c>unidad-organizativa-crud</c> /
+    /// "Detección de descendencia nunca cuelga ante ciclos" — scenario
+    /// "IsDescendantAsync corta ante ciclo pre-existente sin colgar".
+    /// </remarks>
+    [MySqlFact]
+    public async Task IsDescendantAsync_ConCicloDirecto_LanzaCicloJerarquicoEnTiempoAcotado()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var a = RepositoryTestData.CreateUnidadOrganizativa("UO-CICLO-A");
+        var b = RepositoryTestData.CreateUnidadOrganizativa("UO-CICLO-B");
+
+        // Los triggers anti-ciclo bloquean cualquier intento de sembrar un
+        // ciclo a partir del estado vacío de la BD. Para reproducir el
+        // escenario "datos legados importados con un ciclo pre-existente"
+        // que este test busca verificar, los deshabilitamos sólo durante la
+        // siembra y dejamos que el helper los restaure. La validación del
+        // repositorio corre con los triggers ya activos.
+        await using (await AntiCiclosTriggersTestHelper.DisableAntiCiclosTriggersAsync(context))
+        {
+            var conn = (MySqlConnection)context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+            {
+                await conn.OpenAsync();
+            }
+
+            // EF rechaza AddRangeAsync con un grafo que ya forma un ciclo
+            // en sus FKs, por lo que la siembra es por SQL directo:
+            // 1) inserto a sin padre; 2) inserto b con padre = a;
+            // 3) UPDATE a para que apunte a b — esto cierra el ciclo a↔b.
+            await InsertUnidad(conn, a);
+            await InsertUnidad(conn, b, unidadPadreId: a.Id);
+
+            await using (var close = conn.CreateCommand())
+            {
+                close.CommandText = "UPDATE UnidadesOrganizativas SET UnidadPadreId = @padre WHERE Id = @hijo";
+                var pp = close.CreateParameter(); pp.ParameterName = "@padre"; pp.Value = b.Id.ToString();
+                var ph = close.CreateParameter(); ph.ParameterName = "@hijo"; ph.Value = a.Id.ToString();
+                close.Parameters.Add(pp);
+                close.Parameters.Add(ph);
+                await close.ExecuteNonQueryAsync();
+            }
+        }
+
+        try
+        {
+            var repo = new UnidadOrganizativaRepository(context);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repo.IsDescendantAsync(a.Id, b.Id, default));
+
+            Assert.Equal("CicloJerarquico", ex.Message);
+        }
+        finally
+        {
+            // La limpieza por EF RemoveRange + SaveChangesAsync falla al
+            // borrar filas que formaban un ciclo porque EF no siempre
+            // ordena los UPDATEs de nulificación y los DELETEs en el
+            // orden correcto cuando hay padres cíclicos. Hacemos la
+            // limpieza vía SQL directo para no atarnos al batch ordering
+            // de EF.
+            var conn = (MySqlConnection)context.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+            {
+                await conn.OpenAsync();
+            }
+
+            await using (var clearPadre = conn.CreateCommand())
+            {
+                clearPadre.CommandText = "UPDATE UnidadesOrganizativas SET UnidadPadreId = NULL WHERE Id IN (@a, @b)";
+                var pa = clearPadre.CreateParameter(); pa.ParameterName = "@a"; pa.Value = a.Id.ToString();
+                var pb = clearPadre.CreateParameter(); pb.ParameterName = "@b"; pb.Value = b.Id.ToString();
+                clearPadre.Parameters.Add(pa);
+                clearPadre.Parameters.Add(pb);
+                await clearPadre.ExecuteNonQueryAsync();
+            }
+
+            await using (var del = conn.CreateCommand())
+            {
+                del.CommandText = "DELETE FROM UnidadesOrganizativas WHERE Id IN (@a, @b)";
+                var pa = del.CreateParameter(); pa.ParameterName = "@a"; pa.Value = a.Id.ToString();
+                var pb = del.CreateParameter(); pb.ParameterName = "@b"; pb.Value = b.Id.ToString();
+                del.Parameters.Add(pa);
+                del.Parameters.Add(pb);
+                await del.ExecuteNonQueryAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// INSERT directo via SQL crudo para sembrar el escenario del ciclo
+    /// sin depender del grafo EF. Sólo usado dentro de tests que
+    /// deshabilitaron previamente los triggers anti-ciclo.
+    /// </summary>
+    private static async Task InsertUnidad(MySqlConnection conn, UnidadOrganizativaEntity u, Guid? unidadPadreId = null)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"INSERT INTO UnidadesOrganizativas
+            (Id, Codigo, Nombre, Descripcion, VigenteDesde, VigenteHasta,
+             IsActive, CreatedAt, CreatedByUserId, UpdatedAt, UpdatedByUserId,
+             IsDeleted, DeletedAt, DeletedByUserId, TipoUnidadOrganizativaId,
+             UnidadPadreId)
+            VALUES
+            (@Id, @Codigo, @Nombre, NULL, NULL, NULL,
+             1, UTC_TIMESTAMP(6), NULL, NULL, NULL,
+             0, NULL, NULL, @TipoUnidadId,
+             @PadreId)";
+
+        cmd.Parameters.AddWithValue("@Id", u.Id.ToString());
+        cmd.Parameters.AddWithValue("@Codigo", u.Codigo);
+        cmd.Parameters.AddWithValue("@Nombre", u.Nombre);
+        cmd.Parameters.AddWithValue("@TipoUnidadId", u.TipoUnidadOrganizativaId.ToString());
+        cmd.Parameters.AddWithValue("@PadreId", (object?)unidadPadreId?.ToString() ?? DBNull.Value);
+
+        await cmd.ExecuteNonQueryAsync();
     }
 
     // ===================== HasActiveChildrenAsync tests =====================
