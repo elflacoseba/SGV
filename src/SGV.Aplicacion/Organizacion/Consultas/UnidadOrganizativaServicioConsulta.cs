@@ -43,22 +43,50 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
         CancellationToken cancellationToken = default)
     {
         var all = await repository.ListTreeAsync(cancellationToken);
-        return BuildTree(all, null);
+        return BuildTree(all, null, ancestors: null);
     }
 
+    /// <summary>
+    /// Recursive tree builder that tracks the path from the current root to
+    /// the active node via <paramref name="ancestors"/>. When the same id is
+    /// about to be visited twice (i.e. a cycle exists in the data), the
+    /// sub-tree is skipped instead of recursing forever.
+    /// </summary>
+    /// <remarks>
+    /// Issue #277: a defensive <c>visited-set</c> over the current path
+    /// bounds recursion depth regardless of cycles the BD might carry. The
+    /// path is propagated by copy at every step so siblings do not falsely
+    /// detect cycles between each other — a unit can appear multiple times
+    /// in the dataset as the child of multiple parents without being a
+    /// cycle, only a repeat on the current path counts.
+    /// </remarks>
     private static List<UnidadOrganizativaTreeNodeDto> BuildTree(
-        IReadOnlyList<UnidadOrganizativa> all, Guid? parentId)
+        IReadOnlyList<UnidadOrganizativa> all,
+        Guid? parentId,
+        HashSet<Guid>? ancestors)
     {
-        return all
-            .Where(u => u.UnidadPadreId == parentId)
-            .Select(u => new UnidadOrganizativaTreeNodeDto(
+        var currentPath = ancestors ?? new HashSet<Guid>();
+        var result = new List<UnidadOrganizativaTreeNodeDto>();
+        foreach (var u in all.Where(x => x.UnidadPadreId == parentId))
+        {
+            if (!currentPath.Add(u.Id))
+            {
+                // Cycle: id already present on the current path from root
+                // to here. Skip the sub-tree rather than recurse.
+                continue;
+            }
+
+            var childPath = new HashSet<Guid>(currentPath);
+            result.Add(new UnidadOrganizativaTreeNodeDto(
                 u.Id,
                 u.Codigo,
                 u.Nombre,
                 u.TipoUnidadOrganizativaId,
                 u.TipoUnidadOrganizativa?.Nombre ?? string.Empty,
-                BuildTree(all, u.Id)))
-            .ToList();
+                BuildTree(all, u.Id, childPath)));
+        }
+
+        return result;
     }
 
     private static UnidadOrganizativaDto MapToDto(UnidadOrganizativa entity)

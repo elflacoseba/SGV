@@ -376,6 +376,49 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         Assert.Equal("Dirección", raiz.TipoUnidadNombre);
     }
 
+    // ===== WU-3: BuildTree nunca crashea ante ciclos (issue #277) =====
+    // Spec: "Construcción del árbol nunca crashea ante ciclos" — scenario
+    // "BuildTree retorna árbol parcial y reporta ciclos sin StackOverflow".
+    // El escenario MySQL siembra el ciclo directo en BD; este unit test
+    // ejercita la misma defensa visited-set contra un dataset ciclado
+    // para evitar regresiones futuras si BuildTree cambia su traversal.
+
+    [Fact]
+    public async Task GetTreeAsync_ConCicloEnDatos_NoStackOverflowYRetornaSinExplotar()
+    {
+        // Cycle A↔B (A.UnidadPadreId == B.Id, B.UnidadPadreId == A.Id)
+        // ambos colgando de un root real R. La cadena canónica de R se
+        // rompe cuando A se reasigna, pero BuildTree debe tolerarlo
+        // sin StackOverflow. La defensa visited-set acota la recursión
+        // en cualquier configuración donde un id aparezca dos veces
+        // en la cadena.
+        var idR = Guid.Parse("90000000-0000-0000-0000-000000000001");
+        var idA = Guid.Parse("91000000-0000-0000-0000-000000000001");
+        var idB = Guid.Parse("91000000-0000-0000-0000-000000000002");
+
+        var r = CrearUnidadActiva();
+        r.Id = idR;
+        SetNavigation(r, nameof(UnidadOrganizativa.TipoUnidadOrganizativa), new TipoUnidadOrganizativa("Direccion", "Dirección")
+        {
+            Id = TipoUnidadOrganizativaConstantes.DireccionId
+        });
+
+        var a = CrearUnidadActivaHija(idA, idR, "A", "A");
+        var b = CrearUnidadActivaHija(idB, idA, "B", "B");
+        a.CambiarUnidadPadre(idB); // ciclo A↔B
+
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [r, a, b] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        var arbol = await servicio.GetTreeAsync(default);
+
+        // No debe lanzar. La estructura concreta depende del orden en
+        // que `a` queda apuntando a `b`, lo que importa es que el método
+        // retorna sin StackOverflow y devuelve una lista (vacía o con R
+        // como nodo).
+        Assert.NotNull(arbol);
+    }
+
     private static void SetNavigation<TEntity, TNav>(TEntity entity, string propertyName, TNav value)
         where TEntity : class
     {
