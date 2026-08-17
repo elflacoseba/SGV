@@ -172,13 +172,20 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
             }
 
             var childPath = new HashSet<Guid>(currentPath);
+            // Issue #286: propagamos VigenteDesde/VigenteHasta al wire para que
+            // el shell web pueda filtrar visualmente las unidades cuya ventana
+            // de vigencia ya cerró. La semántica de vigencia sigue viviendo en
+            // el dominio (`UnidadOrganizativa.EsVigente`); acá solo exponemos
+            // los datos persistidos.
             result.Add(new UnidadOrganizativaTreeNodeDto(
                 u.Id,
                 u.Codigo,
                 u.Nombre,
                 u.TipoUnidadOrganizativaId,
                 u.TipoUnidadOrganizativa?.Nombre ?? string.Empty,
-                BuildTree(all, u.Id, childPath, cyclicNodes)));
+                BuildTree(all, u.Id, childPath, cyclicNodes),
+                u.VigenteDesde,
+                u.VigenteHasta));
         }
 
         return result;
