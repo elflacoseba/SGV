@@ -98,7 +98,7 @@
      */
     function computeVigenciaStats(nodes) {
         var total = 0, vigentes = 0, expiradas = 0, detalle = [];
-        function walk(arr, parent) {
+        function walk(arr, parent, isRoot) {
             if (!arr) return;
             for (var i = 0; i < arr.length; i++) {
                 var n = arr[i];
@@ -114,25 +114,34 @@
                     vigenteHasta: n.vigenteHasta || '—',
                     estado: r.expired ? 'expirada' : 'vigente',
                     motivo: r.reason,
-                    padre: parent
+                    padre: parent,
+                    esRaiz: isRoot === true
                 });
-                walk(n.children || [], n.codigo);
+                walk(n.children || [], n.codigo, false);
             }
         }
-        walk(nodes, null);
+        walk(nodes, null, true);
         return { total: total, vigentes: vigentes, expiradas: expiradas, detalle: detalle };
     }
 
     /**
      * Aplica los switches de filtro al árbol pre-cargado.
      *
-     * Reglas (issue #286 — 4to round):
+     * Reglas (issue #286 — 5to round):
      *  - `showExpiradas === true` (switch ON, default) → conservar
      *    TODO el árbol, vigentes y expiradas.
      *  - `showExpiradas === false` (switch OFF) → descartar los nodos
      *    con VigenteHasta en el pasado Y TODA su sub-jerarquía.
+     *  - EXCEPCIÓN: los nodos RAÍZ del árbol (top-level del JSON)
+     *    NUNCA se ocultan aunque estén marcados como expirados.
+     *    Defensa contra datos mal configurados: si la raíz tiene un
+     *    VigenteHasta en el pasado por error, ocultar la raíz vacía
+     *    el árbol completo. Mejor preservarla con su badge "expirada"
+     *    visible en el diagnóstico para que el operador decida si
+     *    corregir la fecha.
      */
-    function applyFilters(nodes) {
+    function applyFilters(nodes, isTopLevel) {
+        isTopLevel = isTopLevel === true;
         if (!nodes) return [];
         var result = [];
         for (var i = 0; i < nodes.length; i++) {
@@ -140,10 +149,10 @@
             if (!node) continue;
 
             var r = isExpired(node.vigenteDesde, node.vigenteHasta);
-            var shouldHide = !options.showExpiradas && r.expired;
+            var shouldHide = !options.showExpiradas && r.expired && !isTopLevel;
             if (shouldHide) continue;
 
-            var filteredChildren = applyFilters(node.children || []);
+            var filteredChildren = applyFilters(node.children || [], false);
             result.push({
                 id: node.id,
                 codigo: node.codigo,
@@ -169,12 +178,15 @@
             var badge = d.estado === 'expirada'
                 ? '<span class="badge bg-danger">expirada</span>'
                 : '<span class="badge bg-success">vigente</span>';
+            var rootMark = d.esRaiz
+                ? ' <span class="badge bg-secondary ms-1" title="Nodo raíz: siempre visible aunque esté expirado">raíz</span>'
+                : '';
             return '<tr>'
                 + '<td><code>' + escapeHtml(d.codigo) + '</code></td>'
                 + '<td>' + escapeHtml(d.nombre) + '</td>'
                 + '<td>' + escapeHtml(String(d.vigenteDesde)) + '</td>'
                 + '<td>' + escapeHtml(String(d.vigenteHasta)) + '</td>'
-                + '<td>' + badge + '</td>'
+                + '<td>' + badge + rootMark + '</td>'
                 + '<td><small class="text-muted">' + escapeHtml(d.motivo) + '</small></td>'
                 + '</tr>';
         }).join('');
@@ -184,6 +196,7 @@
             + '<div class="card-header bg-info-subtle"><strong>Diagnóstico de vigencia</strong></div>'
             + '<div class="card-body">'
             + '<p class="mb-2">Total: <strong>' + stats.total + '</strong> · Vigentes: <strong>' + stats.vigentes + '</strong> · Expiradas: <strong>' + stats.expiradas + '</strong> · Switch "Mostrar expiradas": <strong>' + (options.showExpiradas ? 'ON (muestra todas)' : 'OFF (oculta expiradas)') + '</strong></p>'
+            + '<p class="mb-2 small text-muted"><i class="mdi mdi-information-outline me-1"></i>Los nodos marcados como <span class="badge bg-secondary">raíz</span> son las entradas top-level del árbol y siempre se muestran, incluso con el switch en OFF. Esto evita que el organigrama quede completamente vacío si la raíz tiene un VigenteHasta en el pasado por error de datos. Si ves una raíz marcada como "expirada", revisá su fecha de cierre en la BD.</p>'
             + '<div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th>Código</th><th>Nombre</th><th>Vigente desde</th><th>Vigente hasta</th><th>Estado</th><th>Motivo</th></tr></thead><tbody>'
             + rows
             + '</tbody></table></div>'
@@ -213,7 +226,7 @@
             // Así el operador ve qué datos llegan y por qué se ocultan.
             renderDiagPanel(computeVigenciaStats(treeData));
 
-            var filtered = applyFilters(treeData);
+            var filtered = applyFilters(treeData, true);
             if (filtered.length === 0) {
                 var stats = computeVigenciaStats(treeData);
                 console.warn(
