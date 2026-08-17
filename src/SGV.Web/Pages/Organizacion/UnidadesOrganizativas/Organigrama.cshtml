@@ -126,6 +126,14 @@
 
 @section scripts {
     <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <!-- html2canvas via CDN — captura cualquier elemento DOM (incluyendo
+         tablas HTML que es lo que usa OrgChart) y lo rasteriza a canvas.
+         Issue #286: OrgChart NO usa SVG (usa <table>), así que el approach
+         SVG→canvas nunca podía funcionar. html2canvas captura el chartDiv
+         completo independientemente de la tecnología de render. ~25KB minified. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"></script>
     <!-- Cache-bust con timestamp para evitar que el browser sirva la versión
          vieja del JS después de un cambio. El query string cambia en cada
          recompilación, lo que fuerza descarga. -->

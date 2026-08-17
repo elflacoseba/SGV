@@ -272,23 +272,27 @@
     }
 
     /**
-     * Intenta serializar el `<svg>` del chart y exportarlo como PNG vía
-     * Canvas. Si cualquier paso falla, hace fallback automático a
-     * descarga SVG directa o apertura de nueva ventana.
+     * Exporta el chart actual como PNG.
      *
-     * Estrategia (post-doc oficial): OrgChart renderiza a SVG/HTML5,
-     * capturamos el `<svg>` directamente, le ponemos xmlns/xlink/
-     * viewBox/dimensions explícitos para que el browser lo parsee como
-     * standalone, lo cargamos en un `<img>`, lo dibujamos en un
-     * `<canvas>` con fondo blanco, y exportamos como PNG via
-     * `canvas.toBlob`.
+     * Cadena de fallback (issue #286 — séptimo feedback):
      *
-     * Si el `<svg>` aún no apareció en el DOM (porque el chart está
-     * todavía renderizándose), reintentamos cada 500ms hasta un máximo
-     * de 2.5s. Si después de eso sigue sin aparecer, logueamos el
-     * estado del DOM para diagnosticar y usamos `chart.print()` como
-     * fallback final (API oficialmente documentada para todos los
-     * chart types, abre el diálogo de impresión del navegador).
+     *  1. **PNG via `<svg>` → canvas**: el approach original. Funciona
+     *     para charts que renderizan a SVG (la mayoría de Google Charts
+     *     menos OrgChart).
+     *
+     *  2. **PNG via html2canvas** (issue #286 — séptimo feedback):
+     *     captura el chartDiv completo como canvas. Funciona para
+     *     CUALQUIER elemento DOM, incluyendo la `<table>` que OrgChart
+     *     usa como tecnología de render. Cargada via CDN en el cshtml.
+     *
+     *  3. **window.print()**: función global del navegador. Abre el
+     *     diálogo de impresión con @media print ya configurado para
+     *     ocultar la toolbar y mostrar solo el chart. El usuario
+     *     elige "Guardar como PDF" en el diálogo.
+     *
+     * Esta función ya NO usa `chart.print()` ni `getImageURI()` — la
+     * doc oficial de OrgChart confirma que ninguno existe para este
+     * chart type.
      */
     function exportPng() {
         if (!currentChart) {
@@ -296,59 +300,35 @@
             return;
         }
         if (!chartReady) {
-            console.warn('[OrgChart] exportPng: chart aún no ready, esperando antes de exportar...');
+            console.warn('[OrgChart] exportPng: chart aún no ready, intentando de todas formas...');
         }
 
-        var MAX_RETRIES = 5;
-        var RETRY_DELAY_MS = 500;
-        var attemptCount = 0;
-
-        function tryExport() {
-            attemptCount++;
-            var svgEl = chartDiv.querySelector('svg');
-            if (svgEl) {
-                rasterizeToPng(svgEl);
-                return;
-            }
-            if (attemptCount < MAX_RETRIES) {
-                console.log('[OrgChart] exportPng: <svg> aún no aparece, intento ' + attemptCount + '/' + MAX_RETRIES);
-                setTimeout(tryExport, RETRY_DELAY_MS);
-                return;
-            }
-            // Agotamos los reintentos: diagnosticar y fallback final.
-            console.warn('[OrgChart] exportPng: timeout esperando <svg> (' + (MAX_RETRIES * RETRY_DELAY_MS) + 'ms).');
-            diagnoseMissingSvg();
-            console.log('[OrgChart] exportPng: fallback final → chart.print() (abre diálogo de impresión del navegador).');
-            try {
-                currentChart.print();
-            } catch (e) {
-                console.error('[OrgChart] exportPng: chart.print() también falló.', e);
-            }
+        // Paso 1: probar el approach SVG (rápido, sin dependencia).
+        var svgEl = chartDiv.querySelector('svg');
+        if (svgEl) {
+            rasterizeSvgToPng(svgEl);
+            return;
         }
 
-        tryExport();
+        // Paso 2: html2canvas captura el chartDiv completo (tabla, divs,
+        // lo que sea). Esto maneja el caso real de OrgChart que usa
+        // <table> y no <svg>.
+        if (typeof html2canvas === 'function') {
+            console.log('[OrgChart] exportPng: no hay <svg>, intentando con html2canvas (OrgChart usa <table>).');
+            rasterizeWithHtml2Canvas();
+            return;
+        }
+
+        // Paso 3: fallback final.
+        console.warn('[OrgChart] exportPng: ni <svg> ni html2canvas disponibles. Fallback final → window.print().');
+        window.print();
     }
 
     /**
-     * Loguea el estado del DOM del chartDiv para entender por qué no
-     * hay `<svg>`. Útil para diagnosticar browsers específicos donde
-     * Google Charts renderiza con otra tecnología (VML legacy, canvas,
-     * shadow DOM, etc.).
+     * Rasteriza el `<svg>` a PNG via Canvas + toBlob. Usado para
+     * charts de Google Charts que sí renderizan a SVG.
      */
-    function diagnoseMissingSvg() {
-        var childCount = chartDiv.children ? chartDiv.children.length : 0;
-        console.log('[OrgChart] chartDiv.children.length:', childCount);
-        console.log('[OrgChart] chartDiv.innerHTML (primeros 800 chars):',
-            (chartDiv.innerHTML || '').substring(0, 800));
-        console.log('[OrgChart] chartDiv.outerHTML (primeros 500 chars):',
-            (chartDiv.outerHTML || '').substring(0, 500));
-    }
-
-    /**
-     * Rasteriza el `<svg>` a PNG via Canvas + toBlob.
-     */
-    function rasterizeToPng(svgEl) {
-        // Dimensiones robustas: viewBox > getBoundingClientRect > defaults
+    function rasterizeSvgToPng(svgEl) {
         var viewBox = svgEl.viewBox && svgEl.viewBox.baseVal;
         var bbox = svgEl.getBoundingClientRect();
         var width = Math.max(800, Math.ceil(
@@ -360,7 +340,6 @@
 
         console.log('[OrgChart] exportPng: SVG bounds', { w: width, h: height, viewBox: !!viewBox });
 
-        // Clonar con namespaces y dimensiones explícitos.
         var clonedSvg = svgEl.cloneNode(true);
         clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
         clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
@@ -392,25 +371,53 @@
                 canvas.toBlob(function (blob) {
                     URL.revokeObjectURL(svgUrl);
                     if (!blob) {
-                        console.warn('[OrgChart] exportPng: canvas.toBlob devolvió null. Fallback a SVG download.');
-                        downloadBlob(svgBlob, 'organigrama-' + getDateStamp() + '.svg');
+                        console.warn('[OrgChart] exportPng: canvas.toBlob null. Fallback a window.print().');
+                        window.print();
                         return;
                     }
                     console.log('[OrgChart] exportPng: PNG generado OK, tamaño=', blob.size);
                     downloadBlob(blob, 'organigrama-' + getDateStamp() + '.png');
                 }, 'image/png');
             } catch (e) {
-                console.warn('[OrgChart] exportPng: error en canvas. Fallback a SVG download.', e);
+                console.warn('[OrgChart] exportPng: error en canvas. Fallback a window.print().', e);
                 URL.revokeObjectURL(svgUrl);
-                downloadBlob(svgBlob, 'organigrama-' + getDateStamp() + '.svg');
+                window.print();
             }
         };
         img.onerror = function () {
-            console.warn('[OrgChart] exportPng: SVG no cargó en <img>. Fallback a SVG download.');
+            console.warn('[OrgChart] exportPng: SVG no cargó en <img>. Fallback a window.print().');
             URL.revokeObjectURL(svgUrl);
-            downloadBlob(svgBlob, 'organigrama-' + getDateStamp() + '.svg');
+            window.print();
         };
         img.src = svgUrl;
+    }
+
+    /**
+     * Captura el chartDiv completo usando html2canvas. Funciona para
+     * CUALQUIER elemento DOM — incluyendo la `<table>` que OrgChart
+     * genera. Esta es la fix correcta para el bug reportado por el
+     * operador en el séptimo feedback del issue #286.
+     */
+    function rasterizeWithHtml2Canvas() {
+        html2canvas(chartDiv, {
+            backgroundColor: '#ffffff',
+            scale: window.devicePixelRatio || 1,
+            logging: false,
+            useCORS: true
+        }).then(function (canvas) {
+            canvas.toBlob(function (blob) {
+                if (!blob) {
+                    console.warn('[OrgChart] exportPng: html2canvas.toBlob null. Fallback a window.print().');
+                    window.print();
+                    return;
+                }
+                console.log('[OrgChart] exportPng: PNG generado via html2canvas, tamaño=', blob.size);
+                downloadBlob(blob, 'organigrama-' + getDateStamp() + '.png');
+            }, 'image/png');
+        }).catch(function (err) {
+            console.error('[OrgChart] exportPng: html2canvas falló. Fallback a window.print().', err);
+            window.print();
+        });
     }
 
     /**
