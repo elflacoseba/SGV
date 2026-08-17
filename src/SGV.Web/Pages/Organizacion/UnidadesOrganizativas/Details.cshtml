@@ -19,18 +19,19 @@
         <h5 class="alert-heading">Unidad no disponible</h5>
         <p class="mb-0">La unidad organizativa solicitada no existe o ya no está disponible.</p>
     </div>
-    @if (Model.IsRecoverable)
-    {
-        <form method="post" class="d-inline">
-            @Html.AntiForgeryToken()
-            <input name="returnPage" type="hidden" value="@Model.ReturnPage" />
-            <input name="returnSearch" type="hidden" value="@Model.ReturnSearch" />
-            <input name="returnSort" type="hidden" value="@Model.ReturnSort" />
-            <input name="returnView" type="hidden" value="@Model.ReturnView" />
-            <input name="returnStatus" type="hidden" value="@Model.ReturnStatus" />
-            <button type="submit" class="btn btn-success me-2" formaction="?handler=Reactivate&id=@Model.CurrentId">Reactivar</button>
-        </form>
-    }
+        @if (Model.IsRecoverable)
+        {
+            <form method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input name="returnPage" type="hidden" value="@Model.ReturnPage" />
+                <input name="returnSearch" type="hidden" value="@Model.ReturnSearch" />
+                <input name="returnSort" type="hidden" value="@Model.ReturnSort" />
+                <input name="returnView" type="hidden" value="@Model.ReturnView" />
+                <input name="returnStatus" type="hidden" value="@Model.ReturnStatus" />
+                <input name="returnVigenteEn" type="hidden" value="@Model.ReturnVigenteEn" />
+                <button type="submit" class="btn btn-success me-2" formaction="?handler=Reactivate&id=@Model.CurrentId">Reactivar</button>
+            </form>
+        }
 }
 else if (Model.Unidad is not null)
 {
@@ -71,21 +72,17 @@ else if (Model.Unidad is not null)
 
                         <dt class="col-sm-3 fw-normal text-muted">Vigencia</dt>
                         <dd class="col-sm-9">
-                            @if (Model.Unidad.VigenteDesde is null && Model.Unidad.VigenteHasta is null)
+                            @if (Model.Vigencia is null)
                             {
-                                <span>Vigencia abierta</span>
+                                <span class="text-muted">—</span>
                             }
-                            else if (Model.Unidad.VigenteDesde is not null && Model.Unidad.VigenteHasta is null)
+                            else if (string.IsNullOrEmpty(Model.Vigencia.BadgeClass))
                             {
-                                <span>Desde @Model.Unidad.VigenteDesde.Value.ToString("dd/MM/yyyy")</span>
-                            }
-                            else if (Model.Unidad.VigenteDesde is null)
-                            {
-                                <span>Hasta @Model.Unidad.VigenteHasta!.Value.ToString("dd/MM/yyyy")</span>
+                                <span>@Model.Vigencia.Texto</span>
                             }
                             else
                             {
-                                <span>@Model.Unidad.VigenteDesde.Value.ToString("dd/MM/yyyy") — @Model.Unidad.VigenteHasta!.Value.ToString("dd/MM/yyyy")</span>
+                                <span class="badge @Model.Vigencia.BadgeClass fs-xs">@Model.Vigencia.Texto</span>
                             }
                         </dd>
                     </dl>
@@ -99,7 +96,7 @@ else if (Model.Unidad is not null)
     <div class="col-12 d-flex gap-2">
         @if (!Model.IsNotFound && Model.Unidad is not null)
         {
-            <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, returnPage = Model.ReturnPage, returnSearch = Model.ReturnSearch, returnSort = Model.ReturnSort, returnView = Model.ReturnView, returnStatus = Model.ReturnStatus })">
+            <a class="btn btn-warning" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Edit", new { id = Model.Unidad.Id, returnPage = Model.ReturnPage, returnSearch = Model.ReturnSearch, returnSort = Model.ReturnSort, returnView = Model.ReturnView, returnStatus = Model.ReturnStatus, returnVigenteEn = Model.ReturnVigenteEn })">
                 <i class="ti ti-pencil me-1"></i>Editar
             </a>
         }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -31,7 +32,7 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
     /// <inheritdoc />
     public async Task<PagedResult<UnidadOrganizativaDto>> QueryAsync(UnidadOrganizativaListQuery query, CancellationToken cancellationToken = default)
     {
-        var requestUri = BuildQueryUri(query.Page, query.PageSize, query.Search, query.Status);
+        var requestUri = BuildQueryUri(query.Page, query.PageSize, query.Search, query.Status, query.VigenteEn);
         var response = await httpClient.GetAsync(requestUri, cancellationToken);
         response.EnsureSuccessStatusCode();
 
@@ -207,7 +208,7 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
         ErrorCategoria.Unexpected => UnidadOrganizativaErrorType.Validation
     };
 
-    private static string BuildQueryUri(int page, int pageSize, string? search, string? status = null)
+    private static string BuildQueryUri(int page, int pageSize, string? search, string? status = null, DateOnly? vigenteEn = null)
     {
         var builder = new StringBuilder($"{BaseRoute}/consulta?page={page}&pageSize={pageSize}");
 
@@ -221,6 +222,12 @@ public sealed class UnidadOrganizativaApiClient(HttpClient httpClient) : IUnidad
         {
             builder.Append("&status=");
             builder.Append(Uri.EscapeDataString(status));
+        }
+
+        if (vigenteEn.HasValue)
+        {
+            builder.Append("&vigenteEn=");
+            builder.Append(Uri.EscapeDataString(vigenteEn.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
         }
 
         return builder.ToString();

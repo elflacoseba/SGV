@@ -17,6 +17,12 @@ namespace SGV.Web.Pages.Organizacion.UnidadesOrganizativas;
 /// <see cref="ErrorCategoria"/> en OnPostReactivateAsync.
 /// <c>Unauthorized</c> redirige vía <see cref="IAuthSessionRedirector"/>.
 /// </para>
+/// <para>
+/// Issue #281: <see cref="Vigencia"/> se expone como
+/// <see cref="VigenciaViewModel"/> (texto + clase CSS opcional) para
+/// colorear la badge fuera de rango; <see cref="ReturnVigenteEn"/>
+/// preserva el filtro al volver al listado.
+/// </para>
 /// </summary>
 [Authorize]
 public sealed class DetailsModel(
@@ -25,6 +31,8 @@ public sealed class DetailsModel(
     ILogger<DetailsModel> logger) : PageModel
 {
     public UnidadOrganizativaDto? Unidad { get; private set; }
+
+    public VigenciaViewModel? Vigencia { get; private set; }
 
     public bool IsNotFound { get; private set; }
 
@@ -48,7 +56,9 @@ public sealed class DetailsModel(
 
     public string ReturnStatus { get; private set; } = string.Empty;
 
-    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView, ReturnStatus);
+    public string ReturnVigenteEn { get; private set; } = string.Empty;
+
+    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView, ReturnStatus, ReturnVigenteEn);
 
     public async Task<IActionResult> OnGetAsync(
         Guid id,
@@ -57,11 +67,13 @@ public sealed class DetailsModel(
         string? search = null,
         string? sort = null,
         string? view = null,
+        string? vigenteEn = null,
         string? returnPage = null,
         string? returnSearch = null,
         string? returnSort = null,
         string? returnView = null,
         string? returnStatus = null,
+        string? returnVigenteEn = null,
         CancellationToken cancellationToken = default)
     {
         ReturnPage = returnPage ?? p ?? page ?? string.Empty;
@@ -69,6 +81,7 @@ public sealed class DetailsModel(
         ReturnSort = returnSort ?? sort ?? string.Empty;
         ReturnView = returnView ?? view ?? string.Empty;
         ReturnStatus = returnStatus ?? string.Empty;
+        ReturnVigenteEn = returnVigenteEn ?? vigenteEn ?? string.Empty;
         CurrentId = id;
 
         try
@@ -79,6 +92,12 @@ public sealed class DetailsModel(
         {
             logger.LogError(ex, "Failed to load unidad organizativa {Id}.", id);
             Unidad = null;
+        }
+
+        if (Unidad is not null)
+        {
+            var hoy = DateOnly.FromDateTime(DateTime.Today);
+            Vigencia = VigenciaViewModel.Desde(Unidad.VigenteDesde, Unidad.VigenteHasta, hoy);
         }
 
         if (Unidad is null)
@@ -98,6 +117,7 @@ public sealed class DetailsModel(
         ReturnSort = Request.Form[nameof(ReturnSort)].FirstOrDefault() ?? string.Empty;
         ReturnView = Request.Form[nameof(ReturnView)].FirstOrDefault() ?? string.Empty;
         ReturnStatus = Request.Form[nameof(ReturnStatus)].FirstOrDefault() ?? string.Empty;
+        ReturnVigenteEn = Request.Form[nameof(ReturnVigenteEn)].FirstOrDefault() ?? string.Empty;
         CurrentId = id;
 
         var result = await unidadOrganizativaApiClient.ReactivateAsync(id, cancellationToken);
@@ -106,7 +126,7 @@ public sealed class DetailsModel(
         {
             TempData["StatusMessage"] = "La unidad organizativa se reactivó correctamente.";
             TempData["StatusKind"] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus, returnVigenteEn = ReturnVigenteEn });
         }
 
         // Issue #125 / Slice 3: Unauthorized redirige vía IAuthSessionRedirector.

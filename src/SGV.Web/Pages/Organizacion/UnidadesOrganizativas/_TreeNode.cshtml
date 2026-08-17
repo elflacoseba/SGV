@@ -9,7 +9,17 @@
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
             <div>
                 <div class="fw-semibold">@Model.Codigo — @Model.Nombre</div>
-                <span class="badge badge-soft-secondary fs-xs mt-2">@Model.Tipo</span>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <span class="badge badge-soft-secondary fs-xs">@Model.Tipo</span>
+                    @if (string.IsNullOrEmpty(Model.Vigencia.BadgeClass))
+                    {
+                        <span class="fs-xs text-muted">@Model.Vigencia.Texto</span>
+                    }
+                    else
+                    {
+                        <span class="badge @Model.Vigencia.BadgeClass fs-xs">@Model.Vigencia.Texto</span>
+                    }
+                </div>
             </div>
             <div class="d-flex flex-wrap gap-2">
                 <a class="btn btn-info btn-sm" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Details", new { id = Model.Id, returnView })">

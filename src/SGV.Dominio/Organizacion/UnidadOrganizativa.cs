@@ -59,8 +59,20 @@ public sealed record class UnidadOrganizativa : EntidadAuditable
 
     public string? Descripcion { get; private set; }
 
+    /// <summary>
+    /// Metadata informativa de inicio de vigencia de la unidad.
+    /// No se usa para rechazar operaciones en runtime; sólo se persiste
+    /// para filtrar (<c>vigenteEn</c>) y mostrar el rango al usuario
+    /// en la UI (issue #281).
+    /// </summary>
     public DateOnly? VigenteDesde { get; private set; }
 
+    /// <summary>
+    /// Metadata informativa de fin de vigencia de la unidad.
+    /// Mismo uso informativo que <see cref="VigenteDesde"/>: persistido
+    /// para filtrar (<c>vigenteEn</c>) y mostrar el rango al usuario
+    /// en la UI (issue #281).
+    /// </summary>
     public DateOnly? VigenteHasta { get; private set; }
 
     public bool IsActive { get; private set; } = true;
@@ -146,6 +158,36 @@ public sealed record class UnidadOrganizativa : EntidadAuditable
             throw new InvalidOperationException(
                 "La fecha de fin de vigencia no puede ser anterior al inicio.");
         }
+    }
+
+    /// <summary>
+    /// Determina si la unidad está vigente en una fecha de referencia.
+    /// </summary>
+    /// <remarks>
+    /// Semántica (issue #281):
+    /// <list type="bullet">
+    /// <item><description><see cref="VigenteDesde"/> &gt; <paramref name="fechaReferencia"/> → <c>false</c> (aún no vigente).</description></item>
+    /// <item><description><see cref="VigenteHasta"/> &lt; <paramref name="fechaReferencia"/> → <c>false</c> (fuera de vigencia).</description></item>
+    /// <item><description>En cualquier otro caso (incluyendo ambos <c>null</c>) → <c>true</c>.</description></item>
+    /// </list>
+    /// Esta regla es puramente informativa: NO rechaza operaciones.
+    /// La UI usa <paramref name="fechaReferencia"/> inyectada (no
+    /// <c>DateTime.Today</c>) para que el helper sea testeable en
+    /// aislamiento.
+    /// </remarks>
+    public bool EsVigente(DateOnly fechaReferencia)
+    {
+        if (VigenteDesde.HasValue && VigenteDesde.Value > fechaReferencia)
+        {
+            return false;
+        }
+
+        if (VigenteHasta.HasValue && VigenteHasta.Value < fechaReferencia)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>

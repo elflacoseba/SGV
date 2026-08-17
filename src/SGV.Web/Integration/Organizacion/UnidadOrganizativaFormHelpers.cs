@@ -9,7 +9,20 @@ namespace SGV.Web.Integration.Organizacion;
 /// </summary>
 public static class UnidadOrganizativaFormHelpers
 {
-    public static string BuildReturnToListUrl(IUrlHelper url, string? page, string? search, string? sort, string? view = null, string? status = null)
+    /// <summary>
+    /// Construye la URL de retorno al listado preservando los filtros
+    /// vigentes en la sesión de navegación. <paramref name="vigenteEn"/>
+    /// se serializa como <c>yyyy-MM-dd</c> cuando está presente
+    /// (issue #281).
+    /// </summary>
+    public static string BuildReturnToListUrl(
+        IUrlHelper url,
+        string? page,
+        string? search,
+        string? sort,
+        string? view = null,
+        string? status = null,
+        string? vigenteEn = null)
     {
         var baseUrl = url.Page("/Organizacion/UnidadesOrganizativas/Index") ?? "/organizacion/unidades-organizativas";
         var query = new List<KeyValuePair<string, string?>>();
@@ -37,6 +50,11 @@ public static class UnidadOrganizativaFormHelpers
         if (string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase))
         {
             query.Add(new KeyValuePair<string, string?>("status", "eliminadas"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(vigenteEn))
+        {
+            query.Add(new KeyValuePair<string, string?>("vigenteEn", vigenteEn));
         }
 
         return query.Count == 0

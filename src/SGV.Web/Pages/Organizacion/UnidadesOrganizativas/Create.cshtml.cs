@@ -50,15 +50,19 @@ public sealed class CreateModel(
     [BindProperty]
     public string? ReturnStatus { get; set; }
 
-    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView, ReturnStatus);
+    [BindProperty]
+    public string? ReturnVigenteEn { get; set; }
 
-    public async Task OnGetAsync(string? p = null, string? page = null, string? search = null, string? sort = null, string? view = null, string? returnView = null, string? returnStatus = null, CancellationToken cancellationToken = default)
+    public string ReturnToListUrl => UnidadOrganizativaFormHelpers.BuildReturnToListUrl(Url, ReturnPage, ReturnSearch, ReturnSort, ReturnView, ReturnStatus, ReturnVigenteEn);
+
+    public async Task OnGetAsync(string? p = null, string? page = null, string? search = null, string? sort = null, string? view = null, string? vigenteEn = null, string? returnView = null, string? returnStatus = null, string? returnVigenteEn = null, CancellationToken cancellationToken = default)
     {
         ReturnPage = p ?? page ?? string.Empty;
         ReturnSearch = search ?? string.Empty;
         ReturnSort = sort ?? string.Empty;
         ReturnView = returnView ?? view ?? string.Empty;
         ReturnStatus = returnStatus ?? string.Empty;
+        ReturnVigenteEn = returnVigenteEn ?? vigenteEn ?? string.Empty;
 
         await LoadCatalogsAsync(cancellationToken);
     }
@@ -86,7 +90,7 @@ public sealed class CreateModel(
         {
             TempData["StatusMessage"] = $"La unidad organizativa \"{result.Value.Nombre}\" se creó correctamente.";
             TempData["StatusKind"] = "success";
-            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id = result.Value.Id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus });
+            return RedirectToPage("/Organizacion/UnidadesOrganizativas/Details", new { id = result.Value.Id, returnPage = ReturnPage, returnSearch = ReturnSearch, returnSort = ReturnSort, returnView = ReturnView, returnStatus = ReturnStatus, returnVigenteEn = ReturnVigenteEn });
         }
 
         // Validation or conflict

@@ -25,6 +25,7 @@
                 <input name="search" type="hidden" value="@Model.Search" />
                 <input name="sort" type="hidden" value="@Model.Sort" />
                 <input name="view" type="hidden" value="@Model.CurrentView" />
+                <input name="vigenteEn" type="hidden" value="@(Model.VigenteEn?.ToString("yyyy-MM-dd"))" />
                 <button type="submit" class="btn btn-sm btn-outline-primary ms-2" formaction="?handler=Reactivate">Reactivar</button>
             </form>
         }
@@ -46,8 +47,8 @@
                 </div>
                 <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
                     <div class="btn-group" role="group" aria-label="Filtrar por estado">
-                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort })">Activas</a>
-                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort, status = "eliminadas" })">Eliminadas</a>
+                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-light" : "btn-primary")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort, vigenteEn = Model.VigenteEn?.ToString("yyyy-MM-dd") })">Activas</a>
+                        <a class="btn btn-sm @(Model.IsDeletedView ? "btn-primary" : "btn-light")" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort, status = "eliminadas", vigenteEn = Model.VigenteEn?.ToString("yyyy-MM-dd") })">Eliminadas</a>
                     </div>
                     <span class="badge badge-soft-primary fs-xs">@Model.TotalCount registro(s)</span>
                     @if (!Model.IsDeletedView)
@@ -59,17 +60,26 @@
                 </div>
             </div>
                 <div class="card-header border-0">
-                    <form class="row g-2 align-items-center w-100" method="get">
-                        <div class="col-md-6 col-xl-4">
+                    <form class="row g-2 align-items-end w-100" method="get">
+                        <div class="col-md-5 col-xl-4">
+                            <label for="uo-search-input" class="form-label small text-muted mb-1">Buscar</label>
                             <div class="app-search">
-                                <input class="form-control" name="search" placeholder="Buscar..." data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Buscar por código o nombre..." type="search" value="@Model.Search" />
+                                <input id="uo-search-input" class="form-control" name="search" placeholder="Código o nombre..." data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Buscar por código o nombre..." type="search" value="@Model.Search" />
                                 <i class="ti ti-search app-search-icon text-muted"></i>
                             </div>
+                        </div>
+                        <div class="col-md-4 col-xl-3">
+                            <label for="uo-vigenteEn-input" class="form-label small text-muted mb-1">Vigente al</label>
+                            <input id="uo-vigenteEn-input" type="date" class="form-control" name="vigenteEn" value="@(Model.VigenteEn?.ToString("yyyy-MM-dd"))" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Mostrar solo unidades vigentes en esta fecha (issue #281)" aria-label="Filtrar por fecha de vigencia" />
                         </div>
                         <input name="sort" type="hidden" value="@Model.Sort" />
                         <input name="status" type="hidden" value="@Model.Segmento" />
                         <div class="col-auto">
                             <button class="btn btn-primary" type="submit">Buscar</button>
+                            @if (Model.VigenteEn.HasValue)
+                            {
+                                <a class="btn btn-light ms-1" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento })" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Quitar filtro de vigencia" aria-label="Quitar filtro de vigencia">Limpiar</a>
+                            }
                         </div>
                     </form>
                 </div>
@@ -83,7 +93,7 @@
                                     var tipoIcon = Model.GetSortIcon("tipo");
                                 }
                                 <th>
-                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo"), status = Model.Segmento })">
+                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("codigo"), status = Model.Segmento, vigenteEn = Model.VigenteEn?.ToString("yyyy-MM-dd") })">
                                         Código
                                         @if (!string.IsNullOrEmpty(codigoIcon))
                                         {
@@ -92,7 +102,7 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre"), status = Model.Segmento })">
+                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("nombre"), status = Model.Segmento, vigenteEn = Model.VigenteEn?.ToString("yyyy-MM-dd") })">
                                         Nombre
                                         @if (!string.IsNullOrEmpty(nombreIcon))
                                         {
@@ -101,7 +111,7 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("tipo"), status = Model.Segmento })">
+                                    <a class="link-reset" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage, search = Model.Search, sort = Model.GetSortRoute("tipo"), status = Model.Segmento, vigenteEn = Model.VigenteEn?.ToString("yyyy-MM-dd") })">
                                         Tipo
                                         @if (!string.IsNullOrEmpty(tipoIcon))
                                         {
@@ -136,7 +146,16 @@
                                             </div>
                                         </td>
                                         <td><span class="badge badge-soft-secondary fs-xs">@item.Tipo</span></td>
-                                        <td>@item.Vigencia</td>
+                                        <td>
+                                            @if (string.IsNullOrEmpty(item.Vigencia.BadgeClass))
+                                            {
+                                                <span>@item.Vigencia.Texto</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge @item.Vigencia.BadgeClass fs-xs">@item.Vigencia.Texto</span>
+                                            }
+                                        </td>
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
                                                 @if (!Model.IsDeletedView)
@@ -155,6 +174,7 @@
                                                         <input name="sort" type="hidden" value="@Model.Sort" />
                                                         <input name="view" type="hidden" value="@Model.CurrentView" />
                                                         <input name="status" type="hidden" value="@Model.Segmento" />
+                                                        <input name="vigenteEn" type="hidden" value="@(Model.VigenteEn?.ToString("yyyy-MM-dd"))" />
                                                         <button aria-label="Reactivar @item.Nombre" class="btn btn-success btn-icon btn-sm rounded-circle" data-uo-reactivate-button data-uo-item-name="@item.Nombre" data-uo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Reactivar" formaction="?handler=Reactivate" type="submit">
                                                             <i class="ti ti-refresh fs-lg"></i>
                                                         </button>
@@ -173,6 +193,7 @@
                                                         <input name="sort" type="hidden" value="@Model.Sort" />
                                                         <input name="view" type="hidden" value="@Model.CurrentView" />
                                                         <input name="status" type="hidden" value="@Model.Segmento" />
+                                                        <input name="vigenteEn" type="hidden" value="@(Model.VigenteEn?.ToString("yyyy-MM-dd"))" />
                                                         <button aria-label="Eliminar @item.Nombre" class="btn btn-danger btn-icon btn-sm rounded-circle" data-uo-delete-button data-uo-item-name="@item.Nombre" data-uo-item-code="@item.Codigo" data-bs-toggle="tooltip" data-bs-title="Eliminar" formaction="?handler=Delete" type="submit">
                                                             <i class="ti ti-trash fs-lg"></i>
                                                         </button>
@@ -191,16 +212,16 @@
                     <nav aria-label="Paginación de unidades organizativas">
                         <ul class="pagination pagination-sm mb-0">
                             <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : null)">
-                                <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage - 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">Anterior</a>
+                                <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage - 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento, vigenteEn = Model.VigenteEn?.ToString("yyyy-MM-dd") })">Anterior</a>
                             </li>
                             @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
                             {
                                 <li class="page-item @(pageNumber == Model.CurrentPage ? "active" : null)">
-                                    <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = pageNumber, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">@pageNumber</a>
+                                    <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = pageNumber, search = Model.Search, sort = Model.Sort, status = Model.Segmento, vigenteEn = Model.VigenteEn?.ToString("yyyy-MM-dd") })">@pageNumber</a>
                                 </li>
                             }
                             <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
-                                <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage + 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento })">Siguiente</a>
+                                <a class="page-link" href="@Url.Page("/Organizacion/UnidadesOrganizativas/Index", new { p = Model.CurrentPage + 1, search = Model.Search, sort = Model.Sort, status = Model.Segmento, vigenteEn = Model.VigenteEn?.ToString("yyyy-MM-dd") })">Siguiente</a>
                             </li>
                         </ul>
                     </nav>

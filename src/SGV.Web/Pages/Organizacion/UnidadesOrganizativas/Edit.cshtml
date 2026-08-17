@@ -31,6 +31,7 @@
         <input name="returnSort" type="hidden" value="@Model.ReturnSort" />
         <input name="returnView" type="hidden" value="@Model.ReturnView" />
         <input name="returnStatus" type="hidden" value="@Model.ReturnStatus" />
+        <input name="returnVigenteEn" type="hidden" value="@Model.ReturnVigenteEn" />
         <button type="submit" class="btn btn-success me-2" formaction="?handler=Reactivate&id=@Model.CurrentId">Reactivar</button>
         <a class="btn btn-primary" href="@Model.ReturnToListUrl">Volver al listado</a>
     </form>
@@ -52,6 +53,7 @@ else
                         <input type="hidden" asp-for="ReturnSort" />
                         <input type="hidden" asp-for="ReturnView" />
                         <input type="hidden" asp-for="ReturnStatus" />
+                        <input type="hidden" asp-for="ReturnVigenteEn" />
 
                         @await Html.PartialAsync("_Form", Model)
 
