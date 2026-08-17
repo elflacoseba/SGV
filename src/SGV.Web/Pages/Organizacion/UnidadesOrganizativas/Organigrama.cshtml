@@ -103,9 +103,66 @@
 </div>
 
 <style>
-    /* Issue #286: el chart de Google OrgChart trae inline `min-height:500px; overflow:auto;`
-       que en modo print recorta el árbol y mete un scrollbar feo. La regla print se
-       complementa con `.d-print-none` de la toolbar (Bootstrap) ya servido. */
+    /* Issue #286: CSS custom para los nodos de Google Charts OrgChart.
+       El default de Google Charts pone los nodos con altura fija insuficiente
+       y `overflow: hidden`, lo que recorta el texto cuando el nombre de la
+       unidad tiene más de 2 líneas. Esto se ve peor aún en el export porque
+       html2canvas captura los pixeles visibles incluyendo el recorte. */
+
+    /* Container principal: sin overflow auto, así html2canvas captura el árbol
+       completo sin recortes por scroll interno. */
+    .orgchart-container {
+        overflow: visible !important;
+        min-height: 800px !important;
+        padding: 1rem;
+    }
+
+    /* Cada nodo: altura automática según el contenido, padding generoso,
+       sin overflow hidden. El default de Google Charts fija height a 50px
+       que corta el nombre. */
+    .google-visualization-orgchart-node {
+        height: auto !important;
+        min-height: 48px !important;
+        max-width: 220px !important;
+        overflow: visible !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        padding: 8px 12px !important;
+        border: 1px solid #ced4da !important;
+        border-radius: 4px !important;
+        background-color: #ffffff !important;
+        color: #212529 !important;
+        font-size: 13px !important;
+        line-height: 1.35 !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Filas de la tabla del chart: altura automática, sin colapso. */
+    .google-visualization-orgchart-table tr {
+        height: auto !important;
+    }
+
+    /* Espaciado entre filas del organigrama. */
+    .google-visualization-orgchart-table {
+        margin: 0 auto;
+    }
+
+    /* Nodos marcados como expirados (clase aplicada por JS en ready).
+       El JS detecta los nodos cuyo código está en la lista de expiradas
+       y les agrega .orgchart-node-expired. Color oscuro + texto claro. */
+    .orgchart-node-expired {
+        background-color: #343a40 !important;
+        color: #f8f9fa !important;
+        border-color: #495057 !important;
+    }
+
+    .orgchart-node-expired .google-visualization-orgchart-node {
+        background-color: #343a40 !important;
+        color: #f8f9fa !important;
+    }
+
+    /* Print: oculta la toolbar (ya viene de Bootstrap .d-print-none) y
+       deja el chart con overflow visible para que se imprima completo. */
     @@media print {
         .orgchart-container {
             min-height: 0 !important;
@@ -127,8 +184,8 @@
 @section scripts {
     <script src="https://www.gstatic.com/charts/loader.js"></script>
     <!-- html2canvas via CDN — captura cualquier elemento DOM (incluyendo
-         tablas HTML que es lo que usa OrgChart) y lo rasteriza a canvas.
-         Issue #286: OrgChart NO usa SVG (usa <table>), así que el approach
+         las tablas HTML que es lo que usa OrgChart) y lo rasteriza a canvas.
+         Issue #286: OrgChart NO usa SVG (usa tablas HTML), así que el approach
          SVG→canvas nunca podía funcionar. html2canvas captura el chartDiv
          completo independientemente de la tecnología de render. ~25KB minified. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"

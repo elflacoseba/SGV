@@ -71,6 +71,56 @@
         return { expired: false, reason: classifyVigente(vigenteDesde, vigenteHasta) };
     }
 
+    /**
+     * Aplica diferenciación visual a los nodos según su estado de vigencia.
+     *
+     * Issue #286 (noveno feedback): los nodos se veían todos con el mismo
+     * fondo (texto cortado y sin diferenciación de expiradas). El default
+     * de Google Charts aplica algunos estilos inconsistentes (gris oscuro
+     * a VIC_ACA/VIC_ADM/SRV_BIB sin razón aparente).
+     *
+     * Estrategia: en el evento `ready`, iteramos todos los
+     * `.google-visualization-orgchart-node` y comparamos su texto (que es
+     * "CODIGO — Nombre" porque `allowHtml: true`) con los códigos de las
+     * unidades. Si está expirada, agregamos la clase `orgchart-node-expired`
+     * que aplica el fondo oscuro con texto claro. Si no, fondo blanco con
+     * texto oscuro.
+     */
+    function applyExpirationStyling(nodes) {
+        var expiredByCodigo = {};
+        function walk(arr) {
+            for (var i = 0; i < arr.length; i++) {
+                var n = arr[i];
+                var r = isExpired(n.vigenteDesde, n.vigenteHasta);
+                if (r.expired) {
+                    expiredByCodigo[n.codigo] = n;
+                }
+                walk(n.children || []);
+            }
+        }
+        walk(nodes);
+
+        var nodeEls = chartDiv.querySelectorAll('.google-visualization-orgchart-node');
+        var matched = 0;
+        for (var i = 0; i < nodeEls.length; i++) {
+            var el = nodeEls[i];
+            // El texto del nodo es "CODIGO — Nombre" (modo showCode=true)
+            // o solo "Nombre" (modo showCode=false). En el primer caso
+            // extraemos el código; en el segundo, no podemos mapear al
+            // nodo original así que no aplicamos estilo especial.
+            var text = (el.textContent || '').trim();
+            var dashIdx = text.indexOf('—');
+            var codigo = dashIdx > 0 ? text.substring(0, dashIdx).trim() : null;
+            if (codigo && expiredByCodigo[codigo]) {
+                el.classList.add('orgchart-node-expired');
+                matched++;
+            } else {
+                el.classList.remove('orgchart-node-expired');
+            }
+        }
+        console.log('[OrgChart] applyExpirationStyling: matched', matched, 'of', nodeEls.length, 'nodes');
+    }
+
     function classifyVigente(vigenteDesde, vigenteHasta) {
         var hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
@@ -237,6 +287,7 @@
             // renderizado cuando intentemos exportar.
             google.visualization.events.addListener(currentChart, 'ready', function () {
                 chartReady = true;
+                applyExpirationStyling(filtered);
                 console.log('[OrgChart] chart ready, OK para export.');
             });
 
