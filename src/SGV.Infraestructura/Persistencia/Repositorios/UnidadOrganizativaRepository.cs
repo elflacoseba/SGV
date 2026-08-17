@@ -281,16 +281,32 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
         // ("CicloJerarquico") that the application service translates to
         // 409 Conflict. Capacity is sized to typical hierarchies to avoid
         // rehashing; bound remains O(depth) regardless.
-        var visited = new HashSet<Guid>(capacity: 16);
+        var byId = hierarchy.ToDictionary(n => n.Id, n => n.UnidadPadreId);
+
+        foreach (var node in hierarchy)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var path = new HashSet<Guid>();
+            var currentId = node.Id;
+            while (byId.TryGetValue(currentId, out var parentId) && parentId.HasValue)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!path.Add(currentId))
+                {
+                    throw new InvalidOperationException("CicloJerarquico");
+                }
+
+                path.Add(currentId);
+                currentId = parentId.Value;
+            }
+        }
+
         var current = hierarchy.FirstOrDefault(n => n.Id == candidateDescendantId);
         while (current is not null && current.UnidadPadreId.HasValue)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            if (!visited.Add(current.Id))
-            {
-                throw new InvalidOperationException("CicloJerarquico");
-            }
 
             if (current.UnidadPadreId == ancestorId)
             {
