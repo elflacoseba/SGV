@@ -40,6 +40,14 @@ public sealed class OrganigramaModel(IUnidadOrganizativaApiClient unidadOrganiza
         return Page();
     }
 
+    /// <summary>
+    /// Proyecta el DTO del árbol al ViewModel que consume el shell web.
+    /// Las fechas de vigencia se exponen CRUDAS al JavaScript para que el
+    /// filtro de "Mostrar unidades expiradas" se calcule enteramente en el
+    /// cliente (issue #286 — tercer feedback). Ya no proyectamos un
+    /// <c>EsVigente</c> server-side porque daba resultados confusos
+    /// cuando las unidades no tenían <c>VigenteHasta</c> configurado.
+    /// </summary>
     private static UnidadOrganizativaTreeNodeViewModel MapToViewModel(UnidadOrganizativaTreeNodeDto item, DateOnly hoy)
         => new(
             item.Id,
@@ -47,20 +55,7 @@ public sealed class OrganigramaModel(IUnidadOrganizativaApiClient unidadOrganiza
             item.Nombre,
             item.TipoUnidadNombre,
             VigenciaViewModel.Desde(item.VigenteDesde, item.VigenteHasta, hoy),
-            EsVigente(item.VigenteDesde, item.VigenteHasta, hoy),
+            item.VigenteDesde,
+            item.VigenteHasta,
             item.Hijas.Select(child => MapToViewModel(child, hoy)).ToArray());
-
-    /// <summary>
-    /// Proyecta la ventana de vigencia persistida a un booleano que el
-    /// JavaScript pueda consumir para filtrar visualmente las unidades
-    /// cuya vigencia ya cerró (issue #286). Espeja
-    /// <c>UnidadOrganizativa.EsVigente</c> pero opera sobre datos del
-    /// wire sin materializar una entidad de dominio.
-    /// </summary>
-    private static bool EsVigente(DateOnly? desde, DateOnly? hasta, DateOnly hoy)
-    {
-        if (desde.HasValue && desde.Value > hoy) return false;
-        if (hasta.HasValue && hasta.Value < hoy) return false;
-        return true;
-    }
 }

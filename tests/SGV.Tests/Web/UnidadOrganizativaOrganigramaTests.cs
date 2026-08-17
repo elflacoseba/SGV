@@ -285,15 +285,18 @@ public sealed partial class UnidadOrganizativaWebTests
     }
 
     /// <summary>
-    /// Issue #286: el JSON que consume el JS del organigrama debe
-    /// incluir el texto derivado del rango de vigencia (formateado
-    /// por <see cref="VigenciaViewModel"/>) para que el operador
-    /// pueda ver el rango en el tooltip si lo necesita, y el flag
-    /// <c>esVigente</c> que el filtro evalúa. Esta cobertura es la
-    /// que rompe si alguien refactoriza la proyección del viewmodel.
+    /// Issue #286 (3er round): el JSON que consume el JS del
+    /// organigrama expone las fechas de vigencia CRUDAS
+    /// (<c>vigenteDesde</c>, <c>vigenteHasta</c>) para que el filtro de
+    /// "Mostrar unidades expiradas" se calcule ENTERAMENTE en el
+    /// cliente. Antes dependíamos de un <c>esVigente</c> server-side
+    /// que daba resultados confusos al operador para unidades sin
+    /// <c>VigenteHasta</c> configurado. Esta cobertura rompe si alguien
+    /// intenta revertir el cambio volviendo a calcular la vigencia en
+    /// el server.
     /// </summary>
     [Fact]
-    public async Task Get_Organigrama_WhenApiReturnsVigencia_ExposesVigenciaTextoAndEsVigenteInTreeData()
+    public async Task Get_Organigrama_WhenApiReturnsVigencia_ExposesRawVigenteDesdeYVigenteHastaInTreeData()
     {
         var facultyId = Guid.NewGuid();
         var vigenteDesde = new DateOnly(2024, 1, 1);
@@ -317,40 +320,46 @@ public sealed partial class UnidadOrganizativaWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        // VigenciaViewModel.Desde formatea `dd/MM/yyyy` por cultura
-        // invariant. Verificamos el rango presente en `vigencia.texto`
-        // (que es lo que el JS podría usar como tooltip futuro) y el
-        // flag `esVigente` (que es el input actual del filtro).
         Assert.Contains("\"id\":\"" + facultyId.ToString() + "\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("01/01/2024", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("31/12/2099", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"esVigente\":true", content, StringComparison.OrdinalIgnoreCase);
+
+        // Las fechas se exponen CRUDAS al cliente como strings ISO-8601.
+        // System.Text.Json serializa DateOnly como "YYYY-MM-DD" por default.
+        Assert.Contains("\"vigenteDesde\":\"2024-01-01\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"vigenteHasta\":\"2099-12-31\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // El flag server-side ya NO debe existir (tercer feedback del
+        // operador #286): el JS recalcula la vigencia con `new Date()`
+        // para tener una sola fuente de verdad y evitar bugs de
+        // proyección. Si vuelve a aparecer, rompemos este test como
+        // regression guard.
+        Assert.DoesNotContain("\"esVigente\"", content, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// Issue #286: la proyección para el JS incluye <c>esVigente</c>
-    /// calculado contra la fecha de referencia del servidor. Una
-    /// unidad con <c>VigenteHasta</c> anterior a hoy debe llegar al
-    /// browser con <c>esVigente:false</c> para que el filtro la pueda
-    /// esconder; una con rango vigente o sin rango debe llegar en
-    /// <c>true</c>.
+    /// Issue #286 (3er round): una unidad con <c>VigenteHasta</c>
+    /// configurado a una fecha pasada debe llegar al JSON con esa
+    /// fecha cruda. El JS se encarga de evaluarla contra
+    /// <c>new Date()</c> y aplicar el filtro. Defense-in-depth: si
+    /// alguien refactoriza y rompe la propagación de fechas del DTO
+    /// al viewmodel, este test lo detecta antes de que el operador
+    /// lo vea.
     /// </summary>
     [Fact]
-    public async Task Get_Organigrama_ProjectsEsVigenteFlagForJsFilter()
+    public async Task Get_Organigrama_ProjectsRawDatesForJsClientSideFilter()
     {
-        var vigenteId = Guid.NewGuid();
-        var fueraDeVigenciaId = Guid.NewGuid();
+        var vigenteHastaPasadoId = Guid.NewGuid();
+        var sinVigenciaHastaId = Guid.NewGuid();
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
         apiClient.TreeResult = new UnidadOrganizativaArbolResponse(
             [
                 new UnidadOrganizativaTreeNodeDto(
-                    vigenteId, "VIG", "Unidad vigente",
+                    vigenteHastaPasadoId, "OLD", "Unidad con vigencia pasada",
                     Guid.NewGuid(), "Institución", [],
-                    new DateOnly(2020, 1, 1), new DateOnly(2099, 12, 31)),
+                    new DateOnly(2000, 1, 1), new DateOnly(2001, 1, 1)),
                 new UnidadOrganizativaTreeNodeDto(
-                    fueraDeVigenciaId, "OLD", "Unidad vencida",
+                    sinVigenciaHastaId, "OPEN", "Unidad sin VigenteHasta",
                     Guid.NewGuid(), "Institución", [],
-                    new DateOnly(2000, 1, 1), new DateOnly(2001, 1, 1))
+                    new DateOnly(2020, 1, 1), null)
             ],
             []);
 
@@ -362,13 +371,14 @@ public sealed partial class UnidadOrganizativaWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        // El contrato del viewmodel debe exponer `esVigente` para que
-        // `applyFilters` del JS pueda tomar la decisión de ocultar.
-        // Validamos por substring exacta para fijar el contrato wire
-        // entre Razor y organigrama.js.
-        Assert.Contains("\"id\":\"" + vigenteId.ToString() + "\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"esVigente\":true", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"id\":\"" + fueraDeVigenciaId.ToString() + "\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"esVigente\":false", content, StringComparison.OrdinalIgnoreCase);
+        // Unidad con VigenteHasta explícito (en el pasado).
+        Assert.Contains("\"id\":\"" + vigenteHastaPasadoId.ToString() + "\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"vigenteHasta\":\"2001-01-01\"", content, StringComparison.OrdinalIgnoreCase);
+
+        // Unidad sin VigenteHasta — debe llegar como null explícito
+        // en el JSON (no undefined). System.Text.Json serializa null
+        // como `"vigenteHasta":null`.
+        Assert.Contains("\"id\":\"" + sinVigenciaHastaId.ToString() + "\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"vigenteHasta\":null", content, StringComparison.OrdinalIgnoreCase);
     }
 }

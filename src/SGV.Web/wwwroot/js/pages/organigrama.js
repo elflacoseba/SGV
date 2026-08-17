@@ -1,8 +1,9 @@
 // Organigrama page — loads the org chart via Google Charts
-// Issue #286: agrega switches de filtro (mostrar código, mostrar unidades
-// vigentes) y exportaciones PNG/PDF. El render se redespliega cada vez que
-// el usuario cambia un switch; los exports capturan el estado visual actual
-// del chart, incluyendo los nodos que quedaron colapsados manualmente.
+// Issue #286 (3er round): el filtro de "Mostrar unidades expiradas" se
+// calcula ENTERAMENTE en el cliente usando las fechas crudas
+// `vigenteDesde` / `vigenteHasta` que vienen en el JSON. Antes dependía
+// de un `esVigente` server-side que daba resultados confusos para el
+// operador cuando tenía unidades sin `VigenteHasta` configurado.
 (function () {
     'use strict';
 
@@ -16,13 +17,7 @@
 
     // Estado vivo de los switches. Se inicializa desde los checkboxes
     // (que arrancan `checked` en el HTML) y se mantiene sincronizado
-    // con el `change` event. Cualquier acción (export, redraw) lee
-    // desde acá para evitar inconsistencias con el DOM.
-    //
-    // `showExpiradas` controla las unidades cuya ventana de vigencia
-    // ya cerró (issue #286 — feedback del usuario): las vigentes se
-    // muestran SIEMPRE; cuando el switch está OFF se ocultan las
-    // expiradas y cuando está ON se muestran todas.
+    // con el `change` event.
     var options = {
         showCode: !showCodeInput || showCodeInput.checked === true,
         showExpiradas: !showExpiradasInput || showExpiradasInput.checked === true
@@ -30,13 +25,12 @@
 
     // Referencia al chart activo. La exportacion PNG/PDF lo consume
     // directamente; se asigna en drawOrgChart y queda null cuando no
-    // hay árbol renderizado (estado vacío, error, o filtro que oculta
-    // todos los nodos vigentes).
+    // hay árbol renderizado.
     var currentChart = null;
 
     // Timeout: si Google Charts no carga en 10 segundos, mostramos
     // error. El timeout se cancela apenas el chart se renderiza OK
-    // o cuando la carga falla con errorCallback.
+    // o cuando la la carga falla con errorCallback.
     var timeoutId = setTimeout(function () {
         console.error('[OrgChart] Timeout: Google Charts no cargó en 10 segundos');
         if (chartDiv) {
@@ -52,23 +46,38 @@
     }
 
     /**
-     * Aplica los switches de filtro al árbol pre-cargado. Devuelve un
-     * árbol NUEVO (no muta `nodes`) para que los toggles del usuario
-     * puedan dispararse varias veces seguidas sin arrastrar estado
-     * entre renders.
+     * Determina si una unidad está expirada evaluando las fechas
+     * crudas contra la fecha actual del cliente. Se considera
+     * "expirada" únicamente cuando:
+     *  - VigenteHasta está definido Y es anterior a hoy.
      *
-     * Reglas (issue #286):
-     *  - `showVigentes === false` → descartar toda la sub-jerarquía
-     *    de un nodo no vigente (hijos también se ocultan) para evitar
-     *    nodos huérfanos sin padre visible.
-     *  - `showVigentes === true` (default) → conservar todo.
+     * Una unidad con VigenteHasta = null se considera VIGENTE
+     * (no tiene fecha de expiración configurada → sigue activa).
+     * Esto coincide con la convención del dominio
+     * `UnidadOrganizativa.EsVigente(fechaReferencia)`.
      */
+    function isExpired(vigenteDesde, vigenteHasta) {
+        var hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        if (vigenteHasta) {
+            // Formato esperado: "YYYY-MM-DD" desde System.Text.Json
+            var hastaDate = new Date(vigenteHasta + 'T00:00:00');
+            if (!isNaN(hastaDate.getTime()) && hastaDate < hoy) {
+                return true;
+            }
+        }
+        if (vigenteDesde) {
+            var desdeDate = new Date(vigenteDesde + 'T00:00:00');
+            if (!isNaN(desdeDate.getTime()) && desdeDate > hoy) {
+                return true; // aún no empieza
+            }
+        }
+        return false;
+    }
+
     /**
-     * Cuenta total / vigentes / expiradas del árbol. Solo para
-     * diagnóstico en consola cuando el filtro deja el árbol vacío
-     * (issue #286). Si ves `vigentes === 0` en consola pero esperás
-     * vigentes, hay un bug server-side: el cálculo de `EsVigente`
-     * está retornando false para todas las unidades.
+     * Cuenta total / vigentes / expiradas del árbol para diagnóstico.
      */
     function computeVigenciaStats(nodes) {
         var total = 0, vigentes = 0, expiradas = 0;
@@ -78,8 +87,8 @@
                 var n = arr[i];
                 if (!n) continue;
                 total++;
-                if (n.esVigente === true) vigentes++;
-                else expiradas++;
+                if (isExpired(n.vigenteDesde, n.vigenteHasta)) expiradas++;
+                else vigentes++;
                 walk(n.children || []);
             }
         }
@@ -87,55 +96,36 @@
         return { total: total, vigentes: vigentes, expiradas: expiradas };
     }
 
-/**
+    /**
      * Aplica los switches de filtro al árbol pre-cargado. Devuelve un
-     * árbol NUEVO (no muta `nodes`) para que los toggles del usuario
-     * puedan dispararse varias veces seguidas sin arrastrar estado
-     * entre renders.
+     * árbol NUEVO (no muta `nodes`).
      *
-     * Reglas (issue #286 — segundo feedback):
+     * Reglas (issue #286 — tercer feedback):
      *  - `showExpiradas === true` (switch ON, default) → conservar
      *    TODO el árbol, vigentes y expiradas.
      *  - `showExpiradas === false` (switch OFF) → descartar los nodos
-     *    con `esVigente === false` (expiradas) Y TODA su sub-jerarquía,
-     *    para evitar huérfanos sin padre visible.
-     *
-     * Los nodos cuyo `esVigente` no esté definido (null/undefined) se
-     * tratan como no vigentes para que el filtro del usuario tenga
-     * semántica consistente aunque el servidor no haya proyectado el
-     * flag (defensa contra regresiones del wire contract).
+     *    cuya vigencia ya cerró Y TODA su sub-jerarquía (evita
+     *    huérfanos sin padre visible).
      */
     function applyFilters(nodes) {
         if (!nodes) return [];
         var result = [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
-            if (!node) {
-                continue;
-            }
+            if (!node) continue;
 
-            // Coerción explícita a boolean: cualquier valor !== true
-            // (false, null, undefined) cuenta como expirado.
-            var esVigente = node.esVigente === true;
-            var isExpirada = !esVigente;
-
-            // El switch OFF descarta las expiradas. Si el switch está
-            // ON, todas pasan, sin importar la vigencia.
-            var shouldHide = !options.showExpiradas && isExpirada;
-            if (shouldHide) {
-                continue;
-            }
+            var exp = isExpired(node.vigenteDesde, node.vigenteHasta);
+            var shouldHide = !options.showExpiradas && exp;
+            if (shouldHide) continue;
 
             var filteredChildren = applyFilters(node.children || []);
-            // Copia superficial para no mutar la entrada; preserva los
-            // campos que el JS necesita (id, codigo, nombre, tipo,
-            // children, esVigente) y descarta el resto del viewmodel.
             result.push({
                 id: node.id,
                 codigo: node.codigo,
                 nombre: node.nombre,
                 tipo: node.tipo,
-                esVigente: esVigente,
+                vigenteDesde: node.vigenteDesde,
+                vigenteHasta: node.vigenteHasta,
                 children: filteredChildren
             });
         }
@@ -146,10 +136,6 @@
         clearTimeout(timeoutId);
 
         try {
-            // El organigrama se hidrata desde datos pre-cargados server-side
-            // (ver Organigrama.cshtml: window.__sgvTreeData). Pegar a la API
-            // desde el browser daría 401 porque el JWT vive en la cookie
-            // httpOnly y ApiBearerTokenHandler solo aplica del lado servidor.
             var treeData = window.__sgvTreeData || [];
 
             if (!treeData || treeData.length === 0) {
@@ -160,10 +146,6 @@
 
             var filtered = applyFilters(treeData);
             if (filtered.length === 0) {
-                // El árbol pre-cargado tiene nodos pero todos quedaron fuera
-                // del filtro actual. Diagnóstico en consola: el operador
-                // puede ver cuántos nodos llegaron y cuántos quedaron
-                // después del filtro para entender qué pasó (issue #286).
                 var stats = computeVigenciaStats(treeData);
                 console.warn(
                     '[OrgChart] Filtro dejó el árbol vacío. ' +
@@ -217,20 +199,13 @@
      * Implementación (issue #286 — segundo feedback del operador):
      * NO usamos `currentChart.getImageURI()` de la API de Google Charts
      * porque en `OrgChart` específicamente ese método no está disponible
-     * en algunas versiones del loader y el navegador lanza
-     * `TypeError: currentChart.getImageURI is not a function` al hacer
-     * clic en el botón.
+     * en algunas versiones del loader.
      *
-     * La fix robusta es independiente de la API del chart: Google Charts
-     * renderiza cada gráfico como un `<svg>` dentro del contenedor, así
-     * que serializamos el SVG directamente del DOM, lo cargamos en un
-     * `<img>`, lo dibujamos sobre un `<canvas>` con fondo blanco, y
-     * exportamos el canvas como PNG. Esto captura exactamente lo que el
-     * usuario ve en pantalla (incluyendo colapsados manuales).
-     *
-     * El nombre de archivo lleva la fecha en formato `YYYYMMDD` (zona
-     * horaria del cliente) para que varias exportaciones del mismo día
-     * convivan sin pisarse cuando el navegador resuelve colisiones.
+     * Estrategia: capturar el `<svg>` que Google Charts renderiza,
+     * serializarlo con XMLSerializer, envolverlo en Blob, cargarlo en un
+     * `<img>`, dibujarlo sobre un `<canvas>` con fondo blanco, y exportar
+     * el canvas como PNG. Si el canvas se tinta (security) o toBlob
+     * falla, hacer fallback a descarga directa del SVG.
      */
     function exportPng() {
         if (!currentChart) {
@@ -238,8 +213,6 @@
             return;
         }
 
-        // Google Charts inserta el SVG en chartDiv. Lo buscamos ahí en
-        // vez de depender del método getImageURI() de la API del chart.
         var svgEl = chartDiv.querySelector('svg');
         if (!svgEl) {
             console.warn('[OrgChart] exportPng: no se encontró <svg> dentro del chart.');
@@ -250,77 +223,89 @@
         var width = Math.max(1, Math.ceil(bbox.width || svgEl.clientWidth || 800));
         var height = Math.max(1, Math.ceil(bbox.height || svgEl.clientHeight || 600));
 
-        // Serializamos con XMLSerializer. Forzamos el namespace xmlns
-        // porque algunos browsers lo pierden al re-crear el árbol SVG
-        // y eso rompe la carga en <img>.
-        var xml = new XMLSerializer().serializeToString(svgEl);
-        if (xml.indexOf('xmlns=') < 0) {
-            xml = xml.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-        }
+        // Clonamos el SVG y forzamos xmlns + dimensiones explícitas para
+        // que el navegador lo pueda cargar standalone como <img>.
+        var clonedSvg = svgEl.cloneNode(true);
+        clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        clonedSvg.setAttribute('width', String(width));
+        clonedSvg.setAttribute('height', String(height));
 
+        var xml = new XMLSerializer().serializeToString(clonedSvg);
         var svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
         var svgUrl = URL.createObjectURL(svgBlob);
 
         var img = new Image();
         img.onload = function () {
-            var canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            var ctx = canvas.getContext('2d');
-            // Fondo blanco explícito: el SVG es transparente por default y
-            // eso produce un PNG con fondo transparente que muchos visores
-            // muestran como negro.
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, width, height);
-            ctx.drawImage(img, 0, 0, width, height);
+            try {
+                var canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                var ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
 
-            canvas.toBlob(function (pngBlob) {
+                canvas.toBlob(function (pngBlob) {
+                    URL.revokeObjectURL(svgUrl);
+                    if (!pngBlob) {
+                        console.warn('[OrgChart] exportPng: canvas.toBlob devolvió null, fallback a SVG.');
+                        downloadAsSvg(xml);
+                        return;
+                    }
+
+                    var pngUrl = URL.createObjectURL(pngBlob);
+                    var now = new Date();
+                    var yyyymmdd = now.getFullYear().toString()
+                        + String(now.getMonth() + 1).padStart(2, '0')
+                        + String(now.getDate()).padStart(2, '0');
+                    var a = document.createElement('a');
+                    a.href = pngUrl;
+                    a.download = 'organigrama-' + yyyymmdd + '.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(function () { URL.revokeObjectURL(pngUrl); }, 0);
+                }, 'image/png');
+            } catch (e) {
+                console.warn('[OrgChart] exportPng: error en canvas, fallback a SVG.', e);
                 URL.revokeObjectURL(svgUrl);
-                if (!pngBlob) {
-                    console.warn('[OrgChart] exportPng: canvas.toBlob devolvió null.');
-                    return;
-                }
-
-                var pngUrl = URL.createObjectURL(pngBlob);
-                var now = new Date();
-                var yyyymmdd = now.getFullYear().toString()
-                    + String(now.getMonth() + 1).padStart(2, '0')
-                    + String(now.getDate()).padStart(2, '0');
-                var a = document.createElement('a');
-                a.href = pngUrl;
-                a.download = 'organigrama-' + yyyymmdd + '.png';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                // Liberamos la URL en el siguiente tick para que el click
-                // ya haya consumido el blob antes de invalidarlo.
-                setTimeout(function () { URL.revokeObjectURL(pngUrl); }, 0);
-            }, 'image/png');
+                downloadAsSvg(xml);
+            }
         };
         img.onerror = function () {
-            console.warn('[OrgChart] exportPng: error al cargar SVG en <img>.');
+            console.warn('[OrgChart] exportPng: error al cargar SVG en <img>, fallback a SVG.');
             URL.revokeObjectURL(svgUrl);
+            downloadAsSvg(xml);
         };
         img.src = svgUrl;
+    }
+
+    function downloadAsSvg(xml) {
+        var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var now = new Date();
+        var yyyymmdd = now.getFullYear().toString()
+            + String(now.getMonth() + 1).padStart(2, '0')
+            + String(now.getDate()).padStart(2, '0');
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'organigrama-' + yyyymmdd + '.svg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 0);
     }
 
     /**
      * Dispara el diálogo nativo de impresión del navegador. El usuario
      * elige "Guardar como PDF" en el diálogo. La regla `@media print`
      * embebida en `Organigrama.cshtml` ya oculta la toolbar, los
-     * switches y el shell visual (sidenav, topbar, footer) gracias a
-     * `.d-print-none` de Bootstrap + la regla específica del container.
+     * switches y el shell visual.
      */
     function exportPdf() {
         window.print();
     }
 
-    /**
-     * Vincula los handlers de switches y botones. Se llama apenas el
-     * DOM está listo (sin esperar a Google Charts), así los botones
-     * están activos desde el primer paint y solo no-op cuando el chart
-     * todavía no terminó de cargar.
-     */
     function bindEvents() {
         if (showCodeInput) {
             showCodeInput.addEventListener('change', function () {

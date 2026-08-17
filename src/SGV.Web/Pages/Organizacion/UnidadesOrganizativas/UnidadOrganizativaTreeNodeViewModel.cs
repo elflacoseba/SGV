@@ -4,14 +4,15 @@ namespace SGV.Web.Pages.Organizacion.UnidadesOrganizativas;
 
 /// <summary>
 /// View model used to render a hierarchical organizational unit tree in Razor.
-/// <see cref="Vigencia"/> combina texto + clase CSS opcional para colorear
-/// el badge (issue #281).
+/// <see cref="Vigencia"/> brings a derived badge + text for the index page.
 /// <para>
-/// <see cref="EsVigente"/> es la proyección de la ventana de vigencia
-/// calculada en el shell para que el JavaScript pueda filtrar
-/// visualmente las unidades no vigentes (issue #286). Un rango
-/// <c>null</c>/<c>null</c> se considera vigente por convención del
-/// dominio (<c>UnidadOrganizativa.EsVigente</c>).
+/// A partir de issue #286 (tercer feedback del operador) el filtro de
+/// "unidades expiradas" se calcula ENTERAMENTE en el cliente usando las
+/// fechas crudas <see cref="VigenteDesde"/> y <see cref="VigenteHasta"/>.
+/// Anteriormente dependíamos de un <see cref="EsVigente"/> server-side,
+/// pero daba resultados confusos para el operador cuando tenía unidades
+/// sin <c>VigenteHasta</c> configurado. Exponer las fechas crudas le da
+/// al JavaScript todo lo que necesita para recalcular sin ambigüedad.
 /// </para>
 /// </summary>
 public sealed record UnidadOrganizativaTreeNodeViewModel(
@@ -20,5 +21,6 @@ public sealed record UnidadOrganizativaTreeNodeViewModel(
     string Nombre,
     string Tipo,
     VigenciaViewModel Vigencia,
-    bool EsVigente,
+    DateOnly? VigenteDesde,
+    DateOnly? VigenteHasta,
     IReadOnlyList<UnidadOrganizativaTreeNodeViewModel> Children);

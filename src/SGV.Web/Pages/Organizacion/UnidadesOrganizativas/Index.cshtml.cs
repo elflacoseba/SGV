@@ -374,15 +374,9 @@ public sealed class IndexModel(
             item.Nombre,
             item.TipoUnidadNombre,
             VigenciaViewModel.Desde(item.VigenteDesde, item.VigenteHasta, hoy),
-            EsVigente(item.VigenteDesde, item.VigenteHasta, hoy),
+            item.VigenteDesde,
+            item.VigenteHasta,
             item.Hijas.Select(child => MapToTreeViewModel(child, hoy)).ToArray());
-
-    private static bool EsVigente(DateOnly? desde, DateOnly? hasta, DateOnly hoy)
-    {
-        if (desde.HasValue && desde.Value > hoy) return false;
-        if (hasta.HasValue && hasta.Value < hoy) return false;
-        return true;
-    }
 
     private static int CountTreeNodes(IReadOnlyList<UnidadOrganizativaTreeNodeViewModel> nodes)
         => nodes.Sum(static node => 1 + CountTreeNodes(node.Children));
