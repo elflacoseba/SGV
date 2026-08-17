@@ -61,18 +61,12 @@
                 }
                 else
                 {
-                    // Issue #286: barra de acciones + switches de filtro visual.
-                    // Solo se renderiza cuando hay árbol cargado (no en estados vacío
-                    // ni de error) porque las acciones de exportación y los filtros
-                    // no tienen sentido sin nodos. La clase `d-print-none` ya viene
-                    // del bundle de Bootstrap servido en `app.min.css` y oculta la
-                    // barra cuando el usuario dispara la impresión del PDF vía
-                    // `window.print()`.
+                    // Issue #286: barra con switchs de filtro visual + botón
+                    // PDF. La clase `d-print-none` ya viene del bundle de
+                    // Bootstrap servido en `app.min.css` y oculta la barra
+                    // cuando el usuario dispara `window.print()`.
                     <div class="d-flex flex-wrap align-items-center gap-3 mb-3 orgchart-toolbar d-print-none" data-orgchart-toolbar>
                         <div class="d-flex gap-2" data-orgchart-actions>
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-export-png" data-orgchart-export="png" aria-label="Exportar organigrama a PNG">
-                                <i class="mdi mdi-image-outline me-1" aria-hidden="true"></i>Exportar PNG
-                            </button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-export-pdf" data-orgchart-export="pdf" aria-label="Exportar organigrama a PDF">
                                 <i class="mdi mdi-file-pdf-box me-1" aria-hidden="true"></i>Exportar PDF
                             </button>
@@ -91,11 +85,6 @@
                         </div>
                     </div>
                     <div id="orgchart" style="width:100%; min-height:500px; overflow:auto;" class="orgchart-container" data-orgchart-canvas></div>
-                    <!-- Panel de diagnóstico visible en la página (issue #286 4to round).
-                         El JS lo llena con conteos y tabla por nodo para que el operador
-                         pueda ver en pantalla qué datos llegaron y por qué cada nodo se
-                         cuenta como vigente o expirada. Se oculta en print. -->
-                    <div id="orgchart-diag" class="d-print-none"></div>
                 }
             </div>
         </div>
@@ -103,66 +92,10 @@
 </div>
 
 <style>
-    /* Issue #286: CSS custom para los nodos de Google Charts OrgChart.
-       El default de Google Charts pone los nodos con altura fija insuficiente
-       y `overflow: hidden`, lo que recorta el texto cuando el nombre de la
-       unidad tiene más de 2 líneas. Esto se ve peor aún en el export porque
-       html2canvas captura los pixeles visibles incluyendo el recorte. */
-
-    /* Container principal: sin overflow auto, así html2canvas captura el árbol
-       completo sin recortes por scroll interno. */
-    .orgchart-container {
-        overflow: visible !important;
-        min-height: 800px !important;
-        padding: 1rem;
-    }
-
-    /* Cada nodo: altura automática según el contenido, padding generoso,
-       sin overflow hidden. El default de Google Charts fija height a 50px
-       que corta el nombre. */
-    .google-visualization-orgchart-node {
-        height: auto !important;
-        min-height: 48px !important;
-        max-width: 220px !important;
-        overflow: visible !important;
-        white-space: normal !important;
-        word-wrap: break-word !important;
-        padding: 8px 12px !important;
-        border: 1px solid #ced4da !important;
-        border-radius: 4px !important;
-        background-color: #ffffff !important;
-        color: #212529 !important;
-        font-size: 13px !important;
-        line-height: 1.35 !important;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    }
-
-    /* Filas de la tabla del chart: altura automática, sin colapso. */
-    .google-visualization-orgchart-table tr {
-        height: auto !important;
-    }
-
-    /* Espaciado entre filas del organigrama. */
-    .google-visualization-orgchart-table {
-        margin: 0 auto;
-    }
-
-    /* Nodos marcados como expirados (clase aplicada por JS en ready).
-       El JS detecta los nodos cuyo código está en la lista de expiradas
-       y les agrega .orgchart-node-expired. Color oscuro + texto claro. */
-    .orgchart-node-expired {
-        background-color: #343a40 !important;
-        color: #f8f9fa !important;
-        border-color: #495057 !important;
-    }
-
-    .orgchart-node-expired .google-visualization-orgchart-node {
-        background-color: #343a40 !important;
-        color: #f8f9fa !important;
-    }
-
-    /* Print: oculta la toolbar (ya viene de Bootstrap .d-print-none) y
-       deja el chart con overflow visible para que se imprima completo. */
+    /* Issue #286: @@media print para que el diálogo de impresión del
+       navegador (vía window.print()) muestre el organigrama completo
+       sin scrollbar ni toolbar. La toolbar usa .d-print-none (Bootstrap)
+       para ocultarse automáticamente. */
     @@media print {
         .orgchart-container {
             min-height: 0 !important;
@@ -183,14 +116,6 @@
 
 @section scripts {
     <script src="https://www.gstatic.com/charts/loader.js"></script>
-    <!-- html2canvas via CDN — captura cualquier elemento DOM (incluyendo
-         las tablas HTML que es lo que usa OrgChart) y lo rasteriza a canvas.
-         Issue #286: OrgChart NO usa SVG (usa tablas HTML), así que el approach
-         SVG→canvas nunca podía funcionar. html2canvas captura el chartDiv
-         completo independientemente de la tecnología de render. ~25KB minified. -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
-            crossorigin="anonymous"
-            referrerpolicy="no-referrer"></script>
     <!-- Cache-bust con timestamp para evitar que el browser sirva la versión
          vieja del JS después de un cambio. El query string cambia en cada
          recompilación, lo que fuerza descarga. -->

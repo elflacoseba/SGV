@@ -180,11 +180,14 @@ public sealed partial class UnidadOrganizativaWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        // Toolbar con las dos acciones de export.
+        // Toolbar con la única acción de export (PDF).
+        // Issue #286 (revisión posterior): la exportación a PNG se removió
+        // por pedido del operador — el flujo PDF vía window.print() cubre
+        // el caso de uso y evita agregar dependencias externas.
         Assert.Contains("data-orgchart-toolbar", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-orgchart-export=\"png\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-orgchart-export=\"png\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-orgchart-export=\"pdf\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Exportar PNG", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Exportar PNG", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Exportar PDF", content, StringComparison.OrdinalIgnoreCase);
 
         // Switches de filtro visual, ambos arrancan `checked` para
