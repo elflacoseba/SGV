@@ -162,6 +162,7 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
         DateOnly? vigenteEn,
         int page,
         int pageSize,
+        string? sort = null,
         UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {
@@ -174,9 +175,16 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
             .Include(u => u.TipoUnidadOrganizativa)
             .Include(u => u.UnidadPadre);
 
-        if (!string.IsNullOrWhiteSpace(search))
+        // Issue #282: defensa en profundidad — aunque la capa de servicio
+        // (UnidadOrganizativaServicioConsulta) ya trimea y clampa el search,
+        // un caller directo del repo (por ejemplo un futuro gateway o un test)
+        // podría saltarse esa guardia. Trim defensivo aquí mantiene el LIKE
+        // predecible aunque llegue con whitespace al borde.
+        var trimmedSearch = search?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(trimmedSearch))
         {
-            query = query.Where(u => u.Codigo.Contains(search) || u.Nombre.Contains(search));
+            query = query.Where(u => u.Codigo.Contains(trimmedSearch) || u.Nombre.Contains(trimmedSearch));
         }
 
         if (tipoUnidadOrganizativaId.HasValue)
@@ -199,14 +207,42 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
 
-        var entities = await query
-            .OrderBy(u => u.Codigo)
+        // Issue #282: el sort se aplica ANTES del Skip/Take para que la
+        // paginación respete el orden visible. Valores whitelisted:
+        // codigo_asc / codigo_desc / nombre_asc / nombre_desc /
+        // tipo_asc / tipo_desc. Cualquier otro valor (incluido null o
+        // strings desconocidos) cae al orden por defecto Codigo asc para
+        // preservar el contrato existente.
+        var ordered = ApplySort(query, sort);
+
+        var entities = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return (entities.Select(MapToDomain).ToArray(), totalCount);
+    }
+
+    /// <summary>
+    /// Aplica el orden server-side antes del Skip/Take. Whitelist cerrada:
+    /// si el caller pasa un valor no soportado (o null), caemos a
+    /// <c>Codigo ASC</c> para preservar el contrato existente.
+    /// </summary>
+    private static IOrderedQueryable<UnidadOrganizativaEntity> ApplySort(
+        IQueryable<UnidadOrganizativaEntity> query,
+        string? sort)
+    {
+        return sort?.ToLowerInvariant() switch
+        {
+            "codigo_desc" => query.OrderByDescending(u => u.Codigo),
+            "codigo_asc" => query.OrderBy(u => u.Codigo),
+            "nombre_desc" => query.OrderByDescending(u => u.Nombre),
+            "nombre_asc" => query.OrderBy(u => u.Nombre),
+            "tipo_desc" => query.OrderByDescending(u => u.TipoUnidadOrganizativa != null ? u.TipoUnidadOrganizativa.Nombre : string.Empty),
+            "tipo_asc" => query.OrderBy(u => u.TipoUnidadOrganizativa != null ? u.TipoUnidadOrganizativa.Nombre : string.Empty),
+            _ => query.OrderBy(u => u.Codigo)
+        };
     }
 
     public async Task<IReadOnlyList<UnidadOrganizativa>> ListTreeAsync(CancellationToken cancellationToken = default)

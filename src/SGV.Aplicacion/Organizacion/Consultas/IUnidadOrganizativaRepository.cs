@@ -68,6 +68,8 @@ public interface IUnidadOrganizativaRepository : IReadOnlyRepository<UnidadOrgan
     /// <summary>
     /// Returns a filtered, paginated set of organizational units and the total count matching the filters.
     /// The <paramref name="segmento"/> parameter controls which segment to return: active or deleted units.
+    /// The <paramref name="sort"/> expression is applied <em>before</em> pagination so the visible order
+    /// is preserved across pages (issue #282); pass <c>null</c> to fall back to the default <c>Codigo ASC</c>.
     /// </summary>
     Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(
         string? search,
@@ -76,6 +78,7 @@ public interface IUnidadOrganizativaRepository : IReadOnlyRepository<UnidadOrgan
         DateOnly? vigenteEn,
         int page,
         int pageSize,
+        string? sort = null,
         UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas,
         CancellationToken cancellationToken = default);
 

@@ -223,7 +223,7 @@ public sealed class UnidadOrganizativaServicioConsultaTests
         var servicio = new UnidadOrganizativaServicioConsulta(repo);
 
         var resultado = await servicio.QueryAsync(
-            new UnidadOrganizativaQuery(1, 10, null, TipoUnidadOrganizativaConstantes.AreaId), default);
+            new UnidadOrganizativaQuery(1, 10, null, null, TipoUnidadOrganizativaConstantes.AreaId), default);
 
         Assert.Single(resultado.Items);
         Assert.Equal("AREA-01", resultado.Items[0].Codigo);
@@ -366,6 +366,88 @@ public sealed class UnidadOrganizativaServicioConsultaTests
 
         Assert.Equal(UnidadOrganizativaQuery.MaxPageSize, resultado.PageSize);
         Assert.Equal(UnidadOrganizativaQuery.MaxPageSize, repo.LastReceivedPageSize);
+    }
+
+    // ===== WU-1: Sort server-side forwarding (issue #282) =====
+    // El servicio debe reenviar el valor `Sort` del contrato tal cual al
+    // repositorio; el repo decide cómo aplicarlo. Antes de la fix, el
+    // cliente web ordenaba en memoria y el orden global se rompía al
+    // paginar.
+
+    [Fact]
+    public async Task QueryAsync_PasaSortAlRepositorio_TalCualDelContrato()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(1, 10, Sort: "nombre_asc"), default);
+
+        Assert.Equal("nombre_asc", repo.LastReceivedSort);
+    }
+
+    [Fact]
+    public async Task QueryAsync_SortNull_PropagaNullAlRepositorio()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        await servicio.QueryAsync(new UnidadOrganizativaQuery(1, 10), default);
+
+        Assert.Null(repo.LastReceivedSort);
+    }
+
+    // ===== WU-2: Search trim + clamp (issue #282) =====
+    // El servicio normaliza `Search` antes de invocar al repo para acotar
+    // el coste del `LIKE '%texto%'` y para que callers directos del API
+    // (que se saltean la `Normalize` de la web shell) no envenenen el
+    // query con whitespace o 10kb de texto.
+
+    [Fact]
+    public async Task QueryAsync_TrimeaSearchAntesDeInvocarAlRepo()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(1, 10, Search: "  U-001  "), default);
+
+        // El servicio debe entregar el valor SIN whitespace al borde.
+        Assert.Equal("U-001", repo.LastReceivedSearch);
+    }
+
+    [Fact]
+    public async Task QueryAsync_SearchVacioOSoloWhitespace_NoPasaAlRepo()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(1, 10, Search: "   "), default);
+
+        Assert.Null(repo.LastReceivedSearch);
+    }
+
+    [Fact]
+    public async Task QueryAsync_SearchExcesivo_TruncaAMaxSearchLength()
+    {
+        var unidad = CrearUnidadActiva();
+        var repo = new FakeUnidadOrganizativaRepository { Datos = [unidad] };
+        var servicio = new UnidadOrganizativaServicioConsulta(repo);
+
+        // 250 chars para forzar el clamp (MaxSearchLength = 100).
+        var searchExcesivo = new string('x', 250);
+        await servicio.QueryAsync(
+            new UnidadOrganizativaQuery(1, 10, Search: searchExcesivo), default);
+
+        Assert.NotNull(repo.LastReceivedSearch);
+        Assert.Equal(UnidadOrganizativaQuery.MaxSearchLength, repo.LastReceivedSearch!.Length);
+        // El prefijo se preserva.
+        Assert.Equal(new string('x', UnidadOrganizativaQuery.MaxSearchLength), repo.LastReceivedSearch);
     }
 
     // ---- GetTreeAsync tests (Task 3.1 / 3.3) ----
@@ -633,6 +715,19 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
     /// </summary>
     public int? LastReceivedPageSize { get; private set; }
 
+    /// <summary>
+    /// Última expresión <c>sort</c> recibida por el repo. El servicio debe
+    /// reenviar el valor del contrato tal cual (issue #282).
+    /// </summary>
+    public string? LastReceivedSort { get; private set; }
+
+    /// <summary>
+    /// Última expresión <c>search</c> recibida por el repo, después del
+    /// trim/clamp del servicio (issue #282). Útil para verificar que el
+    /// servicio normaliza antes de invocar al repo.
+    /// </summary>
+    public string? LastReceivedSearch { get; private set; }
+
     public Task AddAsync(UnidadOrganizativa unidad, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
@@ -701,11 +796,14 @@ internal sealed class FakeUnidadOrganizativaRepository : IUnidadOrganizativaRepo
         DateOnly? vigenteEn,
         int page,
         int pageSize,
+        string? sort = null,
         UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {
         LastReceivedPage = page;
         LastReceivedPageSize = pageSize;
+        LastReceivedSort = sort;
+        LastReceivedSearch = search;
 
         var filtered = Datos.AsEnumerable();
 

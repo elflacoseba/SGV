@@ -1093,7 +1093,7 @@ public sealed class UnidadOrganizativaRepositoryTests
             var repo = new UnidadOrganizativaRepository(context);
             var (items, totalCount) = await repo.QueryAsync(
                 searchToken, null, null, null, 1, 20,
-                UnidadOrganizativaSegmentoListado.Activas, default);
+                sort: null, UnidadOrganizativaSegmentoListado.Activas, default);
 
             var activaEncontrada = Assert.Single(items, i => i.Id == activa.Id);
             Assert.Equal(1, totalCount);
@@ -1131,7 +1131,7 @@ public sealed class UnidadOrganizativaRepositoryTests
             var repo = new UnidadOrganizativaRepository(context);
             var (items, totalCount) = await repo.QueryAsync(
                 searchToken, null, null, null, 1, 20,
-                UnidadOrganizativaSegmentoListado.Eliminadas, default);
+                sort: null, UnidadOrganizativaSegmentoListado.Eliminadas, default);
 
             var eliminadaEncontrada = Assert.Single(items, i => i.Id == eliminada.Id);
             Assert.Equal(1, totalCount);
@@ -1169,10 +1169,10 @@ public sealed class UnidadOrganizativaRepositoryTests
             var repo = new UnidadOrganizativaRepository(context);
             var (activas, totalActivas) = await repo.QueryAsync(
                 searchToken, null, null, null, 1, 20,
-                UnidadOrganizativaSegmentoListado.Activas, default);
+                sort: null, UnidadOrganizativaSegmentoListado.Activas, default);
             var (eliminadas, totalEliminadas) = await repo.QueryAsync(
                 searchToken, null, null, null, 1, 20,
-                UnidadOrganizativaSegmentoListado.Eliminadas, default);
+                sort: null, UnidadOrganizativaSegmentoListado.Eliminadas, default);
 
             var activaEncontrada = Assert.Single(activas, i => i.Id == activa.Id);
             var eliminadaEncontrada = Assert.Single(eliminadas, i => i.Id == eliminada.Id);
