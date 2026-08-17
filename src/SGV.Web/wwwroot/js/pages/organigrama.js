@@ -46,33 +46,40 @@
     }
 
     /**
-     * Determina si una unidad está expirada evaluando las fechas
-     * crudas contra la fecha actual del cliente. Se considera
-     * "expirada" únicamente cuando:
+     * Determina si una unidad está "expirada" según la convención de
+     * producto del issue #286.
+     *
+     * Una unidad está EXPIRADA únicamente cuando:
      *  - VigenteHasta está definido Y es anterior a hoy.
      *
-     * Una unidad con VigenteHasta = null se considera VIGENTE
-     * (no tiene fecha de expiración configurada → sigue activa).
-     * Esto coincide con la convención del dominio
-     * `UnidadOrganizativa.EsVigente(fechaReferencia)`.
+     * Casos que NO cuentan como expirada (la unidad se considera
+     * vigente a efectos del filtro):
+     *  - VigenteHasta = null → la unidad no tiene fecha de expiración
+     *    configurada → sigue activa.
+     *  - VigenteDesde en el futuro → la unidad "aún no ha empezado"
+     *    formalmente, pero el operador quiere verla en el organigrama
+     *    (decisión de producto confirmada tras el cuarto feedback del
+     *    operador: "se ocultan las unidades con fecha vigente hasta
+     *    en nula cuando desactivo el switch").
+     *
+     * Diferencia con `UnidadOrganizativa.EsVigente` del dominio: el
+     * dominio considera "no vigente" también cuando VigenteDesde está
+     * en el futuro. Acá NO replicamos esa rama porque el producto
+     * quiere mostrar las unidades no iniciadas en el organigrama.
      */
     function isExpired(vigenteDesde, vigenteHasta) {
         var hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
 
         if (vigenteHasta) {
-            // Formato esperado: "YYYY-MM-DD" desde System.Text.Json
+            // Formato esperado: "YYYY-MM-DD" desde System.Text.Json.
             var hastaDate = new Date(vigenteHasta + 'T00:00:00');
             if (!isNaN(hastaDate.getTime()) && hastaDate < hoy) {
                 return true;
             }
         }
-        if (vigenteDesde) {
-            var desdeDate = new Date(vigenteDesde + 'T00:00:00');
-            if (!isNaN(desdeDate.getTime()) && desdeDate > hoy) {
-                return true; // aún no empieza
-            }
-        }
+        // NO evaluamos VigenteDesde futuro: las unidades "aún no
+        // iniciadas" se consideran vigentes a efectos del filtro.
         return false;
     }
 
