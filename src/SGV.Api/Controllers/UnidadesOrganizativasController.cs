@@ -165,7 +165,13 @@ public class UnidadesOrganizativasController : ControllerBase
     /// </summary>
     /// <param name="page">Número de página (default: 1).</param>
     /// <param name="pageSize">Tamaño de página (default: 20).</param>
-    /// <param name="search">Búsqueda por código o nombre.</param>
+    /// <param name="search">Búsqueda por código o nombre (trimeada y clampada a <c>MaxSearchLength</c> caracteres por el servicio).</param>
+    /// <param name="sort">
+    /// Expresión de orden aplicada server-side antes de paginar (issue #282).
+    /// Whitelisted: <c>codigo_asc</c>, <c>codigo_desc</c>, <c>nombre_asc</c>,
+    /// <c>nombre_desc</c>, <c>tipo_asc</c>, <c>tipo_desc</c>. Cualquier otro
+    /// valor cae al orden por defecto <c>Codigo ASC</c>.
+    /// </param>
     /// <param name="tipoUnidadOrganizativaId">Filtro por tipo de unidad.</param>
     /// <param name="unidadPadreId">Filtro por unidad padre.</param>
     /// <param name="vigenteEn">Filtro por vigencia activa en una fecha.</param>
@@ -180,6 +186,7 @@ public class UnidadesOrganizativasController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? search = null,
+        [FromQuery] string? sort = null,
         [FromQuery] Guid? tipoUnidadOrganizativaId = null,
         [FromQuery] Guid? unidadPadreId = null,
         [FromQuery] DateOnly? vigenteEn = null,
@@ -190,7 +197,7 @@ public class UnidadesOrganizativasController : ControllerBase
             ? UnidadOrganizativaSegmentoListado.Eliminadas
             : UnidadOrganizativaSegmentoListado.Activas;
 
-        var query = new UnidadOrganizativaQuery(page, pageSize, search, tipoUnidadOrganizativaId, unidadPadreId, vigenteEn, Segmento: segmento);
+        var query = new UnidadOrganizativaQuery(page, pageSize, search, sort, tipoUnidadOrganizativaId, unidadPadreId, vigenteEn, Segmento: segmento);
         var result = await _servicio.QueryAsync(query, cancellationToken);
         return Ok(result);
     }

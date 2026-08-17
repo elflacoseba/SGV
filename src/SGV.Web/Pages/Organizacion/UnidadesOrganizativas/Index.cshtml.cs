@@ -285,8 +285,12 @@ public sealed class IndexModel(
             TotalCount = Math.Max(0, result.TotalCount);
             TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, result.PageSize)));
 
+            // Issue #282: el backend ya ordena por `Sort` antes de paginar
+            // (`UnidadOrganizativaRepository.ApplySort`); confiamos en ese
+            // orden. Antes este cliente reordenaba sólo la página recibida,
+            // lo que hacía que el icono de flecha mintiera al paginar.
             var hoy = DateOnly.FromDateTime(DateTime.Today);
-            Items = ApplyVisibleSort(result.Items, Sort)
+            Items = result.Items
                 .Select(item => MapToViewModel(item, hoy))
                 .ToArray();
             TreeItems = [];
@@ -352,22 +356,6 @@ public sealed class IndexModel(
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static IReadOnlyList<UnidadOrganizativaDto> ApplyVisibleSort(IReadOnlyList<UnidadOrganizativaDto> items, string? sort)
-    {
-        IEnumerable<UnidadOrganizativaDto> ordered = sort?.ToLowerInvariant() switch
-        {
-            "codigo_desc" => items.OrderByDescending(static item => item.Codigo, StringComparer.CurrentCultureIgnoreCase),
-            "codigo_asc" => items.OrderBy(static item => item.Codigo, StringComparer.CurrentCultureIgnoreCase),
-            "nombre_desc" => items.OrderByDescending(static item => item.Nombre, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            "nombre_asc" => items.OrderBy(static item => item.Nombre, StringComparer.Create(CultureInfo.CurrentCulture, ignoreCase: true)),
-            "tipo_desc" => items.OrderByDescending(static item => item.TipoUnidadNombre, StringComparer.CurrentCultureIgnoreCase),
-            "tipo_asc" => items.OrderBy(static item => item.TipoUnidadNombre, StringComparer.CurrentCultureIgnoreCase),
-            _ => items.AsEnumerable()
-        };
-
-        return ordered.ToArray();
-    }
 
     private static UnidadOrganizativaListItemViewModel MapToViewModel(UnidadOrganizativaDto item, DateOnly hoy)
         => new(

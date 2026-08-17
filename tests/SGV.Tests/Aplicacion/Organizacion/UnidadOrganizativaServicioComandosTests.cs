@@ -1146,6 +1146,7 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
     public Task<(IReadOnlyList<UnidadOrganizativa> Items, int TotalCount)> QueryAsync(
         string? search, Guid? tipoUnidadOrganizativaId, Guid? unidadPadreId,
         DateOnly? vigenteEn, int page, int pageSize,
+        string? sort = null,
         UnidadOrganizativaSegmentoListado segmento = UnidadOrganizativaSegmentoListado.Activas,
         CancellationToken cancellationToken = default)
     {

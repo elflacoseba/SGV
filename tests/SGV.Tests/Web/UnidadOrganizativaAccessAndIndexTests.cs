@@ -146,11 +146,15 @@ public sealed partial class UnidadOrganizativaWebTests
     [Fact]
     public async Task Get_Index_WhenSortingVisiblePage_ReordersRowsAndKeepsCurrentPage()
     {
+        // Issue #282: el sort ahora es server-side. El fake API devuelve
+        // las filas en el orden que el backend real produciría (nombre_desc:
+        // Gamma > Beta > Ágora). El PageModel ya NO reordena en memoria;
+        // confía en el orden que recibe del API.
         var apiClient = FakeUnidadOrganizativaApiClient.WithPages(
             CreatePage(2, 10, 25,
+                CreateItem("C02", "Gamma", "Facultad"),
                 CreateItem("C03", "Beta", "Facultad"),
-                CreateItem("C01", "Ágora", "Facultad"),
-                CreateItem("C02", "Gamma", "Facultad")));
+                CreateItem("C01", "Ágora", "Facultad")));
 
         await using var lease = await CreateAuthenticatedClientAsync(apiClient);
         var client = lease.Client;

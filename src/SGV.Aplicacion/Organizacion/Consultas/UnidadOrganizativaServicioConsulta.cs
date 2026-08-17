@@ -35,13 +35,21 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
                 ? UnidadOrganizativaQuery.MaxPageSize
                 : query.PageSize);
 
+        // Issue #282: normalizar `Search` antes de invocar al repo es más
+        // robusto que confiar en que cada caller lo haya trimeado/clampado
+        // (la web shell lo hace vía `Normalize`, pero un cliente API directo
+        // podría saltarse esa guardia y enviar whitespace o 10kb de texto).
+        // El repo además vuelve a trimear como defensa en profundidad.
+        var search = NormalizeSearch(query.Search);
+
         var (items, totalCount) = await repository.QueryAsync(
-            query.Search,
+            search,
             query.TipoUnidadOrganizativaId,
             query.UnidadPadreId,
             query.VigenteEn,
             page,
             pageSize,
+            query.Sort,
             query.Segmento,
             cancellationToken);
 
@@ -50,6 +58,25 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
             totalCount,
             page,
             pageSize);
+    }
+
+    /// <summary>
+    /// Issue #282: trim + clamp del término de búsqueda. Null/whitespace
+    /// colapsan a <c>null</c> para que el repo no genere un <c>LIKE '%%'</c>
+    /// inútil. Valores más largos que <see cref="UnidadOrganizativaQuery.MaxSearchLength"/>
+    /// se truncan para acotar el coste del <c>LIKE '%texto%'</c> en MySQL.
+    /// </summary>
+    private static string? NormalizeSearch(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length > UnidadOrganizativaQuery.MaxSearchLength
+            ? trimmed[..UnidadOrganizativaQuery.MaxSearchLength]
+            : trimmed;
     }
 
     public async Task<UnidadOrganizativaArbolResponse> GetTreeAsync(
