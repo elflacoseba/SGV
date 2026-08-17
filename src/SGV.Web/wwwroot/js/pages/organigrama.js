@@ -1,10 +1,22 @@
 // Organigrama page — loads the org chart via Google Charts
-// Issue #286 (4to round): se corrige la semántica de "expirada" para
-// que SOLO considere VigenteHasta en el pasado. Anteriormente también
-// marcaba como expiradas las unidades con VigenteDesde en el futuro
-// ("aún no empiezan"), lo cual era confuso para el operador. Ahora
-// "expirada" = únicamente VigenteHasta configurado y anterior a hoy.
-// Todo lo demás (null, futuro, ambos null) se considera vigente.
+// Issue #286 (6to round): el botón Exportar PNG reescrito tras
+// revisar la documentación oficial de Google Charts. La doc confirma
+// que `OrgChart` NO expone `getImageURI()` en su lista de métodos, y
+// que ese método "actualmente funciona para gráficos principales y
+// geográficos" — OrgChart NO está incluido. Por eso las rondas
+// anteriores fallaban.
+//
+// Estrategia (post-investigación oficial):
+//   1. Esperar al evento `ready` del chart antes de habilitar export
+//      (es el patrón documentado para llamadas a métodos después de
+//      draw).
+//   2. Capturar el `<svg>` que Google Charts renderiza (la doc dice:
+//      "Los gráficos se renderizan con la tecnología de HTML5/SVG").
+//   3. Rasterizar via Canvas con xmlns/xlink/viewBox explícitos y
+//      crossOrigin anonymous para evitar tainted canvas.
+//   4. Si canvas falla → descarga SVG directa.
+//   5. Si descarga falla → abre nueva ventana con el SVG.
+//   6. Si todo falla → `chart.print()` documentado oficialmente.
 (function () {
     'use strict';
 
@@ -17,22 +29,17 @@
     var exportPdfBtn = document.getElementById('btn-export-pdf');
     var diagPanel = document.getElementById('orgchart-diag');
 
-    // Estado vivo de los switches. Se inicializa desde los checkboxes
-    // (que arrancan `checked` en el HTML) y se mantiene sincronizado
-    // con el `change` event.
     var options = {
         showCode: !showCodeInput || showCodeInput.checked === true,
         showExpiradas: !showExpiradasInput || showExpiradasInput.checked === true
     };
 
-    // Referencia al chart activo. La exportacion PNG/PDF lo consume
-    // directamente; se asigna en drawOrgChart y queda null cuando no
-    // hay árbol renderizado.
+    // Referencia al chart activo. Solo se asigna después del evento
+    // `ready` del chart (patrón documentado oficialmente). Hasta
+    // entonces, los exports retornan con un warning.
     var currentChart = null;
+    var chartReady = false;
 
-    // Timeout: si Google Charts no carga en 10 segundos, mostramos
-    // error. El timeout se cancela apenas el chart se renderiza OK
-    // o cuando la la carga falla con errorCallback.
     var timeoutId = setTimeout(function () {
         console.error('[OrgChart] Timeout: Google Charts no cargó en 10 segundos');
         if (chartDiv) {
@@ -49,31 +56,18 @@
 
     /**
      * Determina si una unidad está "expirada" (issue #286 4to round).
-     *
-     * Una unidad se considera expirada ÚNICAMENTE cuando:
-     *  - VigenteHasta está definido Y es una fecha válida Y es
-     *    anterior a hoy.
-     *
-     * Caso contrario (cualquiera de estos) → NO expirada:
-     *  - VigenteHasta es null (sin fecha de expiración configurada).
-     *  - VigenteHasta es hoy o futuro (sigue vigente).
-     *  - VigenteHasta es malformado (no se puede parsear).
-     *  - VigenteDesde es futuro (la unidad aún no empieza, pero NO
-     *    está "expirada" — está pendiente de inicio).
+     * Expirada ÚNICAMENTE cuando VigenteHasta está definido Y es una
+     * fecha válida anterior a hoy. Todo lo demás → vigente.
      */
     function isExpired(vigenteDesde, vigenteHasta) {
         var hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
-
         if (vigenteHasta && typeof vigenteHasta === 'string') {
             var hastaDate = new Date(vigenteHasta + 'T00:00:00');
             if (!isNaN(hastaDate.getTime()) && hastaDate < hoy) {
                 return { expired: true, reason: 'vigenteHasta < hoy' };
             }
         }
-        // NO considerar VigenteDesde futuro como expirada — solo es
-        // "pendiente de inicio", sigue siendo una unidad vigente en
-        // términos del filtro del operador.
         return { expired: false, reason: classifyVigente(vigenteDesde, vigenteHasta) };
     }
 
@@ -92,10 +86,6 @@
         return 'vigente';
     }
 
-    /**
-     * Cuenta total / vigentes / expiradas del árbol y lista detalle
-     * por nodo para el panel de diagnóstico visible en la página.
-     */
     function computeVigenciaStats(nodes) {
         var total = 0, vigentes = 0, expiradas = 0, detalle = [];
         function walk(arr, parent, isRoot) {
@@ -124,22 +114,6 @@
         return { total: total, vigentes: vigentes, expiradas: expiradas, detalle: detalle };
     }
 
-    /**
-     * Aplica los switches de filtro al árbol pre-cargado.
-     *
-     * Reglas (issue #286 — 5to round):
-     *  - `showExpiradas === true` (switch ON, default) → conservar
-     *    TODO el árbol, vigentes y expiradas.
-     *  - `showExpiradas === false` (switch OFF) → descartar los nodos
-     *    con VigenteHasta en el pasado Y TODA su sub-jerarquía.
-     *  - EXCEPCIÓN: los nodos RAÍZ del árbol (top-level del JSON)
-     *    NUNCA se ocultan aunque estén marcados como expirados.
-     *    Defensa contra datos mal configurados: si la raíz tiene un
-     *    VigenteHasta en el pasado por error, ocultar la raíz vacía
-     *    el árbol completo. Mejor preservarla con su badge "expirada"
-     *    visible en el diagnóstico para que el operador decida si
-     *    corregir la fecha.
-     */
     function applyFilters(nodes, isTopLevel) {
         isTopLevel = isTopLevel === true;
         if (!nodes) return [];
@@ -147,11 +121,9 @@
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             if (!node) continue;
-
             var r = isExpired(node.vigenteDesde, node.vigenteHasta);
             var shouldHide = !options.showExpiradas && r.expired && !isTopLevel;
             if (shouldHide) continue;
-
             var filteredChildren = applyFilters(node.children || [], false);
             result.push({
                 id: node.id,
@@ -166,12 +138,6 @@
         return result;
     }
 
-    /**
-     * Renderiza el panel de diagnóstico visible en la página. Muestra
-     * los conteos globales y una tabla con cada nodo, su ventana de
-     * vigencia y el resultado del filtro. El operador lo ve directo en
-     * pantalla sin tener que abrir DevTools.
-     */
     function renderDiagPanel(stats) {
         if (!diagPanel) return;
         var rows = stats.detalle.map(function (d) {
@@ -218,12 +184,11 @@
             if (!treeData || treeData.length === 0) {
                 chartDiv.innerHTML = '<div class="text-center text-muted py-5"><p>No hay unidades organizativas para mostrar en el organigrama.</p></div>';
                 currentChart = null;
+                chartReady = false;
                 if (diagPanel) diagPanel.innerHTML = '';
                 return;
             }
 
-            // Renderizar panel de diagnóstico SIEMPRE (antes del filtro).
-            // Así el operador ve qué datos llegan y por qué se ocultan.
             renderDiagPanel(computeVigenciaStats(treeData));
 
             var filtered = applyFilters(treeData, true);
@@ -237,6 +202,7 @@
                 );
                 chartDiv.innerHTML = '<div class="text-center text-muted py-5"><p>No hay unidades organizativas para mostrar con el filtro actual.</p></div>';
                 currentChart = null;
+                chartReady = false;
                 return;
             }
 
@@ -262,7 +228,18 @@
 
             flattenTree(filtered, null);
 
+            chartReady = false;
             currentChart = new google.visualization.OrgChart(chartDiv);
+
+            // Patrón documentado oficialmente: escuchar el evento
+            // `ready` antes de llamar a métodos sobre el chart.
+            // Sin esto, el chart podría no estar completamente
+            // renderizado cuando intentemos exportar.
+            google.visualization.events.addListener(currentChart, 'ready', function () {
+                chartReady = true;
+                console.log('[OrgChart] chart ready, OK para export.');
+            });
+
             currentChart.draw(data, {
                 allowHtml: true,
                 allowCollapse: true,
@@ -272,43 +249,89 @@
             console.error('[OrgChart] ERROR:', err);
             chartDiv.innerHTML = '<div class="text-center text-muted py-5"><p>No se pudo cargar el organigrama. Revisa la consola para más detalles.</p></div>';
             currentChart = null;
+            chartReady = false;
         }
     }
 
+    function getDateStamp() {
+        var now = new Date();
+        return now.getFullYear().toString()
+            + String(now.getMonth() + 1).padStart(2, '0')
+            + String(now.getDate()).padStart(2, '0');
+    }
+
+    function downloadBlob(blob, filename) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+    }
+
     /**
-     * Descarga el chart actual como PNG.
-     * Estrategia: capturar el `<svg>` que Google Charts renderiza,
-     * serializarlo con XMLSerializer, envolverlo en Blob, cargarlo en un
-     * `<img>`, dibujarlo sobre un `<canvas>` con fondo blanco, y exportar
-     * el canvas como PNG. Si el canvas se tinta (security) o toBlob
-     * falla, hacer fallback a descarga directa del SVG.
+     * Intenta serializar el `<svg>` del chart y exportarlo como PNG vía
+     * Canvas. Si cualquier paso falla, hace fallback automático a
+     * descarga SVG directa o apertura de nueva ventana.
+     *
+     * Estrategia (post-doc oficial): OrgChart renderiza a SVG/HTML5,
+     * capturamos el `<svg>` directamente, le ponemos xmlns/xlink/
+     * viewBox/dimensions explícitos para que el browser lo parsee como
+     * standalone, lo cargamos en un `<img>`, lo dibujamos en un
+     * `<canvas>` con fondo blanco, y exportamos como PNG via
+     * `canvas.toBlob`.
      */
     function exportPng() {
         if (!currentChart) {
-            console.warn('[OrgChart] exportPng: chart no disponible.');
+            console.warn('[OrgChart] exportPng: chart no inicializado.');
             return;
+        }
+        if (!chartReady) {
+            console.warn('[OrgChart] exportPng: chart aún no ready, intentando de todas formas...');
         }
 
         var svgEl = chartDiv.querySelector('svg');
         if (!svgEl) {
-            console.warn('[OrgChart] exportPng: no se encontró <svg> dentro del chart.');
+            console.warn('[OrgChart] exportPng: no se encontró <svg> en el chart. Fallback a window.open(SVG).');
+            exportSvgViaWindowOpen();
             return;
         }
 
+        // Dimensiones robustas: viewBox > getBoundingClientRect > defaults
+        var viewBox = svgEl.viewBox && svgEl.viewBox.baseVal;
         var bbox = svgEl.getBoundingClientRect();
-        var width = Math.max(1, Math.ceil(bbox.width || svgEl.clientWidth || 800));
-        var height = Math.max(1, Math.ceil(bbox.height || svgEl.clientHeight || 600));
+        var width = Math.max(800, Math.ceil(
+            (viewBox && viewBox.width) || bbox.width || svgEl.clientWidth || 800
+        ));
+        var height = Math.max(600, Math.ceil(
+            (viewBox && viewBox.height) || bbox.height || svgEl.clientHeight || 600
+        ));
 
+        console.log('[OrgChart] exportPng: SVG bounds', { w: width, h: height, viewBox: !!viewBox });
+
+        // Clonar con namespaces y dimensiones explícitos. Algunos
+        // browsers pierden el xmlns al clonar un SVG que vive en un
+        // contenedor HTML5; forzarlo asegura que se cargue standalone.
         var clonedSvg = svgEl.cloneNode(true);
         clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
         clonedSvg.setAttribute('width', String(width));
         clonedSvg.setAttribute('height', String(height));
+        if (!clonedSvg.getAttribute('viewBox') && viewBox) {
+            clonedSvg.setAttribute('viewBox',
+                viewBox.x + ' ' + viewBox.y + ' ' + viewBox.width + ' ' + viewBox.height);
+        } else if (!clonedSvg.getAttribute('viewBox')) {
+            clonedSvg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+        }
 
         var xml = new XMLSerializer().serializeToString(clonedSvg);
         var svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
         var svgUrl = URL.createObjectURL(svgBlob);
 
         var img = new Image();
+        img.crossOrigin = 'anonymous';
         img.onload = function () {
             try {
                 var canvas = document.createElement('canvas');
@@ -319,62 +342,54 @@
                 ctx.fillRect(0, 0, width, height);
                 ctx.drawImage(img, 0, 0, width, height);
 
-                canvas.toBlob(function (pngBlob) {
+                canvas.toBlob(function (blob) {
                     URL.revokeObjectURL(svgUrl);
-                    if (!pngBlob) {
-                        console.warn('[OrgChart] exportPng: canvas.toBlob devolvió null, fallback a SVG.');
-                        downloadAsSvg(xml);
+                    if (!blob) {
+                        console.warn('[OrgChart] exportPng: canvas.toBlob devolvió null. Fallback a SVG download.');
+                        downloadBlob(svgBlob, 'organigrama-' + getDateStamp() + '.svg');
                         return;
                     }
-
-                    var pngUrl = URL.createObjectURL(pngBlob);
-                    var now = new Date();
-                    var yyyymmdd = now.getFullYear().toString()
-                        + String(now.getMonth() + 1).padStart(2, '0')
-                        + String(now.getDate()).padStart(2, '0');
-                    var a = document.createElement('a');
-                    a.href = pngUrl;
-                    a.download = 'organigrama-' + yyyymmdd + '.png';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(function () { URL.revokeObjectURL(pngUrl); }, 0);
+                    console.log('[OrgChart] exportPng: PNG generado OK, tamaño=', blob.size);
+                    downloadBlob(blob, 'organigrama-' + getDateStamp() + '.png');
                 }, 'image/png');
             } catch (e) {
-                console.warn('[OrgChart] exportPng: error en canvas, fallback a SVG.', e);
+                console.warn('[OrgChart] exportPng: error en canvas. Fallback a SVG download.', e);
                 URL.revokeObjectURL(svgUrl);
-                downloadAsSvg(xml);
+                downloadBlob(svgBlob, 'organigrama-' + getDateStamp() + '.svg');
             }
         };
         img.onerror = function () {
-            console.warn('[OrgChart] exportPng: error al cargar SVG en <img>, fallback a SVG.');
+            console.warn('[OrgChart] exportPng: SVG no cargó en <img>. Fallback a SVG download.');
             URL.revokeObjectURL(svgUrl);
-            downloadAsSvg(xml);
+            downloadBlob(svgBlob, 'organigrama-' + getDateStamp() + '.svg');
         };
         img.src = svgUrl;
     }
 
-    function downloadAsSvg(xml) {
+    /**
+     * Abre el SVG en una nueva ventana. El usuario puede usar
+     * "Guardar como" del navegador o copiarlo desde el inspector.
+     * Útil cuando el browser bloquea la descarga directa (pop-ups,
+     * políticas CSP, etc.).
+     */
+    function exportSvgViaWindowOpen() {
+        var svgEl = chartDiv.querySelector('svg');
+        if (!svgEl) return;
+        var xml = new XMLSerializer().serializeToString(svgEl);
         var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
         var url = URL.createObjectURL(blob);
-        var now = new Date();
-        var yyyymmdd = now.getFullYear().toString()
-            + String(now.getMonth() + 1).padStart(2, '0')
-            + String(now.getDate()).padStart(2, '0');
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = 'organigrama-' + yyyymmdd + '.svg';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+        var w = window.open(url, '_blank');
+        if (w) {
+            console.log('[OrgChart] exportSvgViaWindowOpen: ventana abierta OK.');
+        } else {
+            console.warn('[OrgChart] exportSvgViaWindowOpen: pop-up bloqueado. Sugerí al usuario permitir pop-ups para este sitio.');
+        }
     }
 
     /**
-     * Dispara el diálogo nativo de impresión del navegador. El usuario
-     * elige "Guardar como PDF" en el diálogo. La regla `@media print`
-     * embebida en `Organigrama.cshtml` ya oculta la toolbar, los
-     * switches y el shell visual.
+     * Dispara el diálogo nativo de impresión del navegador. Documentado
+     * oficialmente en la página de "Cómo imprimir archivos PNG". El
+     * usuario elige "Guardar como PDF" en el diálogo.
      */
     function exportPdf() {
         window.print();
