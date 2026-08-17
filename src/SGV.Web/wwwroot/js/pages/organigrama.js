@@ -63,33 +63,79 @@
      *    nodos huérfanos sin padre visible.
      *  - `showVigentes === true` (default) → conservar todo.
      */
+    /**
+     * Cuenta total / vigentes / expiradas del árbol. Solo para
+     * diagnóstico en consola cuando el filtro deja el árbol vacío
+     * (issue #286). Si ves `vigentes === 0` en consola pero esperás
+     * vigentes, hay un bug server-side: el cálculo de `EsVigente`
+     * está retornando false para todas las unidades.
+     */
+    function computeVigenciaStats(nodes) {
+        var total = 0, vigentes = 0, expiradas = 0;
+        function walk(arr) {
+            if (!arr) return;
+            for (var i = 0; i < arr.length; i++) {
+                var n = arr[i];
+                if (!n) continue;
+                total++;
+                if (n.esVigente === true) vigentes++;
+                else expiradas++;
+                walk(n.children || []);
+            }
+        }
+        walk(nodes);
+        return { total: total, vigentes: vigentes, expiradas: expiradas };
+    }
+
+/**
+     * Aplica los switches de filtro al árbol pre-cargado. Devuelve un
+     * árbol NUEVO (no muta `nodes`) para que los toggles del usuario
+     * puedan dispararse varias veces seguidas sin arrastrar estado
+     * entre renders.
+     *
+     * Reglas (issue #286 — segundo feedback):
+     *  - `showExpiradas === true` (switch ON, default) → conservar
+     *    TODO el árbol, vigentes y expiradas.
+     *  - `showExpiradas === false` (switch OFF) → descartar los nodos
+     *    con `esVigente === false` (expiradas) Y TODA su sub-jerarquía,
+     *    para evitar huérfanos sin padre visible.
+     *
+     * Los nodos cuyo `esVigente` no esté definido (null/undefined) se
+     * tratan como no vigentes para que el filtro del usuario tenga
+     * semántica consistente aunque el servidor no haya proyectado el
+     * flag (defensa contra regresiones del wire contract).
+     */
     function applyFilters(nodes) {
         if (!nodes) return [];
         var result = [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
-            // Issue #286 (revisión): el switch "Mostrar unidades expiradas"
-            // controla exclusivamente la visibilidad de las unidades cuya
-            // ventana de vigencia ya cerró. Las vigentes (esVigente === true)
-            // se muestran SIEMPRE. Cuando `showExpiradas === false`
-            // (switch en OFF) descartamos toda la sub-jerarquía del nodo
-            // expirado para evitar huérfanos sin padre visible.
-            var keepNode = options.showExpiradas || node.esVigente === true;
-            if (!keepNode) {
+            if (!node) {
+                continue;
+            }
+
+            // Coerción explícita a boolean: cualquier valor !== true
+            // (false, null, undefined) cuenta como expirado.
+            var esVigente = node.esVigente === true;
+            var isExpirada = !esVigente;
+
+            // El switch OFF descarta las expiradas. Si el switch está
+            // ON, todas pasan, sin importar la vigencia.
+            var shouldHide = !options.showExpiradas && isExpirada;
+            if (shouldHide) {
                 continue;
             }
 
             var filteredChildren = applyFilters(node.children || []);
             // Copia superficial para no mutar la entrada; preserva los
             // campos que el JS necesita (id, codigo, nombre, tipo,
-            // children, esVigente) y descarta el resto del viewmodel
-            // (`vigencia` no se renderiza en el chart).
+            // children, esVigente) y descarta el resto del viewmodel.
             result.push({
                 id: node.id,
                 codigo: node.codigo,
                 nombre: node.nombre,
                 tipo: node.tipo,
-                esVigente: node.esVigente,
+                esVigente: esVigente,
                 children: filteredChildren
             });
         }
@@ -115,11 +161,17 @@
             var filtered = applyFilters(treeData);
             if (filtered.length === 0) {
                 // El árbol pre-cargado tiene nodos pero todos quedaron fuera
-                // del filtro actual (típicamente: switch `showVigentes` en OFF
-                // y todas las unidades vencidas). No tiene sentido exportar
-                // un chart vacío; currentChart queda null y los botones
-                // detectan ese caso vía getImageURI devolviendo string vacío.
-                chartDiv.innerHTML = '<div class="text-center text-muted py-5"><p>No hay unidades organizativas vigentes para mostrar con el filtro actual.</p></div>';
+                // del filtro actual. Diagnóstico en consola: el operador
+                // puede ver cuántos nodos llegaron y cuántos quedaron
+                // después del filtro para entender qué pasó (issue #286).
+                var stats = computeVigenciaStats(treeData);
+                console.warn(
+                    '[OrgChart] Filtro dejó el árbol vacío. ' +
+                    'total=' + stats.total + ', vigentes=' + stats.vigentes +
+                    ', expiradas=' + stats.expiradas +
+                    ', showExpiradas=' + options.showExpiradas
+                );
+                chartDiv.innerHTML = '<div class="text-center text-muted py-5"><p>No hay unidades organizativas para mostrar con el filtro actual.</p></div>';
                 currentChart = null;
                 return;
             }
@@ -160,16 +212,21 @@
     }
 
     /**
-     * Descarga el chart actual como PNG. Usa `chart.getImageURI()` de
-     * Google Charts que devuelve un data URI `image/png;base64,...`.
+     * Descarga el chart actual como PNG.
      *
-     * Importante: NO anclo el data URI directamente en `<a href>`.
-     * Los navegadores modernos (Chrome ≥65, Firefox ≥67, Safari) bloquean
-     * la descarga de `data:` URIs disparada por un anchor inyectado
-     * dinámicamente (la navegación queda como "no permite navegar a esa
-     * URL" y el botón no produce ningún efecto visible). La fix estándar
-     * es decodificar el base64, envolverlo en un Blob con el MIME type
-     * detectado, y obtener una URL blob: que sí se puede descargar.
+     * Implementación (issue #286 — segundo feedback del operador):
+     * NO usamos `currentChart.getImageURI()` de la API de Google Charts
+     * porque en `OrgChart` específicamente ese método no está disponible
+     * en algunas versiones del loader y el navegador lanza
+     * `TypeError: currentChart.getImageURI is not a function` al hacer
+     * clic en el botón.
+     *
+     * La fix robusta es independiente de la API del chart: Google Charts
+     * renderiza cada gráfico como un `<svg>` dentro del contenedor, así
+     * que serializamos el SVG directamente del DOM, lo cargamos en un
+     * `<img>`, lo dibujamos sobre un `<canvas>` con fondo blanco, y
+     * exportamos el canvas como PNG. Esto captura exactamente lo que el
+     * usuario ve en pantalla (incluyendo colapsados manuales).
      *
      * El nombre de archivo lleva la fecha en formato `YYYYMMDD` (zona
      * horaria del cliente) para que varias exportaciones del mismo día
@@ -180,52 +237,71 @@
             console.warn('[OrgChart] exportPng: chart no disponible.');
             return;
         }
-        var imgUri = currentChart.getImageURI();
-        if (!imgUri) {
-            console.warn('[OrgChart] exportPng: getImageURI devolvió vacío.');
+
+        // Google Charts inserta el SVG en chartDiv. Lo buscamos ahí en
+        // vez de depender del método getImageURI() de la API del chart.
+        var svgEl = chartDiv.querySelector('svg');
+        if (!svgEl) {
+            console.warn('[OrgChart] exportPng: no se encontró <svg> dentro del chart.');
             return;
         }
 
-        var commaIdx = imgUri.indexOf(',');
-        if (commaIdx < 0 || imgUri.indexOf('data:') !== 0) {
-            console.warn('[OrgChart] exportPng: data URI con formato inesperado.');
-            return;
-        }
-        var header = imgUri.substring(5, commaIdx); // after "data:"
-        var payload = imgUri.substring(commaIdx + 1);
-        var mimeType = header.split(';')[0] || 'image/png';
-        var isBase64 = header.indexOf('base64') >= 0;
+        var bbox = svgEl.getBoundingClientRect();
+        var width = Math.max(1, Math.ceil(bbox.width || svgEl.clientWidth || 800));
+        var height = Math.max(1, Math.ceil(bbox.height || svgEl.clientHeight || 600));
 
-        var bytes;
-        if (isBase64) {
-            var binary = atob(payload);
-            bytes = new Uint8Array(binary.length);
-            for (var i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
-            }
-        } else {
-            // data:image/png;charset=... sin base64 → URL-encoded; raro pero
-            // la API de Google Charts usa base64, así que este branch es
-            // defensa por si cambia el formato.
-            bytes = new TextEncoder().encode(decodeURIComponent(payload));
+        // Serializamos con XMLSerializer. Forzamos el namespace xmlns
+        // porque algunos browsers lo pierden al re-crear el árbol SVG
+        // y eso rompe la carga en <img>.
+        var xml = new XMLSerializer().serializeToString(svgEl);
+        if (xml.indexOf('xmlns=') < 0) {
+            xml = xml.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
         }
 
-        var blob = new Blob([bytes], { type: mimeType });
-        var blobUrl = URL.createObjectURL(blob);
+        var svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+        var svgUrl = URL.createObjectURL(svgBlob);
 
-        var now = new Date();
-        var yyyymmdd = now.getFullYear().toString()
-            + String(now.getMonth() + 1).padStart(2, '0')
-            + String(now.getDate()).padStart(2, '0');
-        var a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = 'organigrama-' + yyyymmdd + '.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        // Liberamos la URL en el siguiente tick para que el click ya haya
-        // consumido el blob antes de invalidarlo.
-        setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 0);
+        var img = new Image();
+        img.onload = function () {
+            var canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            var ctx = canvas.getContext('2d');
+            // Fondo blanco explícito: el SVG es transparente por default y
+            // eso produce un PNG con fondo transparente que muchos visores
+            // muestran como negro.
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(function (pngBlob) {
+                URL.revokeObjectURL(svgUrl);
+                if (!pngBlob) {
+                    console.warn('[OrgChart] exportPng: canvas.toBlob devolvió null.');
+                    return;
+                }
+
+                var pngUrl = URL.createObjectURL(pngBlob);
+                var now = new Date();
+                var yyyymmdd = now.getFullYear().toString()
+                    + String(now.getMonth() + 1).padStart(2, '0')
+                    + String(now.getDate()).padStart(2, '0');
+                var a = document.createElement('a');
+                a.href = pngUrl;
+                a.download = 'organigrama-' + yyyymmdd + '.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                // Liberamos la URL en el siguiente tick para que el click
+                // ya haya consumido el blob antes de invalidarlo.
+                setTimeout(function () { URL.revokeObjectURL(pngUrl); }, 0);
+            }, 'image/png');
+        };
+        img.onerror = function () {
+            console.warn('[OrgChart] exportPng: error al cargar SVG en <img>.');
+            URL.revokeObjectURL(svgUrl);
+        };
+        img.src = svgUrl;
     }
 
     /**

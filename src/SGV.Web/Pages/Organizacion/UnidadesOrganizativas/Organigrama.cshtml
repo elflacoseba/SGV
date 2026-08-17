@@ -120,5 +120,8 @@
 
 @section scripts {
     <script src="https://www.gstatic.com/charts/loader.js"></script>
-    <script src="/js/pages/organigrama.js"></script>
+    <!-- Cache-bust con timestamp para evitar que el browser sirva la versión
+         vieja del JS después de un cambio. El query string cambia en cada
+         recompilación, lo que fuerza descarga. -->
+    <script src="/js/pages/organigrama.js?v=@DateTime.UtcNow.Ticks"></script>
 }
