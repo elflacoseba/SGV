@@ -282,6 +282,13 @@
      * standalone, lo cargamos en un `<img>`, lo dibujamos en un
      * `<canvas>` con fondo blanco, y exportamos como PNG via
      * `canvas.toBlob`.
+     *
+     * Si el `<svg>` aún no apareció en el DOM (porque el chart está
+     * todavía renderizándose), reintentamos cada 500ms hasta un máximo
+     * de 2.5s. Si después de eso sigue sin aparecer, logueamos el
+     * estado del DOM para diagnosticar y usamos `chart.print()` como
+     * fallback final (API oficialmente documentada para todos los
+     * chart types, abre el diálogo de impresión del navegador).
      */
     function exportPng() {
         if (!currentChart) {
@@ -289,16 +296,58 @@
             return;
         }
         if (!chartReady) {
-            console.warn('[OrgChart] exportPng: chart aún no ready, intentando de todas formas...');
+            console.warn('[OrgChart] exportPng: chart aún no ready, esperando antes de exportar...');
         }
 
-        var svgEl = chartDiv.querySelector('svg');
-        if (!svgEl) {
-            console.warn('[OrgChart] exportPng: no se encontró <svg> en el chart. Fallback a window.open(SVG).');
-            exportSvgViaWindowOpen();
-            return;
+        var MAX_RETRIES = 5;
+        var RETRY_DELAY_MS = 500;
+        var attemptCount = 0;
+
+        function tryExport() {
+            attemptCount++;
+            var svgEl = chartDiv.querySelector('svg');
+            if (svgEl) {
+                rasterizeToPng(svgEl);
+                return;
+            }
+            if (attemptCount < MAX_RETRIES) {
+                console.log('[OrgChart] exportPng: <svg> aún no aparece, intento ' + attemptCount + '/' + MAX_RETRIES);
+                setTimeout(tryExport, RETRY_DELAY_MS);
+                return;
+            }
+            // Agotamos los reintentos: diagnosticar y fallback final.
+            console.warn('[OrgChart] exportPng: timeout esperando <svg> (' + (MAX_RETRIES * RETRY_DELAY_MS) + 'ms).');
+            diagnoseMissingSvg();
+            console.log('[OrgChart] exportPng: fallback final → chart.print() (abre diálogo de impresión del navegador).');
+            try {
+                currentChart.print();
+            } catch (e) {
+                console.error('[OrgChart] exportPng: chart.print() también falló.', e);
+            }
         }
 
+        tryExport();
+    }
+
+    /**
+     * Loguea el estado del DOM del chartDiv para entender por qué no
+     * hay `<svg>`. Útil para diagnosticar browsers específicos donde
+     * Google Charts renderiza con otra tecnología (VML legacy, canvas,
+     * shadow DOM, etc.).
+     */
+    function diagnoseMissingSvg() {
+        var childCount = chartDiv.children ? chartDiv.children.length : 0;
+        console.log('[OrgChart] chartDiv.children.length:', childCount);
+        console.log('[OrgChart] chartDiv.innerHTML (primeros 800 chars):',
+            (chartDiv.innerHTML || '').substring(0, 800));
+        console.log('[OrgChart] chartDiv.outerHTML (primeros 500 chars):',
+            (chartDiv.outerHTML || '').substring(0, 500));
+    }
+
+    /**
+     * Rasteriza el `<svg>` a PNG via Canvas + toBlob.
+     */
+    function rasterizeToPng(svgEl) {
         // Dimensiones robustas: viewBox > getBoundingClientRect > defaults
         var viewBox = svgEl.viewBox && svgEl.viewBox.baseVal;
         var bbox = svgEl.getBoundingClientRect();
@@ -311,9 +360,7 @@
 
         console.log('[OrgChart] exportPng: SVG bounds', { w: width, h: height, viewBox: !!viewBox });
 
-        // Clonar con namespaces y dimensiones explícitos. Algunos
-        // browsers pierden el xmlns al clonar un SVG que vive en un
-        // contenedor HTML5; forzarlo asegura que se cargue standalone.
+        // Clonar con namespaces y dimensiones explícitos.
         var clonedSvg = svgEl.cloneNode(true);
         clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
         clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
@@ -364,26 +411,6 @@
             downloadBlob(svgBlob, 'organigrama-' + getDateStamp() + '.svg');
         };
         img.src = svgUrl;
-    }
-
-    /**
-     * Abre el SVG en una nueva ventana. El usuario puede usar
-     * "Guardar como" del navegador o copiarlo desde el inspector.
-     * Útil cuando el browser bloquea la descarga directa (pop-ups,
-     * políticas CSP, etc.).
-     */
-    function exportSvgViaWindowOpen() {
-        var svgEl = chartDiv.querySelector('svg');
-        if (!svgEl) return;
-        var xml = new XMLSerializer().serializeToString(svgEl);
-        var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
-        var url = URL.createObjectURL(blob);
-        var w = window.open(url, '_blank');
-        if (w) {
-            console.log('[OrgChart] exportSvgViaWindowOpen: ventana abierta OK.');
-        } else {
-            console.warn('[OrgChart] exportSvgViaWindowOpen: pop-up bloqueado. Sugerí al usuario permitir pop-ups para este sitio.');
-        }
     }
 
     /**
