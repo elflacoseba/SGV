@@ -189,12 +189,16 @@ public sealed partial class UnidadOrganizativaWebTests
 
         // Switches de filtro visual, ambos arrancan `checked` para
         // preservar el comportamiento actual al cargar la página.
+        // Issue #286 (revisión): el segundo switch filtra unidades
+        // EXPIRADAS (no vigentes). Las vigentes se muestran siempre;
+        // el switch OFF las oculta. El label refleja esa semántica.
         Assert.Contains("data-orgchart-toggle=\"showCode\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-orgchart-toggle=\"showVigentes\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-orgchart-toggle=\"showExpiradas\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("id=\"toggle-show-code\"", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("id=\"toggle-show-vigentes\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=\"toggle-show-expiradas\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Mostrar código", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Mostrar unidades vigentes", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Mostrar unidades expiradas", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Mostrar unidades vigentes", content, StringComparison.OrdinalIgnoreCase);
 
         // El contenedor del chart sigue presente y la barra lleva la
         // utility `d-print-none` (Bootstrap) para ocultarse en

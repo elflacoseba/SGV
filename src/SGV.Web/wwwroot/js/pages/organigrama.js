@@ -10,7 +10,7 @@
     if (!chartDiv) return;
 
     var showCodeInput = document.getElementById('toggle-show-code');
-    var showVigentesInput = document.getElementById('toggle-show-vigentes');
+    var showExpiradasInput = document.getElementById('toggle-show-expiradas');
     var exportPngBtn = document.getElementById('btn-export-png');
     var exportPdfBtn = document.getElementById('btn-export-pdf');
 
@@ -18,9 +18,14 @@
     // (que arrancan `checked` en el HTML) y se mantiene sincronizado
     // con el `change` event. Cualquier acción (export, redraw) lee
     // desde acá para evitar inconsistencias con el DOM.
+    //
+    // `showExpiradas` controla las unidades cuya ventana de vigencia
+    // ya cerró (issue #286 — feedback del usuario): las vigentes se
+    // muestran SIEMPRE; cuando el switch está OFF se ocultan las
+    // expiradas y cuando está ON se muestran todas.
     var options = {
         showCode: !showCodeInput || showCodeInput.checked === true,
-        showVigentes: !showVigentesInput || showVigentesInput.checked === true
+        showExpiradas: !showExpiradasInput || showExpiradasInput.checked === true
     };
 
     // Referencia al chart activo. La exportacion PNG/PDF lo consume
@@ -63,7 +68,13 @@
         var result = [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
-            var keepNode = options.showVigentes || node.esVigente === true;
+            // Issue #286 (revisión): el switch "Mostrar unidades expiradas"
+            // controla exclusivamente la visibilidad de las unidades cuya
+            // ventana de vigencia ya cerró. Las vigentes (esVigente === true)
+            // se muestran SIEMPRE. Cuando `showExpiradas === false`
+            // (switch en OFF) descartamos toda la sub-jerarquía del nodo
+            // expirado para evitar huérfanos sin padre visible.
+            var keepNode = options.showExpiradas || node.esVigente === true;
             if (!keepNode) {
                 continue;
             }
@@ -150,11 +161,19 @@
 
     /**
      * Descarga el chart actual como PNG. Usa `chart.getImageURI()` de
-     * Google Charts que devuelve un data URI `image/png` listo para
-     * anclar como `href` en un `<a>` con `download`. El nombre de
-     * archivo lleva la fecha en formato `YYYYMMDD` (zona horaria del
-     * cliente) para que varias exportaciones del mismo día convivan
-     * sin pisarse cuando el navegador resuelve colisiones.
+     * Google Charts que devuelve un data URI `image/png;base64,...`.
+     *
+     * Importante: NO anclo el data URI directamente en `<a href>`.
+     * Los navegadores modernos (Chrome ≥65, Firefox ≥67, Safari) bloquean
+     * la descarga de `data:` URIs disparada por un anchor inyectado
+     * dinámicamente (la navegación queda como "no permite navegar a esa
+     * URL" y el botón no produce ningún efecto visible). La fix estándar
+     * es decodificar el base64, envolverlo en un Blob con el MIME type
+     * detectado, y obtener una URL blob: que sí se puede descargar.
+     *
+     * El nombre de archivo lleva la fecha en formato `YYYYMMDD` (zona
+     * horaria del cliente) para que varias exportaciones del mismo día
+     * convivan sin pisarse cuando el navegador resuelve colisiones.
      */
     function exportPng() {
         if (!currentChart) {
@@ -166,16 +185,47 @@
             console.warn('[OrgChart] exportPng: getImageURI devolvió vacío.');
             return;
         }
+
+        var commaIdx = imgUri.indexOf(',');
+        if (commaIdx < 0 || imgUri.indexOf('data:') !== 0) {
+            console.warn('[OrgChart] exportPng: data URI con formato inesperado.');
+            return;
+        }
+        var header = imgUri.substring(5, commaIdx); // after "data:"
+        var payload = imgUri.substring(commaIdx + 1);
+        var mimeType = header.split(';')[0] || 'image/png';
+        var isBase64 = header.indexOf('base64') >= 0;
+
+        var bytes;
+        if (isBase64) {
+            var binary = atob(payload);
+            bytes = new Uint8Array(binary.length);
+            for (var i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+        } else {
+            // data:image/png;charset=... sin base64 → URL-encoded; raro pero
+            // la API de Google Charts usa base64, así que este branch es
+            // defensa por si cambia el formato.
+            bytes = new TextEncoder().encode(decodeURIComponent(payload));
+        }
+
+        var blob = new Blob([bytes], { type: mimeType });
+        var blobUrl = URL.createObjectURL(blob);
+
         var now = new Date();
         var yyyymmdd = now.getFullYear().toString()
             + String(now.getMonth() + 1).padStart(2, '0')
             + String(now.getDate()).padStart(2, '0');
         var a = document.createElement('a');
-        a.href = imgUri;
+        a.href = blobUrl;
         a.download = 'organigrama-' + yyyymmdd + '.png';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        // Liberamos la URL en el siguiente tick para que el click ya haya
+        // consumido el blob antes de invalidarlo.
+        setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 0);
     }
 
     /**
@@ -202,9 +252,9 @@
                 drawOrgChart();
             });
         }
-        if (showVigentesInput) {
-            showVigentesInput.addEventListener('change', function () {
-                options.showVigentes = showVigentesInput.checked;
+        if (showExpiradasInput) {
+            showExpiradasInput.addEventListener('change', function () {
+                options.showExpiradas = showExpiradasInput.checked;
                 drawOrgChart();
             });
         }
