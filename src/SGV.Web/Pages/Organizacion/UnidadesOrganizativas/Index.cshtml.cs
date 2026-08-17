@@ -373,10 +373,16 @@ public sealed class IndexModel(
             item.Codigo,
             item.Nombre,
             item.TipoUnidadNombre,
-            // El wire type UnidadOrganizativaTreeNodeDto no expone VigenteDesde/Hasta;
-            // hasta que la API extienda /arbol, todos los nodos muestran "Vigencia abierta".
-            VigenciaViewModel.Desde(null, null, hoy),
+            VigenciaViewModel.Desde(item.VigenteDesde, item.VigenteHasta, hoy),
+            EsVigente(item.VigenteDesde, item.VigenteHasta, hoy),
             item.Hijas.Select(child => MapToTreeViewModel(child, hoy)).ToArray());
+
+    private static bool EsVigente(DateOnly? desde, DateOnly? hasta, DateOnly hoy)
+    {
+        if (desde.HasValue && desde.Value > hoy) return false;
+        if (hasta.HasValue && hasta.Value < hoy) return false;
+        return true;
+    }
 
     private static int CountTreeNodes(IReadOnlyList<UnidadOrganizativaTreeNodeViewModel> nodes)
         => nodes.Sum(static node => 1 + CountTreeNodes(node.Children));

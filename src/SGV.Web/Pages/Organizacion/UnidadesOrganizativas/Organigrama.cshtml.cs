@@ -46,8 +46,21 @@ public sealed class OrganigramaModel(IUnidadOrganizativaApiClient unidadOrganiza
             item.Codigo,
             item.Nombre,
             item.TipoUnidadNombre,
-            // El wire type UnidadOrganizativaTreeNodeDto no expone VigenteDesde/Hasta;
-            // hasta que la API extienda /arbol, todos los nodos muestran "Vigencia abierta".
-            VigenciaViewModel.Desde(null, null, hoy),
+            VigenciaViewModel.Desde(item.VigenteDesde, item.VigenteHasta, hoy),
+            EsVigente(item.VigenteDesde, item.VigenteHasta, hoy),
             item.Hijas.Select(child => MapToViewModel(child, hoy)).ToArray());
+
+    /// <summary>
+    /// Proyecta la ventana de vigencia persistida a un booleano que el
+    /// JavaScript pueda consumir para filtrar visualmente las unidades
+    /// cuya vigencia ya cerró (issue #286). Espeja
+    /// <c>UnidadOrganizativa.EsVigente</c> pero opera sobre datos del
+    /// wire sin materializar una entidad de dominio.
+    /// </summary>
+    private static bool EsVigente(DateOnly? desde, DateOnly? hasta, DateOnly hoy)
+    {
+        if (desde.HasValue && desde.Value > hoy) return false;
+        if (hasta.HasValue && hasta.Value < hoy) return false;
+        return true;
+    }
 }

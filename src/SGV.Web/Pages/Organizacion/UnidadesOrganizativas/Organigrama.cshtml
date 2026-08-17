@@ -61,12 +61,55 @@
                 }
                 else
                 {
-                    <div id="orgchart" style="width:100%; min-height:500px; overflow:auto;"></div>
+                    // Issue #286: barra de acciones + switches de filtro visual.
+                    // Solo se renderiza cuando hay árbol cargado (no en estados vacío
+                    // ni de error) porque las acciones de exportación y los filtros
+                    // no tienen sentido sin nodos. La clase `d-print-none` ya viene
+                    // del bundle de Bootstrap servido en `app.min.css` y oculta la
+                    // barra cuando el usuario dispara la impresión del PDF vía
+                    // `window.print()`.
+                    <div class="d-flex flex-wrap align-items-center gap-3 mb-3 orgchart-toolbar d-print-none" data-orgchart-toolbar>
+                        <div class="d-flex gap-2" data-orgchart-actions>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-export-png" data-orgchart-export="png" aria-label="Exportar organigrama a PNG">
+                                <i class="mdi mdi-image-outline me-1" aria-hidden="true"></i>Exportar PNG
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-export-pdf" data-orgchart-export="pdf" aria-label="Exportar organigrama a PDF">
+                                <i class="mdi mdi-file-pdf-box me-1" aria-hidden="true"></i>Exportar PDF
+                            </button>
+                        </div>
+                        <div class="vr d-none d-md-block" aria-hidden="true"></div>
+                        <div class="d-flex flex-wrap gap-3 orgchart-filters" data-orgchart-filters>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="toggle-show-code" data-orgchart-toggle="showCode" checked aria-describedby="toggle-show-code-label">
+                                <label class="form-check-label" for="toggle-show-code" id="toggle-show-code-label">Mostrar código</label>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="toggle-show-vigentes" data-orgchart-toggle="showVigentes" checked aria-describedby="toggle-show-vigentes-label">
+                                <label class="form-check-label" for="toggle-show-vigentes" id="toggle-show-vigentes-label">Mostrar unidades vigentes</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="orgchart" style="width:100%; min-height:500px; overflow:auto;" class="orgchart-container" data-orgchart-canvas></div>
                 }
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    /* Issue #286: el chart de Google OrgChart trae inline `min-height:500px; overflow:auto;`
+       que en modo print recorta el árbol y mete un scrollbar feo. La regla print se
+       complementa con `.d-print-none` de la toolbar (Bootstrap) ya servido. */
+    @@media print {
+        .orgchart-container {
+            min-height: 0 !important;
+            overflow: visible !important;
+        }
+        .orgchart-container > div > table {
+            margin: 0 auto;
+        }
+    }
+</style>
 
 <script>
     // Datos del organigrama pre-cargados server-side con el JWT bridged.
