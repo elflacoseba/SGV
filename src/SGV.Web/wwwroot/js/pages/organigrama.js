@@ -1,9 +1,10 @@
 // Organigrama page — loads the org chart via Google Charts
-// Issue #286 (3er round): el filtro de "Mostrar unidades expiradas" se
-// calcula ENTERAMENTE en el cliente usando las fechas crudas
-// `vigenteDesde` / `vigenteHasta` que vienen en el JSON. Antes dependía
-// de un `esVigente` server-side que daba resultados confusos para el
-// operador cuando tenía unidades sin `VigenteHasta` configurado.
+// Issue #286 (4to round): se corrige la semántica de "expirada" para
+// que SOLO considere VigenteHasta en el pasado. Anteriormente también
+// marcaba como expiradas las unidades con VigenteDesde en el futuro
+// ("aún no empiezan"), lo cual era confuso para el operador. Ahora
+// "expirada" = únicamente VigenteHasta configurado y anterior a hoy.
+// Todo lo demás (null, futuro, ambos null) se considera vigente.
 (function () {
     'use strict';
 
@@ -14,6 +15,7 @@
     var showExpiradasInput = document.getElementById('toggle-show-expiradas');
     var exportPngBtn = document.getElementById('btn-export-png');
     var exportPdfBtn = document.getElementById('btn-export-pdf');
+    var diagPanel = document.getElementById('orgchart-diag');
 
     // Estado vivo de los switches. Se inicializa desde los checkboxes
     // (que arrancan `checked` en el HTML) y se mantiene sincronizado
@@ -46,73 +48,89 @@
     }
 
     /**
-     * Determina si una unidad está "expirada" según la convención de
-     * producto del issue #286.
+     * Determina si una unidad está "expirada" (issue #286 4to round).
      *
-     * Una unidad está EXPIRADA únicamente cuando:
-     *  - VigenteHasta está definido Y es anterior a hoy.
+     * Una unidad se considera expirada ÚNICAMENTE cuando:
+     *  - VigenteHasta está definido Y es una fecha válida Y es
+     *    anterior a hoy.
      *
-     * Casos que NO cuentan como expirada (la unidad se considera
-     * vigente a efectos del filtro):
-     *  - VigenteHasta = null → la unidad no tiene fecha de expiración
-     *    configurada → sigue activa.
-     *  - VigenteDesde en el futuro → la unidad "aún no ha empezado"
-     *    formalmente, pero el operador quiere verla en el organigrama
-     *    (decisión de producto confirmada tras el cuarto feedback del
-     *    operador: "se ocultan las unidades con fecha vigente hasta
-     *    en nula cuando desactivo el switch").
-     *
-     * Diferencia con `UnidadOrganizativa.EsVigente` del dominio: el
-     * dominio considera "no vigente" también cuando VigenteDesde está
-     * en el futuro. Acá NO replicamos esa rama porque el producto
-     * quiere mostrar las unidades no iniciadas en el organigrama.
+     * Caso contrario (cualquiera de estos) → NO expirada:
+     *  - VigenteHasta es null (sin fecha de expiración configurada).
+     *  - VigenteHasta es hoy o futuro (sigue vigente).
+     *  - VigenteHasta es malformado (no se puede parsear).
+     *  - VigenteDesde es futuro (la unidad aún no empieza, pero NO
+     *    está "expirada" — está pendiente de inicio).
      */
     function isExpired(vigenteDesde, vigenteHasta) {
         var hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
 
-        if (vigenteHasta) {
-            // Formato esperado: "YYYY-MM-DD" desde System.Text.Json.
+        if (vigenteHasta && typeof vigenteHasta === 'string') {
             var hastaDate = new Date(vigenteHasta + 'T00:00:00');
             if (!isNaN(hastaDate.getTime()) && hastaDate < hoy) {
-                return true;
+                return { expired: true, reason: 'vigenteHasta < hoy' };
             }
         }
-        // NO evaluamos VigenteDesde futuro: las unidades "aún no
-        // iniciadas" se consideran vigentes a efectos del filtro.
-        return false;
+        // NO considerar VigenteDesde futuro como expirada — solo es
+        // "pendiente de inicio", sigue siendo una unidad vigente en
+        // términos del filtro del operador.
+        return { expired: false, reason: classifyVigente(vigenteDesde, vigenteHasta) };
+    }
+
+    function classifyVigente(vigenteDesde, vigenteHasta) {
+        var hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        if (!vigenteHasta && !vigenteDesde) return 'sin ventana';
+        if (vigenteHasta) {
+            var h = new Date(vigenteHasta + 'T00:00:00');
+            if (!isNaN(h.getTime()) && h >= hoy) return 'vigenteHasta ≥ hoy';
+        }
+        if (vigenteDesde) {
+            var d = new Date(vigenteDesde + 'T00:00:00');
+            if (!isNaN(d.getTime()) && d > hoy) return 'pendiente inicio (desde > hoy)';
+        }
+        return 'vigente';
     }
 
     /**
-     * Cuenta total / vigentes / expiradas del árbol para diagnóstico.
+     * Cuenta total / vigentes / expiradas del árbol y lista detalle
+     * por nodo para el panel de diagnóstico visible en la página.
      */
     function computeVigenciaStats(nodes) {
-        var total = 0, vigentes = 0, expiradas = 0;
-        function walk(arr) {
+        var total = 0, vigentes = 0, expiradas = 0, detalle = [];
+        function walk(arr, parent) {
             if (!arr) return;
             for (var i = 0; i < arr.length; i++) {
                 var n = arr[i];
                 if (!n) continue;
                 total++;
-                if (isExpired(n.vigenteDesde, n.vigenteHasta)) expiradas++;
+                var r = isExpired(n.vigenteDesde, n.vigenteHasta);
+                if (r.expired) expiradas++;
                 else vigentes++;
-                walk(n.children || []);
+                detalle.push({
+                    codigo: n.codigo,
+                    nombre: n.nombre,
+                    vigenteDesde: n.vigenteDesde || '—',
+                    vigenteHasta: n.vigenteHasta || '—',
+                    estado: r.expired ? 'expirada' : 'vigente',
+                    motivo: r.reason,
+                    padre: parent
+                });
+                walk(n.children || [], n.codigo);
             }
         }
-        walk(nodes);
-        return { total: total, vigentes: vigentes, expiradas: expiradas };
+        walk(nodes, null);
+        return { total: total, vigentes: vigentes, expiradas: expiradas, detalle: detalle };
     }
 
     /**
-     * Aplica los switches de filtro al árbol pre-cargado. Devuelve un
-     * árbol NUEVO (no muta `nodes`).
+     * Aplica los switches de filtro al árbol pre-cargado.
      *
-     * Reglas (issue #286 — tercer feedback):
+     * Reglas (issue #286 — 4to round):
      *  - `showExpiradas === true` (switch ON, default) → conservar
      *    TODO el árbol, vigentes y expiradas.
      *  - `showExpiradas === false` (switch OFF) → descartar los nodos
-     *    cuya vigencia ya cerró Y TODA su sub-jerarquía (evita
-     *    huérfanos sin padre visible).
+     *    con VigenteHasta en el pasado Y TODA su sub-jerarquía.
      */
     function applyFilters(nodes) {
         if (!nodes) return [];
@@ -121,8 +139,8 @@
             var node = nodes[i];
             if (!node) continue;
 
-            var exp = isExpired(node.vigenteDesde, node.vigenteHasta);
-            var shouldHide = !options.showExpiradas && exp;
+            var r = isExpired(node.vigenteDesde, node.vigenteHasta);
+            var shouldHide = !options.showExpiradas && r.expired;
             if (shouldHide) continue;
 
             var filteredChildren = applyFilters(node.children || []);
@@ -139,6 +157,45 @@
         return result;
     }
 
+    /**
+     * Renderiza el panel de diagnóstico visible en la página. Muestra
+     * los conteos globales y una tabla con cada nodo, su ventana de
+     * vigencia y el resultado del filtro. El operador lo ve directo en
+     * pantalla sin tener que abrir DevTools.
+     */
+    function renderDiagPanel(stats) {
+        if (!diagPanel) return;
+        var rows = stats.detalle.map(function (d) {
+            var badge = d.estado === 'expirada'
+                ? '<span class="badge bg-danger">expirada</span>'
+                : '<span class="badge bg-success">vigente</span>';
+            return '<tr>'
+                + '<td><code>' + escapeHtml(d.codigo) + '</code></td>'
+                + '<td>' + escapeHtml(d.nombre) + '</td>'
+                + '<td>' + escapeHtml(String(d.vigenteDesde)) + '</td>'
+                + '<td>' + escapeHtml(String(d.vigenteHasta)) + '</td>'
+                + '<td>' + badge + '</td>'
+                + '<td><small class="text-muted">' + escapeHtml(d.motivo) + '</small></td>'
+                + '</tr>';
+        }).join('');
+
+        diagPanel.innerHTML =
+            '<div class="card border-info mt-3">'
+            + '<div class="card-header bg-info-subtle"><strong>Diagnóstico de vigencia</strong></div>'
+            + '<div class="card-body">'
+            + '<p class="mb-2">Total: <strong>' + stats.total + '</strong> · Vigentes: <strong>' + stats.vigentes + '</strong> · Expiradas: <strong>' + stats.expiradas + '</strong> · Switch "Mostrar expiradas": <strong>' + (options.showExpiradas ? 'ON (muestra todas)' : 'OFF (oculta expiradas)') + '</strong></p>'
+            + '<div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th>Código</th><th>Nombre</th><th>Vigente desde</th><th>Vigente hasta</th><th>Estado</th><th>Motivo</th></tr></thead><tbody>'
+            + rows
+            + '</tbody></table></div>'
+            + '</div></div>';
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+    }
+
     function drawOrgChart() {
         clearTimeout(timeoutId);
 
@@ -148,8 +205,13 @@
             if (!treeData || treeData.length === 0) {
                 chartDiv.innerHTML = '<div class="text-center text-muted py-5"><p>No hay unidades organizativas para mostrar en el organigrama.</p></div>';
                 currentChart = null;
+                if (diagPanel) diagPanel.innerHTML = '';
                 return;
             }
+
+            // Renderizar panel de diagnóstico SIEMPRE (antes del filtro).
+            // Así el operador ve qué datos llegan y por qué se ocultan.
+            renderDiagPanel(computeVigenciaStats(treeData));
 
             var filtered = applyFilters(treeData);
             if (filtered.length === 0) {
@@ -202,12 +264,6 @@
 
     /**
      * Descarga el chart actual como PNG.
-     *
-     * Implementación (issue #286 — segundo feedback del operador):
-     * NO usamos `currentChart.getImageURI()` de la API de Google Charts
-     * porque en `OrgChart` específicamente ese método no está disponible
-     * en algunas versiones del loader.
-     *
      * Estrategia: capturar el `<svg>` que Google Charts renderiza,
      * serializarlo con XMLSerializer, envolverlo en Blob, cargarlo en un
      * `<img>`, dibujarlo sobre un `<canvas>` con fondo blanco, y exportar
@@ -230,8 +286,6 @@
         var width = Math.max(1, Math.ceil(bbox.width || svgEl.clientWidth || 800));
         var height = Math.max(1, Math.ceil(bbox.height || svgEl.clientHeight || 600));
 
-        // Clonamos el SVG y forzamos xmlns + dimensiones explícitas para
-        // que el navegador lo pueda cargar standalone como <img>.
         var clonedSvg = svgEl.cloneNode(true);
         clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
         clonedSvg.setAttribute('width', String(width));

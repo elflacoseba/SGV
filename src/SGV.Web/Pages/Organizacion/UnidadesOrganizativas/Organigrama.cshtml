@@ -86,10 +86,16 @@
                             <div class="form-check form-switch mb-0">
                                 <input class="form-check-input" type="checkbox" id="toggle-show-expiradas" data-orgchart-toggle="showExpiradas" checked aria-describedby="toggle-show-expiradas-label">
                                 <label class="form-check-label" for="toggle-show-expiradas" id="toggle-show-expiradas-label">Mostrar unidades expiradas</label>
+                                <small class="d-block text-muted ms-4">Activar = mostrar todas · Desactivar = ocultar las que tienen fecha de cierre vencida</small>
                             </div>
                         </div>
                     </div>
                     <div id="orgchart" style="width:100%; min-height:500px; overflow:auto;" class="orgchart-container" data-orgchart-canvas></div>
+                    <!-- Panel de diagnóstico visible en la página (issue #286 4to round).
+                         El JS lo llena con conteos y tabla por nodo para que el operador
+                         pueda ver en pantalla qué datos llegaron y por qué cada nodo se
+                         cuenta como vigente o expirada. Se oculta en print. -->
+                    <div id="orgchart-diag" class="d-print-none"></div>
                 }
             </div>
         </div>
