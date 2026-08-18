@@ -1,8 +1,25 @@
 # Especificación de listado, detalle y baja web de cargos
 
+> **Nota de trazabilidad (2026-08-18).** El `Purpose` original del slice inicial
+> decía que este spec cubría "consultar cargos activos, ver su detalle readonly
+> y ejecutar baja lógica **sin expandirse a create, edit, skills, eliminados o
+> reactivación**". Esa restricción quedó obsoleta tras los cambios archivados
+> `2026-07-01-cargos-crear-editar-codigo-editable`,
+> `2026-07-01-cargos-crear-autorizacion-admin`,
+> `2026-07-02-cargos-filtro-activos-eliminados`,
+> `2026-07-05-habilidades-navegacion-cargos`,
+> `2026-07-06-cargos-navegacion-habilidades` y
+> `2026-07-06-implementar-asignar-quitar-habilidades-de-un-cargo`, que
+> expandieron el alcance a create, edit, codigo-editable, autorización admin,
+> vista de eliminados con reactivación, navegación cruzada con Habilidades y
+> gestión CRUD de habilidades por cargo. Esta spec conserva los requisitos
+> históricos para no perder trazabilidad, pero el `Purpose` y los escenarios
+> reflejan el comportamiento vigente consolidado; los requisitos vigentes que
+> amplían el alcance original son `REQ-CW-01..06`.
+
 ## Purpose
 
-Definir el primer slice autenticado de `Cargos` en `SGV.Web` para consultar cargos activos, ver su detalle readonly y ejecutar baja lógica sin expandirse a create, edit, skills, eliminados o reactivación.
+Definir el comportamiento consolidado de la experiencia web autenticada de `Cargos` en `SGV.Web`: listado segmentado activas/eliminadas, detalle readonly, baja lógica con reactivación, navegación cruzada a Habilidades, y el gating admin de las acciones mutadoras (create, edit, delete, reactivate, gestionar habilidades).
 
 ## Requirements
 
