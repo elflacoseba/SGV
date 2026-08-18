@@ -142,6 +142,40 @@ public sealed class PersonaApiClient(HttpClient httpClient) : IPersonaApiClient
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<PersonaDto>> BuscarAsync(
+        string? search,
+        int take = 50,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+    {
+        // D-PE-03: server-side typeahead. Construye la query string con
+        // los mismos flags que QueryAsync pero serializa `take` (cap
+        // defensivo server-side: 100) y omite paginación.
+        var builder = new StringBuilder($"{BaseRoute}/buscar?take={take}");
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            builder.Append("&q=");
+            builder.Append(Uri.EscapeDataString(search));
+        }
+
+        if (soloSinUsuario == true)
+        {
+            builder.Append("&soloSinUsuario=true");
+        }
+
+        var response = await httpClient
+            .GetAsync(builder.ToString(), cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content
+            .ReadFromJsonAsync<IReadOnlyList<PersonaDto>>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false)
+            ?? [];
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<TipoDocumentoDto>> GetTiposDocumentoAsync(CancellationToken cancellationToken = default)
     {
         // Issue #147 PR3: consumido por Create/Edit para popular el <select>.

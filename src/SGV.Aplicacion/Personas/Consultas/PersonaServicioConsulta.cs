@@ -81,6 +81,24 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
             query.PageSize);
     }
 
+    public async Task<IReadOnlyList<PersonaDto>> BuscarAsync(
+        string? search,
+        int take = 50,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+    {
+        // D-PE-03: typeahead server-side. Carga el catálogo una sola vez
+        // por request y mapea el subset acotado de personas (max 100 por
+        // cap defensivo del repo).
+        var tipoLookup = await BuildTipoLookupAsync(cancellationToken).ConfigureAwait(false);
+
+        var personas = await _repository
+            .BuscarAsync(search, take, soloSinUsuario, cancellationToken)
+            .ConfigureAwait(false);
+
+        return personas.Select(p => MapToDto(p, tipoLookup)).ToList();
+    }
+
     /// <summary>
     /// Construye un lookup Guid → TipoDocumentoDto para resolver el JOIN
     /// denormalizado en O(1) por persona. Devuelve un diccionario vacío

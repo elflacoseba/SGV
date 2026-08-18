@@ -624,6 +624,13 @@ internal sealed class FakePersonaWriteRepository : IPersonaRepository
         CancellationToken cancellationToken = default,
         bool? soloSinUsuario = null)
         => throw new NotSupportedException("Write-only fake does not support QueryAsync.");
+
+    public Task<IReadOnlyList<Persona>> BuscarAsync(
+        string? search,
+        int take,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Write-only fake does not support BuscarAsync.");
 }
 
 // ── Fakes for issue #202 (auditoría al limpiar Legajo) ─────

@@ -1014,6 +1014,96 @@ public sealed class PersonasControllerTests
         Assert.Equal(PersonaSegmentoListado.Activas, observed.Segmento);
     }
 
+    // ── D-PE-03: GET /api/v1/personas/buscar ──
+
+    [Fact]
+    public async Task Buscar_WithoutCredentials_ReturnsUnauthorized()
+    {
+        // El RootFactory es compartido por toda la suite — NO usar
+        // `await using` (dispondría el host y rompería los tests
+        // posteriores que dependen del mismo factory). El fixture lo
+        // libera al cierre de la colección xUnit.
+        var factory = _fixture.RootFactory;
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/personas/buscar?q=juan");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Buscar_WithAuthenticatedUser_ReturnsOkWithArray()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/buscar?q=juan&take=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.BuscarCapturedCalls);
+        Assert.Equal("juan", observed.Search);
+        Assert.Equal(10, observed.Take);
+        Assert.Null(observed.SoloSinUsuario);
+    }
+
+    [Fact]
+    public async Task Buscar_SoloSinUsuarioTrue_PropagaTrue()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/buscar?q=juan&soloSinUsuario=true");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.BuscarCapturedCalls);
+        Assert.Equal(true, observed.SoloSinUsuario);
+    }
+
+    [Fact]
+    public async Task Buscar_TakeCero_Returns400()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/buscar?q=juan&take=0");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(capture.BuscarCapturedCalls);
+    }
+
+    [Fact]
+    public async Task Buscar_DefaultTake_Es50()
+    {
+        var capture = new SortCapturingFakePersonaServicio();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPersonaServicioConsulta>();
+            services.AddSingleton<IPersonaServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/personas/buscar?q=juan");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.BuscarCapturedCalls);
+        Assert.Equal(50, observed.Take);
+    }
+
     /// <summary>
     /// Fake en memoria de <see cref="IPersonaServicioConsulta"/> que captura la
     /// última query recibida y devuelve datos controlados por segmento. Usado
@@ -1041,6 +1131,18 @@ public sealed class PersonasControllerTests
                 : new[] { new PersonaDto(FakePersonaServicioConsulta.PersonaId1, "LEG-001", "Juan", "Perez", "juan@test.com", null, null, "DNI", "12345678", "555-0001", true) };
             return Task.FromResult(new PersonaListadoDto(
                 source.ToList(), source.Count, query.Page, query.PageSize));
+        }
+
+        public List<(string? Search, int Take, bool? SoloSinUsuario)> BuscarCapturedCalls { get; } = new();
+        public IReadOnlyList<PersonaDto> BuscarResult { get; set; } =
+            [new PersonaDto(FakePersonaServicioConsulta.PersonaId1, "LEG-001", "Juan", "Perez", "juan@test.com", null, null, "DNI", "12345678", "555-0001", true)];
+
+        public Task<IReadOnlyList<PersonaDto>> BuscarAsync(
+            string? search, int take = 50, bool? soloSinUsuario = null,
+            CancellationToken cancellationToken = default)
+        {
+            BuscarCapturedCalls.Add((search, take, soloSinUsuario));
+            return Task.FromResult(BuscarResult);
         }
     }
 

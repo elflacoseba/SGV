@@ -126,6 +126,45 @@ public class PersonasController : ControllerBase
     }
 
     /// <summary>
+    /// Server-side typeahead search (D-PE-03). Busca las primeras
+    /// <paramref name="take"/> personas activas cuyo
+    /// <c>Legajo|Nombres|Apellidos|Email|NumeroDocumento</c> matchea
+    /// <paramref name="q"/> (case-insensitive substring). Usado por el
+    /// typeahead web para reemplazar la carga inicial completa
+    /// (~100 KB para 500 personas activas).
+    /// </summary>
+    /// <param name="q">Término de búsqueda (mínimo 0 caracteres; con vacío devuelve hasta <paramref name="take"/> activas).</param>
+    /// <param name="take">Cantidad máxima de resultados (default 50, cap defensivo 100).</param>
+    /// <param name="soloSinUsuario">Cuando <c>true</c>, restringe a personas sin <c>AspNetUsers.PersonaId</c> asociado (útil para flujos de asignación de Identity users).</param>
+    /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
+    /// <returns>Lista de personas que matchean el término, acotada a <paramref name="take"/> y cap 100.</returns>
+    /// <response code="200">Resultados devueltos correctamente (puede ser una lista vacía).</response>
+    /// <response code="401">El consumidor no está autenticado.</response>
+    [HttpGet("buscar")]
+    [ProducesResponseType(typeof(IReadOnlyList<PersonaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IReadOnlyList<PersonaDto>>> Buscar(
+        [FromQuery(Name = "q")] string? q,
+        [FromQuery] int take = 50,
+        [FromQuery] bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (take < 1)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "ParametrosInvalidos",
+                Detail = "take debe ser >= 1.",
+                Type = "https://httpstatuses.com/400"
+            });
+        }
+
+        var result = await _servicio.BuscarAsync(q, take, soloSinUsuario, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Crea una nueva persona.
     /// </summary>
     /// <param name="request">Datos de la persona a crear.</param>

@@ -1289,6 +1289,11 @@ internal sealed class FakePersonaWriteRepository : IPersonaRepository
         CancellationToken cancellationToken = default,
         bool? soloSinUsuario = null)
         => Task.FromResult<(IReadOnlyList<Persona>, int)>(([], 0));
+
+    public Task<IReadOnlyList<Persona>> BuscarAsync(
+        string? search, int take, bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<Persona>>([]);
 }
 
 internal sealed class FakePuestoWriteRepository : IPuestoRepository

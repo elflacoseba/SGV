@@ -84,4 +84,31 @@ public interface IPersonaRepository : IReadOnlyRepository<Persona>
         PersonaSegmentoListado segmento = PersonaSegmentoListado.Activas,
         CancellationToken cancellationToken = default,
         bool? soloSinUsuario = null);
+
+    /// <summary>
+    /// Server-side typeahead search (D-PE-03). Returns the first
+    /// <paramref name="take"/> active personas matching
+    /// <paramref name="search"/> substring (case-insensitive over
+    /// <c>Legajo|Nombres|Apellidos|Email|NumeroDocumento</c>), ordered
+    /// by <c>Apellidos, Nombres</c>. When <paramref name="search"/> is
+    /// null/empty, returns up to <paramref name="take"/> active personas
+    /// ordered by the same criteria.
+    /// <para>
+    /// Replaces the legacy "GET /api/v1/personas sin paginar" usado por el
+    /// typeahead web, que pesaba ~100 KB para 500 personas activas y
+    /// deforma la experiencia cuando el dataset crece. La búsqueda
+    /// server-side evita N round-trips HTTP y la carga inicial de todo el
+    /// catálogo en el navegador.
+    /// </para>
+    /// <para>
+    /// <paramref name="soloSinUsuario"/> filtra opcionalmente las personas
+    /// sin <c>AspNetUsers.PersonaId</c> asociado (anti-join reutilizado
+    /// del método <see cref="QueryAsync"/>).
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<Persona>> BuscarAsync(
+        string? search,
+        int take,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default);
 }

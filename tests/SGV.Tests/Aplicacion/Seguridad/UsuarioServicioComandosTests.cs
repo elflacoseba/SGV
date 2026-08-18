@@ -495,6 +495,11 @@ public sealed class UsuarioServicioComandosTests
             CancellationToken cancellationToken = default,
             bool? soloSinUsuario = null)
             => Task.FromResult<(IReadOnlyList<Persona>, int)>(([], 0));
+
+        public Task<IReadOnlyList<Persona>> BuscarAsync(
+            string? search, int take, bool? soloSinUsuario = null,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Persona>>([]);
     }
 
     private sealed class FakeUsuarioIdentityGateway : IUsuarioIdentityGateway

@@ -455,10 +455,17 @@ internal sealed class FakePersonaRepository : IPersonaRepository
 
     public int QueryAsyncCallCount { get; private set; }
 
+    /// <summary>
+    /// D-PE-03: contador de invocaciones del typeahead server-side
+    /// (<see cref="IPersonaRepository.BuscarAsync"/>).
+    /// </summary>
+    public int BuscarAsyncCallCount { get; private set; }
+
     public void ResetCapturedSoloSinUsuario()
     {
         CapturedSoloSinUsuario = null;
         QueryAsyncCallCount = 0;
+        BuscarAsyncCallCount = 0;
     }
 
     public Task<Persona?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -535,6 +542,48 @@ internal sealed class FakePersonaRepository : IPersonaRepository
         var items = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         return Task.FromResult<(IReadOnlyList<Persona>, int)>((items, totalCount));
+    }
+
+    /// <summary>
+    /// D-PE-03: mirror de producción para el typeahead server-side.
+    /// Aplica el mismo predicado que QueryAsync (substring case-insensitive
+    /// sobre los mismos campos) y limita a <paramref name="take"/> activas.
+    /// </summary>
+    public Task<IReadOnlyList<Persona>> BuscarAsync(
+        string? search,
+        int take,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+    {
+        BuscarAsyncCallCount++;
+
+        var filtered = Datos.Where(p => p.IsActive);
+
+        if (soloSinUsuario == true)
+        {
+            // El fake no modela el anti-join contra AspNetUsers.PersonaId;
+            // la lógica de sóloSinUsuario vive en el repo real. Para los
+            // tests del servicio basta con filtrar todas las activas.
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var lowered = search.ToLowerInvariant();
+            filtered = filtered.Where(p =>
+                (p.Legajo?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || p.Nombres.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || p.Apellidos.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || (p.Email?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (p.NumeroDocumento?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        var items = filtered
+            .OrderBy(p => p.Apellidos)
+            .ThenBy(p => p.Nombres)
+            .Take(Math.Min(take, 100))
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<Persona>>(items);
     }
 
     private static IOrderedEnumerable<Persona> ApplySort(IEnumerable<Persona> source, string? sort) =>
