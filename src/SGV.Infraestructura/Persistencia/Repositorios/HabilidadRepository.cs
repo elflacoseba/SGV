@@ -90,6 +90,19 @@ public sealed class HabilidadRepository(SgvDbContext context)
         DomainToPersistenceMapper.UpdateEntity(entity, habilidad);
     }
 
+    /// <summary>
+    /// Soft-delete: marca la habilidad como inactiva y borrada lógicamente
+    /// sin eliminar la fila. El registro permanece en la tabla y puede ser
+    /// reactivado vía <see cref="ReactivateAsync"/>. Las asignaciones a
+    /// cargos y personas no se ven afectadas (la FK sigue siendo válida).
+    /// </summary>
+    /// <remarks>
+    /// El nombre <c>DeleteAsync</c> se mantiene por simetría con
+    /// <see cref="EntityFrameworkCore.EntityState.Deleted"/> y con la
+    /// convención de los demás repositorios del proyecto (Cargo, Persona,
+    /// Puesto, UnidadOrganizativa). NO confundir con borrado físico:
+    /// <c>EF Core</c> nunca emite <c>DELETE FROM Habilidades</c>.
+    /// </remarks>
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var entity = await Context
