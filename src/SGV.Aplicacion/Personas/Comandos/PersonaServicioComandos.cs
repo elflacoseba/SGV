@@ -23,11 +23,14 @@ public sealed class PersonaServicioComandos(
     IValidator<ActualizarPersonaRequest> actualizarValidator,
     IAuditoriaServicio auditoriaServicio,
     IUsuarioActual usuarioActual,
+    ITipoDocumentoCatalogoConsulta tipoDocumentoCatalogo,
     ILogger<PersonaServicioComandos> logger) : IPersonaServicioComandos
 {
     /// <summary>
     /// Convenience constructor for backward compatibility. Uses the real validators,
-    /// a no-op audit service, and a null current-user implementation.
+    /// a no-op audit service, a null current-user implementation, and an empty
+    /// TipoDocumento catalog (campos denormalizados del DTO quedan null —
+    /// útil para tests que no necesitan ejercitar el JOIN).
     /// </summary>
     public PersonaServicioComandos(
         IPersonaRepository repository,
@@ -38,6 +41,7 @@ public sealed class PersonaServicioComandos(
                new ActualizarPersonaRequestValidator(),
                new NoopAuditoriaServicio(),
                new NullUsuarioActual(),
+               new EmptyTipoDocumentoCatalogoConsulta(),
                logger)
     {
     }
@@ -82,7 +86,11 @@ public sealed class PersonaServicioComandos(
             await repository.AddAsync(persona, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return PersonaCommandResult.Success(MapToDto(persona));
+            var tipoLookup = await TipoDocumentoLookupBuilder
+                .BuildAsync(tipoDocumentoCatalogo, cancellationToken)
+                .ConfigureAwait(false);
+
+            return PersonaCommandResult.Success(MapToDto(persona, tipoLookup));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -158,7 +166,11 @@ public sealed class PersonaServicioComandos(
                 }
             }
 
-            return PersonaCommandResult.Success(MapToDto(persona));
+            var tipoLookup = await TipoDocumentoLookupBuilder
+                .BuildAsync(tipoDocumentoCatalogo, cancellationToken)
+                .ConfigureAwait(false);
+
+            return PersonaCommandResult.Success(MapToDto(persona, tipoLookup));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -184,7 +196,11 @@ public sealed class PersonaServicioComandos(
             await repository.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return PersonaCommandResult.Success(MapToDto(persona));
+            var tipoLookup = await TipoDocumentoLookupBuilder
+                .BuildAsync(tipoDocumentoCatalogo, cancellationToken)
+                .ConfigureAwait(false);
+
+            return PersonaCommandResult.Success(MapToDto(persona, tipoLookup));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -225,7 +241,11 @@ public sealed class PersonaServicioComandos(
             await repository.ReactivateAsync(id, cancellationToken).ConfigureAwait(false);
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            return PersonaCommandResult.Success(MapToDto(persona));
+            var tipoLookup = await TipoDocumentoLookupBuilder
+                .BuildAsync(tipoDocumentoCatalogo, cancellationToken)
+                .ConfigureAwait(false);
+
+            return PersonaCommandResult.Success(MapToDto(persona, tipoLookup));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -269,12 +289,19 @@ public sealed class PersonaServicioComandos(
         return null;
     }
 
-    private static PersonaDto MapToDto(Persona persona)
+    private static PersonaDto MapToDto(
+        Persona persona,
+        IReadOnlyDictionary<Guid, TipoDocumentoDto> tipoLookup)
     {
-        // Issue #147: TipoDocumentoCodigo/Nombre se proyectan en null en PR1.
-        // El JOIN contra TiposDocumento (denormalización) entra en PR2 (T16
-        // del tasks.md). Mantener los nombres para que el contrato del DTO
-        // no rompa los call sites.
+        string? tipoCodigo = null;
+        string? tipoNombre = null;
+        if (persona.TipoDocumentoId.HasValue
+            && tipoLookup.TryGetValue(persona.TipoDocumentoId.Value, out var tipo))
+        {
+            tipoCodigo = tipo.Codigo;
+            tipoNombre = tipo.Nombre;
+        }
+
         return new PersonaDto(
             persona.Id,
             persona.Legajo,
@@ -282,10 +309,26 @@ public sealed class PersonaServicioComandos(
             persona.Apellidos,
             persona.Email,
             persona.TipoDocumentoId,
-            TipoDocumentoCodigo: null,
-            TipoDocumentoNombre: null,
+            tipoCodigo,
+            tipoNombre,
             persona.NumeroDocumento,
             persona.Telefono,
             persona.IsActive);
+    }
+
+    /// <summary>
+    /// Stub vacío para el constructor de back-compat. NO se usa en producción
+    /// porque el DI siempre inyecta el impl real
+    /// (<see cref="SGV.Aplicacion.Personas.Consultas.TipoDocumentoCatalogoConsulta"/>).
+    /// Vive en este archivo para no contaminar SGV.Infraestructura con
+    /// tipos de test (espejo del patrón de <see cref="PersonaServicioConsulta"/>).
+    /// </summary>
+    private sealed class EmptyTipoDocumentoCatalogoConsulta : ITipoDocumentoCatalogoConsulta
+    {
+        public Task<IReadOnlyList<TipoDocumentoDto>> ListarAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<TipoDocumentoDto>>([]);
+
+        public Task<TipoDocumentoDto?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default)
+            => Task.FromResult<TipoDocumentoDto?>(null);
     }
 }

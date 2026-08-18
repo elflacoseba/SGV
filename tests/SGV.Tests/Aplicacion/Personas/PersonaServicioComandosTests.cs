@@ -9,6 +9,7 @@ using SGV.Aplicacion.Seguridad;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Dominio.Personas;
+using SGV.Infraestructura.Persistencia.Catalogos;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Personas;
@@ -448,6 +449,7 @@ public sealed class PersonaServicioComandosTests
             new ActualizarPersonaRequestValidator(),
             auditoria,
             new FakeUsuarioActual(),
+            new FakeTipoDocumentoCatalogoConsulta(),
             NullLogger<PersonaServicioComandos>.Instance);
     }
 
@@ -464,7 +466,30 @@ public sealed class PersonaServicioComandosTests
             new ActualizarPersonaRequestValidator(),
             auditoria,
             new FakeUsuarioActual(),
+            new FakeTipoDocumentoCatalogoConsulta(),
             logger);
+    }
+
+    /// <summary>
+    /// Helper que inyecta un catálogo de tipos de documento poblado para
+    /// que las respuestas de Crear/Actualizar/Desactivar/Reactivar
+    /// expongan los campos denormalizados (D-PE-01).
+    /// </summary>
+    private static PersonaServicioComandos CrearServicio(
+        IPersonaRepository repo,
+        IUnitOfWork uow,
+        IAuditoriaServicio auditoria,
+        ITipoDocumentoCatalogoConsulta tipoDocumentoCatalogo)
+    {
+        return new PersonaServicioComandos(
+            repo,
+            uow,
+            new CrearPersonaRequestValidator(),
+            new ActualizarPersonaRequestValidator(),
+            auditoria,
+            new FakeUsuarioActual(),
+            tipoDocumentoCatalogo,
+            NullLogger<PersonaServicioComandos>.Instance);
     }
     private static Persona CrearPersonaActiva(
         string legajo, Guid? id = null,
@@ -488,6 +513,130 @@ public sealed class PersonaServicioComandosTests
         var persona = CrearPersonaActiva(legajo, id);
         persona.Desactivar();
         return persona;
+    }
+
+    // ── D-PE-01: JOIN denormalizado en respuestas de Crear/Actualizar ──
+
+    [Fact]
+    public async Task CrearAsync_ConTipoDocumentoIdPoblado_DevuelveCodigoYNombreDenormalizados()
+    {
+        // D-PE-01: POST debe exponer TipoDocumentoCodigo/Nombre populated
+        // desde el catálogo de TiposDocumento (mismo JOIN que hace el servicio
+        // de consulta).
+        var repo = new FakePersonaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio();
+        var servicio = CrearServicio(repo, uow, auditoria, new FakeTipoDocumentoCatalogoConsulta());
+
+        var request = new CrearPersonaRequest(
+            Legajo: "LEG-JOIN-001",
+            Nombres: "Juan",
+            Apellidos: "Pérez",
+            Email: "join-create@test.com",
+            TipoDocumentoId: TipoDocumentoConstantes.DniId,
+            NumeroDocumento: "12345678",
+            Telefono: null);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess, resultado.Error?.Message);
+        Assert.NotNull(resultado.Value);
+        Assert.Equal(TipoDocumentoConstantes.DniId, resultado.Value!.TipoDocumentoId);
+        Assert.NotNull(resultado.Value.TipoDocumentoCodigo);
+        Assert.NotNull(resultado.Value.TipoDocumentoNombre);
+    }
+
+    [Fact]
+    public async Task CrearAsync_ConTipoDocumentoIdNull_DevuelveCodigoYNombreDenormalizadosNull()
+    {
+        // D-PE-01: sin TipoDocumentoId los campos denormalizados quedan null.
+        var repo = new FakePersonaWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio();
+        var servicio = CrearServicio(repo, uow, auditoria, new FakeTipoDocumentoCatalogoConsulta());
+
+        var request = new CrearPersonaRequest(
+            Legajo: "LEG-JOIN-002",
+            Nombres: "Ana",
+            Apellidos: "García",
+            Email: "join-create-null@test.com",
+            TipoDocumentoId: null,
+            NumeroDocumento: null,
+            Telefono: null);
+
+        var resultado = await servicio.CrearAsync(request, default);
+
+        Assert.True(resultado.IsSuccess, resultado.Error?.Message);
+        Assert.Null(resultado.Value!.TipoDocumentoId);
+        Assert.Null(resultado.Value.TipoDocumentoCodigo);
+        Assert.Null(resultado.Value.TipoDocumentoNombre);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_ManteniendoTipoDocumento_DevuelveCodigoYNombreDenormalizados()
+    {
+        // D-PE-01: PUT con mismo TipoDocumentoId → campos denormalizados populated.
+        var personaId = Guid.NewGuid();
+        var persona = CrearPersonaActiva(
+            "LEG-JOIN-003", personaId,
+            email: "join-update-same@test.com",
+            tipoDocumentoId: TipoDocumentoConstantes.DniId,
+            numeroDocumento: "12345678");
+        var repo = new FakePersonaWriteRepository { Datos = [persona] };
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio();
+        var servicio = CrearServicio(repo, uow, auditoria, new FakeTipoDocumentoCatalogoConsulta());
+
+        var request = new ActualizarPersonaRequest(
+            Legajo: "LEG-JOIN-003",
+            Nombres: "Juan Carlos",
+            Apellidos: "Pérez",
+            Email: "join-update-same@test.com",
+            TipoDocumentoId: TipoDocumentoConstantes.DniId,
+            NumeroDocumento: "12345678",
+            Telefono: null);
+
+        var resultado = await servicio.ActualizarAsync(personaId, request, default);
+
+        Assert.True(resultado.IsSuccess, resultado.Error?.Message);
+        Assert.Equal(TipoDocumentoConstantes.DniId, resultado.Value!.TipoDocumentoId);
+        Assert.NotNull(resultado.Value.TipoDocumentoCodigo);
+        Assert.NotNull(resultado.Value.TipoDocumentoNombre);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_CambiandoTipoDocumento_ReflejaNuevoCodigoYNombre()
+    {
+        // D-PE-01: PUT cambiando de TipoDocumentoId → campos denormalizados
+        // reflejan el nuevo tipo (no el anterior).
+        var personaId = Guid.NewGuid();
+        var persona = CrearPersonaActiva(
+            "LEG-JOIN-004", personaId,
+            email: "join-update-change@test.com",
+            tipoDocumentoId: TipoDocumentoConstantes.DniId,
+            numeroDocumento: "12345678");
+        var repo = new FakePersonaWriteRepository { Datos = [persona] };
+        var uow = new FakeUnitOfWork();
+        var auditoria = new FakeAuditoriaServicio();
+        var servicio = CrearServicio(repo, uow, auditoria, new FakeTipoDocumentoCatalogoConsulta());
+
+        // Cambiamos al bloque Pasaporte y validamos que la respuesta refleja el nuevo.
+        var request = new ActualizarPersonaRequest(
+            Legajo: "LEG-JOIN-004",
+            Nombres: "Juan",
+            Apellidos: "Pérez",
+            Email: "join-update-change@test.com",
+            TipoDocumentoId: TipoDocumentoConstantes.PasaporteId,
+            NumeroDocumento: "ABC123456",
+            Telefono: null);
+
+        var resultado = await servicio.ActualizarAsync(personaId, request, default);
+
+        Assert.True(resultado.IsSuccess, resultado.Error?.Message);
+        Assert.Equal(TipoDocumentoConstantes.PasaporteId, resultado.Value!.TipoDocumentoId);
+        Assert.NotNull(resultado.Value.TipoDocumentoCodigo);
+        Assert.NotNull(resultado.Value.TipoDocumentoNombre);
+        Assert.Equal(TipoDocumentoConstantes.PasaporteCodigo, resultado.Value.TipoDocumentoCodigo);
     }
 }
 

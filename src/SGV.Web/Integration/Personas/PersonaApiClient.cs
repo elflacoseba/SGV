@@ -336,7 +336,11 @@ public sealed class PersonaApiClient(HttpClient httpClient) : IPersonaApiClient
             .ConfigureAwait(false);
         var (categoria, code, message, statusCode) = CommandResultMapper.Map(response, parsed);
 
-        var legacyType = MapCategoriaToLegacyType(categoria);
+        // D-PE-02: mapeo 1-a-1 con ErrorCategoria vía mapper compartido
+        // (single source of truth en ErrorCategoriaMappers). Elimina el
+        // switch privado que colapsaba Unauthorized/Forbidden/Transport/
+        // Unexpected → Validation y disparaba el warning CS8524 endémico.
+        var legacyType = ErrorCategoriaMappers.ToTipoPersona(categoria);
         var error = new PersonaError(legacyType, code, message, statusCode, categoria);
 
         if (parsed.FieldErrors is { Count: > 0 })
@@ -378,25 +382,6 @@ public sealed class PersonaApiClient(HttpClient httpClient) : IPersonaApiClient
 
         return PersonaSkillCommandResult.Failure(error);
     }
-
-    /// <summary>
-    /// Mapea <see cref="ErrorCategoria"/> al <see cref="PersonaErrorType"/>
-    /// legacy preservando source-compat: <c>NotFound/Conflict/Validation</c>
-    /// son 1-a-1; el resto (<c>Unauthorized/Forbidden/Transport/Unexpected</c>)
-    /// colapsa a <see cref="PersonaErrorType.Validation"/> porque el
-    /// enum histórico no tiene variantes equivalentes y la página
-    /// siempre degrada a feedback legible.
-    /// </summary>
-    private static PersonaErrorType MapCategoriaToLegacyType(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => PersonaErrorType.NotFound,
-        ErrorCategoria.Conflict => PersonaErrorType.Conflict,
-        ErrorCategoria.Validation => PersonaErrorType.Validation,
-        ErrorCategoria.Unauthorized => PersonaErrorType.Validation,
-        ErrorCategoria.Forbidden => PersonaErrorType.Validation,
-        ErrorCategoria.Transport => PersonaErrorType.Validation,
-        ErrorCategoria.Unexpected => PersonaErrorType.Validation
-    };
 
     /// <summary>
     /// Mapea <see cref="ErrorCategoria"/> al <see cref="PersonaSkillErrorType"/>

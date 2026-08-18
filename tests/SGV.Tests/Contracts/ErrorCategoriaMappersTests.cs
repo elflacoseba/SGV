@@ -1,6 +1,7 @@
 using SGV.Contracts.Comun;
 using SGV.Contracts.Habilidades.Comandos;
 using SGV.Contracts.Organizacion.Comandos;
+using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Seguridad.Usuarios;
 using Xunit;
 
@@ -321,5 +322,61 @@ public sealed class ErrorCategoriaMappersTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => ErrorCategoriaMappers.ToCategoria((UsuarioErrorType)9999));
+    }
+
+    // ============================================================
+    // PersonaErrorType (7 valores desde D-PE-02: alineado 1-a-1 con ErrorCategoria)
+    // ============================================================
+
+    [Theory]
+    [InlineData(PersonaErrorType.NotFound, ErrorCategoria.NotFound)]
+    [InlineData(PersonaErrorType.Conflict, ErrorCategoria.Conflict)]
+    [InlineData(PersonaErrorType.Validation, ErrorCategoria.Validation)]
+    [InlineData(PersonaErrorType.Unauthorized, ErrorCategoria.Unauthorized)]
+    [InlineData(PersonaErrorType.Forbidden, ErrorCategoria.Forbidden)]
+    [InlineData(PersonaErrorType.Transport, ErrorCategoria.Transport)]
+    [InlineData(PersonaErrorType.Unexpected, ErrorCategoria.Unexpected)]
+    public void ToCategoria_PersonaErrorType_MapsToExpectedCategoria(
+        PersonaErrorType source,
+        ErrorCategoria expected)
+    {
+        Assert.Equal(expected, ErrorCategoriaMappers.ToCategoria(source));
+    }
+
+    [Theory]
+    [InlineData(ErrorCategoria.NotFound, PersonaErrorType.NotFound)]
+    [InlineData(ErrorCategoria.Conflict, PersonaErrorType.Conflict)]
+    [InlineData(ErrorCategoria.Validation, PersonaErrorType.Validation)]
+    [InlineData(ErrorCategoria.Unauthorized, PersonaErrorType.Unauthorized)]
+    [InlineData(ErrorCategoria.Forbidden, PersonaErrorType.Forbidden)]
+    [InlineData(ErrorCategoria.Transport, PersonaErrorType.Transport)]
+    [InlineData(ErrorCategoria.Unexpected, PersonaErrorType.Unexpected)]
+    public void ToTipo_PersonaErrorType_RoundTripAllCategorias(
+        ErrorCategoria categoria,
+        PersonaErrorType expected)
+    {
+        Assert.Equal(expected, ErrorCategoriaMappers.ToTipoPersona(categoria));
+    }
+
+    [Fact]
+    public void ToCategoria_PersonaErrorType_UndefinedValue_ThrowsArgumentOutOfRange()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ErrorCategoriaMappers.ToCategoria((PersonaErrorType)9999));
+    }
+
+    [Fact]
+    public void PersonaErrorType_OrdinalesHistoricos_Preservados()
+    {
+        // Source-compat: las 3 variantes históricas (NotFound/Conflict/
+        // Validation) mantienen sus ordinales 0/1/2 — nadie debería
+        // depender de los nuevos miembros sin haber migrado primero.
+        Assert.Equal(0, (int)PersonaErrorType.NotFound);
+        Assert.Equal(1, (int)PersonaErrorType.Conflict);
+        Assert.Equal(2, (int)PersonaErrorType.Validation);
+        Assert.Equal(3, (int)PersonaErrorType.Unauthorized);
+        Assert.Equal(4, (int)PersonaErrorType.Forbidden);
+        Assert.Equal(5, (int)PersonaErrorType.Transport);
+        Assert.Equal(6, (int)PersonaErrorType.Unexpected);
     }
 }

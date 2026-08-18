@@ -41,7 +41,9 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
     public async Task<IReadOnlyList<PersonaDto>> ListAsync(CancellationToken cancellationToken = default)
     {
         // Cargar el catálogo una sola vez por request para evitar N+1.
-        var tipoLookup = await BuildTipoLookupAsync(cancellationToken).ConfigureAwait(false);
+        var tipoLookup = await TipoDocumentoLookupBuilder
+            .BuildAsync(_tipoDocumentoCatalogo, cancellationToken)
+            .ConfigureAwait(false);
 
         var entities = await _repository.ListAllAsync(cancellationToken).ConfigureAwait(false);
         return entities.Select(p => MapToDto(p, tipoLookup)).ToList();
@@ -54,7 +56,9 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
         {
             return null;
         }
-        var tipoLookup = await BuildTipoLookupAsync(cancellationToken).ConfigureAwait(false);
+        var tipoLookup = await TipoDocumentoLookupBuilder
+            .BuildAsync(_tipoDocumentoCatalogo, cancellationToken)
+            .ConfigureAwait(false);
         return MapToDto(entity, tipoLookup);
     }
 
@@ -63,7 +67,9 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
         CancellationToken cancellationToken = default)
     {
         // Cargar el catálogo una sola vez por request.
-        var tipoLookup = await BuildTipoLookupAsync(cancellationToken).ConfigureAwait(false);
+        var tipoLookup = await TipoDocumentoLookupBuilder
+            .BuildAsync(_tipoDocumentoCatalogo, cancellationToken)
+            .ConfigureAwait(false);
 
         var (items, totalCount) = await _repository.QueryAsync(
             query.Search,
@@ -81,35 +87,29 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
             query.PageSize);
     }
 
+    /// <summary>
+    /// D-PE-03: typeahead server-side. Devuelve hasta <paramref name="take"/>
+    /// personas activas que matchean <paramref name="search"/> substring.
+    /// </summary>
     public async Task<IReadOnlyList<PersonaDto>> BuscarAsync(
         string? search,
         int take = 50,
         bool? soloSinUsuario = null,
         CancellationToken cancellationToken = default)
     {
-        // D-PE-03: typeahead server-side. Carga el catálogo una sola vez
-        // por request y mapea el subset acotado de personas (max 100 por
-        // cap defensivo del repo).
-        var tipoLookup = await BuildTipoLookupAsync(cancellationToken).ConfigureAwait(false);
+        // Cargar el catálogo una sola vez por request y mapear el subset
+        // acotado de personas (max 100 por cap defensivo del repo).
+        // Usa el mismo helper factorizado que ListAsync/GetByIdAsync/ListarAsync
+        // (D-PE-01) para mantener una única fuente de verdad del lookup.
+        var tipoLookup = await TipoDocumentoLookupBuilder
+            .BuildAsync(_tipoDocumentoCatalogo, cancellationToken)
+            .ConfigureAwait(false);
 
         var personas = await _repository
             .BuscarAsync(search, take, soloSinUsuario, cancellationToken)
             .ConfigureAwait(false);
 
         return personas.Select(p => MapToDto(p, tipoLookup)).ToList();
-    }
-
-    /// <summary>
-    /// Construye un lookup Guid → TipoDocumentoDto para resolver el JOIN
-    /// denormalizado en O(1) por persona. Devuelve un diccionario vacío
-    /// si el catálogo no tiene filas (ej. tests con isEmpty=true), en cuyo
-    /// caso los campos denormalizados quedan null.
-    /// </summary>
-    private async Task<IReadOnlyDictionary<Guid, TipoDocumentoDto>> BuildTipoLookupAsync(
-        CancellationToken cancellationToken)
-    {
-        var tipos = await _tipoDocumentoCatalogo.ListarAsync(cancellationToken).ConfigureAwait(false);
-        return tipos.ToDictionary(t => t.Id);
     }
 
     private static PersonaDto MapToDto(
