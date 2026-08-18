@@ -105,22 +105,19 @@ public static class CargoSkillFormHelpers
     {
         ArgumentNullException.ThrowIfNull(modelState);
 
-        if (result.FieldErrors is { Count: > 0 })
+        // Anclaje por fila para los campos del whitelist {NivelRequeridoId,
+        // Ponderacion, EsObligatoria}: el error se asocia a
+        // `Actualizar[skillId].Campo` y lo renderiza el <div class="invalid-feedback">
+        // de la fila correspondiente en Habilidades.cshtml. Para campos fuera del
+        // whitelist (defensa contra drift), el error cae al `string.Empty` para que
+        // el `<div asp-validation-summary="ModelOnly">` del formulario Asignar lo
+        // muestre — sin anclarlo a ninguna fila incorrecta. Sin duplicación: cada
+        // error va exactamente a un destino.
+        if (ApplyFieldErrors(result, modelState, key =>
+            ActualizarFieldWhitelist.Contains(key)
+                ? $"Actualizar[{skillId}].{key}"
+                : string.Empty))
         {
-            foreach (var kvp in result.FieldErrors)
-            {
-                var isWhitelisted = ActualizarFieldWhitelist.Contains(kvp.Key);
-                foreach (var fieldMessage in kvp.Value)
-                {
-                    if (isWhitelisted)
-                    {
-                        modelState.AddModelError($"Actualizar[{skillId}].{kvp.Key}", fieldMessage);
-                    }
-
-                    modelState.AddModelError(string.Empty, fieldMessage);
-                }
-            }
-
             return null;
         }
 

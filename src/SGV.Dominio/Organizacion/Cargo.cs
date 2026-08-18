@@ -69,8 +69,23 @@ public sealed record class Cargo : EntidadAuditable
     }
 
     /// <summary>
-    /// Desactiva el cargo. Si la colección de Puestos está cargada y contiene
-    /// al menos un Puesto activo, lanza <see cref="InvalidOperationException"/>.
+    /// Desactiva el cargo. La verificación autoritativa de la invariante
+    /// "no desactivar un cargo con Puestos subordinados activos" vive en
+    /// <c>CargoServicioComandos.DesactivarAsync</c>, que consulta la base
+    /// de datos vía <c>ICargoRepository.HasActivePuestosAsync</c> antes de
+    /// invocar este método.
+    /// <para>
+    /// El chequeo local sobre <see cref="_puestos"/> que aparece acá es una
+    /// defensa secundaria: solo se evalúa si la navegación a <see cref="Puestos"/>
+    /// fue cargada explícitamente por el caller (e.g. vía
+    /// <c>Include(c =&gt; c.Puestos)</c>). En el camino de producción, la
+    /// navegación NO se carga, por lo que este bloque es dead code en runtime
+    /// pero sirve como guard en memoria cuando alguien rehidrata la entidad
+    /// con la nav incluida y luego invoca <c>Desactivar()</c> directamente
+    /// sin pasar por el servicio. No es la regla de negocio autoritativa;
+    /// confiar siempre en el chequeo del servicio para evitar desactivaciones
+    /// inválidas.
+    /// </para>
     /// </summary>
     public void Desactivar()
     {

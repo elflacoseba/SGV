@@ -235,18 +235,21 @@ public sealed partial class CargoHabilidadesPageTests
     // ──────────────────────────────────────────────
 
     [Fact]
-    public async Task PostActualizar_BackendPonderacionFieldError_RendersErrorInActualizarRowAndSummary()
+    public async Task PostActualizar_BackendPonderacionFieldError_RendersErrorOnlyInActualizarRow()
     {
         // Req 3 escenario "Error de validación anclado a la fila correcta":
         // cuando el backend rechaza una edición con FieldErrors por campo,
         // el mensaje MUST aparecer anclado al input Ponderacion de la fila
-        // editada (no bajo AsignarInput.*) Y en el validation-summary
-        // general. La fila se identifica por su skillId en la convención
-        // Actualizar[{skillId}].Campo (form keys indexadas — ver
-        // BuildActualizarForm). Esta cobertura asume remediación: el
+        // editada (no bajo AsignarInput.*) y NO debe duplicarse al
+        // validation-summary general. La fila se identifica por su skillId
+        // en la convención Actualizar[{skillId}].Campo (form keys indexadas
+        // — ver BuildActualizarForm). Esta cobertura asume remediación: el
         // handler lee los valores directamente desde Request.Form bajo el
-        // prefijo Actualizar[{skillId}]. y el helper inyecta el error
-        // bajo ModelState[$"Actualizar[{skillId}].Ponderacion"].
+        // prefijo Actualizar[{skillId}]. y el helper inyecta el error bajo
+        // ModelState[$"Actualizar[{skillId}].Ponderacion"] SIN duplicar al
+        // summary (string.Empty). El bug original agregaba el error dos veces
+        // (una anclada + una al summary), lo cual mostraba el mismo mensaje
+        // dos veces en pantalla.
         var cargoId = Guid.NewGuid();
         var skillId = Guid.NewGuid();
         var nivelId = Guid.NewGuid();
@@ -293,18 +296,20 @@ public sealed partial class CargoHabilidadesPageTests
 
         var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
-        // El mensaje del backend (no el [Range] local) debe aparecer
-        // anclado a la fila correcta bajo la convención Actualizar[xxx].
-        // Esta aserción distingue el camino de ApplyActualizarFailureToModelState
-        // del helper legacy que mapeaba todo a AsignarInput.*. La fila se
-        // identifica por su form único (cada fila es su propio <form>) y la
-        // presencia del mensaje se valida por su aparición en el HTML
-        // renderizado cerca del nombre del nivel (anchor de fila).
+        // El mensaje del backend aparece anclado a la fila correcta bajo la
+        // convención Actualizar[xxx]. El helper legacy que mapeaba todo a
+        // AsignarInput.* queda descartado por construcción. La fila se
+        // identifica por su form único (cada fila es su propio <form>) y
+        // la presencia del mensaje se valida por su aparición en el HTML
+        // renderizado dentro del <div class="invalid-feedback d-block"> de
+        // la fila.
         Assert.Contains("Fuera de rango", content, StringComparison.OrdinalIgnoreCase);
-        // El mensaje debe aparecer al menos dos veces: una en el contenedor
-        // per-row (invalid-feedback d-block) y otra en el validation-summary.
+
+        // El mensaje debe aparecer EXACTAMENTE una vez — en el contenedor
+        // per-row. El bug original duplicaba al validation-summary del form
+        // Asignar; el comportamiento actual lo corrige.
         var occurrences = Regex.Matches(content, "Fuera de rango", RegexOptions.IgnoreCase).Count;
-        Assert.True(occurrences >= 2, $"Expected the field error to appear at least twice (per-row + summary), but found {occurrences}.");
+        Assert.Equal(1, occurrences);
     }
 
     [Fact]
@@ -382,9 +387,12 @@ public sealed partial class CargoHabilidadesPageTests
         // se hace POST Actualizar sobre skill-A, y se verifica que:
         //   (a) el mensaje aparece asociado a la fila de skill-A (Liderazgo),
         //   (b) NO aparece asociado a la fila de skill-B (Comunicación),
-        //   (c) aparece también en el validation-summary general.
+        //   (c) NO aparece en el validation-summary general del form Asignar
+        //       (el bug original lo duplicaba ahí; el helper actual lo ancla
+        //       exclusivamente a la fila editada).
         // Si el helper dejara escapar el error al summary sin anclar por
-        // fila, las aserciones (a)/(b) fallarían ruidosamente.
+        // fila, las aserciones (a)/(b) fallarían ruidosamente. Si volviera a
+        // duplicar al summary, la aserción (c) fallaría.
         var cargoId = Guid.NewGuid();
         var skillAId = Guid.NewGuid();
         var skillBId = Guid.NewGuid();
@@ -441,11 +449,10 @@ public sealed partial class CargoHabilidadesPageTests
         var upsert = Assert.Single(apiClient.SkillUpsertCalls);
         Assert.Equal(skillAId, upsert.SkillId);
 
-var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
 
-        // (c) Aparece en el validation-summary general.
+        // El mensaje aparece en algún lugar del HTML (anclado a la fila A).
         Assert.Contains("Anclaje-por-fila A", content, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("validation-summary-errors", content, StringComparison.OrdinalIgnoreCase);
 
         // (a) Aparece anclado a la fila de skill-A. Para distinguir el
         // anclaje per-row del summary, recortamos la sección entre la
@@ -480,6 +487,13 @@ var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync())
             "Anclaje-por-fila A",
             sliceB,
             StringComparison.OrdinalIgnoreCase);
+
+        // (c) NO debe aparecer en el validation-summary general del form
+        // Asignar. El helper ancla el error exclusivamente a la fila editada;
+        // el bug original lo duplicaba al summary del form Asignar (visible
+        // como "validation-summary-errors" en el HTML). El comportamiento
+        // actual elimina esa duplicación.
+        Assert.DoesNotContain("validation-summary-errors", content, StringComparison.OrdinalIgnoreCase);
     }
 
     // ──────────────────────────────────────────────

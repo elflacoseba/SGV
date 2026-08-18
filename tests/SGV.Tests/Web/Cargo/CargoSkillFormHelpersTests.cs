@@ -53,7 +53,7 @@ public sealed class CargoSkillFormHelpersTests
     }
 
     [Fact]
-    public void ApplyActualizarFailureToModelState_WhitelistedField_AnchorsToRowAndSummary()
+    public void ApplyActualizarFailureToModelState_WhitelistedField_AnchorsToRowOnly()
     {
         var skillId = Guid.NewGuid();
         var modelState = new ModelStateDictionary();
@@ -66,10 +66,62 @@ public sealed class CargoSkillFormHelpersTests
 
         CargoSkillFormHelpers.ApplyActualizarFailureToModelState(skillId, result, modelState);
 
+        // El campo whitelisted se ancla a la fila Actualizar[skillId].Ponderacion.
         Assert.True(modelState.ContainsKey($"Actualizar[{skillId}].Ponderacion"));
-        Assert.True(modelState.ContainsKey(string.Empty));
         Assert.Contains(modelState[$"Actualizar[{skillId}].Ponderacion"]!.Errors, error => error.ErrorMessage == "Fuera de rango");
-        Assert.Contains(modelState[string.Empty]!.Errors, error => error.ErrorMessage == "Fuera de rango");
+
+        // Y NO se duplica al summary general (sin string.Empty con el mismo mensaje).
+        Assert.False(modelState.ContainsKey(string.Empty));
+        Assert.DoesNotContain(modelState, kv => kv.Key == string.Empty && kv.Value!.Errors.Any(e => e.ErrorMessage == "Fuera de rango"));
+    }
+
+    [Fact]
+    public void ApplyActualizarFailureToModelState_NonWhitelistedField_RoutesToSummaryOnly()
+    {
+        var skillId = Guid.NewGuid();
+        var modelState = new ModelStateDictionary();
+        var result = CargoSkillCommandResult.Failure(
+            new CargoSkillError(CargoSkillErrorType.Validation, "DatosInvalidos", "Invalid."),
+            new Dictionary<string, string[]>
+            {
+                ["OtroCampo"] = ["Error defensivo"]
+            });
+
+        CargoSkillFormHelpers.ApplyActualizarFailureToModelState(skillId, result, modelState);
+
+        // Campo fuera del whitelist: NO se ancla a la fila.
+        Assert.False(modelState.ContainsKey($"Actualizar[{skillId}].OtroCampo"));
+
+        // Va al summary general (asp-validation-summary del form Asignar lo muestra).
+        Assert.True(modelState.ContainsKey(string.Empty));
+        Assert.Contains(modelState[string.Empty]!.Errors, error => error.ErrorMessage == "Error defensivo");
+    }
+
+    [Fact]
+    public void ApplyActualizarFailureToModelState_MixedFields_AnchorsWhitelistedAndSummarizesRest()
+    {
+        var skillId = Guid.NewGuid();
+        var modelState = new ModelStateDictionary();
+        var result = CargoSkillCommandResult.Failure(
+            new CargoSkillError(CargoSkillErrorType.Validation, "DatosInvalidos", "Invalid."),
+            new Dictionary<string, string[]>
+            {
+                ["Ponderacion"] = ["Fuera de rango"],
+                ["OtroCampo"] = ["Error defensivo"]
+            });
+
+        CargoSkillFormHelpers.ApplyActualizarFailureToModelState(skillId, result, modelState);
+
+        // El whitelisted va anclado.
+        Assert.True(modelState.ContainsKey($"Actualizar[{skillId}].Ponderacion"));
+        Assert.False(modelState.ContainsKey($"Actualizar[{skillId}].OtroCampo"));
+
+        // El defensivo va al summary (string.Empty).
+        Assert.True(modelState.ContainsKey(string.Empty));
+        Assert.Contains(modelState[string.Empty]!.Errors, error => error.ErrorMessage == "Error defensivo");
+
+        // El whitelisted NO se duplica al summary (sin duplicación).
+        Assert.DoesNotContain(modelState[string.Empty]!.Errors, error => error.ErrorMessage == "Fuera de rango");
     }
 
     [Fact]

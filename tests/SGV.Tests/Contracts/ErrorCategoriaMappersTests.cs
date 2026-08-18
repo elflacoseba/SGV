@@ -78,13 +78,18 @@ public sealed class ErrorCategoriaMappersTests
     }
 
     // ============================================================
-    // CargoErrorType (3 valores: NotFound, Conflict, Validation)
+    // CargoErrorType (7 valores: NotFound, Conflict, Validation,
+    //                 Unauthorized, Forbidden, Transport, Unexpected)
     // ============================================================
 
     [Theory]
     [InlineData(CargoErrorType.NotFound, ErrorCategoria.NotFound)]
     [InlineData(CargoErrorType.Conflict, ErrorCategoria.Conflict)]
     [InlineData(CargoErrorType.Validation, ErrorCategoria.Validation)]
+    [InlineData(CargoErrorType.Unauthorized, ErrorCategoria.Unauthorized)]
+    [InlineData(CargoErrorType.Forbidden, ErrorCategoria.Forbidden)]
+    [InlineData(CargoErrorType.Transport, ErrorCategoria.Transport)]
+    [InlineData(CargoErrorType.Unexpected, ErrorCategoria.Unexpected)]
     public void ToCategoria_CargoErrorType_MapsToExpectedCategoria(
         CargoErrorType source,
         ErrorCategoria expected)
@@ -96,21 +101,20 @@ public sealed class ErrorCategoriaMappersTests
     [InlineData(ErrorCategoria.NotFound, CargoErrorType.NotFound)]
     [InlineData(ErrorCategoria.Conflict, CargoErrorType.Conflict)]
     [InlineData(ErrorCategoria.Validation, CargoErrorType.Validation)]
-    [InlineData(ErrorCategoria.Transport, CargoErrorType.Validation)]
-    [InlineData(ErrorCategoria.Unexpected, CargoErrorType.Validation)]
-    public void ToTipo_CargoErrorType_RoundTripAndFallbackToValidation(
+    [InlineData(ErrorCategoria.Unauthorized, CargoErrorType.Unauthorized)]
+    [InlineData(ErrorCategoria.Forbidden, CargoErrorType.Forbidden)]
+    [InlineData(ErrorCategoria.Transport, CargoErrorType.Transport)]
+    [InlineData(ErrorCategoria.Unexpected, CargoErrorType.Unexpected)]
+    public void ToTipo_CargoErrorType_RoundTripPreservesSemanticName(
         ErrorCategoria categoria,
         CargoErrorType expected)
     {
+        // Alineado 1-a-1 con ErrorCategoria desde el housekeeping
+        // cargos-release (2026-08-18). Antes, Unauthorized/Forbidden/Transport/
+        // Unexpected colapsaban a Validation por compat histórica con la
+        // API legacy del cliente web. Ahora cada categoria tiene su
+        // variante propia en CargoErrorType, igual que CargoSkillErrorType.
         Assert.Equal(expected, ErrorCategoriaMappers.ToTipoCargo(categoria));
-    }
-
-    [Theory]
-    [InlineData(ErrorCategoria.Unauthorized)]
-    [InlineData(ErrorCategoria.Forbidden)]
-    public void ToTipo_CargoErrorType_NoEquivalente_ThrowsNotSupported(ErrorCategoria unsupported)
-    {
-        Assert.Throws<NotSupportedException>(() => ErrorCategoriaMappers.ToTipoCargo(unsupported));
     }
 
     [Fact]

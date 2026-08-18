@@ -76,37 +76,43 @@ public static class ErrorCategoriaMappers
 
     /// <summary>
     /// Traduce <see cref="CargoErrorType"/> al <see cref="ErrorCategoria"/>
-    /// equivalente.
+    /// equivalente. La relación es 1-a-1 desde el housekeeping
+    /// cargos-release (2026-08-18): las categorías se alinean con
+    /// <see cref="CargoSkillErrorType"/> para evitar el colapsamiento
+    /// histórico que mapeaba <c>Unauthorized</c>/<c>Forbidden</c>/<c>Transport</c>
+    /// a <c>Validation</c>.
     /// </summary>
     public static ErrorCategoria ToCategoria(CargoErrorType type) => type switch
     {
         CargoErrorType.NotFound => ErrorCategoria.NotFound,
         CargoErrorType.Conflict => ErrorCategoria.Conflict,
         CargoErrorType.Validation => ErrorCategoria.Validation,
+        CargoErrorType.Unauthorized => ErrorCategoria.Unauthorized,
+        CargoErrorType.Forbidden => ErrorCategoria.Forbidden,
+        CargoErrorType.Transport => ErrorCategoria.Transport,
+        CargoErrorType.Unexpected => ErrorCategoria.Unexpected,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type,
             $"CargoErrorType value '{type}' has no categoria mapping."),
     };
 
     /// <summary>
     /// Traduce <see cref="ErrorCategoria"/> al <see cref="CargoErrorType"/>
-    /// equivalente. <c>Transport</c> y <c>Unexpected</c> colapsan a
-    /// <c>Validation</c> por compat con la API histórica del cliente
-    /// (los clientes <c>CargoApiClient</c> previos colapsaban 5xx en
-    /// <c>Validation</c>); las categorías <c>Unauthorized</c> y
-    /// <c>Forbidden</c> no tienen equivalente y lanzan
-    /// <see cref="NotSupportedException"/>.
+    /// equivalente. Mapeo 1-a-1 con todas las variantes de
+    /// <see cref="ErrorCategoria"/>; los call sites que solo necesitan
+    /// <c>NotFound</c>/<c>Conflict</c>/<c>Validation</c> deben ramificar
+    /// por <see cref="ErrorCategoria"/> directamente y dejar el legacy
+    /// <c>CargoErrorType</c> solo para APIs que aún dependen del campo
+    /// <c>Type</c>.
     /// </summary>
     public static CargoErrorType ToTipoCargo(ErrorCategoria categoria) => categoria switch
     {
         ErrorCategoria.NotFound => CargoErrorType.NotFound,
         ErrorCategoria.Conflict => CargoErrorType.Conflict,
         ErrorCategoria.Validation => CargoErrorType.Validation,
-        ErrorCategoria.Transport => CargoErrorType.Validation,
-        ErrorCategoria.Unexpected => CargoErrorType.Validation,
-        ErrorCategoria.Unauthorized => throw new NotSupportedException(
-            "CargoErrorType no tiene variante Unauthorized."),
-        ErrorCategoria.Forbidden => throw new NotSupportedException(
-            "CargoErrorType no tiene variante Forbidden."),
+        ErrorCategoria.Unauthorized => CargoErrorType.Unauthorized,
+        ErrorCategoria.Forbidden => CargoErrorType.Forbidden,
+        ErrorCategoria.Transport => CargoErrorType.Transport,
+        ErrorCategoria.Unexpected => CargoErrorType.Unexpected,
     };
 
     // ============================================================
