@@ -1808,3 +1808,92 @@ información. El repo LINQ y el controller no se tocan.
 - **D3 — Captura de `VigenteEn` en IndexModel:** parámetro del handler `OnGetAsync` (§281.5), preservado en todos los route values y propagado vía `returnVigenteEn` a Details/Edit/Create. Formato `yyyy-MM-dd` invariante para evitar binding frágil (§281.4).
 
 
+
+## Housekeeping pre-release del módulo de Personas
+
+> PR: `https://github.com/elflacoseba/SGV/pull/292` (D-PE-01), `https://github.com/elflacoseba/SGV/pull/293` (D-PE-02), `https://github.com/elflacoseba/SGV/pull/294` (D-PE-03), `https://github.com/elflacoseba/SGV/pull/295` (D-PE-04).
+> Branch base: `develop`.
+> Squash commits: `72d41fc5` (D-PE-01), `2ae58e6e` (D-PE-02), `9e440418` (D-PE-03), `347b8f93` (D-PE-04).
+> Fecha: 2026-08-18.
+
+Cierra los cuatro puntos pendientes del análisis release-readiness del módulo de Personas (Dominio, Aplicación, Infraestructura, API, Web) documentado en engram (memoria `obs-b0858b96ab7e6141`, topic `decision/an-lisis-release-readiness-del-m-dulo-personas-sgv`). Cubre un bug funcional real, dos armonizaciones de contratos, una capacidad nueva server-side y una limpieza de slot muerto; ninguno es breaking change para integraciones externas. La suite del módulo pasa 100% estable en cada PR.
+
+### D-PE-01 — JOIN denormalizado en `PersonaServicioComandos.MapToDto` (issue #288, PR #292)
+
+`PersonaServicioComandos.MapToDto` emitía `TipoDocumentoCodigo: null` y `TipoDocumentoNombre: null` en las respuestas de POST y PUT, mientras que `PersonaServicioConsulta` sí proyectaba esos campos vía JOIN denormalizado contra `TiposDocumento` (PR2 del change #147). La inconsistencia estaba documentada como follow-up diferido en el archive-report del change `2026-07-20-147-tipos-documento-catalgo` (sección "Decisiones clave tomadas" #6 y "Follow-ups identificados" #1).
+
+En el flujo web la inconsistencia era inocua porque Create/Edit redirigen a Details que vuelve a llamar a la API; **pero para integraciones externas que consuman la respuesta inmediata de POST/PUT el contrato era incorrecto** (DTO con campos siempre null para `TipoDocumentoCodigo` y `TipoDocumentoNombre`).
+
+**Cambio aplicado:**
+
+- Nuevo helper estático `SGV.Aplicacion.Personas.Consultas.TipoDocumentoLookupBuilder` (factor de `BuildAsync(catalogo, ct)` que devuelve `IReadOnlyDictionary<Guid, TipoDocumentoDto>`). Centraliza la query al catálogo para que ambos servicios — consulta y comandos — compartan la misma lógica de lookup y emitan los mismos campos denormalizados.
+- `PersonaServicioComandos` ahora inyecta `ITipoDocumentoCatalogoConsulta` en el constructor primario; los 4 endpoints (`Crear`/`Actualizar`/`Desactivar`/`Reactivar`) proyectan el JOIN denormalizado en su respuesta. Constructor de back-compat (3 parámetros) usa stub vacío que mantiene los campos denormalizados en `null` (útil para tests que no necesitan ejercitar el JOIN).
+- `PersonaServicioConsulta` refactorizado para reusar el nuevo helper (mismo resultado, factorizado).
+- 4 tests nuevos en `PersonaServicioComandosTests`: POST con `TipoDocumentoId` poblado, POST con `null`, PUT manteniendo el tipo, PUT cambiando de tipo (DNI → Pasaporte). Todos verifican `TipoDocumentoCodigo`/`TipoDocumentoNombre` populated con los códigos canónicos del catálogo.
+
+**Compatibilidad:** source-breaking NO. Wire-breaking NO (mejora del contrato del DTO; los campos ya existían en el shape, antes venían null). DB-breaking NO.
+
+### D-PE-02 — `PersonaErrorType` expandido a 7 variantes alineadas 1-a-1 con `ErrorCategoria` (issue #289, PR #293)
+
+`PersonaErrorType` (`SGV.Contracts.Personas.Comandos.PersonaErrorType`) tenía 3 variantes (`NotFound`/`Conflict`/`Validation`). Mientras tanto, `CargoErrorType` ya se había expandido a 7 variantes en D-CH-04 (housekeeping de Cargos, PR #287) y `PersonaSkillErrorType` cubría las 7. El `MapCategoriaToLegacyType` privado de `PersonaApiClient` colapsaba `Unauthorized`/`Forbidden`/`Transport`/`Unexpected` → `Validation`, generando el warning CS8524 endémico (mismo warning que Cargos tenía antes de D-CH-04).
+
+**Cambio aplicado:**
+
+- `PersonaErrorType` expandido de 3 a 7 variantes con ordinales explícitos: `NotFound=0`, `Conflict=1`, `Validation=2` (preservados), `Unauthorized=3`, `Forbidden=4`, `Transport=5`, `Unexpected=6` (nuevos). Preservar los ordinales 0/1/2 garantiza source-compat con callers que dependan de `(int)PersonaErrorType.X`.
+- `SGV.Contracts.Comun.ErrorCategoriaMappers` ahora expone `ToCategoria(PersonaErrorType)` y `ToTipoPersona(ErrorCategoria)` con mapeo 1-a-1 exhaustivo. La matriz sigue el mismo patrón de `ToCategoria(CargoErrorType)` / `ToTipoCargo(ErrorCategoria)` (precedente D-CH-04).
+- `MapCategoriaToLegacyType` privado del `PersonaApiClient` eliminado y reemplazado por `ErrorCategoriaMappers.ToTipoPersona(categoria)`. **Elimina el warning CS8524 endémico** del módulo Personas.
+- 3 tests nuevos en `ErrorCategoriaMappersTests`: round-trip de las 7 variantes, undefined ordinal lanza `ArgumentOutOfRangeException`, ordinales históricos preservados (regresión explícita contra el ordinal).
+
+**Compatibilidad:** source-breaking NO (ordinales preservados). Wire-breaking NO (el JSON shape del DTO `PersonaError` no cambia — campo `Categoria` ya es `ErrorCategoria`). DB-breaking NO.
+
+### D-PE-03 — Typeahead server-side vía `GET /api/v1/personas/buscar?q={term}` (issue #290, PR #294)
+
+`Shared/_PersonaTypeahead.cshtml` consumía `GET /api/v1/personas` completo (sin paginar) y filtraba client-side con debounce de 250ms. Asunción operativa documentada en `docs/decisiones-implementacion.md` (sección "Frontend CRUD de Personas"): dataset activo típico <500 personas (~100 KB de payload); por encima de ese umbral, latencia de carga y memoria retenida se degradaban. Follow-up documentado: agregar endpoint server-side.
+
+**Cambio aplicado:**
+
+- Nuevo endpoint `GET /api/v1/personas/buscar?q={term}&take={n}&soloSinUsuario={bool}` en `PersonasController` (cualquier usuario autenticado, lectura). Validación de `take >= 1` con 400 + ProblemDetails para inputs inválidos. Documentación Swagger completa (200/401/400).
+- Nuevo método `IPersonaRepository.BuscarAsync` + implementación en `PersonaRepository` que reutiliza el predicado substring (`Legajo|Nombres|Apellidos|Email|NumeroDocumento`) y el anti-join contra `AspNetUsers.PersonaId` del método `QueryAsync`. **Cap defensivo de 100** resultados para evitar reproducir el problema del payload inicial.
+- Nuevo método `IPersonaServicioConsulta.BuscarAsync` que delega al repo y aplica el JOIN denormalizado del catálogo `TiposDocumento` (mismo lookup que ya usa `ListarAsync`).
+- `IPersonaApiClient.BuscarAsync` + implementación `PersonaApiClient.BuscarAsync` que construye la query string con `Uri.EscapeDataString` y deserializa la respuesta.
+- `PersonaTypeaheadViewModel.AllPersonas` cambia de requerido a opcional (default `[]`); agregada propiedad `Take` (default 50) para configurar el límite del endpoint desde el host. Back-compat: hosts que aún populen `AllPersonas` siguen funcionando idénticamente.
+- 5 tests nuevos en `PersonasControllerTests`: sin credenciales (401), autenticado (200 + propagación de q/take/soloSinUsuario), `take=0` (400), default `take=50`.
+- 1 test nuevo en `PersonaServicioConsultaTests`: `FakePersonaRepository.BuscarAsync` con contador para assertions + filtro substring mirror del repo de producción.
+- `IPersonaApiClientContractTests` actualizado de 12 a 13 métodos públicos (suma `BuscarAsync`).
+
+**Compatibilidad:** source-breaking NO (`AllPersonas` opcional por back-compat). Wire-breaking NO (nuevo endpoint, no se modifican los existentes). DB-breaking NO.
+
+**El cambio del partial `_PersonaTypeahead.cshtml` y el JS `personas-typeahead.js` para que el cliente web consuma el nuevo endpoint** queda como follow-up de un PR sub-siguiente (no incluido aquí para mantener este PR enfocado en backend + cliente HTTP + tests). Documentado como `D-PE-03b` (issue de seguimiento sugerido).
+
+### D-PE-04 — Eliminar slot contextual Legajo sin uso (issue #291, PR #295)
+
+`Create.cshtml.cs` y `Edit.cshtml.cs` tenían slots reservados para una advertencia contextual sobre Legajo (`ShowLegajoContextWarning`, `LegajoContextWarningMessage`) heredados de `IPersonaForm`, más una rama condicional en el partial `_Form.cshtml`. El flag siempre devolvía `false` y el mensaje `null` desde la implementación de #202. Patrón enchufable pero sin uso actual.
+
+Recomendación adoptada: **eliminar el slot y la dependencia del partial** (no preemptivo). El módulo downstream que lo necesite nunca se materializó e Issue #202 (Legajo opcional) ya está cerrado. El principio "no crear interfaces únicamente para satisfacer una preferencia arquitectónica abstracta" aplica.
+
+**Cambio aplicado:**
+
+- `IPersonaForm`: eliminadas `ShowLegajoContextWarning` y `LegajoContextWarningMessage` con sus XML docs.
+- `Create.cshtml.cs` y `Edit.cshtml.cs`: eliminadas las mismas properties con sus XML docs.
+- `_Form.cshtml`: eliminada la rama condicional del `<span data-legajo-context-warning>` y la lógica de `mostrarWarning`/`mensajeWarning`. El campo Legajo queda plano.
+
+**Compatibilidad:** source-breaking NO (las props NO son referenciadas por código de producción; sólo tests y slots muertos). Wire-breaking NO. DB-breaking NO.
+
+**Si en el futuro un módulo downstream necesita la advertencia contextual**, se reintroduce con alcance concreto siguiendo el patrón de `Issue #202`: propiedad + rama en partial + activación desde el host. No preemptivo.
+
+### Estado de release del módulo de Personas
+
+Tras estos 4 PRs mergeados a `develop`, el módulo de Personas queda **release-ready** sin pendientes abiertos en código ni en docs:
+
+- ✅ Build verde, 0 errores.
+- ✅ Suite del módulo pasa 100% estable en cada PR (676 → 681 → 681 → 676 tests passing al merge de cada PR).
+- ✅ 5 specs canónicos en `openspec/specs/` (persona-management, persona-skill-query-contract, persona-skill-web-management, persona-card-partial, persona-format-helper); 0 cambios activos en `openspec/changes/`.
+- ✅ 4 issues de housekeeping cerrados (#288, #289, #290, #291); 0 issues pendientes sobre el módulo.
+- ✅ CS8524 (warning endémico de switch no exhaustivo sobre `ErrorCategoria`) eliminado del módulo Personas.
+- ✅ Compatibilidad preservada en los 4 cambios: source/wire/DB-breaking NO en ninguno.
+
+### Follow-ups documentados (fuera de este change)
+
+1. **D-PE-03b — Refactor del partial `_PersonaTypeahead.cshtml` + `personas-typeahead.js`** para consumir `GET /api/v1/personas/buscar` server-side (D-PE-). El backend está release-ready en PR #294; el cambio del front queda para un PR sub-siguiente que NO mezcle las dos mitades. Backlog del módulo.
+2. **D-PE-05 (futuro)** — Cuando los enums legacy (`PersonaErrorType`, `CargoErrorType`, `PersonaSkillErrorType`, etc.) se eliminen al archivar el change `commandresult-error-taxonomy`, eliminar `MapCategoriaToLegacyType` de cada cliente y `ErrorCategoriaMappers.ToTipoX` correspondientes. Single source of truth queda en `ErrorCategoria`.
+3. **D-PE-07 (operativo)** — Si `SELECT COUNT(*) FROM Personas WHERE IsActive` supera el umbral de 500 personas activas, auditar el tamaño del payload inicial que aún cargan hosts que pre-populan `PersonaTypeaheadViewModel.AllPersonas`. Los que sigan con la legacy deben migrar al endpoint `buscar`.
