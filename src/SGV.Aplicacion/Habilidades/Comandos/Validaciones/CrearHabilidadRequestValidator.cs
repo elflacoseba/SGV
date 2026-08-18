@@ -1,5 +1,6 @@
 using FluentValidation;
 using SGV.Contracts.Habilidades.Comandos;
+using SGV.Dominio.Habilidades;
 
 namespace SGV.Aplicacion.Habilidades.Comandos.Validaciones;
 
@@ -18,11 +19,11 @@ public class CrearHabilidadRequestValidator : AbstractValidator<CrearHabilidadRe
     {
         RuleFor(x => x.Codigo)
             .NotEmpty()
-            .MaximumLength(50);
+            .MaximumLength(HabilidadRules.CodigoMaxLength);
 
         RuleFor(x => x.Nombre)
             .NotEmpty()
-            .MaximumLength(200);
+            .MaximumLength(HabilidadRules.NombreMaxLength);
 
         // CategoriaId opcional por shape; si se informa, NO debe ser Guid.Empty.
         RuleFor(x => x.CategoriaId!.Value)
@@ -31,6 +32,6 @@ public class CrearHabilidadRequestValidator : AbstractValidator<CrearHabilidadRe
             .WithName("CategoriaId");
 
         RuleFor(x => x.Descripcion)
-            .MaximumLength(1000);
+            .MaximumLength(HabilidadRules.DescripcionMaxLength);
     }
 }
