@@ -1137,6 +1137,53 @@ public sealed class OcupacionServicioComandosTests
         Assert.Equal(1, uow.SaveChangesCount); // intentó, falló
     }
 
+    /// <summary>
+    /// D-4 (vacantes-hardening): cuando la carrera atómica de doble
+    /// cobertura de la misma Vacante choca con la constraint única
+    /// <c>IX_Ocupaciones_VacanteIdUnique</c>, el servicio DEBE mapear el
+    /// <see cref="DbUpdateException"/> a
+    /// <see cref="OcupacionErrorCodigo.VacanteYaCubierta"/> (no
+    /// genérico <c>DatosInvalidos</c>).
+    /// </summary>
+    [Fact]
+    public async Task CrearAsync_Cubrir_ViolacionConstraintUnica_MapeaVacanteYaCubierta()
+    {
+        var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var constraintDetector = new FakeConstraintViolationDetector
+        {
+            ConstraintName = "IX_Ocupaciones_VacanteIdUnique"
+        };
+        var uow = new FakeUnitOfWork
+        {
+            ThrowOnSaveChanges = new DbUpdateException(
+                "Duplicate entry 'X' for key 'Ocupaciones.IX_Ocupaciones_VacanteIdUnique'")
+        };
+        var servicio = new OcupacionServicioComandos(
+            ocupacionRepo, personaRepo, puestoRepo, uow,
+            constraintDetector,
+            new FakeLogger<OcupacionServicioComandos>(),
+            new CrearOcupacionRequestValidator(),
+            new ActualizarOcupacionRequestValidator(),
+            new FinalizarOcupacionRequestValidator(),
+            trackingRepo,
+            new FakeEstadoVacanteRepository { SoloCubierta = false },
+            new FakeUsuarioActual());
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdAbierta, puestoId: PuestoIdActivo),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
+        Assert.Equal(OcupacionErrorCodigo.VacanteYaCubierta, resultado.Error.Code);
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private static OcupacionServicioComandos CrearServicio(
@@ -1426,7 +1473,15 @@ internal sealed class FakeLogger<T> : ILogger<T>
 
 internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
 {
+    /// <summary>
+    /// Nombre de constraint a devolver por <see cref="GetUniqueConstraintName"/>.
+    /// Default = null (no discrimina).
+    /// </summary>
+    public string? ConstraintName { get; set; }
+
     public bool IsConstraintViolation(DbUpdateException ex) => true;
+
+    public string? GetUniqueConstraintName(DbUpdateException exception) => ConstraintName;
 }
 
 internal sealed class FakeVacanteLookupRepository : IVacanteRepository

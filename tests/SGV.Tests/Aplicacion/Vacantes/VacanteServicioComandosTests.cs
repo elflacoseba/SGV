@@ -1197,5 +1197,13 @@ internal sealed class FakeLogger<T> : ILogger<T>
 
 internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
 {
+    /// <summary>
+    /// Nombre de constraint a devolver por <see cref="GetUniqueConstraintName"/>.
+    /// Default = null (no discrimina).
+    /// </summary>
+    public string? ConstraintName { get; set; }
+
     public bool IsConstraintViolation(DbUpdateException ex) => true;
+
+    public string? GetUniqueConstraintName(DbUpdateException exception) => ConstraintName;
 }

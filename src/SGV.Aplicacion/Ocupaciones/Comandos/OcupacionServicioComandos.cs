@@ -395,6 +395,21 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             logger.LogWarning(ex, "Constraint violation in {Method}: {Message}",
                 nameof(CrearOcupacionCubriendoVacanteAsync), ex.Message);
+
+            // D-4 (vacantes-hardening): la constraint única
+            // IX_Ocupaciones_VacanteIdUnique rechaza la segunda cobertura
+            // concurrente de la misma Vacante. Mapeamos el nombre del
+            // índice a VacanteYaCubierta para que el cliente reciba un
+            // 409 semánticamente correcto en lugar del genérico
+            // DatosInvalidos.
+            var constraintName = constraintDetector.GetUniqueConstraintName(ex);
+            if (constraintName == "IX_Ocupaciones_VacanteIdUnique")
+            {
+                return OcupacionCommandResult.Failure(
+                    new(ErrorCategoria.Conflict, OcupacionErrorCodigo.VacanteYaCubierta,
+                        "La Vacante ya tiene una Ocupación vigente vinculada."));
+            }
+
             return OcupacionCommandResult.Failure(
                 new(ErrorCategoria.Conflict, "DatosInvalidos", ex.Message));
         }
