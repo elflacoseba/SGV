@@ -41,7 +41,9 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
     public async Task<IReadOnlyList<PersonaDto>> ListAsync(CancellationToken cancellationToken = default)
     {
         // Cargar el catálogo una sola vez por request para evitar N+1.
-        var tipoLookup = await BuildTipoLookupAsync(cancellationToken).ConfigureAwait(false);
+        var tipoLookup = await TipoDocumentoLookupBuilder
+            .BuildAsync(_tipoDocumentoCatalogo, cancellationToken)
+            .ConfigureAwait(false);
 
         var entities = await _repository.ListAllAsync(cancellationToken).ConfigureAwait(false);
         return entities.Select(p => MapToDto(p, tipoLookup)).ToList();
@@ -54,7 +56,9 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
         {
             return null;
         }
-        var tipoLookup = await BuildTipoLookupAsync(cancellationToken).ConfigureAwait(false);
+        var tipoLookup = await TipoDocumentoLookupBuilder
+            .BuildAsync(_tipoDocumentoCatalogo, cancellationToken)
+            .ConfigureAwait(false);
         return MapToDto(entity, tipoLookup);
     }
 
@@ -63,7 +67,9 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
         CancellationToken cancellationToken = default)
     {
         // Cargar el catálogo una sola vez por request.
-        var tipoLookup = await BuildTipoLookupAsync(cancellationToken).ConfigureAwait(false);
+        var tipoLookup = await TipoDocumentoLookupBuilder
+            .BuildAsync(_tipoDocumentoCatalogo, cancellationToken)
+            .ConfigureAwait(false);
 
         var (items, totalCount) = await _repository.QueryAsync(
             query.Search,
@@ -79,19 +85,6 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
             totalCount,
             query.Page,
             query.PageSize);
-    }
-
-    /// <summary>
-    /// Construye un lookup Guid → TipoDocumentoDto para resolver el JOIN
-    /// denormalizado en O(1) por persona. Devuelve un diccionario vacío
-    /// si el catálogo no tiene filas (ej. tests con isEmpty=true), en cuyo
-    /// caso los campos denormalizados quedan null.
-    /// </summary>
-    private async Task<IReadOnlyDictionary<Guid, TipoDocumentoDto>> BuildTipoLookupAsync(
-        CancellationToken cancellationToken)
-    {
-        var tipos = await _tipoDocumentoCatalogo.ListarAsync(cancellationToken).ConfigureAwait(false);
-        return tipos.ToDictionary(t => t.Id);
     }
 
     private static PersonaDto MapToDto(
