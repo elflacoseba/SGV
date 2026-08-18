@@ -380,6 +380,134 @@ frentes**:
    `esAdministrador || User.IsInRole("Auditor")` si se introduce
    un rol futuro).
 
+## Housekeeping pre-release del módulo de Cargos (PR #287)
+
+> PR: `https://github.com/elflacoseba/SGV/pull/287`
+> Branch: `feat/housekeeping-cargos-release` (squash-mergeado a `develop`)
+> Sha: `36b24562`
+> Fecha: 2026-08-18
+
+Cierra los cinco puntos pendientes del análisis release-readiness del módulo
+de Cargos (Dominio, Aplicación, Infraestructura, API, Web). Cubre housekeeping
+documental, un bug funcional real y dos limpiezas de contratos; ninguno es
+breaking change. La suite del módulo (601 tests) pasa 100% estable.
+
+### D-CH-01 — Tensión documental en `cargo-web-listado-detalle-baja/spec.md`
+
+El `Purpose` original del slice inicial declaraba que el spec cubría solo
+"consultar cargos activos, ver su detalle readonly y ejecutar baja lógica
+sin expandirse a create, edit, skills, eliminados o reactivación". Esa
+restricción quedó obsoleta tras seis cambios archivados:
+
+- `2026-07-01-cargos-crear-editar-codigo-editable`
+- `2026-07-01-cargos-crear-autorizacion-admin`
+- `2026-07-02-cargos-filtro-activos-eliminados`
+- `2026-07-05-habilidades-navegacion-cargos`
+- `2026-07-06-cargos-navegacion-habilidades`
+- `2026-07-06-implementar-asignar-quitar-habilidades-de-un-cargo`
+
+Se agrega una nota de trazabilidad al inicio del spec referenciando los seis
+cambios y se reescribe el `Purpose` para reflejar el comportamiento
+consolidado. Los requisitos históricos se preservan para no perder
+trazabilidad; los `REQ-CW-01..06` extienden el alcance original sin
+reescribir la historia.
+
+### D-CH-02 — Bug funcional en `ApplyActualizarFailureToModelState`
+
+El helper `ApplyActualizarFailureToModelState` agregaba cada `FieldError`
+**dos veces** al `ModelState`: una anclado a la fila editada bajo la clave
+`Actualizar[skillId].Campo` y otra al `string.Empty` del summary general
+del form Asignar. Resultado: el usuario veía el mismo mensaje dos veces
+en pantalla — una correctamente anclado a la fila y otra incorrectamente
+filtrado en el alert superior del form "Asignar habilidad" (que no tiene
+relación con la fila que se está editando).
+
+Refactor del helper para que use el mismo `keySelector` de
+`ApplyFieldErrors` que ya usa `ApplyAsignarFailureToModelState`. Para los
+campos del whitelist `{NivelRequeridoId, Ponderacion, EsObligatoria}` el
+error se ancla a la fila; para campos fuera del whitelist (defensa contra
+drift) cae al `string.Empty` para que el summary lo muestre sin anclar a
+una fila incorrecta. **Cada error va exactamente a un destino** — sin
+duplicación.
+
+Tres tests actualizados para reflejar el nuevo comportamiento (ocurrencia
+única, anclaje-a-fila sin summary).
+
+### D-CH-03 — Invariante de `Cargo.Desactivar()` clarificada
+
+`Cargo.Desactivar()` chequeaba `_puestos.Any(p => p.IsActive)`, pero la
+navegación a `Puestos` no se carga en el camino de producción: el servicio
+`CargoServicioComandos.DesactivarAsync` consulta la DB vía
+`ICargoRepository.HasActivePuestosAsync` ANTES de invocar `Desactivar()`.
+Por construcción, el chequeo de la entidad **nunca se ejecuta en runtime**.
+
+El XML doc de `Desactivar()` se amplía para explicitar:
+
+- La regla autoritativa "no desactivar un cargo con Puestos subordinados
+  activos" vive en el servicio (consulta DB).
+- El chequeo local sobre `_puestos` es **defensa secundaria** que solo
+  aplica si alguien rehidrata la entidad con la nav incluida y luego
+  invoca `Desactivar()` directamente sin pasar por el servicio.
+- No es la regla de negocio autoritativa; confiar siempre en el servicio.
+
+**No cambia comportamiento.** Defense-in-depth contra un futuro caller que
+desactive el cargo bypassing el servicio.
+
+### D-CH-04 — `CargoErrorType` alineado 1-a-1 con `ErrorCategoria`
+
+Hasta ahora `CargoErrorType` solo cubría `NotFound/Conflict/Validation`
+(3 variantes) y los clientes web colapsaban `Unauthorized/Forbidden/
+Transport/Unexpected` a `Validation` por compat histórica con el legacy.
+`CargoSkillErrorType` ya estaba alineado 1-a-1 con `ErrorCategoria`
+(6 variantes); el agregado padre quedó con 3.
+
+Expande `CargoErrorType` con `Unauthorized, Forbidden, Transport,
+Unexpected`. Actualiza `ErrorCategoriaMappers.ToCategoria/ToTipoCargo`
+al mapeo 1-a-1 con todas las categorías. Elimina la matriz duplicada
+`MapCategoriaToLegacyType` del `CargoApiClient` y la sustituye por
+`ErrorCategoriaMappers.ToTipoCargo` (**single source of truth**).
+
+Preserva los ordinales 0/1/2 (`NotFound/Conflict/Validation`) — los nuevos
+miembros se agregan al final — para no romper callers existentes que
+dependan de `(int)CargoErrorType.X`.
+
+Los call sites que ya discriminaban por `Categoria` (no por el legacy
+`Type`) — `IndexModel.OnPostDelete`, `IndexModel.OnPostReactivate`,
+`CargoHabilidadesPostHandlers.HandleQuitarAsync`, etc. — no se ven
+afectados: siguen discriminando por la taxonomía común.
+
+### D-CH-05 — `NivelCargo.ValorNumerico` vs `Orden` documentado
+
+`ValorNumerico` (byte, 0..255) es histórico y se expone en el wire
+(`NivelCargoDto`) para integraciones externas que lo consumen como
+referencia. El rango intencionalmente cubre todo el byte porque el orden
+semántico entre niveles NO lo determina `ValorNumerico` — ese rol lo cumple
+`Orden` (int, comparador natural).
+
+El XML doc de `NivelCargo`, su constructor y la propiedad se amplían para
+explicitar:
+
+- `ValorNumerico`: campo histórico en el wire, sin semántica de orden.
+- `Orden`: orden semántico ascendente, determina cómo se listan y comparan
+  los niveles.
+
+**No cambia comportamiento.** Defense-in-depth contra un futuro caller que
+asuma que `ValorNumerico` define la jerarquía.
+
+### Estado de release del módulo de Cargos
+
+Tras este PR, el módulo de Cargos queda **release-ready** sin pendientes
+abiertos en código ni en docs:
+
+- ✅ Build verde, 0 errores.
+- ✅ 601 tests del módulo (Cargo + NivelCargo + ErrorCategoria) pasan.
+- ✅ 8 specs sincronizadas en `openspec/specs/` (ningún cambio archivado
+  pendiente de sincronizar).
+- ✅ 11 cambios archivados; 0 cambios activos en `openspec/changes/`.
+- ✅ Sin issues conocidas abiertas sobre este módulo.
+- ✅ Gating admin unificado en tres frentes (controller, PageModel,
+  helpers de form) verificado por tests.
+
 ## Integración Continua
 
 No se utiliza GitHub CI. El repo es unipersonal en etapa de desarrollo activo; los tests que requieren MySQL (`[MySqlFact]`) no pueden ejecutarse en runners de GitHub sin una base de datos real y la suite completa tarda más de lo razonable para feedback iterativo. La validación se hace localmente con `dotnet test SGV.slnx`. Los tests `[MySqlFact]` se skipean automáticamente cuando no hay conexión MySQL disponible. El workflow `.github/workflows/ci.yml` existe como referencia pero está desactivado.
