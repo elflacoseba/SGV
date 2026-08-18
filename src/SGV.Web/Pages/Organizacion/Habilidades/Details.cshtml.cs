@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Text.Json;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
 
 namespace SGV.Web.Pages.Organizacion.Habilidades;
@@ -83,11 +83,13 @@ public sealed class DetailsModel(IHabilidadApiClient habilidadApiClient, ILogger
                 logger.LogWarning("Habilidad with Id {HabilidadId} was not found or is no longer available.", id);
             }
         }
-        catch (Exception ex) when (
-            ex is HttpRequestException ||
-            ex is TaskCanceledException ||
-            ex is JsonException ||
-            ex is OperationCanceledException)
+        // Issue #125: catch centralizado via TransportFailureClassifier; la
+        // cancelación cooperativa del caller NO se captura (request
+        // cancelado = no renderizamos). El includeOperationCanceled: true
+        // acepta OperationCanceledException cuando el token del caller NO
+        // fue el origen de la cancelación (preserva semántica anterior).
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(
+            ex, includeOperationCanceled: !cancellationToken.IsCancellationRequested))
         {
             logger.LogError(ex, "Failed to load habilidad with Id {HabilidadId}.", id);
             IsNotFound = true;

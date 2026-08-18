@@ -48,9 +48,9 @@ public sealed record class Habilidad : EntidadAuditable
     public void CambiarDatos(string codigo, string nombre, Guid? categoriaId = null, string? descripcion = null)
     {
         Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), HabilidadRules.CodigoMaxLength);
-        Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
+        Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), HabilidadRules.NombreMaxLength);
         CategoriaId = categoriaId;
-        Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
+        Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), HabilidadRules.DescripcionMaxLength);
     }
 
     /// <summary>
@@ -62,9 +62,9 @@ public sealed record class Habilidad : EntidadAuditable
     /// actualización.
     /// </summary>
     /// <param name="codigo">Nuevo código de la habilidad. Requerido, máximo <see cref="HabilidadRules.CodigoMaxLength"/> caracteres.</param>
-    /// <param name="nombre">Nuevo nombre de la habilidad. Requerido, máximo 200 caracteres.</param>
+    /// <param name="nombre">Nuevo nombre de la habilidad. Requerido, máximo <see cref="HabilidadRules.NombreMaxLength"/> caracteres.</param>
     /// <param name="categoriaId">FK opcional al catálogo <see cref="CategoriaHabilidad"/>.</param>
-    /// <param name="descripcion">Descripción opcional, máximo 1000 caracteres.</param>
+    /// <param name="descripcion">Descripción opcional, máximo <see cref="HabilidadRules.DescripcionMaxLength"/> caracteres.</param>
     public void Actualizar(string codigo, string nombre, Guid? categoriaId = null, string? descripcion = null)
         => CambiarDatos(codigo, nombre, categoriaId, descripcion);
 
@@ -138,10 +138,10 @@ public sealed record class Habilidad : EntidadAuditable
         // Aplicamos las mismas reglas de shape que CambiarDatos, evitando
         // reasignar después de la construcción del record.
         self.Codigo = ValidacionesDominio.Requerido(codigo, nameof(Codigo), HabilidadRules.CodigoMaxLength);
-        self.Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), 200);
+        self.Nombre = ValidacionesDominio.Requerido(nombre, nameof(Nombre), HabilidadRules.NombreMaxLength);
         self.CategoriaId = categoriaId;
         self.Categoria = categoria;
-        self.Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), 1000);
+        self.Descripcion = ValidacionesDominio.Opcional(descripcion, nameof(Descripcion), HabilidadRules.DescripcionMaxLength);
         self.IsActive = isActive;
 
         return self;

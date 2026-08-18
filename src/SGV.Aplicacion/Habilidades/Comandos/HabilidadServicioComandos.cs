@@ -69,7 +69,7 @@ public sealed class HabilidadServicioComandos(
         if (!validationResult.IsValid)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                new(HabilidadErrorType.Validation, HabilidadErrorCodes.DatosInvalidos, "Uno o más campos contienen errores de validación."),
                 BuildFieldErrors(validationResult.Errors));
         }
 
@@ -104,7 +104,7 @@ public sealed class HabilidadServicioComandos(
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Validation, "DatosInvalidos", ex.Message));
+                new(HabilidadErrorType.Validation, HabilidadErrorCodes.DatosInvalidos, ex.Message));
         }
     }
 
@@ -117,7 +117,7 @@ public sealed class HabilidadServicioComandos(
         if (!validationResult.IsValid)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                new(HabilidadErrorType.Validation, HabilidadErrorCodes.DatosInvalidos, "Uno o más campos contienen errores de validación."),
                 BuildFieldErrors(validationResult.Errors));
         }
 
@@ -125,7 +125,7 @@ public sealed class HabilidadServicioComandos(
         if (habilidad is null)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.NotFound, "HabilidadNoEncontrada", "La habilidad no existe."));
+                new(HabilidadErrorType.NotFound, HabilidadErrorCodes.HabilidadNoEncontrada, "La habilidad no existe."));
         }
 
         var duplicate = await EnsureCodigoNoDuplicadoAsync(request.Codigo, excludingId: id, cancellationToken).ConfigureAwait(false);
@@ -156,7 +156,7 @@ public sealed class HabilidadServicioComandos(
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Validation, "DatosInvalidos", ex.Message));
+                new(HabilidadErrorType.Validation, HabilidadErrorCodes.DatosInvalidos, ex.Message));
         }
     }
 
@@ -168,7 +168,7 @@ public sealed class HabilidadServicioComandos(
         if (habilidad is null)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.NotFound, "HabilidadNoEncontrada", "La habilidad no existe."));
+                new(HabilidadErrorType.NotFound, HabilidadErrorCodes.HabilidadNoEncontrada, "La habilidad no existe."));
         }
 
         try
@@ -182,7 +182,7 @@ public sealed class HabilidadServicioComandos(
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Validation, "DesactivacionInvalida", ex.Message));
+                new(HabilidadErrorType.Validation, HabilidadErrorCodes.DesactivacionInvalida, ex.Message));
         }
     }
 
@@ -194,7 +194,7 @@ public sealed class HabilidadServicioComandos(
         if (habilidad is null)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.NotFound, "HabilidadNoEncontrada", "La habilidad no existe."));
+                new(HabilidadErrorType.NotFound, HabilidadErrorCodes.HabilidadNoEncontrada, "La habilidad no existe."));
         }
 
         if (await repository.ExistsActiveCodeAsync(habilidad.Codigo, id, cancellationToken).ConfigureAwait(false))
@@ -213,7 +213,7 @@ public sealed class HabilidadServicioComandos(
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return HabilidadCommandResult.Failure(
-                new(HabilidadErrorType.Validation, "ReactivacionInvalida", ex.Message));
+                new(HabilidadErrorType.Validation, HabilidadErrorCodes.ReactivacionInvalida, ex.Message));
         }
     }
 
@@ -255,7 +255,7 @@ public sealed class HabilidadServicioComandos(
     /// </summary>
     private static HabilidadCommandResult FailureCodigoDuplicado()
         => HabilidadCommandResult.Failure(
-            new(HabilidadErrorType.Conflict, "CodigoDuplicado", CodigoDuplicadoMessage));
+            new(HabilidadErrorType.Conflict, HabilidadErrorCodes.CodigoDuplicado, CodigoDuplicadoMessage));
 
     /// <summary>
     /// Factoría única del resultado de fallo <c>CategoriaInexistente</c>

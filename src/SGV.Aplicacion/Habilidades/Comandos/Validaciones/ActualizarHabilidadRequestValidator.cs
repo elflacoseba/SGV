@@ -23,7 +23,7 @@ public class ActualizarHabilidadRequestValidator : AbstractValidator<ActualizarH
 
         RuleFor(x => x.Nombre)
             .NotEmpty()
-            .MaximumLength(200);
+            .MaximumLength(HabilidadRules.NombreMaxLength);
 
         RuleFor(x => x.CategoriaId!.Value)
             .NotEqual(Guid.Empty)
@@ -31,6 +31,6 @@ public class ActualizarHabilidadRequestValidator : AbstractValidator<ActualizarH
             .WithName("CategoriaId");
 
         RuleFor(x => x.Descripcion)
-            .MaximumLength(1000);
+            .MaximumLength(HabilidadRules.DescripcionMaxLength);
     }
 }
