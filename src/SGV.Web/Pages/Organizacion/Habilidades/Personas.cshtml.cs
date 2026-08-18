@@ -1,10 +1,10 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Contracts.Seguridad;
+using SGV.Web.Integration.Common;
 using SGV.Web.Integration.Habilidades;
 
 namespace SGV.Web.Pages.Organizacion.Habilidades;
@@ -140,7 +140,12 @@ public sealed class PersonasModel(
         {
             habilidad = await habilidadApiClient.GetByIdAsync(Id, cancellationToken);
         }
-        catch (Exception ex) when (IsTransportFailure(ex))
+        // Issue #125: catch centralizado via TransportFailureClassifier; la
+        // cancelación cooperativa del caller NO se captura. El
+        // includeOperationCanceled: true acepta OperationCanceledException
+        // cuando el token del caller NO fue el origen (preserva semántica).
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(
+            ex, includeOperationCanceled: !cancellationToken.IsCancellationRequested))
         {
             logger.LogError(ex, "Failed to load habilidad with Id {HabilidadId} for personas page.", Id);
             IsRecoverable = true;
@@ -181,7 +186,10 @@ public sealed class PersonasModel(
             TotalCount = Math.Max(0, result.Total);
             Items = result.Items.Select(MapToViewModel).ToArray();
         }
-        catch (Exception ex) when (IsTransportFailure(ex))
+        // Issue #125: catch centralizado via TransportFailureClassifier; la
+        // cancelación cooperativa del caller NO se captura.
+        catch (Exception ex) when (TransportFailureClassifier.IsTransportFailure(
+            ex, includeOperationCanceled: !cancellationToken.IsCancellationRequested))
         {
             logger.LogError(ex, "Failed to load personas for habilidad {HabilidadId}.", Id);
             IsRecoverable = true;
@@ -246,11 +254,6 @@ public sealed class PersonasModel(
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static bool IsTransportFailure(Exception ex) =>
-        ex is HttpRequestException ||
-        ex is TaskCanceledException ||
-        ex is JsonException;
 
     private static HabilidadPersonaListItemViewModel MapToViewModel(SkillPersonaDetailDto item) =>
         new(
