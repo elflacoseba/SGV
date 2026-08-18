@@ -752,6 +752,47 @@ internal sealed class FakePersonaServicioConsulta : IPersonaServicioConsulta
         var items = list.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToList();
         return Task.FromResult(new PersonaListadoDto(items, total, query.Page, query.PageSize));
     }
+
+    /// <summary>
+    /// D-PE-03: typeahead server-side. Devuelve las primeras <paramref name="take"/>
+    /// personas activas que matchean el término (case-insensitive sobre los mismos
+    /// campos que ListarAsync).
+    /// </summary>
+    public Task<IReadOnlyList<PersonaDto>> BuscarAsync(
+        string? search,
+        int take = 50,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+    {
+        // El DTO no expone IsDeleted; el fake filtra sólo por IsActive (que
+        // es lo observable desde el wire type).
+        var filtered = _data.Where(d => d.IsActive);
+
+        if (soloSinUsuario == true)
+        {
+            // El fake del DTO no modela la relación con AspNetUsers.PersonaId;
+            // basta con filtrar las activas para los tests del endpoint.
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var lowered = search.ToLowerInvariant();
+            filtered = filtered.Where(d =>
+                (d.Legajo?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || d.Nombres.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || d.Apellidos.Contains(lowered, StringComparison.OrdinalIgnoreCase)
+                || (d.Email?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (d.NumeroDocumento?.Contains(lowered, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        var items = filtered
+            .OrderBy(d => d.Apellidos)
+            .ThenBy(d => d.Nombres)
+            .Take(Math.Min(take, 100))
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<PersonaDto>>(items);
+    }
 }
 
 internal sealed class FakePersonaServicioComandos : IPersonaServicioComandos

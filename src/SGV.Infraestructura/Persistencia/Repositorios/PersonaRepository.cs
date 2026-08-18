@@ -232,4 +232,56 @@ public sealed class PersonaRepository(SgvDbContext context)
             _ => query.OrderBy(p => p.Apellidos).ThenBy(p => p.Nombres)
         };
     }
+
+    public async Task<IReadOnlyList<Persona>> BuscarAsync(
+        string? search,
+        int take,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+    {
+        // D-PE-03: typeahead server-side. Reutiliza la lógica de filtro
+        // substring y el anti-join contra AspNetUsers.PersonaId del método
+        // QueryAsync (mismo set de campos y misma semántica para
+        // soloSinUsuario).
+        if (take <= 0)
+        {
+            return [];
+        }
+
+        // Cap superior defensivo: si el cliente pide más de 100, limitamos
+        // a 100 para evitar respuestas gigantescas que reproduzcan el
+        // problema original del typeahead.
+        var cappedTake = Math.Min(take, 100);
+
+        IQueryable<PersonaEntity> query = Context
+            .Set<PersonaEntity>()
+            .AsNoTracking()
+            .Where(p => p.IsActive && !p.IsDeleted);
+
+        if (soloSinUsuario == true)
+        {
+            query = query.Where(p => !Context
+                .Set<SgvIdentityUser>()
+                .Any(u => u.PersonaId == p.Id));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(p =>
+                (p.Legajo != null && p.Legajo.Contains(search)) ||
+                p.Nombres.Contains(search) ||
+                p.Apellidos.Contains(search) ||
+                (p.Email != null && p.Email.Contains(search)) ||
+                (p.NumeroDocumento != null && p.NumeroDocumento.Contains(search)));
+        }
+
+        var entities = await query
+            .OrderBy(p => p.Apellidos)
+            .ThenBy(p => p.Nombres)
+            .Take(cappedTake)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return entities.Select(MapToDomain).ToArray();
+    }
 }

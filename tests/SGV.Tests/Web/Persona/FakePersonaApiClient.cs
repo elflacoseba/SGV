@@ -326,6 +326,24 @@ public sealed class FakePersonaApiClient : SGV.Web.Integration.Personas.IPersona
     }
 
     /// <summary>
+    /// D-PE-03: typeahead server-side. Por defecto retorna la lista de
+    /// <see cref="GetAllResult"/> acotada a <c>take</c>; tests que necesiten
+    /// comportamiento custom pueden capturar <see cref="BuscarCalls"/>.
+    /// </summary>
+    public List<(string? Search, int Take, bool? SoloSinUsuario)> BuscarCalls { get; } = new();
+
+    public Task<IReadOnlyList<PersonaDto>> BuscarAsync(
+        string? search, int take = 50, bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+    {
+        BuscarCalls.Add((search, take, soloSinUsuario));
+        return Task.FromResult<IReadOnlyList<PersonaDto>>(
+            (_getAllResult ?? Array.Empty<PersonaDto>())
+                .Take(Math.Min(take, 100))
+                .ToList());
+    }
+
+    /// <summary>
     /// Devuelve el seed configurado en <see cref="TiposDocumentoResult"/>
     /// (vacío por defecto). Lanza <see cref="GetTiposDocumentoException"/>
     /// si está configurada. Incrementa <see cref="GetTiposDocumentoCalls"/>

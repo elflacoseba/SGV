@@ -87,6 +87,31 @@ public sealed class PersonaServicioConsulta : IPersonaServicioConsulta
             query.PageSize);
     }
 
+    /// <summary>
+    /// D-PE-03: typeahead server-side. Devuelve hasta <paramref name="take"/>
+    /// personas activas que matchean <paramref name="search"/> substring.
+    /// </summary>
+    public async Task<IReadOnlyList<PersonaDto>> BuscarAsync(
+        string? search,
+        int take = 50,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Cargar el catálogo una sola vez por request y mapear el subset
+        // acotado de personas (max 100 por cap defensivo del repo).
+        // Usa el mismo helper factorizado que ListAsync/GetByIdAsync/ListarAsync
+        // (D-PE-01) para mantener una única fuente de verdad del lookup.
+        var tipoLookup = await TipoDocumentoLookupBuilder
+            .BuildAsync(_tipoDocumentoCatalogo, cancellationToken)
+            .ConfigureAwait(false);
+
+        var personas = await _repository
+            .BuscarAsync(search, take, soloSinUsuario, cancellationToken)
+            .ConfigureAwait(false);
+
+        return personas.Select(p => MapToDto(p, tipoLookup)).ToList();
+    }
+
     private static PersonaDto MapToDto(
         Persona entity,
         IReadOnlyDictionary<Guid, TipoDocumentoDto> tipoLookup)

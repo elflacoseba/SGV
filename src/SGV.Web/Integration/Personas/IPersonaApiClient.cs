@@ -83,6 +83,26 @@ public interface IPersonaApiClient
     Task<PersonaCommandResult> ReactivarAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Server-side typeahead search (D-PE-03). Consume
+    /// <c>GET /api/v1/personas/buscar?q={term}&amp;take={n}&amp;soloSinUsuario={bool}</c>.
+    /// Devuelve hasta <paramref name="take"/> personas activas que matchean
+    /// el término (case-insensitive substring sobre
+    /// <c>Legajo|Nombres|Apellidos|Email|NumeroDocumento</c>), ordenadas por
+    /// <c>Apellidos, Nombres</c>.
+    /// <para>
+    /// Reemplaza al flujo histórico del typeahead web que cargaba
+    /// <c>GET /api/v1/personas</c> sin paginar (≈100 KB para 500 personas).
+    /// El partial <c>_PersonaTypeahead.cshtml</c> consume este método
+    /// disparando fetch en cada keystroke con debounce.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<PersonaDto>> BuscarAsync(
+        string? search,
+        int take = 50,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Devuelve el catálogo de tipos de documento (issue #147)
     /// disponibles para asociar al <c>NumeroDocumento</c> de una persona.
     /// Consume <c>GET /api/v1/tipos-documento</c>. Se usa en los formularios

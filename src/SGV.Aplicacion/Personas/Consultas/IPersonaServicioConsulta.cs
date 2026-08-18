@@ -24,4 +24,16 @@ public interface IPersonaServicioConsulta
     /// <c>ListAllAsync</c> in-memory snapshot.
     /// </summary>
     Task<PersonaListadoDto> ListarAsync(PersonaListQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Server-side typeahead search (D-PE-03). Returns up to <paramref name="take"/>
+    /// active personas matching <paramref name="search"/> substring. Used by the
+    /// web typeahead partial — replaces the legacy "carga inicial completa" que
+    /// pesaba ~100 KB para 500 personas activas.
+    /// </summary>
+    Task<IReadOnlyList<PersonaDto>> BuscarAsync(
+        string? search,
+        int take = 50,
+        bool? soloSinUsuario = null,
+        CancellationToken cancellationToken = default);
 }

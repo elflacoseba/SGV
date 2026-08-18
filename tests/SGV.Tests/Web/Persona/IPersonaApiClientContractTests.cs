@@ -143,17 +143,18 @@ public class IPersonaApiClientContractTests
     }
 
     [Fact]
-    public void Interface_ExposesExactlyTwelvePublicAsyncMethods()
+    public void Interface_ExposesExactlyThirteenPublicAsyncMethods()
     {
         // Defensa contra refactors "creativos" que sumen un nuevo método
         // (e.g. <c>BulkCreateAsync</c>) sin actualizar la suite de
-        // contract tests. La cantidad esperada es 12: los 9 originales
+        // contract tests. La cantidad esperada es 13: los 9 originales
         // (GetAllAsync, GetByIdAsync, GetTiposDocumentoAsync,
         // DesactivarAsync, CreateAsync, UpdateAsync, QueryAsync,
         // ReactivarAsync + el alias default-implemented DeleteAsync) más
         // los 3 del subrecurso persona-skill agregados en Slice 2 del
         // change implementa-persona-habilidades (GetSkillsAsync,
-        // UpsertSkillAsync, DeleteSkillAsync).
+        // UpsertSkillAsync, DeleteSkillAsync) más <c>BuscarAsync</c>
+        // agregado por D-PE-03 (typeahead server-side).
         //
         // El alias <c>DeleteAsync</c> es un default interface method, así
         // que aparece también en la lista.
@@ -166,6 +167,7 @@ public class IPersonaApiClientContractTests
 
         Assert.Equal(
             new[] {
+                "BuscarAsync",
                 "CreateAsync",
                 "DeleteAsync",
                 "DeleteSkillAsync",
