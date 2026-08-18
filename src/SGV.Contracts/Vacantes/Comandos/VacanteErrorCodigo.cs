@@ -26,7 +26,6 @@ public static class VacanteErrorCodigo
 
     public const string VacanteInexistente = nameof(VacanteInexistente);
     public const string EstadoTerminalInmutable = nameof(EstadoTerminalInmutable);
-    public const string MotivoObligatorio = nameof(MotivoObligatorio);
     public const string ObservacionesMuyLargas = nameof(ObservacionesMuyLargas);
 
     /// <summary>
