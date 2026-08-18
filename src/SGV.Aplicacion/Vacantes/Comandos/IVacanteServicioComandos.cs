@@ -37,14 +37,4 @@ public interface IVacanteServicioComandos
         Guid id,
         CambiarEstadoVacanteRequest request,
         CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Updates the free-form <c>Observaciones</c> field of a vacante.
-    /// Mirrors <c>Vacante.ActualizarObservaciones(string?)</c> on the
-    /// domain (≤500 chars, null/empty/whitespace cleared).
-    /// </summary>
-    Task<VacanteCommandResult> ActualizarObservacionesAsync(
-        Guid id,
-        string? observaciones,
-        CancellationToken cancellationToken = default);
 }
