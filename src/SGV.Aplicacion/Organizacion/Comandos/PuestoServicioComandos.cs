@@ -119,9 +119,17 @@ public sealed class PuestoServicioComandos(
             .ConfigureAwait(false);
         if (unidad is null)
         {
+            // El contrato de IReadOnlyRepository.GetByIdAsync filtra por
+            // IsActive && !IsDeleted en el `Query` base, por lo que este
+            // branch cubre tanto "no existe" como "existe pero está
+            // inactivo/eliminado". Si el contrato del repo cambia para
+            // incluir soft-deleted, este guard seguirá siendo correcto y
+            // la FK con OnDelete=Restrict evitaría guardar un Puesto con
+            // Cargo/Unidad inactiva. Test de regresión:
+            // PuestoServicioComandosTests.CrearAsync_CargoInactivo_RetornaValidation.
             return PuestoCommandResult.Failure(
                 new(PuestoErrorType.Validation, "UnidadOrganizativaNoExiste",
-                    "La unidad organizativa referenciada no existe."));
+                    "La unidad organizativa referenciada no existe o no está activa."));
         }
 
         var cargo = await cargoRepository
@@ -129,9 +137,10 @@ public sealed class PuestoServicioComandos(
             .ConfigureAwait(false);
         if (cargo is null)
         {
+            // Mismo contrato que la unidad: cubre "no existe" + "inactivo".
             return PuestoCommandResult.Failure(
                 new(PuestoErrorType.Validation, "CargoNoExiste",
-                    "El cargo referenciado no existe."));
+                    "El cargo referenciado no existe o no está activo."));
         }
 
         if (request.PuestoSuperiorId.HasValue)

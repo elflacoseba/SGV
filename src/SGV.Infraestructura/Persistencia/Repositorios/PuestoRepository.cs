@@ -158,10 +158,15 @@ public sealed class PuestoRepository(SgvDbContext context)
 
         if (!string.IsNullOrWhiteSpace(search))
         {
+            // Defensa en profundidad (espejo de UnidadOrganizativaRepository,
+            // issue #282): aunque el controller ya normaliza `page/pageSize`,
+            // un caller directo del repo (tests o gateway) podría pasar
+            // whitespace. Trim defensivo aquí mantiene el LIKE predecible.
+            var trimmedSearch = search.Trim();
             query = query.Where(p =>
-                p.Codigo.Contains(search) ||
-                p.Nombre.Contains(search) ||
-                (p.Descripcion != null && p.Descripcion.Contains(search)));
+                p.Codigo.Contains(trimmedSearch) ||
+                p.Nombre.Contains(trimmedSearch) ||
+                (p.Descripcion != null && p.Descripcion.Contains(trimmedSearch)));
         }
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);

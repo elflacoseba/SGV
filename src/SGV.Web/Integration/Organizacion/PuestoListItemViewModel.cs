@@ -1,8 +1,7 @@
 using System.Net;
 using SGV.Contracts.Comun;
 // Type alias (DEC-1) que conserva el nombre `PuestoListQuery` para los
-// consumidores web, re-dirigiendo al record de Contracts. El record legacy
-// del final de este archivo se conserva para PR2 (migración atómica).
+// consumidores web, re-dirigiendo al record canónico de Contracts.
 using PuestoListQuery = SGV.Contracts.Organizacion.Consultas.Dtos.PuestoListQuery;
 
 namespace SGV.Web.Integration.Organizacion;
@@ -51,23 +50,3 @@ public sealed record PuestoDeleteResult(
     string? Code,
     string? Message,
     ErrorCategoria Categoria = ErrorCategoria.NotFound);
-
-/// <summary>
-/// Contrato de consulta para el listado web de puestos. El backend de Puestos
-/// no expone un endpoint segmentado (<c>/consulta?status=...</c>), por lo que
-/// los filtros se aplican en memoria sobre <c>GetAllAsync()</c>. <c>Status</c>
-/// se conserva para forward-compat con el futuro endpoint segmentado y para
-/// que el toggle "Eliminadas" (deshabilitado en este slice) tenga un valor
-/// coherente.
-/// </summary>
-public sealed record PuestoListQuery(string? Search, string? Sort, string? Status, int Page)
-{
-    /// <summary>Segmento por defecto: puestos activos.</summary>
-    public const string SegmentoActivas = "activas";
-
-    /// <summary>Segmento de puestos eliminados lógicamente (deshabilitado en este slice).</summary>
-    public const string SegmentoEliminadas = "eliminadas";
-
-    /// <summary>Consulta vacía: primer página del segmento activo sin filtros.</summary>
-    public static PuestoListQuery Empty { get; } = new(null, null, SegmentoActivas, 1);
-}
