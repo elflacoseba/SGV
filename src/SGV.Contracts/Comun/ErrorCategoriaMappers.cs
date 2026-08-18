@@ -260,6 +260,48 @@ public static class ErrorCategoriaMappers
     };
 
     // ============================================================
+    // PersonaErrorType (alineado 1-a-1 con ErrorCategoria desde D-PE-02)
+    // ============================================================
+
+    /// <summary>
+    /// Traduce <see cref="PersonaErrorType"/> al <see cref="ErrorCategoria"/>
+    /// equivalente. Mapeo 1-a-1 con todas las variantes (alineado en el
+    /// housekeeping release-readiness del módulo Personas, D-PE-02, mismo
+    /// patrón que D-CH-04 del módulo Cargos en PR #287).
+    /// </summary>
+    public static ErrorCategoria ToCategoria(PersonaErrorType type) => type switch
+    {
+        PersonaErrorType.NotFound => ErrorCategoria.NotFound,
+        PersonaErrorType.Conflict => ErrorCategoria.Conflict,
+        PersonaErrorType.Validation => ErrorCategoria.Validation,
+        PersonaErrorType.Unauthorized => ErrorCategoria.Unauthorized,
+        PersonaErrorType.Forbidden => ErrorCategoria.Forbidden,
+        PersonaErrorType.Transport => ErrorCategoria.Transport,
+        PersonaErrorType.Unexpected => ErrorCategoria.Unexpected,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type,
+            $"PersonaErrorType value '{type}' has no categoria mapping."),
+    };
+
+    /// <summary>
+    /// Traduce <see cref="ErrorCategoria"/> al <see cref="PersonaErrorType"/>
+    /// equivalente. Mapeo 1-a-1; los call sites que solo necesitan las 3
+    /// variantes históricas (<c>NotFound</c>/<c>Conflict</c>/<c>Validation</c>)
+    /// deben ramificar por <see cref="ErrorCategoria"/> directamente y dejar
+    /// el legacy <c>PersonaErrorType</c> solo para APIs que aún dependen
+    /// del campo <c>Type</c>.
+    /// </summary>
+    public static PersonaErrorType ToTipoPersona(ErrorCategoria categoria) => categoria switch
+    {
+        ErrorCategoria.NotFound => PersonaErrorType.NotFound,
+        ErrorCategoria.Conflict => PersonaErrorType.Conflict,
+        ErrorCategoria.Validation => PersonaErrorType.Validation,
+        ErrorCategoria.Unauthorized => PersonaErrorType.Unauthorized,
+        ErrorCategoria.Forbidden => PersonaErrorType.Forbidden,
+        ErrorCategoria.Transport => PersonaErrorType.Transport,
+        ErrorCategoria.Unexpected => PersonaErrorType.Unexpected,
+    };
+
+    // ============================================================
     // PersonaSkillErrorType (slice 1 / REQ-TAXO-02)
     // ============================================================
 
