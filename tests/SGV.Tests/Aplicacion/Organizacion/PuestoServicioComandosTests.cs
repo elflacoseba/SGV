@@ -104,6 +104,55 @@ public sealed class PuestoServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    /// <summary>
+    /// Regression guard: el servicio NO debe crear un Puesto apuntando a
+    /// un Cargo inactivo. El contrato del repo es que GetByIdAsync devuelve
+    /// null para entidades soft-deleted/inactivas, por lo que el guard
+    /// existente cubre este caso. Si alguien refactoriza el repo y rompe
+    /// ese contrato, este test lo detecta.
+    /// </summary>
+    [Fact]
+    public async Task CrearAsync_CargoInactivo_RetornaValidacionYSinGuardar()
+    {
+        var cargoInactivo = CrearCargoMock();
+        cargoInactivo.Desactivar();
+        var cargoRepo = new FakeCargoReadRepository { Datos = [cargoInactivo] };
+        var unidadRepo = new FakeUnidadOrganizativaReadRepository { Datos = [CrearUnidadMock()] };
+        var puestoRepo = new FakePuestoWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(puestoRepo, uow, unidadRepo: unidadRepo, cargoRepo: cargoRepo);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(PuestoErrorType.Validation, resultado.Error!.Type);
+        Assert.Equal("CargoNoExiste", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
+    /// <summary>
+    /// Regression guard análogo a <see cref="CrearAsync_CargoInactivo_RetornaValidacionYSinGuardar"/>
+    /// pero para la UnidadOrganizativa referenciada por el Puesto.
+    /// </summary>
+    [Fact]
+    public async Task CrearAsync_UnidadOrganizativaInactiva_RetornaValidacionYSinGuardar()
+    {
+        var unidadInactiva = CrearUnidadMock();
+        unidadInactiva.Desactivar();
+        var unidadRepo = new FakeUnidadOrganizativaReadRepository { Datos = [unidadInactiva] };
+        var cargoRepo = new FakeCargoReadRepository { Datos = [CrearCargoMock()] };
+        var puestoRepo = new FakePuestoWriteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(puestoRepo, uow, unidadRepo: unidadRepo, cargoRepo: cargoRepo);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(PuestoErrorType.Validation, resultado.Error!.Type);
+        Assert.Equal("UnidadOrganizativaNoExiste", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+    }
+
     [Fact]
     public async Task CrearAsync_PuestoSuperiorValido_RetornaExitoYGuarda()
     {
