@@ -366,4 +366,53 @@ public sealed class PuestoRepositoryQueryAsyncTests
             await context.SaveChangesAsync();
         }
     }
+
+    /// <summary>
+    /// Espejo de UnidadOrganizativaRepositoryQueryAsyncTests
+    /// (issue #282): el repo trimea defensivamente el search para que un
+    /// caller directo (test o gateway) que pase whitespace al borde
+    /// obtenga el mismo resultado que sin espacios.
+    /// </summary>
+    [MySqlFact]
+    public async Task QueryAsync_MySql_SearchConTrimAlBorde_MatcheaIgualQueSinEspacios()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var unidad = RepositoryTestData.CreateUnidadOrganizativa("PT-QSTRIM-UO");
+        var cargo = RepositoryTestData.CreateCargo("PT-QSTRIM-CARGO");
+        var searchToken = $"ST{Guid.NewGuid():N}"[..10];
+        var p1 = RepositoryTestData.CreatePuesto($"PT-{searchToken}-001", unidad, cargo);
+        var p2 = RepositoryTestData.CreatePuesto($"PT-{searchToken}-002", unidad, cargo);
+        var p3 = RepositoryTestData.CreatePuesto($"OTRO-{searchToken}", unidad, cargo);
+
+        await context.Set<UnidadOrganizativaEntity>().AddAsync(unidad);
+        await context.Set<CargoEntity>().AddAsync(cargo);
+        await context.Set<PuestoEntity>().AddRangeAsync([p1, p2, p3]);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var repo = new PuestoRepository(context);
+
+            var (sinTrim, totalSinTrim) = await repo.QueryAsync(
+                searchToken, page: 1, pageSize: 20,
+                sort: null,
+                segmento: PuestoSegmentoListado.Activas, default);
+
+            var (conTrim, totalConTrim) = await repo.QueryAsync(
+                $"  {searchToken}  ", page: 1, pageSize: 20,
+                sort: null,
+                segmento: PuestoSegmentoListado.Activas, default);
+
+            Assert.Equal(totalSinTrim, totalConTrim);
+            Assert.Equal(sinTrim.Select(x => x.Id).ToArray(),
+                         conTrim.Select(x => x.Id).ToArray());
+        }
+        finally
+        {
+            context.Set<PuestoEntity>().RemoveRange([p1, p2, p3]);
+            context.Set<CargoEntity>().Remove(cargo);
+            context.Set<UnidadOrganizativaEntity>().Remove(unidad);
+            await context.SaveChangesAsync();
+        }
+    }
 }
