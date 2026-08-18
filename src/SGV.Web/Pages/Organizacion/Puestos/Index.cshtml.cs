@@ -13,10 +13,10 @@ namespace SGV.Web.Pages.Organizacion.Puestos;
 
 /// <summary>
 /// PageModel del listado web de puestos. Espejo de
-/// <c>CargoIndexModel</c> ajustado al backend de Puestos (que NO expone
-/// <c>/consulta?status=...</c> segmentado), con baja lógica
-/// (<c>?handler=Delete</c>) y reactivación (<c>?handler=Reactivate</c>) que
-/// preserva el contexto del listado.
+/// <c>CargoIndexModel</c>: consume <c>GET /api/v1/puestos/consulta</c>
+/// (paginada, filtrada y segmentada server-side desde el change #209),
+/// con baja lógica (<c>?handler=Delete</c>) y reactivación
+/// (<c>?handler=Reactivate</c>) que preserva el contexto del listado.
 /// <para>
 /// Issue #125 / Slice 3: switch exhaustivo sobre
 /// <see cref="ErrorCategoria"/> en OnPostDelete y OnPostReactivate.
@@ -352,8 +352,7 @@ public sealed class IndexModel(
     /// <summary>
     /// Construye los route values del toggle Activas/Eliminadas con reset de
     /// página y preservación de búsqueda y orden. El segmento "eliminadas" se
-    /// serializa cuando <paramref name="targetSegmento"/> lo pide (en este slice
-    /// el botón está deshabilitado, pero el helper queda para forward-compat).
+    /// serializa cuando <paramref name="targetSegmento"/> lo pide.
     /// </summary>
     public object BuildToggleSegmentoRouteValues(string? targetSegmento) => new
     {
