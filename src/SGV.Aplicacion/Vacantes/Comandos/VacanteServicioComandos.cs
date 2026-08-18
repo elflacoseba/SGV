@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Ocupaciones.Consultas;
+using SGV.Aplicacion.Seguridad;
 using SGV.Aplicacion.Vacantes.Comandos.Validaciones;
 using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
@@ -31,6 +32,7 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
     private readonly ILogger<VacanteServicioComandos> logger;
     private readonly IValidator<CrearVacanteRequest> crearValidator;
     private readonly IValidator<CambiarEstadoVacanteRequest> cambiarEstadoValidator;
+    private readonly IUsuarioActual usuarioActual;
 
     /// <summary>
     /// Primary constructor with the full DI dependency set.
@@ -44,6 +46,13 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
     /// <see cref="CrearAsync"/>, que sigue vigente del change
     /// <c>vacante-ocupacion-flow-alignment</c>. No es dead-code.
     /// </remarks>
+    /// <remarks>
+    /// Cambio <c>vacantes-hardening</c> D-1: <see cref="IUsuarioActual"/>
+    /// se inyecta para propagar el <c>UserId</c> del principal autenticado
+    /// al <c>HistorialEstadoVacante.ChangedByUserId</c>. Defense-in-depth:
+    /// si <c>UserId</c> resuelve null/empty se rechaza con
+    /// <see cref="ErrorCategoria.Unauthorized"/> antes de tocar el dominio.
+    /// </remarks>
     public VacanteServicioComandos(
         IVacanteRepository vacanteRepository,
         IEstadoVacanteRepository estadoVacanteRepository,
@@ -52,7 +61,8 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
         ILogger<VacanteServicioComandos> logger,
         IValidator<CrearVacanteRequest> crearValidator,
         IValidator<CambiarEstadoVacanteRequest> cambiarEstadoValidator,
-        IOcupacionRepository ocupacionRepository)
+        IOcupacionRepository ocupacionRepository,
+        IUsuarioActual usuarioActual)
     {
         ArgumentNullException.ThrowIfNull(vacanteRepository);
         ArgumentNullException.ThrowIfNull(estadoVacanteRepository);
@@ -62,6 +72,7 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
         ArgumentNullException.ThrowIfNull(crearValidator);
         ArgumentNullException.ThrowIfNull(cambiarEstadoValidator);
         ArgumentNullException.ThrowIfNull(ocupacionRepository);
+        ArgumentNullException.ThrowIfNull(usuarioActual);
 
         this.vacanteRepository = vacanteRepository;
         this.estadoVacanteRepository = estadoVacanteRepository;
@@ -71,11 +82,15 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
         this.logger = logger;
         this.crearValidator = crearValidator;
         this.cambiarEstadoValidator = cambiarEstadoValidator;
+        this.usuarioActual = usuarioActual;
     }
 
     /// <summary>
     /// Convenience constructor for tests and simple registration.
-    /// Uses the real validators directly.
+    /// Uses the real validators and <see cref="NullUsuarioActual"/>
+    /// (issue #202 back-compat) — los tests pre-existentes no necesitan
+    /// cablear un principal; el código de producción cablea
+    /// <c>UsuarioActualHttpContext</c> vía el constructor primario.
     /// </summary>
     public VacanteServicioComandos(
         IVacanteRepository vacanteRepository,
@@ -88,7 +103,8 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
             vacanteRepository, estadoVacanteRepository, unitOfWork, constraintDetector, logger,
             new CrearVacanteRequestValidator(),
             new CambiarEstadoVacanteRequestValidator(),
-            ocupacionRepository)
+            ocupacionRepository,
+            NullUsuarioActual.Instance)
     {
     }
 
@@ -344,11 +360,26 @@ public sealed class VacanteServicioComandos : IVacanteServicioComandos
                 fieldErrors);
         }
 
+        // D-1 (vacantes-hardening): el UserId del principal autenticado
+        // se propaga al HistorialEstadoVacante.ChangedByUserId. Si el
+        // IUsuarioActual no resuelve (HttpContext nulo en background job
+        // mal configurado), el servicio rechaza con Unauthorized en lugar
+        // de persistir ChangedByUserId = null silenciosamente.
+        var usuarioId = usuarioActual.UserId;
+        if (string.IsNullOrWhiteSpace(usuarioId))
+        {
+            return VacanteCommandResult.Failure(
+                new VacanteError(
+                    ErrorCategoria.Unauthorized,
+                    VacanteErrorCodigo.DatosInvalidos,
+                    "No se pudo resolver el usuario autenticado para registrar el cambio de estado."));
+        }
+
         try
         {
             var historial = vacante.CambiarEstado(
                 estadoNuevoId: request.EstadoVacanteId,
-                usuarioId: null,
+                usuarioId: usuarioId,
                 motivo: request.Motivo,
                 cerrar: estadoNuevo.EsTerminal);
 

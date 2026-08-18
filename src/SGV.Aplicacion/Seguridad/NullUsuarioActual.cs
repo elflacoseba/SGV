@@ -16,4 +16,12 @@ internal sealed class NullUsuarioActual : IUsuarioActual
     public IReadOnlyCollection<string> Roles => [];
 
     public Guid? CorrelationId => null;
+
+    /// <summary>
+    /// Singleton reusado por los convenience constructors de los
+    /// servicios para mantener back-compat con los call sites que no
+    /// cablean un principal explícito (issue #202, cambio
+    /// <c>vacantes-hardening</c> D-1).
+    /// </summary>
+    public static NullUsuarioActual Instance { get; } = new();
 }
