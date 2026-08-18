@@ -48,20 +48,6 @@ public sealed class CreateModel(
 
     public bool IsEdit => false;
 
-    /// <summary>
-    /// Issue #202: slot reservado para que módulos downstream que
-    /// exijan <c>Legajo</c> activen la advertencia contextual en
-    /// <c>_Form.cshtml</c>. Create no muestra la advertencia por
-    /// defecto; el módulo que lo necesite lo setea a <c>true</c>.
-    /// </summary>
-    public bool ShowLegajoContextWarning => false;
-
-    /// <summary>
-    /// Issue #202 (H4): mensaje personalizado para la advertencia
-    /// contextual. <c>null</c> deja al partial usar el texto por defecto.
-    /// </summary>
-    public string? LegajoContextWarningMessage => null;
-
     [BindProperty]
     public string? ReturnPage { get; set; }
 

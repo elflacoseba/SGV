@@ -48,20 +48,6 @@ public sealed class EditModel(
     public bool IsEdit => true;
 
     /// <summary>
-    /// Issue #202: slot reservado para que módulos downstream que
-    /// exijan <c>Legajo</c> activen la advertencia contextual en
-    /// <c>_Form.cshtml</c>. Edit no muestra la advertencia por
-    /// defecto; el módulo que lo necesite lo setea a <c>true</c>.
-    /// </summary>
-    public bool ShowLegajoContextWarning => false;
-
-    /// <summary>
-    /// Issue #202 (H4): mensaje personalizado para la advertencia
-    /// contextual. <c>null</c> deja al partial usar el texto por defecto.
-    /// </summary>
-    public string? LegajoContextWarningMessage => null;
-
-    /// <summary>
     /// Indica si la persona solicitada no pudo cargarse (404 o error de
     /// transporte). En ese estado la vista muestra un mensaje
     /// recuperable y oculta el formulario.
