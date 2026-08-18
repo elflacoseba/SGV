@@ -33,7 +33,7 @@ public sealed class CreateModel(
 {
     /// <summary>Bound create form.</summary>
     [BindProperty]
-    public VacanteInputModel Input { get; set; } = new();
+    public VacanteCreateInputModel Input { get; set; } = new();
 
     /// <summary>Available positions for the create dropdown.</summary>
     public IReadOnlyList<SGV.Contracts.Organizacion.Consultas.Dtos.PuestoDto> Puestos { get; private set; } = [];
@@ -91,6 +91,11 @@ public sealed class CreateModel(
 
         ReturnUrl = NormalizeReturn(returnUrl);
 
+        // Cambio vacantes-hardening F-3: pre-popular FechaApertura con
+        // la fecha del día (issue UX friction en Create). El usuario
+        // puede sobrescribir el valor antes de enviar.
+        Input.FechaApertura = DateTime.Today;
+
         await LoadPuestosAsync(cancellationToken);
         return Page();
     }
@@ -109,13 +114,10 @@ public sealed class CreateModel(
             ModelState.AddModelError("Input.Motivo", "El motivo es obligatorio al crear una vacante.");
         }
 
-        // Issue #273 (Slice A): el campo EstadoVacanteId ya no se envía en
-        // el formulario Create. La regla "vacante nueva = Abierta" vive en
-        // la capa de Aplicación. Limpiamos cualquier error de ModelState
-        // residual sobre ese campo para que no bloquee el POST (el modelo
-        // compartido VacanteInputModel conserva [Required] para que Edit
-        // siga validándolo explícitamente).
-        ModelState.Remove("Input.EstadoVacanteId");
+        // Cambio vacantes-hardening D-3: VacanteCreateInputModel ya no
+        // expone EstadoVacanteId; el workaround ModelState.Remove que
+        // aplicaba en este punto se eliminó porque la separación de
+        // modelos hace que cada formulario valide exactamente sus campos.
 
         if (!ModelState.IsValid)
         {
