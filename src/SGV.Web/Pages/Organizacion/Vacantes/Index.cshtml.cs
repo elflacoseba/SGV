@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SGV.Contracts.Seguridad;
 using SGV.Contracts.Vacantes.Consultas;
 using SGV.Contracts.Vacantes.Enums;
 using SGV.Web.Integration.Common;
@@ -45,7 +46,7 @@ public sealed class IndexModel(
     public string? LoadErrorMessage { get; private set; }
 
     /// <summary>Whether the current user may execute vacante mutations.</summary>
-    public bool CanMutate => User.IsInRole("Administrador") || User.IsInRole("GestorVacantes");
+    public bool CanMutate => User.IsInRole(RolesSgv.Administrador) || User.IsInRole(RolesSgv.GestorVacantes);
 
     /// <summary>Whether the current segment includes terminal vacantes.</summary>
     public bool IsCerradasView => string.Equals(Segmento, Cerradas, StringComparison.OrdinalIgnoreCase);

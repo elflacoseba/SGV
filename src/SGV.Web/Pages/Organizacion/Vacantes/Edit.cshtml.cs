@@ -22,7 +22,7 @@ public sealed class EditModel(
 {
     /// <summary>Bound edit form.</summary>
     [BindProperty]
-    public VacanteInputModel Input { get; set; } = new();
+    public VacanteEditInputModel Input { get; set; } = new();
 
     /// <summary>Current vacante detail shown above the form.</summary>
     public VacanteDetailViewModel? ViewModel { get; private set; }
@@ -59,6 +59,16 @@ public sealed class EditModel(
         if (current is null)
         {
             return Page();
+        }
+
+        // Cambio vacantes-hardening F-2: guard contra vacante terminal.
+        // Si la vacante ya está Cubierta/Cancelada, redirigir al Details
+        // sin poblar el form. El backend rechazaría CambiarEstadoAsync
+        // con 409 EstadoTerminalInmutable; lo evitamos acá.
+        var viewModel = VacanteDetailViewModel.FromDto(current);
+        if (viewModel.EsCerrada)
+        {
+            return RedirectToPage("/Organizacion/Vacantes/Details", new { id });
         }
 
         PopulateInput(current);

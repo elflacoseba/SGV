@@ -72,14 +72,3 @@ internal sealed class FakeNivelHabilidadRepo : INivelHabilidadRepository
     public Task<IReadOnlyList<NivelHabilidad>> ListAllAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<NivelHabilidad>>(_nivel is null ? [] : [_nivel]);
 }
-
-internal sealed class FakeUnitOfWork : IUnitOfWork
-{
-    public int SaveChangesCount { get; private set; }
-
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        SaveChangesCount++;
-        return Task.FromResult(1);
-    }
-}

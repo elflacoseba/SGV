@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Ocupaciones.Consultas;
+using SGV.Aplicacion.Seguridad;
 using SGV.Aplicacion.Vacantes.Comandos;
+using SGV.Aplicacion.Vacantes.Comandos.Validaciones;
 using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Consultas;
@@ -10,6 +12,7 @@ using SGV.Contracts.Vacantes.Comandos;
 using SGV.Contracts.Vacantes.Consultas;
 using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Vacantes;
+using SGV.Tests.Aplicacion.Comun;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Vacantes;
@@ -816,81 +819,92 @@ public sealed class VacanteServicioComandosTests
         Assert.Equal(VacanteErrorCodigo.DatosInvalidos, resultado.Error.Code);
     }
 
-    // ── ActualizarObservacionesAsync ───────────────────────────
+    // ── Identidad de usuario (D-1, cambio vacantes-hardening) ───
 
+    /// <summary>
+    /// D-1: cuando el principal está autenticado, el <c>UserId</c> del
+    /// <see cref="IUsuarioActual"/> se propaga al
+    /// <c>HistorialEstadoVacante.ChangedByUserId</c> en lugar de quedar
+    /// <c>null</c> como antes del fix.
+    /// </summary>
     [Fact]
-    public async Task ActualizarObservaciones_VacanteInexistente_Retorna404()
+    public async Task CambiarEstado_UsuarioAutenticado_PropagaChangedByUserId()
     {
-        var repo = new FakeVacanteWriteRepository();
-        var estadoRepo = new FakeEstadoVacanteRepository();
-        var uow = new FakeUnitOfWork();
-        var servicio = CrearServicio(repo, estadoRepo, uow);
-
-        var resultado = await servicio.ActualizarObservacionesAsync(
-            VacanteInexistenteId, "Notas", default);
-
-        Assert.False(resultado.IsSuccess);
-        Assert.Equal(ErrorCategoria.NotFound, resultado.Error!.Categoria);
-        Assert.Equal(0, uow.SaveChangesCount);
-    }
-
-    [Fact]
-    public async Task ActualizarObservaciones_TextoValido_PersisteYLimpia()
-    {
-        var vacante = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
+        var abierta = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = VacanteId1
         };
-        var repo = new FakeVacanteWriteRepository { Datos = [vacante] };
+        var repo = new FakeVacanteWriteRepository { Datos = [abierta] };
         var estadoRepo = new FakeEstadoVacanteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = CrearServicio(repo, estadoRepo, uow);
+        var servicio = CrearServicio(repo, estadoRepo, uow, usuarioActual: new FakeUsuarioActual { UserId = "user-123" });
 
-        var resultado = await servicio.ActualizarObservacionesAsync(
-            vacante.Id, "Notas actualizadas", default);
+        var resultado = await servicio.CambiarEstadoAsync(
+            abierta.Id,
+            CrearCambioEstadoRequest(estadoVacanteId: EstadoEnSeleccionId),
+            default);
 
         Assert.True(resultado.IsSuccess);
-        Assert.Equal("Notas actualizadas", vacante.Observaciones);
-        Assert.Equal(1, uow.SaveChangesCount);
+        Assert.Single(repo.HistorialRegistrado);
+        Assert.Equal("user-123", repo.HistorialRegistrado[0].ChangedByUserId);
     }
 
+    /// <summary>
+    /// D-1 (defense-in-depth): cuando <see cref="IUsuarioActual.UserId"/>
+    /// es null/empty, el servicio NO persiste el cambio de estado y
+    /// devuelve <see cref="ErrorCategoria.Unauthorized"/>. Esto evita
+    /// <c>ChangedByUserId = null</c> silencioso en escenarios anómalos
+    /// (HttpContext nulo, background job mal configurado).
+    /// </summary>
     [Fact]
-    public async Task ActualizarObservaciones_TextoMuyLargo_RetornaValidationFailure()
+    public async Task CambiarEstado_UsuarioAnonimo_DevuelveUnauthorizedYNoPersiste()
     {
-        var repo = new FakeVacanteWriteRepository();
-        var estadoRepo = new FakeEstadoVacanteRepository();
-        var uow = new FakeUnitOfWork();
-        var servicio = CrearServicio(repo, estadoRepo, uow);
-
-        var demasiadoLargo = new string('x', 501);
-        var resultado = await servicio.ActualizarObservacionesAsync(
-            VacanteId1, demasiadoLargo, default);
-
-        Assert.False(resultado.IsSuccess);
-        Assert.Equal(ErrorCategoria.Validation, resultado.Error!.Categoria);
-        Assert.Equal(VacanteErrorCodigo.ObservacionesMuyLargas, resultado.Error.Code);
-        Assert.Equal(0, uow.SaveChangesCount);
-    }
-
-    [Fact]
-    public async Task ActualizarObservaciones_NuloOLimpio_LimpiaValor()
-    {
-        var vacante = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
+        var abierta = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
         {
             Id = VacanteId1
         };
-        vacante.ActualizarObservaciones("Existente");
-        var repo = new FakeVacanteWriteRepository { Datos = [vacante] };
+        var repo = new FakeVacanteWriteRepository { Datos = [abierta] };
         var estadoRepo = new FakeEstadoVacanteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = CrearServicio(repo, estadoRepo, uow);
+        var servicio = CrearServicio(repo, estadoRepo, uow, usuarioActual: FakeUsuarioActual.Anonymous);
 
-        var resultado = await servicio.ActualizarObservacionesAsync(
-            vacante.Id, null, default);
+        var resultado = await servicio.CambiarEstadoAsync(
+            abierta.Id,
+            CrearCambioEstadoRequest(estadoVacanteId: EstadoEnSeleccionId),
+            default);
 
-        Assert.True(resultado.IsSuccess);
-        Assert.Null(vacante.Observaciones);
-        Assert.Equal(1, uow.SaveChangesCount);
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Unauthorized, resultado.Error!.Categoria);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Empty(repo.HistorialRegistrado);
+    }
+
+    /// <summary>
+    /// D-1 (triangulación): un <see cref="IUsuarioActual.UserId"/>
+    /// whitespace-only también dispara el guard — el helper de la API
+    /// HTTP nunca debería llegar acá, pero defense-in-depth requiere
+    /// rechazar la persistencia si el UserId es vacío.
+    /// </summary>
+    [Fact]
+    public async Task CambiarEstado_UsuarioConUserIdVacio_DevuelveUnauthorized()
+    {
+        var abierta = new Vacante(PuestoId1, EstadoAbiertaId, new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc), "Motivo")
+        {
+            Id = VacanteId1
+        };
+        var repo = new FakeVacanteWriteRepository { Datos = [abierta] };
+        var estadoRepo = new FakeEstadoVacanteRepository();
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(repo, estadoRepo, uow, usuarioActual: new FakeUsuarioActual { UserId = "   " });
+
+        var resultado = await servicio.CambiarEstadoAsync(
+            abierta.Id,
+            CrearCambioEstadoRequest(estadoVacanteId: EstadoEnSeleccionId),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Unauthorized, resultado.Error!.Categoria);
+        Assert.Equal(0, uow.SaveChangesCount);
     }
 
     // ── Helpers ────────────────────────────────────────────────
@@ -899,13 +913,21 @@ public sealed class VacanteServicioComandosTests
         IVacanteRepository vacanteRepo,
         IEstadoVacanteRepository estadoRepo,
         IUnitOfWork uow,
-        IOcupacionRepository? ocupacionRepo = null)
+        IOcupacionRepository? ocupacionRepo = null,
+        IUsuarioActual? usuarioActual = null)
     {
+        // Cambio vacantes-hardening D-1: instanciar explícitamente las
+        // validators y llamar al constructor primario para cablear el
+        // IUsuarioActual del helper. El convenience constructor de la
+        // clase sigue existiendo y cablea NullUsuarioActual.Instance.
         return new VacanteServicioComandos(
             vacanteRepo, estadoRepo, uow,
             new FakeConstraintViolationDetector(),
             new FakeLogger<VacanteServicioComandos>(),
-            ocupacionRepo ?? new FakeOcupacionLookupRepository());
+            new CrearVacanteRequestValidator(),
+            new CambiarEstadoVacanteRequestValidator(),
+            ocupacionRepo ?? new FakeOcupacionLookupRepository(),
+            usuarioActual ?? new FakeUsuarioActual());
     }
 }
 
@@ -966,6 +988,13 @@ internal sealed class FakeVacanteWriteRepository : IVacanteRepository
     public int GetByIdForUpdateCallCount { get; private set; }
     public int RegistrarCambioEstadoCallCount { get; private set; }
 
+    /// <summary>
+    /// Historiales registrados vía <see cref="RegistrarCambioEstadoAsync"/>.
+    /// Cambio <c>vacantes-hardening</c> D-1: permite a los tests
+    /// inspeccionar el <c>ChangedByUserId</c> propagado.
+    /// </summary>
+    public List<HistorialEstadoVacante> HistorialRegistrado { get; } = [];
+
     public Task AddAsync(Vacante vacante, CancellationToken cancellationToken = default)
     {
         AddCallCount++;
@@ -985,6 +1014,7 @@ internal sealed class FakeVacanteWriteRepository : IVacanteRepository
         CancellationToken cancellationToken = default)
     {
         RegistrarCambioEstadoCallCount++;
+        HistorialRegistrado.Add(historial);
         // No-op fake: la mutación ya está en el domain (vacante.CambiarEstado).
         return Task.CompletedTask;
     }
@@ -1167,5 +1197,13 @@ internal sealed class FakeLogger<T> : ILogger<T>
 
 internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
 {
+    /// <summary>
+    /// Nombre de constraint a devolver por <see cref="GetUniqueConstraintName"/>.
+    /// Default = null (no discrimina).
+    /// </summary>
+    public string? ConstraintName { get; set; }
+
     public bool IsConstraintViolation(DbUpdateException ex) => true;
+
+    public string? GetUniqueConstraintName(DbUpdateException exception) => ConstraintName;
 }

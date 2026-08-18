@@ -1337,25 +1337,6 @@ internal sealed class FakeVacanteServicioComandos : IVacanteServicioComandos
                 request.Observaciones,
                 [])));
     }
-
-    public Task<VacanteCommandResult> ActualizarObservacionesAsync(
-        Guid id,
-        string? observaciones,
-        CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(VacanteCommandResult.Success(
-            new VacanteDetailDto(
-                id,
-                Guid.Parse("c0000000-0000-0000-0000-000000000001"),
-                "Gerente General",
-                Guid.Parse("20000000-0000-0000-0000-000000000001"),
-                "Abierta",
-                new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-                null,
-                "Motivo inicial",
-                observaciones,
-                [])));
-    }
 }
 
 internal sealed class FakeEstadoVacanteServicioConsulta : IEstadoVacanteServicioConsulta

@@ -7,6 +7,7 @@ using SGV.Aplicacion.Ocupaciones.Comandos.Validaciones;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad;
 using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Comandos;
@@ -35,10 +36,17 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
     private readonly IValidator<CrearOcupacionRequest> crearValidator;
     private readonly IValidator<ActualizarOcupacionRequest> actualizarValidator;
     private readonly IValidator<FinalizarOcupacionRequest> finalizarValidator;
+    private readonly IUsuarioActual usuarioActual;
 
     /// <summary>
     /// Primary constructor with full dependency set.
     /// </summary>
+    /// <remarks>
+    /// Cambio <c>vacantes-hardening</c> D-1: <see cref="IUsuarioActual"/>
+    /// se inyecta para propagar el <c>UserId</c> del principal autenticado
+    /// al <c>HistorialEstadoVacante.ChangedByUserId</c> cuando el flujo
+    /// Cubrir transiciona la Vacante a Cubierta como side-effect.
+    /// </remarks>
     public OcupacionServicioComandos(
         IOcupacionRepository ocupacionRepository,
         IPersonaRepository personaRepository,
@@ -50,7 +58,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         IValidator<ActualizarOcupacionRequest> actualizarValidator,
         IValidator<FinalizarOcupacionRequest> finalizarValidator,
         IVacanteRepository vacanteRepository,
-        IEstadoVacanteRepository estadoVacanteRepository)
+        IEstadoVacanteRepository estadoVacanteRepository,
+        IUsuarioActual usuarioActual)
     {
         ArgumentNullException.ThrowIfNull(ocupacionRepository);
         ArgumentNullException.ThrowIfNull(personaRepository);
@@ -63,6 +72,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         ArgumentNullException.ThrowIfNull(finalizarValidator);
         ArgumentNullException.ThrowIfNull(vacanteRepository);
         ArgumentNullException.ThrowIfNull(estadoVacanteRepository);
+        ArgumentNullException.ThrowIfNull(usuarioActual);
 
         this.ocupacionRepository = ocupacionRepository;
         this.personaRepository = personaRepository;
@@ -75,11 +85,15 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         this.crearValidator = crearValidator;
         this.actualizarValidator = actualizarValidator;
         this.finalizarValidator = finalizarValidator;
+        this.usuarioActual = usuarioActual;
     }
 
     /// <summary>
     /// Convenience constructor for tests and simple registration.
-    /// Uses the real validators directly.
+    /// Uses the real validators and <see cref="NullUsuarioActual"/>
+    /// (issue #202 back-compat) — los tests pre-existentes no necesitan
+    /// cablear un principal; el código de producción cablea
+    /// <c>UsuarioActualHttpContext</c> vía el constructor primario.
     /// </summary>
     public OcupacionServicioComandos(
         IOcupacionRepository ocupacionRepository,
@@ -96,7 +110,8 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
                new ActualizarOcupacionRequestValidator(),
                new FinalizarOcupacionRequestValidator(),
                vacanteRepository,
-               estadoVacanteRepository)
+               estadoVacanteRepository,
+               NullUsuarioActual.Instance)
     {
     }
 
@@ -239,14 +254,12 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Trazabilidad de auditoría (follow-up)</b>: la transición de la
-    /// Vacante a Cubierta se registra con <c>usuarioId: null</c> porque la
-    /// signature de <see cref="CrearAsync"/> no expone ese dato. El
-    /// historial de la Vacante mostrará la transición a Cubierta sin
-    /// usuario asociado. Para resolverlo en un change futuro, propagar
-    /// <c>usuarioId</c> vía <c>CrearOcupacionRequest</c> (nuevo param
-    /// opcional) o vía <c>IHttpContextAccessor</c> en la capa de
-    /// composición, manteniendo la atomicidad de la transición.
+    /// Cambio <c>vacantes-hardening</c> D-1: la transición de la Vacante
+    /// a Cubierta registra el <c>UserId</c> del principal autenticado en
+    /// <c>HistorialEstadoVacante.ChangedByUserId</c>. Si el principal es
+    /// anónimo (HttpContext nulo), el servicio rechaza con
+    /// <see cref="ErrorCategoria.Unauthorized"/> sin persistir la
+    /// Ocupación ni la transición.
     /// </para>
     /// </remarks>
     private async Task<OcupacionCommandResult> CrearOcupacionCubriendoVacanteAsync(
@@ -254,6 +267,17 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         Persona persona,
         CancellationToken cancellationToken)
     {
+        // D-1 (vacantes-hardening): el UserId del principal autenticado
+        // se propaga a la transición a Cubierta. Defense-in-depth: si
+        // IUsuarioActual no resuelve, rechazamos con Unauthorized.
+        var usuarioIdCubrir = usuarioActual.UserId;
+        if (string.IsNullOrWhiteSpace(usuarioIdCubrir))
+        {
+            return OcupacionCommandResult.Failure(
+                new(ErrorCategoria.Unauthorized, "DatosInvalidos",
+                    "No se pudo resolver el usuario autenticado para registrar la cobertura de la vacante."));
+        }
+
         var vacante = await vacanteRepository
             .GetByIdForUpdateAsync(request.VacanteId!.Value, cancellationToken)
             .ConfigureAwait(false);
@@ -354,7 +378,7 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
             // Misma transacción: CambiarEstado de la Vacante → Cubierta.
             var historial = vacante.CambiarEstado(
                 estadoNuevoId: estadoCubierta.Id,
-                usuarioId: null,
+                usuarioId: usuarioIdCubrir,
                 motivo: MotivoCubiertaPorOcupacionDerivada,
                 cerrar: true);
             await vacanteRepository
@@ -371,6 +395,21 @@ public sealed class OcupacionServicioComandos : IOcupacionServicioComandos
         {
             logger.LogWarning(ex, "Constraint violation in {Method}: {Message}",
                 nameof(CrearOcupacionCubriendoVacanteAsync), ex.Message);
+
+            // D-4 (vacantes-hardening): la constraint única
+            // IX_Ocupaciones_VacanteIdUnique rechaza la segunda cobertura
+            // concurrente de la misma Vacante. Mapeamos el nombre del
+            // índice a VacanteYaCubierta para que el cliente reciba un
+            // 409 semánticamente correcto en lugar del genérico
+            // DatosInvalidos.
+            var constraintName = constraintDetector.GetUniqueConstraintName(ex);
+            if (constraintName == "IX_Ocupaciones_VacanteIdUnique")
+            {
+                return OcupacionCommandResult.Failure(
+                    new(ErrorCategoria.Conflict, OcupacionErrorCodigo.VacanteYaCubierta,
+                        "La Vacante ya tiene una Ocupación vigente vinculada."));
+            }
+
             return OcupacionCommandResult.Failure(
                 new(ErrorCategoria.Conflict, "DatosInvalidos", ex.Message));
         }

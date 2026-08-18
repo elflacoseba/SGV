@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Ocupaciones.Comandos;
+using SGV.Aplicacion.Ocupaciones.Comandos.Validaciones;
 using SGV.Aplicacion.Ocupaciones.Consultas;
 using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
+using SGV.Aplicacion.Seguridad;
 using SGV.Aplicacion.Vacantes.Consultas;
 using SGV.Contracts.Comun;
 using SGV.Contracts.Ocupaciones.Comandos;
@@ -17,6 +19,7 @@ using SGV.Dominio.Ocupaciones;
 using SGV.Dominio.Organizacion;
 using SGV.Dominio.Personas;
 using SGV.Dominio.Vacantes;
+using SGV.Tests.Aplicacion.Comun;
 using Xunit;
 
 // Acceso al FakeEstadoVacanteRepository compartido (definido en VacanteServicioComandosTests).
@@ -930,6 +933,70 @@ public sealed class OcupacionServicioComandosTests
         Assert.True(ocupacionRepo.Datos[0].EsVigente);
     }
 
+    // ── Identidad de usuario (D-1, cambio vacantes-hardening) ───
+
+    /// <summary>
+    /// D-1: el flujo Cubrir (CrearOcupacionCubriendoVacanteAsync) propaga
+    /// el <c>UserId</c> del <see cref="IUsuarioActual"/> a la transición
+    /// de la Vacante a Cubierta (side-effect). Antes del fix se persistía
+    /// con <c>usuarioId: null</c>.
+    /// </summary>
+    [Fact]
+    public async Task CrearAsync_Cubrir_UsuarioAutenticado_PropagaChangedByUserId()
+    {
+        var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(
+            ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo,
+            usuarioActual: new FakeUsuarioActual { UserId = "user-cubrir" });
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdAbierta, puestoId: PuestoIdActivo),
+            default);
+
+        Assert.True(resultado.IsSuccess);
+        Assert.Equal(1, trackingRepo.RegistrarCambioEstadoCallCount);
+        var historial = Assert.Single(trackingRepo.HistorialRegistrado);
+        Assert.Equal("user-cubrir", historial.ChangedByUserId);
+    }
+
+    /// <summary>
+    /// D-1 (defense-in-depth): si el principal es anónimo, el flujo Cubrir
+    /// rechaza con <see cref="ErrorCategoria.Unauthorized"/> y NO
+    /// persiste la Ocupación ni la transición de la Vacante.
+    /// </summary>
+    [Fact]
+    public async Task CrearAsync_Cubrir_UsuarioAnonimo_DevuelveUnauthorizedYNoPersiste()
+    {
+        var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var uow = new FakeUnitOfWork();
+        var servicio = CrearServicio(
+            ocupacionRepo, personaRepo, puestoRepo, uow, trackingRepo,
+            usuarioActual: FakeUsuarioActual.Anonymous);
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdAbierta, puestoId: PuestoIdActivo),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Unauthorized, resultado.Error!.Categoria);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Empty(ocupacionRepo.Datos);
+        Assert.Empty(trackingRepo.HistorialRegistrado);
+    }
+
     [Fact]
     public async Task CrearAsync_ConVacanteId_VacanteNoEncontrada_DevuelveNotFound()
     {
@@ -1070,6 +1137,53 @@ public sealed class OcupacionServicioComandosTests
         Assert.Equal(1, uow.SaveChangesCount); // intentó, falló
     }
 
+    /// <summary>
+    /// D-4 (vacantes-hardening): cuando la carrera atómica de doble
+    /// cobertura de la misma Vacante choca con la constraint única
+    /// <c>IX_Ocupaciones_VacanteIdUnique</c>, el servicio DEBE mapear el
+    /// <see cref="DbUpdateException"/> a
+    /// <see cref="OcupacionErrorCodigo.VacanteYaCubierta"/> (no
+    /// genérico <c>DatosInvalidos</c>).
+    /// </summary>
+    [Fact]
+    public async Task CrearAsync_Cubrir_ViolacionConstraintUnica_MapeaVacanteYaCubierta()
+    {
+        var vacante = CrearVacanteAbierta(VacanteIdAbierta, PuestoIdActivo);
+        var trackingRepo = new TrackingVacanteRepository();
+        trackingRepo.StagedVacantes[VacanteIdAbierta] = vacante;
+
+        var ocupacionRepo = new FakeOcupacionWriteRepository();
+        var personaRepo = new FakePersonaWriteRepository { Datos = [CrearPersonaActiva()] };
+        var puestoRepo = new FakePuestoWriteRepository { Datos = [CrearPuestoActivo()] };
+        var constraintDetector = new FakeConstraintViolationDetector
+        {
+            ConstraintName = "IX_Ocupaciones_VacanteIdUnique"
+        };
+        var uow = new FakeUnitOfWork
+        {
+            ThrowOnSaveChanges = new DbUpdateException(
+                "Duplicate entry 'X' for key 'Ocupaciones.IX_Ocupaciones_VacanteIdUnique'")
+        };
+        var servicio = new OcupacionServicioComandos(
+            ocupacionRepo, personaRepo, puestoRepo, uow,
+            constraintDetector,
+            new FakeLogger<OcupacionServicioComandos>(),
+            new CrearOcupacionRequestValidator(),
+            new ActualizarOcupacionRequestValidator(),
+            new FinalizarOcupacionRequestValidator(),
+            trackingRepo,
+            new FakeEstadoVacanteRepository { SoloCubierta = false },
+            new FakeUsuarioActual());
+
+        var resultado = await servicio.CrearAsync(
+            CrearRequestConVacante(VacanteIdAbierta, puestoId: PuestoIdActivo),
+            default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(ErrorCategoria.Conflict, resultado.Error!.Categoria);
+        Assert.Equal(OcupacionErrorCodigo.VacanteYaCubierta, resultado.Error.Code);
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private static OcupacionServicioComandos CrearServicio(
@@ -1078,14 +1192,23 @@ public sealed class OcupacionServicioComandosTests
         IPuestoRepository puestoRepo,
         IUnitOfWork uow,
         IVacanteRepository? vacanteRepo = null,
-        IEstadoVacanteRepository? estadoVacanteRepo = null)
+        IEstadoVacanteRepository? estadoVacanteRepo = null,
+        IUsuarioActual? usuarioActual = null)
     {
+        // Cambio vacantes-hardening D-1: instanciar explícitamente las
+        // validators y llamar al constructor primario para cablear el
+        // IUsuarioActual del helper. El convenience constructor de la
+        // clase sigue existiendo y cablea NullUsuarioActual.Instance.
         return new OcupacionServicioComandos(
             ocupacionRepo, personaRepo, puestoRepo, uow,
             new FakeConstraintViolationDetector(),
             new FakeLogger<OcupacionServicioComandos>(),
+            new CrearOcupacionRequestValidator(),
+            new ActualizarOcupacionRequestValidator(),
+            new FinalizarOcupacionRequestValidator(),
             vacanteRepo ?? new FakeVacanteLookupRepository { PuestosConVacanteAbierta = [PuestoIdActivo] },
-            estadoVacanteRepo ?? new FakeEstadoVacanteRepository { SoloCubierta = false });
+            estadoVacanteRepo ?? new FakeEstadoVacanteRepository { SoloCubierta = false },
+            usuarioActual ?? new FakeUsuarioActual());
     }
 
     private static Persona CrearPersonaActiva()
@@ -1350,7 +1473,15 @@ internal sealed class FakeLogger<T> : ILogger<T>
 
 internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
 {
+    /// <summary>
+    /// Nombre de constraint a devolver por <see cref="GetUniqueConstraintName"/>.
+    /// Default = null (no discrimina).
+    /// </summary>
+    public string? ConstraintName { get; set; }
+
     public bool IsConstraintViolation(DbUpdateException ex) => true;
+
+    public string? GetUniqueConstraintName(DbUpdateException exception) => ConstraintName;
 }
 
 internal sealed class FakeVacanteLookupRepository : IVacanteRepository
@@ -1409,6 +1540,12 @@ internal sealed class TrackingVacanteRepository : IVacanteRepository
 {
     public Dictionary<Guid, Vacante?> StagedVacantes { get; } = [];
     public List<Vacante> CommitedVacantes { get; } = [];
+    /// <summary>
+    /// Historiales registrados vía <see cref="RegistrarCambioEstadoAsync"/>.
+    /// Cambio <c>vacantes-hardening</c> D-1: permite a los tests
+    /// inspeccionar el <c>ChangedByUserId</c> propagado.
+    /// </summary>
+    public List<HistorialEstadoVacante> HistorialRegistrado { get; } = [];
     public int RegistrarCambioEstadoCallCount { get; private set; }
 
     private bool _pending;
@@ -1423,6 +1560,7 @@ internal sealed class TrackingVacanteRepository : IVacanteRepository
         RegistrarCambioEstadoCallCount++;
         _stagingVacante = vacante;
         _stagingHistorial = historial;
+        HistorialRegistrado.Add(historial);
         _pending = true;
         return Task.CompletedTask;
     }

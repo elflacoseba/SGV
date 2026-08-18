@@ -104,6 +104,25 @@ El sistema DEBE mostrar en Create los campos `PuestoId`, `EstadoVacanteId`, `Fec
 - **ENTONCES** este DEBE responder `Forbid()`
 - **Y** NO DEBE invocar `GET /api/v1/puestos/disponibles` ni `GET /api/v1/estados-vacante`.
 
+### Requisito: Create pre-popula FechaApertura con la fecha del día
+
+El handler `OnGetAsync` de `Vacantes/Create.cshtml.cs` DEBE setear `Input.FechaApertura = DateTime.Today` antes de renderizar el formulario, de modo que el `<input type="date">` de `Create.cshtml:68` se muestre con el valor del día en lugar de vacío. El usuario puede sobrescribir el valor antes de enviar.
+
+(Previously: `OnGetAsync` no tocaba `Input.FechaApertura`, dejándolo `null`. El `<input type="date">` se renderizaba vacío y el usuario debía tipearlo manualmente para superar la validación `[Required]`.)
+
+#### Escenario: Create muestra FechaApertura con la fecha del día
+
+- **DADO** un usuario autorizado que abre `GET /organizacion/vacantes/crear`
+- **CUANDO** se renderiza el formulario
+- **ENTONCES** el `<input type="date" name="Input.FechaApertura">` DEBE estar poblado con `DateTime.Today` en formato `yyyy-MM-dd`.
+
+#### Escenario: Usuario puede sobrescribir FechaApertura
+
+- **DADO** el formulario Create pre-poblado con `FechaApertura = today`
+- **CUANDO** el usuario edita el campo y envía
+- **ENTONCES** el POST DEBE enviar el valor sobrescrito por el usuario
+- **Y** el handler DEBE persistir la fecha sobrescritada (no la original).
+
 ### Requisito: Guardado con feedback accionable (PRG)
 
 El sistema DEBE aplicar Post-Redirect-Get tras operaciones exitosas y DEBE traducir validaciones, conflictos y fallos de transporte a feedback claro por campo, conservando los datos ingresados.
@@ -175,6 +194,33 @@ La página Edit DEBE permitir modificar `Observaciones` y cambiar el `EstadoVaca
 - **CUANDO** recibe la respuesta JSON
 - **ENTONCES** cada item DEBE incluir el campo `esCubierta` (boolean)
 - **Y** el campo DEBE reflejar `EstadoVacante.EsCubierta` de la BD, permitiendo al cliente filtrar el dropdown.
+
+### Requisito: Edit redirige a Details cuando la vacante es terminal
+
+El handler `OnGetAsync` de `Vacantes/Edit.cshtml.cs` DEBE consultar el flag `EsCerrada` de `VacanteDetailViewModel` (ya disponible desde `vacante-web` previo) antes de poblar el formulario. Si la vacante está `Cubierta` o `Cancelada` (estado terminal), el handler DEBE redirigir a `/organizacion/vacantes/detalles/{id}` en lugar de renderizar el formulario de Edit, evitando el round-trip que el backend rechaza con `409 EstadoTerminalInmutable`.
+
+(Previously: `OnGetAsync` siempre cargaba el formulario para cualquier vacante existente, independientemente de su estado. El usuario veía el formulario completo, intentaba guardar y solo entonces recibía `409 Conflict` post-round-trip.)
+
+#### Escenario: Edit sobre vacante Cubierta redirige a Details
+
+- **DADO** una vacante en estado `Cubierta` (terminal) con `VacanteDetailViewModel.EsCerrada = true`
+- **Y** un usuario con rol `Administrador` o `GestorVacantes`
+- **CUANDO** solicita `GET /organizacion/vacantes/editar/{id}`
+- **ENTONCES** el handler DEBE redirigir a `/organizacion/vacantes/detalles/{id}`
+- **Y** NO DEBE renderizar el formulario de Edit.
+
+#### Escenario: Edit sobre vacante Cancelada redirige a Details
+
+- **DADO** una vacante en estado `Cancelada` con `EsCerrada = true`
+- **CUANDO** un usuario autorizado solicita `GET /organizacion/vacantes/editar/{id}`
+- **ENTONCES** el handler DEBE redirigir a `/organizacion/vacantes/detalles/{id}`.
+
+#### Escenario: Edit sobre vacante no terminal carga el formulario
+
+- **DADO** una vacante en estado `Abierta` o `En Selección` con `EsCerrada = false`
+- **CUANDO** un usuario autorizado solicita `GET /organizacion/vacantes/editar/{id}`
+- **ENTONCES** el handler DEBE poblar el `Input` y renderizar el formulario de Edit
+- **Y** NO DEBE redirigir.
 
 ### Requisito: Details con historial de estados (PB-4)
 
@@ -300,3 +346,41 @@ Si la Vacante NO está `Cubierta` (o `OcupacionDerivadaId` es null), el bloque N
 - **CUANDO** el admin entra al Details
 - **ENTONCES** la interfaz DEBE renderizar el bloque "Persona asignada:" con valor vacío/tratado
 - **Y** el link "Ver ocupación" DEBE omitirse o deshabilitarse en ausencia de nombre asignado.
+
+### Requisito: Bind de modelos Create y Edit separados
+
+El sistema DEBE usar `VacanteCreateInputModel` y `VacanteEditInputModel` (tipos en `src/SGV.Contracts/Vacantes/Modelos/`) en lugar del viejo `VacanteInputModel` único. El tipo `VacanteCreateInputModel` NO DEBE contener la propiedad `EstadoVacanteId`. El tipo `VacanteEditInputModel` DEBE contener `EstadoVacanteId` de tipo `Guid?` con `[Required]`. La página `Create` DEBE bindear `VacanteCreateInputModel` y la página `Edit` DEBE bindear `VacanteEditInputModel`. El handler POST de `Create.cshtml.cs` NO DEBE invocar `ModelState.Remove` sobre ningún campo del `Input`.
+
+(Previously: un único `VacanteInputModel` con `EstadoVacanteId` `[Required]` se bindeaba en ambas páginas. `Create.cshtml.cs` invocaba `ModelState.Remove("Input.EstadoVacanteId")` para evitar que `[Required]` validara un campo que el formulario de Create no envía.) El detalle de la separación de tipos vive en `specs/vacante-input-model-split/spec.md` del change `2026-08-18-vacantes-hardening`.
+
+#### Escenario: Create bindea VacanteCreateInputModel sin EstadoVacanteId
+
+- **DADO** la página `Vacantes/Create.cshtml.cs`
+- **CUANDO** se inspecciona la propiedad `Input` por reflexión
+- **ENTONCES** su tipo declarado DEBE ser `VacanteCreateInputModel`
+- **Y** el tipo `VacanteCreateInputModel` NO DEBE contener una propiedad `EstadoVacanteId`.
+
+#### Escenario: Edit bindea VacanteEditInputModel con EstadoVacanteId Required
+
+- **DADO** la página `Vacantes/Edit.cshtml.cs`
+- **CUANDO** se inspecciona la propiedad `Input` por reflexión
+- **ENTONCES** su tipo declarado DEBE ser `VacanteEditInputModel`
+- **Y** el tipo `VacanteEditInputModel.EstadoVacanteId` DEBE ser `Guid?` con `[Required]`.
+
+#### Escenario: Create.cshtml.cs no invoca ModelState.Remove
+
+- **DADO** el archivo `Create.cshtml.cs`
+- **CUANDO** `grep -n "ModelState.Remove" src/SGV.Web/Pages/Organizacion/Vacantes/Create.cshtml.cs` se ejecuta
+- **ENTONCES** el resultado DEBE ser vacío.
+
+#### Escenario: Create POST envía EstadoVacanteId null
+
+- **DADO** un modelo `VacanteCreateInputModel` populado (sin `EstadoVacanteId`)
+- **CUANDO** el handler serializa el POST al API
+- **ENTONCES** el body JSON DEBE contener `estadoVacanteId: null`.
+
+#### Escenario: Edit POST envía EstadoVacanteId populado
+
+- **DADO** un modelo `VacanteEditInputModel` con `EstadoVacanteId` poblado
+- **CUANDO** el handler serializa el PATCH al API
+- **ENTONCES** el body JSON DEBE contener `estadoVacanteId` con el valor del modelo.
