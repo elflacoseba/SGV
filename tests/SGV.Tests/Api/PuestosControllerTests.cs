@@ -677,6 +677,39 @@ public sealed class PuestosControllerTests
         Assert.Equal(FakePuestoServicio.PuestoId1, page.Items[0].Id);
     }
 
+    // ---- Normalización de page/pageSize (spec CRITICAL-01, espejo SkillsController) ----
+
+    [Theory]
+    [InlineData("pageSize=0", 1, 20)]               // pageSize<1 → default 20
+    [InlineData("pageSize=-1", 1, 20)]              // pageSize negativo → default
+    [InlineData("pageSize=999999", 1, 100)]         // pageSize fuera de rango → cap 100
+    [InlineData("pageSize=101&page=1", 1, 100)]     // pageSize=101 → cap 100
+    [InlineData("page=3&pageSize=10&sort=injection", 3, 10)] // sort inválido no rompe (cae a codigo_asc)
+    [InlineData("page=0", 1, 20)]                   // page<1 → 1 (mantiene pageSize default)
+    [InlineData("page=-5&pageSize=15", 1, 15)]      // page negativo → 1
+    public async Task GetConsulta_NormalizaPageYPageSize(
+        string queryString, int expectedPage, int expectedPageSize)
+    {
+        // Espejo del patrón de SkillsController / HabilidadesCargos:
+        // el controller DEBE normalizar page<1 a 1 y pageSize a [1,100]
+        // antes de delegar al servicio para proteger la query del repo
+        // contra DOS accidentales y números fuera de rango.
+        var capture = new PagedCaptureFake();
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IPuestoServicioConsulta>();
+            services.AddSingleton<IPuestoServicioConsulta>(capture);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync($"/api/v1/puestos/consulta?{queryString}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var observed = Assert.Single(capture.Captured);
+        Assert.Equal(expectedPage, observed.Page);
+        Assert.Equal(expectedPageSize, observed.PageSize);
+    }
+
     // ---- REQ-PTO-010: DELETE 409 cuando hay ocupaciones vigentes ----
 
     [Fact]
@@ -778,5 +811,30 @@ public sealed class PuestosControllerTests
                 [new(FakePuestoServicio.PuestoId1, "GER-001", "Gerente General", null,
                     FakePuestoServicio.UnidadId1, "Gerencia General",
                     FakePuestoServicio.CargoId1, "Director", null)]);
+    }
+
+    /// <summary>
+    /// Fake en memoria que captura <c>Page</c> y <c>PageSize</c> del
+    /// <see cref="PuestoListQuery"/> recibido por el servicio para validar
+    /// la normalización de pageSize/page en <c>PuestosController.GetConsulta</c>.
+    /// </summary>
+    private sealed class PagedCaptureFake : IPuestoServicioConsulta
+    {
+        public List<(int Page, int PageSize)> Captured { get; } = new();
+
+        public Task<IReadOnlyList<PuestoDto>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PuestoDto>>([]);
+
+        public Task<PuestoDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<PuestoDto?>(null);
+
+        public Task<PagedResult<PuestoDto>> QueryAsync(PuestoListQuery query, CancellationToken ct = default)
+        {
+            Captured.Add((query.Page, query.PageSize));
+            return Task.FromResult(new PagedResult<PuestoDto>([], 0, query.Page, query.PageSize));
+        }
+
+        public Task<IReadOnlyList<PuestoDto>> ListarDisponiblesAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<PuestoDto>>([]);
     }
 }

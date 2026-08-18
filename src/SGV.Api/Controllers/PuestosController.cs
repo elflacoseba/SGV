@@ -188,11 +188,18 @@ public class PuestosController : ControllerBase
         [FromQuery] string? status = null,
         CancellationToken cancellationToken = default)
     {
+        // Normalización de page/pageSize en el controller (espejo de
+        // SkillsController.GetConsulta, spec CRITICAL-01): page<1 cae a 1,
+        // pageSize<1 cae al default 20 y pageSize>100 se capa a 100 para
+        // proteger la query del repo contra DOS accidentales.
+        var normalizedPage = page < 1 ? 1 : page;
+        var normalizedPageSize = pageSize < 1 ? 20 : Math.Min(100, pageSize);
+
         var segmento = string.Equals(status, "eliminadas", StringComparison.OrdinalIgnoreCase)
             ? PuestoSegmentoListado.Eliminadas
             : PuestoSegmentoListado.Activas;
 
-        var query = new PuestoListQuery(page, pageSize, search, sort, segmento);
+        var query = new PuestoListQuery(normalizedPage, normalizedPageSize, search, sort, segmento);
         var result = await _servicio.QueryAsync(query, cancellationToken);
         return Ok(result);
     }
