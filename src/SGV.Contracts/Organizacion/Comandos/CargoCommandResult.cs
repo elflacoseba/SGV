@@ -6,11 +6,21 @@ namespace SGV.Contracts.Organizacion.Comandos;
 /// <summary>
 /// Categorizes command-side failures for Cargo operations.
 /// </summary>
+/// <remarks>
+/// Alineado 1-a-1 con <see cref="ErrorCategoria"/> vía
+/// <see cref="SGV.Contracts.Comun.ErrorCategoriaMappers"/>. Los valores se
+/// agregan al final del enum para preservar los ordinales de los miembros
+/// existentes (NotFound = 0, Conflict = 1, Validation = 2).
+/// </remarks>
 public enum CargoErrorType
 {
     NotFound,
     Conflict,
-    Validation
+    Validation,
+    Unauthorized,
+    Forbidden,
+    Transport,
+    Unexpected
 }
 
 /// <summary>

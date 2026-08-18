@@ -244,7 +244,11 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
         var parsed = await ApiProblemReader.ReadAsync(response, cancellationToken).ConfigureAwait(false);
         var (categoria, code, message, statusCode) = CommandResultMapper.Map(response, parsed);
 
-        var legacyType = MapCategoriaToLegacyType(categoria);
+        // Desde el housekeeping cargos-release (2026-08-18), el mapeo entre
+        // ErrorCategoria y CargoErrorType es 1-a-1 vía ErrorCategoriaMappers.
+        // El legacy Type se preserva en el record por source-compat con
+        // callers que aún no migraron al switch por Categoria.
+        var legacyType = ErrorCategoriaMappers.ToTipoCargo(categoria);
         var error = new CargoError(legacyType, code, message, statusCode, categoria);
 
         if (parsed.FieldErrors is { Count: > 0 })
@@ -254,24 +258,6 @@ public sealed class CargoApiClient(HttpClient httpClient) : ICargoApiClient
 
         return CargoCommandResult.Failure(error);
     }
-
-    /// <summary>
-    /// Mapea <see cref="ErrorCategoria"/> al <see cref="CargoErrorType"/>
-    /// legacy preservando source-compat: <c>NotFound/Conflict/Validation</c>
-    /// son 1-a-1; el resto (<c>Unauthorized/Forbidden/Transport/Unexpected</c>)
-    /// cae en <see cref="CargoErrorType.Validation"/> (no hay variante
-    /// legacy; se preserva el campo <c>Type</c> no nulo).
-    /// </summary>
-    private static CargoErrorType MapCategoriaToLegacyType(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => CargoErrorType.NotFound,
-        ErrorCategoria.Conflict => CargoErrorType.Conflict,
-        ErrorCategoria.Validation => CargoErrorType.Validation,
-        ErrorCategoria.Unauthorized => CargoErrorType.Validation,
-        ErrorCategoria.Forbidden => CargoErrorType.Validation,
-        ErrorCategoria.Transport => CargoErrorType.Validation,
-        ErrorCategoria.Unexpected => CargoErrorType.Validation
-    };
 
     /// <summary>
     /// Mapea <see cref="ErrorCategoria"/> al <see cref="CargoSkillErrorType"/>
