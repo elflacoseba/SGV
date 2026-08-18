@@ -220,6 +220,7 @@ public sealed class PersonaRepositoryTests
             new ActualizarPersonaRequestValidator(),
             auditoria,
             usuarioActual,
+            new SGV.Tests.Aplicacion.Personas.FakeTipoDocumentoCatalogoConsulta(),
             NullLogger<PersonaServicioComandos>.Instance);
 
         var legajoInicial = "L-H3-" + Guid.NewGuid().ToString("N")[..8];
