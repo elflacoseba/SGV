@@ -166,6 +166,31 @@ El sistema DEBE permitir transicionar el `EstadoVacanteId` persistiendo simultá
 - **CUANDO** se solicita cambiar su estado
 - **ENTONCES** el sistema DEBE rechazar la operación con `400 Validation` y código `EstadoTerminalInmutable`.
 
+### Requisito: Trazabilidad de usuario en HistorialEstadoVacante
+
+El sistema DEBE persistir el `UserId` del principal autenticado en `HistorialEstadoVacante.ChangedByUserId` para cada transición de estado originada por `VacanteServicioComandos.CambiarEstadoAsync` y por la transición a `Cubierta` que dispara `OcupacionServicioComandos.CrearOcupacionCubriendoVacanteAsync`. Ningún `HistorialEstadoVacante` persistido por estas vías DEBE tener `ChangedByUserId = null` cuando la transición ocurre bajo un principal autenticado. Si el principal no está autenticado, el servicio DEBE lanzar una condición que el controller mapea a `401 Unauthorized` en lugar de propagar `null`.
+
+(Previously: `ChangedByUserId` se persistía como `null` en ambos call sites — `VacanteServicioComandos.cs:349-353` y `OcupacionServicioComandos.cs:355-359` — dejando la trazabilidad de la transición huérfana.) El detalle operacional de la propagación (abstracción `IUsuarioActual`,composition root, `HttpContextAccessor`) vive en `specs/vacante-identity-propagation/spec.md` del change `2026-08-18-vacantes-hardening`.
+
+#### Escenario: Transición autenticada persiste el actor
+
+- **DADO** una vacante en estado `Abierta` y un principal autenticado con `UserId = "user-123"`
+- **CUANDO** el controller invoca `CambiarEstadoAsync` con el `UserId` del principal
+- **ENTONCES** el `HistorialEstadoVacante` insertado DEBE tener `ChangedByUserId = "user-123"`.
+
+#### Escenario: Cubrir via Ocupaciones persiste el actor
+
+- **DADO** una vacante `Abierta` y un principal autenticado con `UserId = "user-456"`
+- **CUANDO** se invoca `OcupacionServicioComandos.CrearAsync` con `VacanteId` igual al id de la vacante
+- **ENTONCES** la transición a `Cubierta` resultante DEBE tener `ChangedByUserId = "user-456"`.
+
+#### Escenario: Principal no autenticado es rechazado
+
+- **DADO** un request que arriba al controller sin principal autenticado
+- **CUANDO** el handler invoca `CambiarEstadoAsync`
+- **ENTONCES** el sistema DEBE responder `401 Unauthorized`
+- **Y** NO DEBE persistir ningún `HistorialEstadoVacante` con `ChangedByUserId = null`.
+
 ### Requisito: Catálogo de estados de vacante (solo lectura)
 
 El sistema DEBE exponer `GET /api/v1/estados-vacante` autenticado que devuelva los estados sembrados (bloque GUID `20000000-…`) sin permitir mutaciones.
