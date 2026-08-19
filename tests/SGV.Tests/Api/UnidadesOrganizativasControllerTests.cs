@@ -182,6 +182,49 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.Contains("100", body, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// H-X4 (housekeeping release-readiness UO+Organigrama): el endpoint
+    /// admin de diagnóstico de jerarquía requiere rol Administrador.
+    /// Un usuario autenticado sin ese rol recibe 403 — defense-in-depth
+    /// contra la exposición de paths cíclicos a roles no autorizados.
+    /// </summary>
+    [Fact]
+    public async Task DiagnosticoJerarquia_WithoutAdminRole_ReturnsForbidden()
+    {
+        var factory = _fixture.RootFactory;
+        // Cliente autenticado pero sin rol Administrador.
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/diagnostico-jerarquia");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>
+    /// H-X4: con rol Administrador y jerarquía sana, el endpoint devuelve
+    /// 200 con una lista vacía de ciclos.
+    /// </summary>
+    [Fact]
+    public async Task DiagnosticoJerarquia_WithAdminRoleAndAcyclicTree_ReturnsOkWithEmptyList()
+    {
+        var fakeDiagnostico = new FakeDiagnosticoJerarquiaService([]);
+
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IDiagnosticoJerarquiaService>();
+            services.AddSingleton<IDiagnosticoJerarquiaService>(fakeDiagnostico);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/diagnostico-jerarquia");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var ciclos = JsonSerializer.Deserialize<List<CicloDetectado>>(json, JsonOptions);
+        Assert.NotNull(ciclos);
+        Assert.Empty(ciclos!);
+    }
+
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
@@ -1074,4 +1117,24 @@ internal sealed class FakeUnidadOrganizativaServicioConLista : IUnidadOrganizati
 
     public Task<UnidadOrganizativaArbolResponse> GetTreeAsync(CancellationToken ct = default)
         => Task.FromResult(new UnidadOrganizativaArbolResponse([], []));
+}
+
+/// <summary>
+/// H-X4 (housekeeping release-readiness UO+Organigrama): fake mínimo de
+/// <see cref="IDiagnosticoJerarquiaService"/> que devuelve una lista
+/// fija de ciclos. Permite a los tests del endpoint
+/// <c>/diagnostico-jerarquia</c> validar 200/403 sin sembrar un grafo
+/// cíclico en MySQL.
+/// </summary>
+internal sealed class FakeDiagnosticoJerarquiaService : IDiagnosticoJerarquiaService
+{
+    private readonly IReadOnlyList<CicloDetectado> _ciclos;
+
+    public FakeDiagnosticoJerarquiaService(IReadOnlyList<CicloDetectado> ciclos)
+    {
+        _ciclos = ciclos;
+    }
+
+    public Task<IReadOnlyList<CicloDetectado>> DiagnosticarAsync(CancellationToken ct = default)
+        => Task.FromResult(_ciclos);
 }
