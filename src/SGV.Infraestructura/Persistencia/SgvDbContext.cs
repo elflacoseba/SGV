@@ -57,6 +57,8 @@ public sealed class SgvDbContext : IdentityDbContext<SgvIdentityUser, IdentityRo
 
     public DbSet<CategoriaHabilidadEntity> CategoriasHabilidad => Set<CategoriaHabilidadEntity>();
 
+    public DbSet<RefreshTokenEntity> RefreshTokens => Set<RefreshTokenEntity>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
