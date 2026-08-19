@@ -1,4 +1,6 @@
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Organizacion.Consultas;
@@ -16,6 +18,8 @@ public sealed class UnidadOrganizativaServicioComandos(
     IUnidadOrganizativaRepository repository,
     ITipoUnidadOrganizativaRepository tipoUnidadRepository,
     IUnitOfWork unitOfWork,
+    IConstraintViolationDetector constraintDetector,
+    ILogger<UnidadOrganizativaServicioComandos> logger,
     IValidator<CrearUnidadOrganizativaRequest> crearValidator,
     IValidator<ActualizarUnidadOrganizativaRequest> actualizarValidator) : IUnidadOrganizativaServicioComandos
 {
@@ -30,8 +34,11 @@ public sealed class UnidadOrganizativaServicioComandos(
     public UnidadOrganizativaServicioComandos(
         IUnidadOrganizativaRepository repository,
         ITipoUnidadOrganizativaRepository tipoUnidadRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IConstraintViolationDetector constraintDetector)
         : this(repository, tipoUnidadRepository, unitOfWork,
+               constraintDetector,
+               Microsoft.Extensions.Logging.Abstractions.NullLogger<UnidadOrganizativaServicioComandos>.Instance,
                new CrearUnidadOrganizativaRequestValidator(),
                new ActualizarUnidadOrganizativaRequestValidator())
     {
@@ -97,6 +104,10 @@ public sealed class UnidadOrganizativaServicioComandos(
             // unidadPadreCodigo y unidadPadreNombre correctos.
             var recargada = await repository.GetByIdAsync(unidad.Id, cancellationToken).ConfigureAwait(false);
             return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
+        }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(CrearAsync));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -195,6 +206,10 @@ public sealed class UnidadOrganizativaServicioComandos(
             var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
             return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(ActualizarAsync));
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return UnidadOrganizativaCommandResult.Failure(
@@ -264,6 +279,10 @@ public sealed class UnidadOrganizativaServicioComandos(
             var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
             return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(CambiarUnidadPadreAsync));
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return UnidadOrganizativaCommandResult.Failure(
@@ -298,7 +317,14 @@ public sealed class UnidadOrganizativaServicioComandos(
 
         unidad.Desactivar();
         await repository.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
-        await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(EliminarAsync));
+        }
 
         return UnidadOrganizativaCommandResult.Success(null!);
     }
@@ -345,6 +371,10 @@ public sealed class UnidadOrganizativaServicioComandos(
             var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
             return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(ReactivarAsync));
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return UnidadOrganizativaCommandResult.Failure(
@@ -366,6 +396,52 @@ public sealed class UnidadOrganizativaServicioComandos(
             unidad.UnidadPadreId,
             unidad.UnidadPadre?.Codigo,
             unidad.UnidadPadre?.Nombre);
+    }
+
+    /// <summary>
+    /// H-A3 (housekeeping release-readiness UO+Organigrama): traduce
+    /// <see cref="DbUpdateException"/> a un resultado de negocio tipado.
+    /// Cubre el SIGNAL 1644 del trigger anti-ciclos (issue #277) y la
+    /// violación del índice único <c>IX_UnidadesOrganizativas_ActiveCodigoUnique</c>
+    /// en la carrera entre <c>ExistsActiveCodeAsync</c> y <c>SaveChanges</c>.
+    /// El contrato del trigger emite <c>MESSAGE_TEXT = 'CicloJerarquico'</c>
+    /// (migración <c>20260816203122_AddTriggerAntiCiclosUnidadesOrganizativas</c>),
+    /// así que la distinción se hace por el mensaje del InnerException y por
+    /// <see cref="IConstraintViolationDetector.GetUniqueConstraintName"/> sin
+    /// tener que importar <c>MySqlConnector</c> en la capa de aplicación.
+    /// </summary>
+    private UnidadOrganizativaCommandResult MapConstraintViolation(
+        DbUpdateException ex, string methodName)
+    {
+        logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", methodName, ex.Message);
+
+        // 1644 (SIGNAL del trigger anti-ciclos): el InnerException trae el
+        // MESSAGE_TEXT literal del SIGNAL, que la migración garantiza como
+        // "CicloJerarquico" en una constante.
+        if (ex.InnerException is not null &&
+            ex.InnerException.Message.Contains("CicloJerarquico", StringComparison.Ordinal))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico",
+                    "No se puede asignar como padre una unidad descendiente."));
+        }
+
+        // 1062 (duplicate key) sobre el índice único del código activo.
+        // Carrera entre ExistsActiveCodeAsync y SaveChangesAsync: el chequeo
+        // previo pasa pero la BD rechaza la segunda escritura concurrente.
+        var uniqueConstraintName = constraintDetector.GetUniqueConstraintName(ex);
+        if (uniqueConstraintName == "IX_UnidadesOrganizativas_ActiveCodigoUnique")
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
+                    "Ya existe una unidad organizativa activa con el mismo código."));
+        }
+
+        // Otros constraint violations (FK 1169/1451/1452, 4025, etc): 409
+        // genérico para no exponer detalles de BD al cliente.
+        return UnidadOrganizativaCommandResult.Failure(
+            new(UnidadOrganizativaErrorType.Conflict, "RestriccionDeIntegridad",
+                "La operación viola una restricción de integridad."));
     }
 
 }
