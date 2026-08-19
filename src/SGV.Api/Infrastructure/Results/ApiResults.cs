@@ -329,12 +329,8 @@ public static class ApiResults
     private static int MapUnidadOrganizativaStatus(UnidadOrganizativaErrorType type)
         => MapCategoria(ErrorCategoriaMappers.ToCategoria(type));
 
-#pragma warning disable CS0618
-    private static int MapOcupacionStatus(OcupacionError error)
-        => error.Categoria is ErrorCategoria.Unexpected
-            ? MapCategoria(ErrorCategoriaMappers.ToCategoria(error.Type))
-            : MapCategoria(error.Categoria);
-#pragma warning restore CS0618
+private static int MapOcupacionStatus(OcupacionError error)
+        => MapCategoria(error.Categoria);
 
     private static int MapPersonaStatus(PersonaErrorType type)
         => MapCategoria(ToCategoria(type));

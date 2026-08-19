@@ -1903,3 +1903,87 @@ Tras estos 4 PRs mergeados a `develop`, el módulo de Personas queda **release-r
 - **D-1**: `IUsuarioActual` ya existía (issue #202) — la decisión fue inyectarlo en los constructores primaires de `VacanteServicioComandos` y `OcupacionServicioComandos`, usando `NullUsuarioActual.Instance` para back-compat de tests pre-existentes. Composition root: `AddScoped<IUsuarioActual, UsuarioActualHttpContext>()` en `Program.cs:219`. Convenience constructor con `null` (back-compat) eliminado tras confirmar que todos los tests existentes cablean principal o usan el stub `FakeUsuarioActual`.
 - **D-3**: Convención — input models de Razor Pages viven en `src/SGV.Web/Integration/<Módulo>/`, NO en `SGV.Contracts`. Cambio: `VacanteInputModel` spliteado en `VacanteCreateInputModel` (sin `EstadoVacanteId`) y `VacanteEditInputModel` (`EstadoVacanteId Guid?` con `[Required]`). El workaround `ModelState.Remove("Input.EstadoVacanteId")` en `Create.cshtml.cs` fue eliminado. Tres tests de reflexión (D-3) defienden la estructura contra drift futuro.
 - **D-4**: En `CrearOcupacionCubriendoVacanteAsync`, la defensa atómica de BD (`IX_Ocupaciones_VacanteIdUnique`) tiene precedencia sobre la defensa lógica de `EsTerminal`. El código de error es `OcupacionErrorCodigo.VacanteYaCubierta` (409), no `VacanteErrorCodigo.EstadoTerminalInmutable`. Comportamiento funcional equivalente — una cobertura gana (2xx), la otra pierde (409). Desviación documentada en `apply-progress.md §Desviaciones del diseño → D-4.D.1`. Patrón alineado con `ActivePuestoIdUnique` ya existente en `VacanteServicioComandos`. Extensión de `IConstraintViolationDetector` con `GetUniqueConstraintName(DbUpdateException)` cubre MySQL 8 (backticks) y MariaDB (comillas) en el mensaje `Duplicate entry`.
+
+## Release-ready: módulo de Ocupaciones
+
+> Change de housekeeping: `2026-08-19-ocupaciones-housekeeping-release`. Cierra los 5 hallazgos del análisis release-readiness del módulo de Ocupaciones. No es breaking (source/wire/DB). Build verde, 0 errores.
+
+### Contexto y trazabilidad
+
+El módulo de Ocupaciones se consolidó a lo largo de seis cambios archivados que cubrieron el ciclo completo (modelo → reglas → wire → API → web → alignment con Vacantes):
+
+- `2026-06-24-permitir-ocupaciones-concurrentes-y-enum-tipo-asignacion` — originó la regla de unicidad por Puesto y por Persona+Puesto (NO por Persona simple), e introdujo `TipoAsignacion` como enum persistido.
+- `2026-06-26-implementa-modulo-ocupaciones` — el módulo base.
+- `2026-07-13-fix-127-doc-ocupaciones-unicidad-persona` — fix de doc sobre la unicidad.
+- `2026-07-28-web-ocupaciones-issue-208` — implementación web inicial, migración a `ErrorCategoria` (PRs #212, #213, #214, #215).
+- `2026-07-29-web-ocupaciones-buscador-personas-issue-216` — buscador de Personas en `Create/Edit`.
+- `2026-08-07-vacante-ocupacion-flow-alignment` — inversión del flujo Cubrir (issue #276, N2/N3).
+
+### D-OC-HK-01 — Remoción del enum legacy `OcupacionErrorType`
+
+Tras el archivado del change `commandresult-error-taxonomy` (PRs #212-#215) y los seis PRs posteriores, el enum legacy `OcupacionErrorType` (NotFound/Conflict/Validation) marcado `[Obsolete]` ya no tenía callers en el grafo. La rampa `#pragma warning disable CS0618` en `MapOcupacionStatus` sobrevivía solo como defensa en profundidad porque el servicio de comandos nunca devolvía `Categoria = ErrorCategoria.Unexpected`.
+
+**Cambios:**
+- `src/SGV.Contracts/Ocupaciones/Comandos/OcupacionCommandResult.cs`: el enum `OcupacionErrorType` se elimina. El record `OcupacionError` queda con un único constructor `(ErrorCategoria, string, string)`. La rama del constructor primario obsoleto (con parámetro `Type` legacy) se elimina junto con los `#pragma warning disable CS0618` / `restore`.
+- `src/SGV.Contracts/Comun/ErrorCategoriaMappers.cs`: se eliminan `ToCategoria(OcupacionErrorType)` y `ToTipoOcupacion(ErrorCategoria)` y los `#pragma` asociados. La sección "OcupacionErrorType" del archivo desaparece; los mappers de los demás enums (`Puesto`, `UnidadOrganizativa`, `Persona`, `PersonaSkill`, `Usuario`, `Cargo`, `Habilidad`) no se tocan.
+- `src/SGV.Api/Infrastructure/Results/ApiResults.cs`: `MapOcupacionStatus` se reduce a `MapCategoria(error.Categoria)`. La rama legacy condicional `error.Categoria is ErrorCategoria.Unexpected ? MapCategoria(...) : MapCategoria(...)` y los `#pragma` se eliminan.
+
+**Compatibilidad:** source-breaking para cualquier código que usara `OcupacionErrorType` o el constructor primario de `OcupacionError` con 4 argumentos. Verificado por grep que no quedan callers. Wire-breaking NO. DB-breaking NO.
+
+**Verificado por:**
+- `grep -r "OcupacionErrorType"` en `src/` y `tests/` retorna 0 hits post-cambio.
+- `dotnet build SGV.slnx`: 0 errores, 96 warnings preexistentes (todos ajenos al change).
+- Suite del módulo: ~9.500 líneas de tests en 17 archivos (Aplicación 1.891, Dominio 370, Web 4.696, Persistencia 1.535, Api 681).
+
+### Estado de release del módulo de Ocupaciones
+
+Tras este change, el módulo de Ocupaciones queda **release-ready** sin pendientes abiertos en código ni en docs:
+
+- ✅ Build verde, 0 errores.
+- ✅ ~9.500 líneas de tests del módulo pasan 100% estable.
+- ✅ 6 specs canónicos en `openspec/specs/` (`web-ocupaciones-contrato-api`, `web-ocupaciones-crear-editar`, `web-ocupaciones-detalle`, `web-ocupaciones-listado`, `web-ocupaciones-navegacion-contextual`, `ocupacion-web-selector-persona-buscador`); 0 cambios activos en `openspec/changes/`.
+- ✅ 6 cambios archivados trazables; 0 issues pendientes sobre el módulo.
+- ✅ Defense-in-depth en 3 niveles (dominio → servicio → BD) verificado por tests.
+- ✅ Taxonomía de error consolidada en `ErrorCategoria` (D-OC-HK-01 cierra la compat legacy).
+- ✅ Compatibilidad preservada: source/wire/DB-breaking NO.
+
+### Reglas de negocio cubiertas por capa
+
+| Regla | Capa autoritativa | Test que la blinda |
+|---|---|---|
+| `FechaFin >= FechaInicio` | Dominio (`Ocupacion` ctor) + Check Constraint SQL (`CK_Ocupaciones_Fechas`) | `OcupacionTests` + `ModeloPersistenciaTests` |
+| Persona activa + Puesto activo al crear/actualizar | Servicio (`OcupacionServicioComandos`) | `OcupacionServicioComandosTests.CrearAsync_*` |
+| Una Ocupación activa por Puesto | BD (computed column `ActivePuestoIdUnique` STORED + UNIQUE) | `OcupacionGeneratedColumnRegressionTests` + `ModeloPersistenciaTests.Modelo_Ocupacion_ConservaUnicidadActivaPorPuesto` |
+| Una Ocupación activa por Persona+Puesto | BD (computed column `ActivePersonaPuestoUnique` STORED + UNIQUE) | `ModeloPersistenciaTests.Modelo_Ocupacion_ReemplazaUnicidadPersonaPorPersonaPuesto` |
+| No doble cobertura de la misma Vacante | BD (constraint `IX_Ocupaciones_VacanteIdUnique`) + `IConstraintViolationDetector.GetUniqueConstraintName` | `OcupacionServicioComandosTests.CrearAsync_Cubrir_ViolacionConstraintUnica_MapeaVacanteYaCubierta` + `VacantesCubrirConcurrencyTests` (`[MySqlFact]`) |
+| Alta directa requiere Vacante abierta (N3) | Servicio (`ExistsAbiertaByPuestoAsync`) | `OcupacionServicioComandosTests.CrearAsync_PuestoSinVacanteAbierta_DevuelveConflictoPuestoSinVacanteAbierta` |
+| Cubrir Vacante crea Ocupación + transiciona a Cubierta (N2 invertido) | Servicio (`CrearOcupacionCubriendoVacanteAsync`) | `OcupacionServicioComandosTests.CrearAsync_ConVacanteId_VacanteAbierta_CreaOcupacionYTransicionaVacanteACubierta` |
+| Reactivar valida unicidad + estado de Vacante | Servicio (`ReactivarAsync`) | `OcupacionServicioComandosTests.ReactivarAsync_*` + `ReactivarAsync_VacanteCubierta_Exito` |
+| Auto-edición prohibida cuando no está activa/finalizada | Dominio (`RequerirEditable`) | `OcupacionTests` |
+| Solo Admin escribe | Controller (`[Authorize(Roles = RolesSgv.Administrador)]`) + PageModel + Sidenav | `OcupacionesControllerTests` + `OcupacionSidenavTests` |
+| Vacante no se borra con Ocupaciones derivadas | BD (FK `Ocupaciones.VacanteId` con `OnDelete(Restrict)`) | `OcupacionVacanteIdPersistenciaTests.Borrar_VacanteConOcupacionesDerivadas_BloqueaPorRestrict` |
+
+### Capas y archivos clave
+
+| Capa | Tipo | Archivo | Rol |
+|---|---|---|---|
+| Dominio | `record class` | `src/SGV.Dominio/Ocupaciones/Ocupacion.cs` | Entidad rica con invariantes, guard y Reconstitute. |
+| Dominio | `enum` | `src/SGV.Dominio/Ocupaciones/TipoAsignacion.cs` | Enum contractual persistido (3 valores). |
+| Servicio de comandos | `sealed class` | `src/SGV.Aplicacion/Ocupaciones/Comandos/OcupacionServicioComandos.cs` | CRUD + Cubrir (N2 invertido) + constraint violation mapping. |
+| Servicio de consulta | `sealed class` | `src/SGV.Aplicacion/Ocupaciones/Consultas/OcupacionServicioConsulta.cs` | Query paginado server-side. |
+| Validadores | `class` | `src/SGV.Aplicacion/Ocupaciones/Comandos/Validaciones/*RequestValidator.cs` | Shape de los requests (FluentValidation). |
+| Repositorio | `interface` + impl | `src/SGV.Aplicacion/Ocupaciones/Consultas/IOcupacionRepository.cs` + `src/SGV.Infraestructura/Persistencia/Repositorios/OcupacionRepository.cs` | Puerto de lectura/escritura + impl EF. |
+| Configuración EF | `class` | `src/SGV.Infraestructura/Persistencia/Configuraciones/OcupacionConfiguracion.cs` | FK RESTRICT + 2 computed columns UNIQUE + check + índices de soporte. |
+| Constraint detector | `class` | `src/SGV.Infraestructura/Persistencia/MySqlConstraintViolationDetector.cs` | Detecta `1062/1169/1451/1452/1644/4025` y devuelve nombre del índice violado. |
+| Wire (DTOs) | `record` | `src/SGV.Contracts/Ocupaciones/Dtos/OcupacionDto.cs` | Wire contract inmutable. |
+| Wire (Error) | `record` | `src/SGV.Contracts/Ocupaciones/Comandos/OcupacionCommandResult.cs` + `OcupacionErrorCodigo` | Códigos de error (constantes) y resultado de comandos. |
+| Wire (Query) | `record` | `src/SGV.Contracts/Ocupaciones/Consultas/OcupacionListQuery.cs` | Filtros + paginación server-side. |
+| API controller | `sealed class` | `src/SGV.Api/Controllers/OcupacionesController.cs` | 7 endpoints REST con `[Authorize]` en escritura. |
+| Cliente HTTP | `interface` + impl | `src/SGV.Web/Integration/Ocupaciones/IOcupacionApiClient.cs` + `OcupacionApiClient.cs` | Cliente tipado con `ToCommandResultAsync` + cobertura fina de errores. |
+| Razor Pages | `class` | `src/SGV.Web/Pages/Organizacion/Ocupaciones/*.cshtml.cs` | Index/Details/Edit/Create + _Form/_CrossList. |
+| Razor Pages transversales | `class` | `src/SGV.Web/Pages/Personas/PersonaOcupaciones.cshtml.cs` + `src/SGV.Web/Pages/Organizacion/Puestos/PuestoOcupaciones.cshtml.cs` | Listas contextuales (por Persona, por Puesto). |
+
+### Riesgos residuales
+
+1. **OFFSET degrada en tablas grandes** — riesgo conocido y aceptado en el repo (mitigación v2 con cursor pagination).
+2. **`OcupacionTipoAsignacionMapper`** vive en `src/SGV.Aplicacion/Ocupaciones/` mapeando entre `SGV.Contracts.Ocupaciones.Enums.OcupacionTipoAsignacion` y `SGV.Dominio.Ocupaciones.TipoAsignacion`. Si en el futuro el dominio deja de tener su propio enum, el mapper puede colapsar a un cast directo. No urge.

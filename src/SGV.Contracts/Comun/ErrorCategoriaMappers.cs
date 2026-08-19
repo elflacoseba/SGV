@@ -153,34 +153,6 @@ public static class ErrorCategoriaMappers
     };
 
     // ============================================================
-    // OcupacionErrorType
-    // ============================================================
-
-#pragma warning disable CS0618
-    public static ErrorCategoria ToCategoria(OcupacionErrorType type) => type switch
-    {
-        OcupacionErrorType.NotFound => ErrorCategoria.NotFound,
-        OcupacionErrorType.Conflict => ErrorCategoria.Conflict,
-        OcupacionErrorType.Validation => ErrorCategoria.Validation,
-        _ => throw new ArgumentOutOfRangeException(nameof(type), type,
-            $"OcupacionErrorType value '{type}' has no categoria mapping."),
-    };
-
-    public static OcupacionErrorType ToTipoOcupacion(ErrorCategoria categoria) => categoria switch
-    {
-        ErrorCategoria.NotFound => OcupacionErrorType.NotFound,
-        ErrorCategoria.Conflict => OcupacionErrorType.Conflict,
-        ErrorCategoria.Validation => OcupacionErrorType.Validation,
-        ErrorCategoria.Transport => OcupacionErrorType.Validation,
-        ErrorCategoria.Unexpected => OcupacionErrorType.Validation,
-        ErrorCategoria.Unauthorized => OcupacionErrorType.Validation,
-        ErrorCategoria.Forbidden => OcupacionErrorType.Validation,
-        _ => throw new ArgumentOutOfRangeException(nameof(categoria), categoria,
-            $"ErrorCategoria value '{categoria}' has no ocupacion mapping."),
-    };
-#pragma warning restore CS0618
-
-    // ============================================================
     // UnidadOrganizativaErrorType
     // ============================================================
 
