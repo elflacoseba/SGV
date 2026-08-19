@@ -1997,3 +1997,83 @@ Tras este change, el módulo de Ocupaciones queda **release-ready** sin pendient
 
 1. **OFFSET degrada en tablas grandes** — riesgo conocido y aceptado en el repo (mitigación v2 con cursor pagination).
 2. **`OcupacionTipoAsignacionMapper`** vive en `src/SGV.Aplicacion/Ocupaciones/` mapeando entre `SGV.Contracts.Ocupaciones.Enums.OcupacionTipoAsignacion` y `SGV.Dominio.Ocupaciones.TipoAsignacion`. Si en el futuro el dominio deja de tener su propio enum, el mapper puede colapsar a un cast directo. No urge.
+
+## Módulo de Unidades Organizativas + Organigrama — defensa contra ciclos y dependencias MySQL-only
+
+> Change: housekeeping release-readiness (`fix/unidades-organizativas-organigrama-housekeeping`).
+> Cierra el drift técnico acumulado identificado en el análisis release-readiness
+> y documenta decisiones que ya estaban dispersas en issues (#277, #278, #279,
+> #280, #281, #282, #286) y código. No introduce comportamiento nuevo — sólo
+> explicita el contrato vigente.
+
+### D-UO-1 — Defensa en tres niveles contra ciclos jerárquicos
+
+`UnidadOrganizativa.UnidadPadreId` puede formar un ciclo (A → B → A). El
+módulo protege la integridad de la jerarquía en tres niveles
+independientes, cada uno suficiente por sí solo y verificado por tests
+(MySQL + unit):
+
+| Nivel | Mecanismo | Cubre |
+|---|---|---|
+| **Dominio** | `UnidadOrganizativa.Actualizar` y `CambiarUnidadPadre` rechazan self-parent (`InvalidOperationException`). | El caso trivial A.Id == B.Id. |
+| **Aplicación** | `UnidadOrganizativaServicioComandos.ActualizarAsync` y `CambiarUnidadPadreAsync` consultan `IUnidadOrganizativaRepository.IsDescendantAsync` con visited-set local (O(depth)). Si la cadena del candidato es descendiente del padre propuesto o revisa un nodo ya visitado, devuelven `Conflict "CicloJerarquico"` (HTTP 409). | Ciclos transitivos construidos en operaciones concurrentes. |
+| **Persistencia (BD)** | Migración `20260816203122_AddTriggerAntiCiclosUnidadesOrganizativas` agrega triggers `BEFORE INSERT` y `BEFORE UPDATE` que ejecutan un CTE recursivo y disparan `SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'CicloJerarquico'` (MySQL error 1644) si detectan un ciclo. | Cualquier intento de sembrar un ciclo que pase los niveles anteriores (e.g. trigger deshabilitado, migración parcial, datos legados importados). |
+
+El `MySqlConstraintViolationDetector` (en `SGV.Infraestructura.Persistencia`)
+reconoce `1644` como constraint violation. El servicio de comandos lo
+captura en `MapConstraintViolation` (helper privado) y mapea el
+`InnerException.Message` que contiene `CicloJerarquico` al código
+canónico `UnidadOrganizativaErrorCodigos.CicloJerarquico`. **El contrato
+HTTP es siempre 409, nunca 500, incluso si la BD detecta el ciclo.**
+
+### D-UO-2 — Límite de profundidad implícito en el trigger anti-ciclos
+
+El CTE recursivo del trigger (`Migraciones/20260816203122_...`) usa la
+condición `depth < 32` para acotar la recursión (límite de MySQL para
+CTEs recursivas). En una jerarquía con más de 32 niveles, el trigger
+cortaría antes de cerrar el ciclo y el `INSERT`/`UPDATE` pasaría. En la
+práctica este límite no se alcanza en una organización real, pero el
+número está implícito en el código de la migración y debe revisarse si
+se migra a otro motor o se sube el límite de profundidad.
+
+### D-UO-3 — Dependencia MySQL-only de la defensa anti-ciclos
+
+La defensa anti-ciclos vive en tres niveles, pero el **trigger anti-ciclos
+es MySQL/MariaDB only** (no portable a SQL Server, PostgreSQL, etc). El
+nivel de aplicación (visited-set en `IsDescendantAsync` + chequeo en el
+servicio) es portable y protege el camino crítico. Sin embargo:
+
+- Si se levanta un entorno con `EnsureCreated()` en lugar de
+  `Database.Migrate()`, los triggers NO se crean y solo quedan los
+  niveles de aplicación y dominio.
+- Si los triggers se deshabilitan manualmente para sembrar datos
+  legados, el `DiagnosticoJerarquiaService` (exposado vía
+  `GET /api/v1/unidades-organizativas/diagnostico-jerarquia`,
+  rol Administrador) reporta los ciclos pre-existentes para que el
+  operador pueda corregirlos antes de re-habilitar los triggers.
+
+El check constraint `CK_UnidadesOrganizativas_UnidadPadre`
+(`UnidadPadreId IS NULL OR UnidadPadreId <> Id`) sí vive en el modelo EF
+y cubre el auto-parent, pero NO cubre ciclos transitivos. La defensa
+contra ciclos transitivos sin los triggers requiere confiar en el nivel
+de aplicación.
+
+### D-UO-4 — Códigos de error centralizados en `UnidadOrganizativaErrorCodigos`
+
+Los códigos canónicos del contrato wire viven en
+`src/SGV.Contracts/Organizacion/Comandos/UnidadOrganizativaErrorCodigos.cs`
+como `public const string`. Antes del housekeeping release-readiness,
+estos códigos eran magic strings repetidos en 12 sitios del servicio
+de comandos; un typo no rompía compilación. El módulo ahora importa la
+constante explícitamente. Los códigos vigentes son:
+
+`DatosInvalidos`, `UnidadNoEncontrada`, `UnidadPadreNoEncontrada`,
+`TipoUnidadNoExiste`, `CodigoDuplicado`, `CicloJerarquico`,
+`UnidadConHijasActivas`, `UnidadConPuestosActivos`, `PadreInactivo`,
+`ReactivacionInvalida`, `RestriccionDeIntegridad`.
+
+El valor `CicloJerarquico` es además el `MESSAGE_TEXT` literal del
+SIGNAL del trigger anti-ciclos (constante `TriggerMensajeCiclo` en la
+migración `20260816203122`). Si se cambia el valor del trigger, hay
+que actualizar tanto la constante de la migración como
+`UnidadOrganizativaErrorCodigos.CicloJerarquico` simultáneamente.
