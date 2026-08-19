@@ -151,18 +151,36 @@ public sealed class AuthApiClient : IAuthApiClient
         // forwards the bearer token from the inbound cookie. The JWT is what
         // resolves the user identity server-side; the refresh token in the
         // body is just a hint for the audit entry.
-        using var response = await httpClient.PostAsJsonAsync(
-            AuthApiRoutes.Logout,
-            request,
+        // We use a manually-built HttpRequestMessage so we can opt out of
+        // HttpCompletionOption.ResponseContentRead (the default of
+        // PostAsJsonAsync). ResponseContentRead eagerly buffers the response
+        // body and, in the in-memory transport used by
+        // WebApplicationFactory, can race with the EmptyContent disposal
+        // and throw ObjectDisposedException.
+        using var json = JsonContent.Create(request);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, AuthApiRoutes.Logout)
+        {
+            Content = json
+        };
+        var response = await httpClient.SendAsync(
+            httpRequest,
+            HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
 
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        try
         {
-            return false;
-        }
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                return false;
+            }
 
-        response.EnsureSuccessStatusCode();
-        return true;
+            response.EnsureSuccessStatusCode();
+            return true;
+        }
+        finally
+        {
+            response.Dispose();
+        }
     }
 
     private async Task<PasswordResetOutcome> PostAnonymousAsync<TRequest>(
