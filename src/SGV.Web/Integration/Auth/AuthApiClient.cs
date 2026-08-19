@@ -107,6 +107,64 @@ public sealed class AuthApiClient : IAuthApiClient
             statusCode: response.StatusCode);
     }
 
+    /// <inheritdoc />
+    public async Task<RefreshResponse?> RefreshAsync(
+        RefreshRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Refresh is anonymous at the API: the API is body-based and does NOT
+        // honour Set-Cookie. The transport is the anonymous client so the
+        // bearer pipeline does not run (we are not authenticated yet).
+        using var response = await anonymousHttpClient.PostAsJsonAsync(
+            AuthApiRoutes.Refresh,
+            request,
+            cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            // Refresh token rejected (expired, revoked, replay detected).
+            return null;
+        }
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            // Rate-limit partition is separate from login by policy design.
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<RefreshResponse>(cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> LogoutAsync(
+        LogoutRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Logout uses the AUTHENTICATED pipeline so ApiBearerTokenHandler
+        // forwards the bearer token from the inbound cookie. The JWT is what
+        // resolves the user identity server-side; the refresh token in the
+        // body is just a hint for the audit entry.
+        using var response = await httpClient.PostAsJsonAsync(
+            AuthApiRoutes.Logout,
+            request,
+            cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            return false;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
     private async Task<PasswordResetOutcome> PostAnonymousAsync<TRequest>(
         string route,
         TRequest request,
