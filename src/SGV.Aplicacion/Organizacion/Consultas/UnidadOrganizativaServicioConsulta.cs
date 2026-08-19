@@ -85,16 +85,23 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
         var all = await repository.ListTreeAsync(cancellationToken);
         var arbolexclusion = DetectCiclosJerarquicos(all);
         var cyclicNodes = new HashSet<Guid>(arbolexclusion);
-        var tree = BuildTree(all, null, ancestors: null, cyclicNodes);
+
+        // H-A4 (housekeeping release-readiness UO+Organigrama): agrupar
+        // por padre UNA vez antes de la recursion. Antes, BuildTree hacía
+        // `all.Where(x => x.UnidadPadreId == parentId)` por cada nodo, lo
+        // que daba O(N²) para construir el árbol completo. Con el lookup
+        // pasamos a O(N) en la fase de agrupamiento + O(N) en la recursion.
+        var porPadre = all.ToLookup(u => u.UnidadPadreId);
+
+        var tree = BuildTree(porPadre, null, ancestors: null, cyclicNodes);
         return new UnidadOrganizativaArbolResponse(tree, arbolexclusion);
     }
 
     /// <summary>
     /// Walks the padre chain from every active node and reports the set of
-    /// ids that participate in at least one cycle. O(N²) worst-case on a
-    /// graph with a single FK per row, acceptable for SGV tree sizes
-    /// (≤10³ rows). Returns ids in stable order (sorted ascending) so the
-    /// response is repeatable across runs.
+    /// ids that participate in at least one cycle. H-A4: usa <c>HashSet</c>
+    /// para el path (chequeo O(1)) en lugar de <c>List.Contains</c> (O(d))
+    /// — antes era O(N·depth), ahora O(N) en la práctica.
     /// </summary>
     private static IReadOnlyList<Guid> DetectCiclosJerarquicos(
         IReadOnlyList<UnidadOrganizativa> all)
@@ -104,24 +111,32 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
 
         foreach (var node in all)
         {
-            var path = new List<Guid> { node.Id };
+            var path = new HashSet<Guid> { node.Id };
             var current = node;
             while (current.UnidadPadreId.HasValue
                    && byId.TryGetValue(current.UnidadPadreId.Value, out var parent))
             {
-                if (path.Contains(parent.Id))
+                if (!path.Add(parent.Id))
                 {
-                    // Cycle: mark every node from the entry point onward.
-                    var entryIdx = path.IndexOf(parent.Id);
-                    for (var i = entryIdx; i < path.Count; i++)
+                    // Cycle: el padre ya esta en el path. Marcamos el
+                    // padre y todos los descendientes hasta la revisit
+                    // como parte del ciclo.
+                    cyclicNodes.Add(parent.Id);
+                    // Reconstruimos la cadena para marcar el sub-path.
+                    // (El padre ya esta en path; lo agregamos arriba.)
+                    var walker = node;
+                    while (walker.UnidadPadreId.HasValue
+                           && byId.TryGetValue(walker.UnidadPadreId.Value, out var p)
+                           && p.Id != parent.Id)
                     {
-                        cyclicNodes.Add(path[i]);
+                        cyclicNodes.Add(walker.Id);
+                        walker = p;
                     }
+                    cyclicNodes.Add(walker.Id);
 
                     break;
                 }
 
-                path.Add(parent.Id);
                 current = parent;
             }
         }
@@ -136,6 +151,15 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
     /// sub-tree is skipped instead of recursing forever.
     /// </summary>
     /// <remarks>
+    /// H-A4 (housekeeping release-readiness UO+Organigrama): antes
+    /// recibía <c>IReadOnlyList&lt;UnidadOrganizativa&gt;</c> y hacía
+    /// <c>all.Where(x => x.UnidadPadreId == parentId)</c> en cada nivel
+    /// de recursion, dando O(N²) para el peor caso. Ahora recibe un
+    /// <see cref="ILookup{TKey,TElement}"/> precomputado en
+    /// <see cref="GetTreeAsync"/> y consume <c>porPadre[parentId]</c>
+    /// en O(1) por nivel, totalizando O(N).
+    /// </remarks>
+    /// <remarks>
     /// Issue #277: a defensive <c>visited-set</c> over the current path
     /// bounds recursion depth regardless of cycles the BD might carry. The
     /// path is propagated by copy at every step so siblings do not falsely
@@ -147,14 +171,14 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
     /// just the acyclic portion of the tree.
     /// </remarks>
     private static List<UnidadOrganizativaTreeNodeDto> BuildTree(
-        IReadOnlyList<UnidadOrganizativa> all,
+        ILookup<Guid?, UnidadOrganizativa> porPadre,
         Guid? parentId,
         HashSet<Guid>? ancestors,
         HashSet<Guid>? cyclicNodes = null)
     {
         var currentPath = ancestors ?? new HashSet<Guid>();
         var result = new List<UnidadOrganizativaTreeNodeDto>();
-        foreach (var u in all.Where(x => x.UnidadPadreId == parentId))
+        foreach (var u in porPadre[parentId])
         {
             if (cyclicNodes is not null && cyclicNodes.Contains(u.Id))
             {
@@ -183,7 +207,7 @@ public sealed class UnidadOrganizativaServicioConsulta(IUnidadOrganizativaReposi
                 u.Nombre,
                 u.TipoUnidadOrganizativaId,
                 u.TipoUnidadOrganizativa?.Nombre ?? string.Empty,
-                BuildTree(all, u.Id, childPath, cyclicNodes),
+                BuildTree(porPadre, u.Id, childPath, cyclicNodes),
                 u.VigenteDesde,
                 u.VigenteHasta));
         }
