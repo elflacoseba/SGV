@@ -1,15 +1,15 @@
 using FluentValidation;
+using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
 
 namespace SGV.Aplicacion.Seguridad.PasswordChange;
 
 /// <summary>
-/// Validates authenticated password-change requests against the Identity password policy.
+/// Validates authenticated password-change requests against the Identity
+/// password policy declared in <see cref="PasswordPolicy"/>.
 /// </summary>
 public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
 {
-    private const int MinLength = 6;
-
     public ChangePasswordRequestValidator()
     {
         RuleFor(request => request.CurrentPassword)
@@ -19,15 +19,15 @@ public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePas
         RuleFor(request => request.NewPassword)
             .NotEmpty()
             .WithMessage("La nueva contraseña es obligatoria.")
-            .MinimumLength(MinLength)
-            .WithMessage($"La contraseña debe tener al menos {MinLength} caracteres.")
-            .Matches("[a-z]+")
+            .MinimumLength(PasswordPolicy.MinLength)
+            .WithMessage($"La contraseña debe tener al menos {PasswordPolicy.MinLength} caracteres.")
+            .Matches(PasswordPolicy.LowercasePattern)
             .WithMessage("La contraseña debe incluir al menos una letra minúscula.")
-            .Matches("[A-Z]+")
+            .Matches(PasswordPolicy.UppercasePattern)
             .WithMessage("La contraseña debe incluir al menos una letra mayúscula.")
-            .Matches("[0-9]+")
+            .Matches(PasswordPolicy.DigitPattern)
             .WithMessage("La contraseña debe incluir al menos un dígito.")
-            .Matches(@"[^a-zA-Z0-9]+")
+            .Matches(PasswordPolicy.NonAlphanumericPattern)
             .WithMessage("La contraseña debe incluir al menos un símbolo (no alfanumérico).");
 
         RuleFor(request => request.ConfirmPassword)

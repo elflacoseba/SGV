@@ -151,11 +151,16 @@ builder.Services
 builder.Services
     .AddIdentityCore<SgvIdentityUser>(options =>
     {
-        options.Password.RequireDigit = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireNonAlphanumeric = true;
-        options.Password.RequiredLength = 6;
+        // Password policy lives in SGV.Contracts.Seguridad.PasswordPolicy
+        // (single source of truth) — keep this block in sync with the
+        // FluentValidation rules in ChangePasswordRequestValidator /
+        // ResetPasswordRequestValidator and the Razor Pages pre-flight
+        // checks in CambiarContrasena / ResetPassword.
+        options.Password.RequireDigit = PasswordPolicy.RequireDigit;
+        options.Password.RequireLowercase = PasswordPolicy.RequireLowercase;
+        options.Password.RequireUppercase = PasswordPolicy.RequireUppercase;
+        options.Password.RequireNonAlphanumeric = PasswordPolicy.RequireNonAlphanumeric;
+        options.Password.RequiredLength = PasswordPolicy.MinLength;
     })
     .AddRoles<Microsoft.AspNetCore.Identity.IdentityRole>()
     .AddEntityFrameworkStores<SgvDbContext>()

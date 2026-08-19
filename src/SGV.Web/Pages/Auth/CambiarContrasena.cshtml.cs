@@ -132,18 +132,17 @@ public sealed class CambiarContrasenaModel(
     }
 
     /// <summary>
-    /// Mirror cliente de <c>IdentityOptions.Password</c> en
-    /// <c>SGV.Api/Program.cs</c>. MUST stay in sync con
-    /// <c>ChangePasswordRequestValidator</c> y con el
-    /// <c>RequiredLength=6</c> + lower/upper/digit/symbol de
-    /// <c>AddIdentityCore</c>.
+    /// Mirror cliente de <see cref="SGV.Contracts.Seguridad.PasswordPolicy"/>
+    /// (la misma fuente única que consume <c>IdentityOptions.Password</c>
+    /// en <c>SGV.Api/Program.cs</c> y los FluentValidation rules de
+    /// <c>ChangePasswordRequestValidator</c>). Devuelve false si la
+    /// política no se cumple para cortocircuitar el POST antes del
+    /// round-trip a la API; la API re-valida con el FluentValidator y
+    /// devuelve 400 <c>ValidationProblemDetails</c> si el cliente se saltea
+    /// el check.
     /// </summary>
     private static bool MeetsPasswordPolicy(string password)
-        => password.Length >= 6
-           && password.Any(char.IsLower)
-           && password.Any(char.IsUpper)
-           && password.Any(char.IsDigit)
-           && password.Any(character => !char.IsLetterOrDigit(character));
+        => SGV.Contracts.Seguridad.PasswordPolicy.IsCompliant(password);
 
     public sealed class InputModel
     {
