@@ -140,6 +140,48 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.Empty(dtos!);
     }
 
+    /// <summary>
+    /// H-P2 (housekeeping release-readiness UO+Organigrama): el endpoint
+    /// sin paginar devuelve 400 cuando el universo activo excede el
+    /// tope duro (<see cref="UnidadesOrganizativasController.MaxGetAllItems"/>).
+    /// Defense-in-depth contra la amplificación trivial del issue #278
+    /// (paginación sin clamp) — los clientes con universos grandes deben
+    /// usar <c>POST /api/v1/unidades-organizativas/consulta</c> paginado.
+    /// </summary>
+    [Fact]
+    public async Task GetAll_WhenUniverseExceedsTopesDevuelve400ApuntandoAConsulta()
+    {
+        // 101 unidades activas excede el tope de 100 del controller.
+        var universoGrande = Enumerable.Range(0, 101)
+            .Select(i => new UnidadOrganizativaDto(
+                Guid.NewGuid(),
+                $"UO-{i:D4}",
+                $"Unidad {i}",
+                TipoUnidadOrganizativaConstantes.AreaId,
+                "Área",
+                null, null, null, null, null, null))
+            .ToList();
+
+        var fakeConUniversoGrande = new FakeUnidadOrganizativaServicioConLista(universoGrande);
+
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioConsulta>();
+            services.AddSingleton<IUnidadOrganizativaServicioConsulta>(fakeConUniversoGrande);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        // Verificamos por contenido porque el BadRequest del controller
+        // devuelve ProblemDetails plano (Status/Title/Detail) sin la forma
+        // estricta que esperan los helpers existentes de ProblemDetails.
+        Assert.Contains("/consulta", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("100", body, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
@@ -1001,4 +1043,35 @@ public sealed class UnidadesOrganizativasControllerTests
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(404, problem.Status);
     }
+}
+
+/// <summary>
+/// H-P2 (housekeeping release-readiness UO+Organigrama): fake mínimo de
+/// <see cref="IUnidadOrganizativaServicioConsulta"/> que devuelve una
+/// lista fija (sin paginar). Permite a
+/// <c>GetAll_WhenUniverseExceedsTopesDevuelve400ApuntandoAConsulta</c>
+/// forzar el tope duro de 100 del controller sin tocar MySQL.
+/// </summary>
+internal sealed class FakeUnidadOrganizativaServicioConLista : IUnidadOrganizativaServicioConsulta
+{
+    private readonly IReadOnlyList<UnidadOrganizativaDto> _items;
+
+    public FakeUnidadOrganizativaServicioConLista(IReadOnlyList<UnidadOrganizativaDto> items)
+    {
+        _items = items;
+    }
+
+    public Task<IReadOnlyList<UnidadOrganizativaDto>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult(_items);
+
+    public Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => Task.FromResult(_items.FirstOrDefault(d => d.Id == id));
+
+    public Task<PagedResult<UnidadOrganizativaDto>> QueryAsync(
+        UnidadOrganizativaQuery query, CancellationToken ct = default)
+        => Task.FromResult(new PagedResult<UnidadOrganizativaDto>(
+            _items.Take(query.PageSize).ToList(), _items.Count, query.Page, query.PageSize));
+
+    public Task<UnidadOrganizativaArbolResponse> GetTreeAsync(CancellationToken ct = default)
+        => Task.FromResult(new UnidadOrganizativaArbolResponse([], []));
 }

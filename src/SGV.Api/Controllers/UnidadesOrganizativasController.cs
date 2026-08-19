@@ -30,18 +30,42 @@ public class UnidadesOrganizativasController : ControllerBase
     }
 
     /// <summary>
+    /// H-P1 (housekeeping release-readiness UO+Organigrama): tope duro
+    /// para evitar la amplificación trivial del endpoint sin paginar.
+    /// Con 10k unidades, devolver el universo completo en un solo
+    /// payload contradice el hardening del issue #278 y satura la
+    /// respuesta serializada. Los clientes que necesiten el universo
+    /// completo deben usar el endpoint paginado
+    /// <c>POST /api/v1/unidades-organizativas/consulta</c>.
+    /// </summary>
+    private const int MaxGetAllItems = 100;
+
+    /// <summary>
     /// Obtiene todas las unidades organizativas activas.
     /// </summary>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
-    /// <returns>Lista de unidades organizativas activas.</returns>
+    /// <returns>Lista de unidades organizativas activas (topeada).</returns>
     /// <response code="200">Lista de unidades organizativas devuelta correctamente.</response>
+    /// <response code="400">El universo activo excede el tope de <see cref="MaxGetAllItems"/>; use el endpoint paginado.</response>
+    /// <response code="401">No autenticado.</response>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<UnidadOrganizativaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<UnidadOrganizativaDto>>> GetAll(
         CancellationToken cancellationToken)
     {
         var result = await _servicio.ListAsync(cancellationToken);
+        if (result.Count > MaxGetAllItems)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Use el endpoint paginado /consulta",
+                Detail = $"El listado sin paginar está limitado a {MaxGetAllItems} unidades activas. " +
+                         $"El universo actual tiene {result.Count} unidades. " +
+                         $"Use POST /api/v1/unidades-organizativas/consulta con paginación."
+            });
+        }
         return Ok(result);
     }
 
