@@ -1,21 +1,24 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
+using SGV.Aplicacion.Seguridad.Contratos;
 using SGV.Aplicacion.Seguridad.Usuarios;
-using SGV.Contracts.Seguridad;
 using SGV.Contracts.Seguridad.Usuarios;
-using SGV.Infraestructura.Persistencia;
 
 namespace SGV.Infraestructura.Seguridad;
 
+/// <summary>
+/// Authenticates credentials and returns the access/refresh pair.
+/// </summary>
+/// <remarks>
+/// PR2a of change <c>implementa-refresh-tokens</c>: claim assembly moved to
+/// <see cref="JwtAccessTokenIssuer"/> and a refresh token is now issued on
+/// every successful login (one family per login, REQ-RTM-FAMILY-1). The
+/// returned <see cref="LoginResponse"/> keeps its first two positional
+/// members, so callers that only read the access token are unaffected.
+/// </remarks>
 public sealed class AuthServicio(
     UserManager<SgvIdentityUser> userManager,
-    SgvDbContext dbContext,
-    IOptions<JwtOptions> options) : IAuthServicio
+    JwtAccessTokenIssuer accessTokenIssuer,
+    IRefreshTokenServicio refreshTokenServicio) : IAuthServicio
 {
     public async Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
@@ -55,31 +58,18 @@ public sealed class AuthServicio(
         // el atacante conociera la password.
         await userManager.ResetAccessFailedCountAsync(user).ConfigureAwait(false);
 
-        var jwt = options.Value;
-        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(jwt.TokenLifetimeMinutes);
-        var roles = await userManager.GetRolesAsync(user).ConfigureAwait(false);
-        var persona = await dbContext.Personas
-            .FirstOrDefaultAsync(p => p.Id == user.PersonaId, cancellationToken)
+        var accessToken = await accessTokenIssuer
+            .EmitirParaAsync(user, cancellationToken)
             .ConfigureAwait(false);
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, user.Id),
-            new(ClaimTypes.NameIdentifier, user.Id),
-            new(ClaimTypes.Name, user.UserName ?? string.Empty),
-            new("persona_id", user.PersonaId.ToString()),
-            new("nombres", persona?.Nombres ?? string.Empty),
-            new("apellidos", persona?.Apellidos ?? string.Empty)
-        };
-        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey));
-        var token = new JwtSecurityToken(
-            issuer: jwt.Issuer,
-            audience: jwt.Audience,
-            claims: claims,
-            expires: expiresAt.UtcDateTime,
-            signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
+        var refreshToken = await refreshTokenServicio
+            .IssueAsync(user.Id, cancellationToken)
+            .ConfigureAwait(false);
 
-        return new LoginResponse(new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
+        return new LoginResponse(
+            accessToken.AccessToken,
+            accessToken.ExpiresAt,
+            refreshToken.Token,
+            refreshToken.ExpiresAt);
     }
 }
