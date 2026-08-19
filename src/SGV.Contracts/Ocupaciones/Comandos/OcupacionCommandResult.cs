@@ -3,36 +3,19 @@ using SGV.Contracts.Ocupaciones.Dtos;
 
 namespace SGV.Contracts.Ocupaciones.Comandos;
 
-[Obsolete("Use SGV.Contracts.Comun.ErrorCategoria.")]
-public enum OcupacionErrorType
-{
-    NotFound,
-    Conflict,
-    Validation
-}
-
-#pragma warning disable CS0618
 /// <summary>
 /// Error payload for OcupacionCommandResult.
 /// </summary>
 /// <remarks>
-/// The primary constructor that accepts <see cref="OcupacionErrorType"/> is
-/// obsolete and remains only for backward compatibility while the domain
-/// migrates to <see cref="ErrorCategoria"/>. New code must use the
-/// <see cref="OcupacionError(ErrorCategoria, string, string)"/> constructor.
+/// Post-housekeeping (change <c>ocupaciones-housekeeping-release</c>) el
+/// record consume únicamente <see cref="ErrorCategoria"/> como taxonomía de
+/// error. La rama legacy con <c>OcupacionErrorType</c> quedó completamente
+/// removida del grafo (ver decisiones-implementacion.md §Ocupaciones release-ready).
 /// </remarks>
 public sealed record OcupacionError(
-    OcupacionErrorType Type,
+    ErrorCategoria Categoria,
     string Code,
-    string Message,
-    ErrorCategoria Categoria = ErrorCategoria.Unexpected)
-{
-    public OcupacionError(ErrorCategoria categoria, string code, string message)
-        : this(ErrorCategoriaMappers.ToTipoOcupacion(categoria), code, message, categoria)
-    {
-    }
-}
-#pragma warning restore CS0618
+    string Message);
 
 public sealed record OcupacionCommandResult(
     bool IsSuccess,
