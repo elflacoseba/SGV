@@ -42,6 +42,34 @@ public sealed class AuthSessionFactoryTests
         Assert.Contains(principal.Claims, claim => claim.Type == System.Security.Claims.ClaimTypes.NameIdentifier && claim.Value == "admin-test");
     }
 
+    /// <summary>
+    /// C-3 release-readiness: si el form envía un alias distinto del
+    /// <c>user.UserName</c> firmado por la API, el principal debe usar el
+    /// claim <c>ClaimTypes.Name</c> del JWT validado, no el del form.
+    /// Antes del fix el form se inyectaba antes de validar el JWT y el
+    /// dedupe por (Type, Value) hacía que el form ganara si difería.
+    /// </summary>
+    [Fact]
+    public void CreatePrincipal_FormInputDiffersFromJwt_UsesJwtNameClaim()
+    {
+        // El JWT firmado por la API lleva ClaimTypes.Name = "admin"
+        var jwt = AdminJwtTestHelper.BuildAdminRoleJwt();
+        var response = new LoginResponse(jwt, DateTimeOffset.UtcNow.AddHours(1));
+
+        // El form envía "attacker-controlled-alias" — un escenario
+        // realista sería un futuro login con email + alias donde el JWT
+        // firma el user.UserName formal y el form envía el email visible.
+        var formRequest = new LoginRequest("attacker-controlled-alias", "Password1!");
+
+        var principal = CreateFactory().CreatePrincipal(formRequest, response);
+
+        var nameClaim = principal.FindFirst(System.Security.Claims.ClaimTypes.Name);
+        Assert.NotNull(nameClaim);
+        Assert.Equal("admin", nameClaim!.Value);
+        Assert.DoesNotContain(principal.Claims, c =>
+            c.Type == System.Security.Claims.ClaimTypes.Name && c.Value == "attacker-controlled-alias");
+    }
+
     [Theory]
     [MemberData(nameof(InvalidTokenCases))]
     public void CreatePrincipal_WithInvalidToken_RejectsToken(string token)

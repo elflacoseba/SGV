@@ -34,10 +34,17 @@ internal sealed class AuthSessionFactory(
         ArgumentNullException.ThrowIfNull(response);
         ArgumentNullException.ThrowIfNull(jwtOptions?.Value);
 
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.Name, request.UserNameOrEmail)
-        };
+        // C-3 release-readiness: la lista de claims arranca vacía y se
+        // puebla SOLO con los claims del JWT ya validado. Previamente se
+        // pre-cargaba ClaimTypes.Name con el input del form
+        // (request.UserNameOrEmail) antes de validar el JWT; si en el
+        // futuro el form enviara un alias distinto del user.UserName
+        // firmado por la API, el dedupe por (Type, Value) hacía que el
+        // input del form ganara silenciosamente. Construir el principal
+        // solo desde el JWT validado elimina ese drift potencial: la API
+        // ya autentico al usuario y firmo sus claims, y SGV.Web no tiene
+        // motivos para agregar nada del lado del shell.
+        var claims = new List<Claim>();
 
         AddValidatedTokenClaims(logger, jwtOptions.Value, response.AccessToken, claims);
 
