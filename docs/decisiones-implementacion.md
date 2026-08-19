@@ -273,7 +273,7 @@ Verificado por:
 |---|---|---|---|
 | Wire contract (DTO) | `record` | `src/SGV.Contracts/Auditoria/AuditoriaDto.cs` | Wire contract seguro (D-2). |
 | Wire contract (Query) | `record` | `src/SGV.Contracts/Auditoria/AuditoriaListQuery.cs` | Filtros + paginación. |
-| Puerto (S1) | `interface` | `src/SGV.Aplicacion/Auditoria/IAuditoriaServicioConsulta.cs` | `QueryAsync` + `GetByIdAsync`; lanza `ArgumentException` en rango invertido (D-3). |
+| Puerto (S1) | `interface` | `src/SGV.Aplicacion/Auditoria/IAuditoriaServicioConsulta.cs` | `QueryAsync` + `GetDetalleDtoAsync` + `GetFilterOptionsAsync`; lanza `ArgumentException` en rango invertido (D-3). |
 | Impl EF (S1) | `sealed class` | `src/SGV.Infraestructura/Persistencia/AuditoriaServicioConsulta.cs` | EF directa con `AsNoTracking` + `Select` seguro (D-1, D-2, D-4). |
 | DI (S1) | extension | `src/SGV.Infraestructura/DependencyInjection.cs` | `AddScoped<IAuditoriaServicioConsulta, AuditoriaServicioConsulta>()`. |
 | Controller (S2) | `sealed class` | `src/SGV.Api/Controllers/AuditoriasController.cs` | `[Authorize(Roles=RolesSgv.Administrador)]`; mapea `ArgumentException` → `400 Validation`. |

@@ -17,7 +17,7 @@ namespace SGV.Web.Pages.Auditorias;
 /// <c>GET /api/v1/auditorias</c> vía
 /// <see cref="IAuditoriaApiClient"/> y aplica los filtros
 /// combinables (<c>EntityName</c>, <c>Operation</c>, <c>DateFrom</c>,
-/// <c>DateTo</c>, <c>UserId</c>, <c>CorrelationId</c>) más orden
+/// <c>DateTo</c>, <c>UserName</c>, <c>CorrelationId</c>) más orden
 /// server-side (<c>Sort</c>) y selector de <c>PageSize</c>.
 /// </summary>
 /// <remarks>
