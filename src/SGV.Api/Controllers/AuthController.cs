@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.RateLimiting;
+using SGV.Aplicacion.Seguridad.Contratos;
 using SGV.Aplicacion.Seguridad.PasswordChange;
 using SGV.Aplicacion.Seguridad.PasswordReset;
 using SGV.Contracts.Auth;
@@ -18,6 +19,7 @@ namespace SGV.Api.Controllers;
 [Produces("application/json")]
 public sealed class AuthController(
     IAuthServicio authServicio,
+    IRefreshTokenServicio refreshTokenServicio,
     IPasswordResetService passwordResetService,
     IChangePasswordService changePasswordService,
     IValidator<ForgotPasswordRequest> forgotValidator,
@@ -33,6 +35,72 @@ public sealed class AuthController(
     {
         var result = await authServicio.LoginAsync(request, cancellationToken);
         return result is null ? Unauthorized() : Ok(result);
+    }
+
+    /// <summary>
+    /// Rota un refresh token de uso único y devuelve un par
+    /// access+refresh nuevo (REQ-AUTH-REFRESH-1). El token viaja en el
+    /// body, no en una cookie: la API es cookie-agnóstica y
+    /// <c>SGV.Web</c> es el único emisor de <c>sgv.rt</c>
+    /// (design §2.6). Los tres modos de falla — token inexistente,
+    /// expirado y replay — colapsan a <c>401</c> para no filtrar el
+    /// estado del token al cliente; el replay además revoca la familia
+    /// completa server-side antes de responder.
+    /// </summary>
+    [HttpPost(AuthApiRoutes.RefreshRelative)]
+    [AllowAnonymous]
+    [EnableRateLimiting(AuthApiRoutes.RefreshPolicyName)]
+    [ProducesResponseType(typeof(RefreshResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> Refresh(
+        RefreshRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await refreshTokenServicio
+            .RefreshAsync(request?.RefreshToken, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Outcome != RefreshOutcome.Success)
+        {
+            return Unauthorized(new { mensaje = "La sesión expiró. Iniciá sesión nuevamente." });
+        }
+
+        return Ok(new RefreshResponse(
+            result.AccessToken!,
+            result.ExpiresAt!.Value,
+            result.RefreshToken!,
+            result.RefreshTokenExpiresAt!.Value));
+    }
+
+    /// <summary>
+    /// Revoca server-side todos los refresh tokens activos del usuario
+    /// autenticado (REQ-AUTH-LOGOUT-1). Idempotente: una sesión legacy
+    /// sin refresh token responde <c>200</c> igual. No emite cookies —
+    /// la limpieza de <c>sgv.auth</c> y <c>sgv.rt</c> es responsabilidad
+    /// de <c>SGV.Web</c>.
+    /// </summary>
+    [HttpPost(AuthApiRoutes.LogoutRelative)]
+    [Authorize]
+    [ProducesResponseType(typeof(LogoutResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Logout(
+        LogoutRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            // [Authorize] ya garantizó identidad, pero defensa en profundidad.
+            return Unauthorized();
+        }
+
+        await refreshTokenServicio
+            .RevokeAsync(userId, request?.RefreshToken, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Ok(new LogoutResponse(true));
     }
 
     /// <summary>

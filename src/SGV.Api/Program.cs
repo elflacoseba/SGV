@@ -138,6 +138,18 @@ builder.Services
         "Jwt:SigningKey must be configured and ≥32 UTF-8 bytes")
     .ValidateOnStart();
 
+// PR2a (change implementa-refresh-tokens): lifetime absoluto del refresh
+// token y cuota del rate limit del endpoint /refresh. Los defaults del
+// options viven en RefreshTokenOptions, así que la sección es opcional.
+builder.Services
+    .AddOptions<RefreshTokenOptions>()
+    .BindConfiguration(RefreshTokenOptions.SectionName)
+    .Validate(o => o.RefreshTokenLifetimeDays > 0,
+        "RefreshToken:RefreshTokenLifetimeDays must be greater than zero")
+    .Validate(o => o.RateLimitPermitLimit > 0 && o.RateLimitWindowMinutes > 0,
+        "RefreshToken rate limit quota must be greater than zero")
+    .ValidateOnStart();
+
 // SmtpOptions is required for the password reset flow (issue #181).
 // Outside Development the host fails loud when WebBaseUrl is missing
 // or not an absolute URL; the integration tests rely on the in-memory
@@ -314,8 +326,29 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true
             }));
 
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // PR2a (change implementa-refresh-tokens): política del endpoint
+    // /api/v1/auth/refresh. Anónima → particionada por IP. Cuota propia
+    // (20 req / 15 min por default) y namespace de particiones separado,
+    // así agotar refresh no consume cuota de ningún otro endpoint
+    // (REQ-AUTH-RATE-1). Los valores se leen del options bindeado arriba.
+    options.AddPolicy(AuthApiRoutes.RefreshPolicyName, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: PartitionKeyByIp(httpContext),
+            factory: _ =>
+            {
+                var refreshOptions = httpContext.RequestServices
+                    .GetRequiredService<IOptions<RefreshTokenOptions>>().Value;
+                return new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = refreshOptions.RateLimitPermitLimit,
+                    Window = TimeSpan.FromMinutes(refreshOptions.RateLimitWindowMinutes),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                };
+            }));
 
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = static (context, _) =>
     {
         if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
