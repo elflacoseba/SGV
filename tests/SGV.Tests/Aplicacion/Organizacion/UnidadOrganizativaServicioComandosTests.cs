@@ -373,6 +373,54 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    /// <summary>
+    /// H-A2 (housekeeping release-readiness UO+Organigrama): cuando la BD
+    /// arrastra un ciclo pre-existente (p.ej. triggers anti-ciclos
+    /// deshabilitados, migración parcial), <c>IsDescendantAsync</c> lanza
+    /// <c>InvalidOperationException("CicloJerarquico")</c> para cortar su
+    /// propio bucle. <c>CambiarUnidadPadreAsync</c> debe capturar esa
+    /// excepción con la misma simetría que <c>ActualizarAsync</c> y
+    /// responder 409 con el código canónico, NO dejarla escapar como 500.
+    /// Setup: se arman dos unidades A y B con padre mutuo directo (ciclo
+    /// A → B → A) usando <c>CambiarUnidadPadre</c> del dominio (que sólo
+    /// valida self-parent, no descendencia). C es independiente. La
+    /// llamada dispara <c>IsDescendantAsync(A, C)</c> que recorre
+    /// A → B → A y lanza al detectar el revisit.
+    /// </summary>
+    [Fact]
+    public async Task CambiarUnidadPadreAsync_CicloPreexistenteEnBD_Retorna409CicloJerarquico()
+    {
+        var idCicloA = Guid.NewGuid();
+        var idCicloB = Guid.NewGuid();
+        var idIndependiente = Guid.NewGuid();
+        var tipo = TipoUnidadOrganizativaConstantes.InstitucionId;
+
+        // A se crea sin padre; B con padre A; luego A.CambiarUnidadPadre(B)
+        // cierra el ciclo A ↔ B sin disparar validación de descendencia
+        // (que vive en el servicio via IsDescendantAsync, no en el dominio).
+        var cicloA = new UnidadOrganizativa("CA", "Ciclo A", tipo, null, null) { Id = idCicloA };
+        var cicloB = new UnidadOrganizativa("CB", "Ciclo B", tipo, null, idCicloA) { Id = idCicloB };
+        cicloA.CambiarUnidadPadre(idCicloB); // A.UnidadPadreId = B → ciclo A → B → A
+
+        var independiente = CrearUnidadActiva("IND", idIndependiente);
+
+        var repo = new FakeUnidadOrganizativaWriteRepository
+        {
+            Datos = [cicloA, cicloB, independiente]
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+
+        var resultado = await servicio.CambiarUnidadPadreAsync(
+            idIndependiente, new CambiarUnidadPadreRequest(idCicloA), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CicloJerarquico", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Equal(1, repo.IsDescendantCallCount);
+    }
+
     [Fact]
     public async Task CambiarUnidadPadreAsync_PadreInexistente_RetornaNoEncontradoYSinGuardar()
     {

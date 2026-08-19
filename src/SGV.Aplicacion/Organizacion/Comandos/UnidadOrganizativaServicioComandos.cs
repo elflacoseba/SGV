@@ -230,10 +230,24 @@ public sealed class UnidadOrganizativaServicioComandos(
                     new(UnidadOrganizativaErrorType.NotFound, "UnidadPadreNoEncontrada", "La unidad padre especificada no existe."));
             }
 
-            if (await repository.IsDescendantAsync(request.UnidadPadreId.Value, id, cancellationToken).ConfigureAwait(false))
+            // Issue #277 (housekeeping W-A1/R-A1): simetría con ActualizarAsync.
+            // Si la BD arrastra un ciclo pre-existente, IsDescendantAsync lanza
+            // InvalidOperationException("CicloJerarquico") para cortar su propio
+            // bucle. Sin este catch, la excepción escapa del servicio y el
+            // PATCH /unidad-padre responde 500 en lugar del 409 esperado.
+            try
+            {
+                if (await repository.IsDescendantAsync(request.UnidadPadreId.Value, id, cancellationToken).ConfigureAwait(false))
+                {
+                    return UnidadOrganizativaCommandResult.Failure(
+                        new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico", "No se puede asignar como padre una unidad descendiente."));
+                }
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "CicloJerarquico")
             {
                 return UnidadOrganizativaCommandResult.Failure(
-                    new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico", "No se puede asignar como padre una unidad descendiente."));
+                    new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico",
+                        "No se puede asignar como padre una unidad descendiente."));
             }
         }
 
