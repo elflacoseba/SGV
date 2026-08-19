@@ -110,6 +110,13 @@ builder.Services.AddScoped<IAuthSessionRedirector, AuthSessionRedirector>();
 // (issue #121) es seguro y no introduce contención entre tests paralelos.
 builder.Services.AddSingleton<IAuthSessionFactory, AuthSessionFactory>();
 
+// PR3 (change implementa-refresh-tokens): único punto de escritura/lectura
+// de la cookie sgv.rt. Centraliza el hardening por ambiente (Development →
+// SameAsRequest, Staging/Production → Always) para que ningún PageModel
+// toque IResponseCookies / IRequestCookieCollection directo. Sin estado
+// mutable propio: lee IWebHostEnvironment por invocación.
+builder.Services.AddSingleton<IRefreshTokenCookieAccessor, RefreshTokenCookieAccessor>();
+
 // Cross-cutting default for every HttpClient created by IHttpClientFactory:
 // recycle pooled connections after 2 minutes so we never reuse a socket that
 // Kestrel already closed silently. The default SocketsHttpHandler keeps
