@@ -17,9 +17,19 @@ namespace SGV.Web.Auth;
 /// <c>SGV.Contracts</c>; it cannot resolve the API host's scoped
 /// <c>UserManager</c>. A dedicated HTTP client validates the bearer token
 /// without invoking the cookie authentication handler recursively.
+///
+/// I-3 release-readiness: cuando <see cref="CookieRevalidatorCircuitState"/>
+/// reporta <see cref="CookieRevalidatorCircuitState.ShouldFailClosed"/>,
+/// los transport errors y los 5xx inesperados se tratan como rechazos
+/// duros (cookie invalidada, sign-out local). El comportamiento por
+/// defecto sigue siendo fail-open durante los primeros
+/// <see cref="CookieRevalidatorCircuitState.ConsecutiveFailuresToFailClosed"/>
+/// fallos consecutivos para absorber outages cortos sin desloguear a
+/// todos los usuarios; el counter se resetea con el próximo éxito.
 /// </remarks>
 public sealed class CookiePrincipalRevalidator(
     IHttpClientFactory httpClientFactory,
+    CookieRevalidatorCircuitState circuitState,
     ILogger<CookiePrincipalRevalidator> logger)
 {
     /// <summary>
@@ -60,6 +70,7 @@ public sealed class CookiePrincipalRevalidator(
 
             if (response.IsSuccessStatusCode)
             {
+                circuitState.RecordSuccess();
                 return true;
             }
 
@@ -67,6 +78,24 @@ public sealed class CookiePrincipalRevalidator(
                 or HttpStatusCode.Forbidden
                 or HttpStatusCode.NotFound)
             {
+                // Hard rejection signals, no matter el counter: el token
+                // fue revocado, el usuario fue bloqueado/eliminado, o la
+                // cuenta ya no existe. No se toca circuitState porque
+                // esto NO es ruido de outage.
+                return false;
+            }
+
+            // 5xx inesperado: contar como unreachable. Si el circuit
+            // breaker ya está en fail-closed, devolvemos false para que
+            // ValidateAsync fuerce sign-out. Si todavía no, mantenemos el
+            // comportamiento fail-open histórico.
+            circuitState.RecordFailure();
+            if (circuitState.ShouldFailClosed)
+            {
+                logger.LogWarning(
+                    "Cookie validation circuit-breaker open after {Consecutive} consecutive unreachable outcomes; failing closed for user {UserId}.",
+                    circuitState.ConsecutiveFailures,
+                    userId);
                 return false;
             }
 
@@ -78,6 +107,17 @@ public sealed class CookiePrincipalRevalidator(
         }
         catch (HttpRequestException exception)
         {
+            circuitState.RecordFailure();
+            if (circuitState.ShouldFailClosed)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Cookie validation circuit-breaker open after {Consecutive} consecutive unreachable outcomes; failing closed for user {UserId}.",
+                    circuitState.ConsecutiveFailures,
+                    userId);
+                return false;
+            }
+
             logger.LogWarning(
                 exception,
                 "Cookie validation could not reach the API for user {UserId}; preserving the cookie until the API is reachable.",
@@ -86,6 +126,16 @@ public sealed class CookiePrincipalRevalidator(
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            circuitState.RecordFailure();
+            if (circuitState.ShouldFailClosed)
+            {
+                logger.LogWarning(
+                    "Cookie validation circuit-breaker open after {Consecutive} consecutive unreachable outcomes; failing closed for user {UserId}.",
+                    circuitState.ConsecutiveFailures,
+                    userId);
+                return false;
+            }
+
             logger.LogWarning(
                 "Cookie validation timed out for user {UserId}; preserving the cookie until the API is reachable.",
                 userId);

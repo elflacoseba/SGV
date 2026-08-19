@@ -63,13 +63,18 @@ public sealed class CookiePrincipalRevalidatorTests
     {
         // REL-002: transport-level failures (DNS, connect refused, TLS) and
         // call-token-cancellation timeouts must fail-open so the session is
-        // preserved while the API is unreachable.
+        // preserved while the API is unreachable. I-3 added a circuit
+        // breaker: after 5 consecutive failures el revalidator flips to
+        // fail-closed; este test cubre los primeros 4 con un circuit
+        // state fresco.
+        var circuit = new CookieRevalidatorCircuitState();
         var script = ScriptedHandler.Throwing(exception);
-        var revalidator = Build(script);
+        var revalidator = Build(script, circuit);
 
         var result = await revalidator.SigueVigenteAsync("user-1", "jwt-token");
 
         Assert.True(result);
+        Assert.False(circuit.ShouldFailClosed);
     }
 
     public static IEnumerable<object[]> TransportFailures =>
@@ -77,6 +82,83 @@ public sealed class CookiePrincipalRevalidatorTests
         [new HttpRequestException("connection refused")],
         [new TaskCanceledException("timeout")]
     ];
+
+    [Fact]
+    public async Task SigueVigenteAsync_AfterThresholdConsecutiveFailures_FailsClosed()
+    {
+        // I-3 release-readiness: con Threshold=5, los primeros 4 fallos
+        // fail-open; el 5º failure ya encuentra ShouldFailClosed=true
+        // (counter=5 >= 5) y devuelve false. Antes del fix el contador
+        // nunca se incrementaba y todas las requests fail-oean.
+        var circuit = new CookieRevalidatorCircuitState();
+        var script = ScriptedHandler.Throwing(new HttpRequestException("connection refused"));
+        var revalidator = Build(script, circuit);
+
+        var threshold = CookieRevalidatorCircuitState.ConsecutiveFailuresToFailClosed;
+        for (int i = 0; i < threshold - 1; i++)
+        {
+            var intermediate = await revalidator.SigueVigenteAsync("user-1", "jwt-token");
+            Assert.True(intermediate, $"Failure {i + 1} should still fail-open.");
+        }
+
+        // El threshold-ésimo failure abre el circuit (counter=threshold => fail-closed).
+        var openingFailure = await revalidator.SigueVigenteAsync("user-1", "jwt-token");
+        Assert.False(openingFailure);
+        Assert.True(circuit.ShouldFailClosed);
+    }
+
+    [Fact]
+    public async Task SigueVigenteAsync_SuccessResetsCircuitCounter()
+    {
+        var circuit = new CookieRevalidatorCircuitState();
+        var failingScript = ScriptedHandler.Throwing(new HttpRequestException("connection refused"));
+        var failingRevalidator = Build(failingScript, circuit);
+
+        for (int i = 0; i < CookieRevalidatorCircuitState.ConsecutiveFailuresToFailClosed; i++)
+        {
+            await failingRevalidator.SigueVigenteAsync("user-1", "jwt-token");
+        }
+        Assert.True(circuit.ShouldFailClosed);
+
+        // Ahora la API vuelve: el revalidator con script OK debe resetear
+        // el counter y ShouldFailClosed debe volver a false.
+        var okScript = ScriptedHandler.Returning(HttpStatusCode.OK);
+        var okRevalidator = Build(okScript, circuit);
+        var result = await okRevalidator.SigueVigenteAsync("user-1", "jwt-token");
+
+        Assert.True(result);
+        Assert.False(circuit.ShouldFailClosed);
+        Assert.Equal(0, circuit.ConsecutiveFailures);
+    }
+
+    [Fact]
+    public async Task SigueVigenteAsync_HardRejectionDoesNotIncrementCounter()
+    {
+        // 401/403/404 son señal de revocación/bloqueo/eliminado, NO outage.
+        // El counter no se incrementa para no degradar sesiones
+        // legítimas durante un bloqueo administrativo aislado.
+        var circuit = new CookieRevalidatorCircuitState();
+        var script = ScriptedHandler.Returning(HttpStatusCode.Unauthorized);
+        var revalidator = Build(script, circuit);
+
+        for (int i = 0; i < 10; i++)
+        {
+            await revalidator.SigueVigenteAsync("user-1", "jwt-token");
+        }
+
+        Assert.Equal(0, circuit.ConsecutiveFailures);
+        Assert.False(circuit.ShouldFailClosed);
+    }
+
+    [Fact]
+    public void CookieRevalidatorCircuitState_DefaultsToZeroAndFailOpen()
+    {
+        var circuit = new CookieRevalidatorCircuitState();
+
+        Assert.Equal(0, circuit.ConsecutiveFailures);
+        Assert.False(circuit.ShouldFailClosed);
+        Assert.Equal(0L, circuit.LastUnreachableTicks);
+    }
 
     [Fact]
     public void ValidateAsync_ExposesCookieValidationContextHandler()
@@ -130,8 +212,11 @@ public sealed class CookiePrincipalRevalidatorTests
             script.LastRequest!.RequestUri!.PathAndQuery);
     }
 
-    private static CookiePrincipalRevalidator Build(ScriptedHandler script)
-        => new(new ScriptedHttpClientFactory(script), NullLogger<CookiePrincipalRevalidator>.Instance);
+    private static CookiePrincipalRevalidator Build(ScriptedHandler script, CookieRevalidatorCircuitState? circuit = null)
+        => new(
+            new ScriptedHttpClientFactory(script),
+            circuit ?? new CookieRevalidatorCircuitState(),
+            NullLogger<CookiePrincipalRevalidator>.Instance);
 
     private sealed class ScriptedHttpClientFactory(ScriptedHandler script) : IHttpClientFactory
     {
