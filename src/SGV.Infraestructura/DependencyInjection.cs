@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Habilidades.Comandos;
@@ -71,6 +72,14 @@ public static class DependencyInjection
 
         // PR1b (change implementa-refresh-tokens): repositorio de refresh tokens.
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
+        // PR2a (change implementa-refresh-tokens): emisión del access JWT y
+        // ciclo de vida del refresh token. TimeProvider se registra como
+        // singleton para que la expiración sea testeable sin Thread.Sleep.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<JwtAccessTokenIssuer>();
+        services.AddScoped<IAccessTokenIssuer>(sp => sp.GetRequiredService<JwtAccessTokenIssuer>());
+        services.AddScoped<IRefreshTokenServicio, RefreshTokenServicio>();
 
         // Query services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioConsulta, UnidadOrganizativaServicioConsulta>();
