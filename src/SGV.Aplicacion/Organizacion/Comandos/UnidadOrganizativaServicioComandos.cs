@@ -1,4 +1,6 @@
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SGV.Aplicacion.Comun.Persistencia;
 using SGV.Aplicacion.Common;
 using SGV.Aplicacion.Organizacion.Consultas;
@@ -16,6 +18,8 @@ public sealed class UnidadOrganizativaServicioComandos(
     IUnidadOrganizativaRepository repository,
     ITipoUnidadOrganizativaRepository tipoUnidadRepository,
     IUnitOfWork unitOfWork,
+    IConstraintViolationDetector constraintDetector,
+    ILogger<UnidadOrganizativaServicioComandos> logger,
     IValidator<CrearUnidadOrganizativaRequest> crearValidator,
     IValidator<ActualizarUnidadOrganizativaRequest> actualizarValidator) : IUnidadOrganizativaServicioComandos
 {
@@ -30,8 +34,11 @@ public sealed class UnidadOrganizativaServicioComandos(
     public UnidadOrganizativaServicioComandos(
         IUnidadOrganizativaRepository repository,
         ITipoUnidadOrganizativaRepository tipoUnidadRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IConstraintViolationDetector constraintDetector)
         : this(repository, tipoUnidadRepository, unitOfWork,
+               constraintDetector,
+               Microsoft.Extensions.Logging.Abstractions.NullLogger<UnidadOrganizativaServicioComandos>.Instance,
                new CrearUnidadOrganizativaRequestValidator(),
                new ActualizarUnidadOrganizativaRequestValidator())
     {
@@ -45,21 +52,21 @@ public sealed class UnidadOrganizativaServicioComandos(
         if (!validationResult.IsValid)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.DatosInvalidos, "Uno o más campos contienen errores de validación."),
                 BuildFieldErrors(validationResult.Errors));
         }
 
         if (await repository.ExistsActiveCodeAsync(request.Codigo, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado", "Ya existe una unidad organizativa activa con el mismo código."));
+                new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.CodigoDuplicado, "Ya existe una unidad organizativa activa con el mismo código."));
         }
 
         var tipo = await tipoUnidadRepository.GetByIdAsync(request.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false);
         if (tipo is null)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "TipoUnidadNoExiste",
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.TipoUnidadNoExiste,
                     "El tipo de unidad organizativa referenciado no existe."));
         }
 
@@ -70,7 +77,7 @@ public sealed class UnidadOrganizativaServicioComandos(
             if (padre is null)
             {
                 return UnidadOrganizativaCommandResult.Failure(
-                    new(UnidadOrganizativaErrorType.NotFound, "UnidadPadreNoEncontrada", "La unidad padre especificada no existe."));
+                    new(UnidadOrganizativaErrorType.NotFound, UnidadOrganizativaErrorCodigos.UnidadPadreNoEncontrada, "La unidad padre especificada no existe."));
             }
         }
 
@@ -98,10 +105,14 @@ public sealed class UnidadOrganizativaServicioComandos(
             var recargada = await repository.GetByIdAsync(unidad.Id, cancellationToken).ConfigureAwait(false);
             return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(CrearAsync));
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", ex.Message));
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.DatosInvalidos, ex.Message));
         }
     }
 
@@ -114,7 +125,7 @@ public sealed class UnidadOrganizativaServicioComandos(
         if (!validationResult.IsValid)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", "Uno o más campos contienen errores de validación."),
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.DatosInvalidos, "Uno o más campos contienen errores de validación."),
                 BuildFieldErrors(validationResult.Errors));
         }
 
@@ -122,14 +133,14 @@ public sealed class UnidadOrganizativaServicioComandos(
         if (unidad is null)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad organizativa no existe."));
+                new(UnidadOrganizativaErrorType.NotFound, UnidadOrganizativaErrorCodigos.UnidadNoEncontrada, "La unidad organizativa no existe."));
         }
 
         var tipo = await tipoUnidadRepository.GetByIdAsync(request.TipoUnidadOrganizativaId, cancellationToken).ConfigureAwait(false);
         if (tipo is null)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "TipoUnidadNoExiste",
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.TipoUnidadNoExiste,
                     "El tipo de unidad organizativa referenciado no existe."));
         }
 
@@ -147,7 +158,7 @@ public sealed class UnidadOrganizativaServicioComandos(
             if (padre is null)
             {
                 return UnidadOrganizativaCommandResult.Failure(
-                    new(UnidadOrganizativaErrorType.NotFound, "UnidadPadreNoEncontrada",
+                    new(UnidadOrganizativaErrorType.NotFound, UnidadOrganizativaErrorCodigos.UnidadPadreNoEncontrada,
                         "La unidad padre especificada no existe."));
             }
 
@@ -156,17 +167,17 @@ public sealed class UnidadOrganizativaServicioComandos(
                 if (await repository.IsDescendantAsync(request.UnidadPadreId.Value, id, cancellationToken).ConfigureAwait(false))
                 {
                     return UnidadOrganizativaCommandResult.Failure(
-                        new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico",
+                        new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.CicloJerarquico,
                             "No se puede asignar como padre una unidad descendiente."));
                 }
             }
-            catch (InvalidOperationException ex) when (ex.Message == "CicloJerarquico")
+            catch (InvalidOperationException ex) when (ex.Message == UnidadOrganizativaErrorCodigos.CicloJerarquico)
             {
                 // Pre-existing cycle in BD would otherwise cause an
                 // infinite loop in IsDescendantAsync; the repository
                 // raises the canonical code which we translate to 409.
                 return UnidadOrganizativaCommandResult.Failure(
-                    new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico",
+                    new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.CicloJerarquico,
                         "No se puede asignar como padre una unidad descendiente."));
             }
         }
@@ -195,10 +206,14 @@ public sealed class UnidadOrganizativaServicioComandos(
             var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
             return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(ActualizarAsync));
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "DatosInvalidos", ex.Message));
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.DatosInvalidos, ex.Message));
         }
     }
 
@@ -211,13 +226,13 @@ public sealed class UnidadOrganizativaServicioComandos(
         if (unidad is null)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad organizativa no existe."));
+                new(UnidadOrganizativaErrorType.NotFound, UnidadOrganizativaErrorCodigos.UnidadNoEncontrada, "La unidad organizativa no existe."));
         }
 
         if (request.UnidadPadreId == id)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "CicloJerarquico", "Una unidad organizativa no puede ser padre de sí misma."));
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.CicloJerarquico, "Una unidad organizativa no puede ser padre de sí misma."));
         }
 
         UnidadOrganizativa? nuevoPadre = null;
@@ -227,13 +242,27 @@ public sealed class UnidadOrganizativaServicioComandos(
             if (nuevoPadre is null)
             {
                 return UnidadOrganizativaCommandResult.Failure(
-                    new(UnidadOrganizativaErrorType.NotFound, "UnidadPadreNoEncontrada", "La unidad padre especificada no existe."));
+                    new(UnidadOrganizativaErrorType.NotFound, UnidadOrganizativaErrorCodigos.UnidadPadreNoEncontrada, "La unidad padre especificada no existe."));
             }
 
-            if (await repository.IsDescendantAsync(request.UnidadPadreId.Value, id, cancellationToken).ConfigureAwait(false))
+            // Issue #277 (housekeeping W-A1/R-A1): simetría con ActualizarAsync.
+            // Si la BD arrastra un ciclo pre-existente, IsDescendantAsync lanza
+            // InvalidOperationException("CicloJerarquico") para cortar su propio
+            // bucle. Sin este catch, la excepción escapa del servicio y el
+            // PATCH /unidad-padre responde 500 en lugar del 409 esperado.
+            try
+            {
+                if (await repository.IsDescendantAsync(request.UnidadPadreId.Value, id, cancellationToken).ConfigureAwait(false))
+                {
+                    return UnidadOrganizativaCommandResult.Failure(
+                        new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.CicloJerarquico, "No se puede asignar como padre una unidad descendiente."));
+                }
+            }
+            catch (InvalidOperationException ex) when (ex.Message == UnidadOrganizativaErrorCodigos.CicloJerarquico)
             {
                 return UnidadOrganizativaCommandResult.Failure(
-                    new(UnidadOrganizativaErrorType.Conflict, "CicloJerarquico", "No se puede asignar como padre una unidad descendiente."));
+                    new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.CicloJerarquico,
+                        "No se puede asignar como padre una unidad descendiente."));
             }
         }
 
@@ -250,10 +279,14 @@ public sealed class UnidadOrganizativaServicioComandos(
             var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
             return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(CambiarUnidadPadreAsync));
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "CicloJerarquico", ex.Message));
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.CicloJerarquico, ex.Message));
         }
     }
 
@@ -265,26 +298,33 @@ public sealed class UnidadOrganizativaServicioComandos(
         if (unidad is null)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad organizativa no existe."));
+                new(UnidadOrganizativaErrorType.NotFound, UnidadOrganizativaErrorCodigos.UnidadNoEncontrada, "La unidad organizativa no existe."));
         }
 
         if (await repository.HasActiveChildrenAsync(id, cancellationToken).ConfigureAwait(false))
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Conflict, "UnidadConHijasActivas",
+                new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.UnidadConHijasActivas,
                     "No se puede eliminar una unidad organizativa que tiene hijas activas."));
         }
 
         if (await repository.HasActivePuestosAsync(id, cancellationToken).ConfigureAwait(false))
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Conflict, "UnidadConPuestosActivos",
+                new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.UnidadConPuestosActivos,
                     "No se puede eliminar una unidad organizativa que tiene puestos activos asociados."));
         }
 
         unidad.Desactivar();
         await repository.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
-        await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(EliminarAsync));
+        }
 
         return UnidadOrganizativaCommandResult.Success(null!);
     }
@@ -295,13 +335,13 @@ public sealed class UnidadOrganizativaServicioComandos(
         if (unidad is null)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.NotFound, "UnidadNoEncontrada", "La unidad organizativa no existe."));
+                new(UnidadOrganizativaErrorType.NotFound, UnidadOrganizativaErrorCodigos.UnidadNoEncontrada, "La unidad organizativa no existe."));
         }
 
         if (await repository.ExistsActiveCodeAsync(unidad.Codigo, id, cancellationToken).ConfigureAwait(false))
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Conflict, "CodigoDuplicado",
+                new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.CodigoDuplicado,
                     "Ya existe una unidad organizativa activa con el mismo código."));
         }
 
@@ -312,7 +352,7 @@ public sealed class UnidadOrganizativaServicioComandos(
             if (padre is null || !padre.IsActive)
             {
                 return UnidadOrganizativaCommandResult.Failure(
-                    new(UnidadOrganizativaErrorType.Conflict, "PadreInactivo",
+                    new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.PadreInactivo,
                         "No se puede reactivar una unidad organizativa cuyo padre está inactivo o eliminado."));
             }
         }
@@ -331,10 +371,14 @@ public sealed class UnidadOrganizativaServicioComandos(
             var recargada = await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
             return UnidadOrganizativaCommandResult.Success(MapToDto(recargada ?? unidad));
         }
+        catch (DbUpdateException ex) when (constraintDetector.IsConstraintViolation(ex))
+        {
+            return MapConstraintViolation(ex, nameof(ReactivarAsync));
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return UnidadOrganizativaCommandResult.Failure(
-                new(UnidadOrganizativaErrorType.Validation, "ReactivacionInvalida", ex.Message));
+                new(UnidadOrganizativaErrorType.Validation, UnidadOrganizativaErrorCodigos.ReactivacionInvalida, ex.Message));
         }
     }
 
@@ -352,6 +396,52 @@ public sealed class UnidadOrganizativaServicioComandos(
             unidad.UnidadPadreId,
             unidad.UnidadPadre?.Codigo,
             unidad.UnidadPadre?.Nombre);
+    }
+
+    /// <summary>
+    /// H-A3 (housekeeping release-readiness UO+Organigrama): traduce
+    /// <see cref="DbUpdateException"/> a un resultado de negocio tipado.
+    /// Cubre el SIGNAL 1644 del trigger anti-ciclos (issue #277) y la
+    /// violación del índice único <c>IX_UnidadesOrganizativas_ActiveCodigoUnique</c>
+    /// en la carrera entre <c>ExistsActiveCodeAsync</c> y <c>SaveChanges</c>.
+    /// El contrato del trigger emite <c>MESSAGE_TEXT = 'CicloJerarquico'</c>
+    /// (migración <c>20260816203122_AddTriggerAntiCiclosUnidadesOrganizativas</c>),
+    /// así que la distinción se hace por el mensaje del InnerException y por
+    /// <see cref="IConstraintViolationDetector.GetUniqueConstraintName"/> sin
+    /// tener que importar <c>MySqlConnector</c> en la capa de aplicación.
+    /// </summary>
+    private UnidadOrganizativaCommandResult MapConstraintViolation(
+        DbUpdateException ex, string methodName)
+    {
+        logger.LogWarning(ex, "Constraint violation in {Method}: {Message}", methodName, ex.Message);
+
+        // 1644 (SIGNAL del trigger anti-ciclos): el InnerException trae el
+        // MESSAGE_TEXT literal del SIGNAL, que la migración garantiza como
+        // "CicloJerarquico" en una constante.
+        if (ex.InnerException is not null &&
+            ex.InnerException.Message.Contains(UnidadOrganizativaErrorCodigos.CicloJerarquico, StringComparison.Ordinal))
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.CicloJerarquico,
+                    "No se puede asignar como padre una unidad descendiente."));
+        }
+
+        // 1062 (duplicate key) sobre el índice único del código activo.
+        // Carrera entre ExistsActiveCodeAsync y SaveChangesAsync: el chequeo
+        // previo pasa pero la BD rechaza la segunda escritura concurrente.
+        var uniqueConstraintName = constraintDetector.GetUniqueConstraintName(ex);
+        if (uniqueConstraintName == "IX_UnidadesOrganizativas_ActiveCodigoUnique")
+        {
+            return UnidadOrganizativaCommandResult.Failure(
+                new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.CodigoDuplicado,
+                    "Ya existe una unidad organizativa activa con el mismo código."));
+        }
+
+        // Otros constraint violations (FK 1169/1451/1452, 4025, etc): 409
+        // genérico para no exponer detalles de BD al cliente.
+        return UnidadOrganizativaCommandResult.Failure(
+            new(UnidadOrganizativaErrorType.Conflict, UnidadOrganizativaErrorCodigos.RestriccionDeIntegridad,
+                "La operación viola una restricción de integridad."));
     }
 
 }

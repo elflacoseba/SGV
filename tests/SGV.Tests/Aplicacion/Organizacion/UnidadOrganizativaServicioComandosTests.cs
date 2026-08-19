@@ -5,6 +5,7 @@ using SGV.Aplicacion.Organizacion.Consultas;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
 using SGV.Dominio.Organizacion;
 using SGV.Infraestructura.Persistencia.Catalogos;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace SGV.Tests.Aplicacion.Organizacion;
@@ -44,7 +45,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.CrearAsync(CrearRequest(), default);
 
@@ -61,7 +62,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var padre = CrearUnidadActiva("INST", PadreId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest(
             "FAC", "Facultad de Prueba",
             TipoUnidadOrganizativaConstantes.FacultadId, null, null, null, PadreId);
@@ -81,7 +82,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.CrearAsync(CrearRequest("GER"), default);
 
@@ -95,7 +96,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest(
             "GER", "Gerencia General", Guid.NewGuid(), null, null, null, null);
 
@@ -112,7 +113,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.CrearAsync(CrearRequest(padreId: PadreId), default);
 
@@ -126,7 +127,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest(
             "GER", "Gerencia General", TipoUnidadOrganizativaConstantes.DireccionId, null,
             new DateOnly(2025, 1, 1), new DateOnly(2024, 1, 1), null);
@@ -144,7 +145,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Nueva Gerencia", TipoUnidadOrganizativaConstantes.InstitucionId, "Descripción actualizada", null, null, null);
 
@@ -164,7 +165,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("FAC", UnidadId, PadreId, TipoUnidadOrganizativaConstantes.FacultadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Nueva Facultad", TipoUnidadOrganizativaConstantes.FacultadId, "Descripción actualizada", null, null, null);
 
@@ -187,7 +188,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("RECT");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Rectorado Modificado", TipoUnidadOrganizativaConstantes.InstitucionId,
             "Nueva descripcion", null, null, null);
@@ -208,7 +209,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest("G", Guid.NewGuid(), null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
@@ -224,7 +225,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest("G", TipoUnidadOrganizativaConstantes.AreaId, null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(Guid.NewGuid(), request, default);
@@ -246,7 +247,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER", UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Gerencia Actualizada",
             TipoUnidadOrganizativaConstantes.InstitucionId,
@@ -269,7 +270,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var hijo = CrearUnidadActiva("HIJO", HijoId, PadreId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Padre a reasignar",
             TipoUnidadOrganizativaConstantes.InstitucionId,
@@ -292,7 +293,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("EXIST", UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Exist actualizado",
             TipoUnidadOrganizativaConstantes.AreaId,
@@ -313,7 +314,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("EXIST", UnidadId, unidadPadreId: PadreId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Exist sin padre",
             TipoUnidadOrganizativaConstantes.AreaId,
@@ -333,7 +334,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var padre = CrearUnidadActiva("INST", PadreId, tipoId: TipoUnidadOrganizativaConstantes.InstitucionId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad, padre] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.CambiarUnidadPadreAsync(UnidadId, new CambiarUnidadPadreRequest(PadreId), default);
 
@@ -348,7 +349,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var unidad = CrearUnidadActiva("GER", UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.CambiarUnidadPadreAsync(UnidadId, new CambiarUnidadPadreRequest(UnidadId), default);
 
@@ -364,7 +365,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var hijo = CrearUnidadActiva("HIJO", HijoId, PadreId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.CambiarUnidadPadreAsync(PadreId, new CambiarUnidadPadreRequest(HijoId), default);
 
@@ -373,13 +374,61 @@ public sealed class UnidadOrganizativaServicioComandosTests
         Assert.Equal(0, uow.SaveChangesCount);
     }
 
+    /// <summary>
+    /// H-A2 (housekeeping release-readiness UO+Organigrama): cuando la BD
+    /// arrastra un ciclo pre-existente (p.ej. triggers anti-ciclos
+    /// deshabilitados, migración parcial), <c>IsDescendantAsync</c> lanza
+    /// <c>InvalidOperationException("CicloJerarquico")</c> para cortar su
+    /// propio bucle. <c>CambiarUnidadPadreAsync</c> debe capturar esa
+    /// excepción con la misma simetría que <c>ActualizarAsync</c> y
+    /// responder 409 con el código canónico, NO dejarla escapar como 500.
+    /// Setup: se arman dos unidades A y B con padre mutuo directo (ciclo
+    /// A → B → A) usando <c>CambiarUnidadPadre</c> del dominio (que sólo
+    /// valida self-parent, no descendencia). C es independiente. La
+    /// llamada dispara <c>IsDescendantAsync(A, C)</c> que recorre
+    /// A → B → A y lanza al detectar el revisit.
+    /// </summary>
+    [Fact]
+    public async Task CambiarUnidadPadreAsync_CicloPreexistenteEnBD_Retorna409CicloJerarquico()
+    {
+        var idCicloA = Guid.NewGuid();
+        var idCicloB = Guid.NewGuid();
+        var idIndependiente = Guid.NewGuid();
+        var tipo = TipoUnidadOrganizativaConstantes.InstitucionId;
+
+        // A se crea sin padre; B con padre A; luego A.CambiarUnidadPadre(B)
+        // cierra el ciclo A ↔ B sin disparar validación de descendencia
+        // (que vive en el servicio via IsDescendantAsync, no en el dominio).
+        var cicloA = new UnidadOrganizativa("CA", "Ciclo A", tipo, null, null) { Id = idCicloA };
+        var cicloB = new UnidadOrganizativa("CB", "Ciclo B", tipo, null, idCicloA) { Id = idCicloB };
+        cicloA.CambiarUnidadPadre(idCicloB); // A.UnidadPadreId = B → ciclo A → B → A
+
+        var independiente = CrearUnidadActiva("IND", idIndependiente);
+
+        var repo = new FakeUnidadOrganizativaWriteRepository
+        {
+            Datos = [cicloA, cicloB, independiente]
+        };
+        var uow = new FakeUnitOfWork();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
+
+        var resultado = await servicio.CambiarUnidadPadreAsync(
+            idIndependiente, new CambiarUnidadPadreRequest(idCicloA), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CicloJerarquico", resultado.Error.Code);
+        Assert.Equal(0, uow.SaveChangesCount);
+        Assert.Equal(1, repo.IsDescendantCallCount);
+    }
+
     [Fact]
     public async Task CambiarUnidadPadreAsync_PadreInexistente_RetornaNoEncontradoYSinGuardar()
     {
         var unidad = CrearUnidadActiva("GER", UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.CambiarUnidadPadreAsync(UnidadId, new CambiarUnidadPadreRequest(Guid.NewGuid()), default);
 
@@ -394,7 +443,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var unidad = CrearUnidadActiva("GER", UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [unidad] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.EliminarAsync(UnidadId, default);
 
@@ -407,7 +456,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.EliminarAsync(Guid.NewGuid(), default);
 
@@ -425,7 +474,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var hijo = CrearUnidadActiva("HIJO", HijoId, UnidadId);
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.EliminarAsync(UnidadId, default);
 
@@ -448,7 +497,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
             }
         };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.EliminarAsync(UnidadId, default);
 
@@ -475,7 +524,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         hijo.Desactivar(); // hijo también inactivo
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.ReactivarAsync(HijoId, default);
 
@@ -500,7 +549,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         hijo.Desactivar();
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [padre, hijo] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.ReactivarAsync(HijoId, default);
 
@@ -513,7 +562,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var padre = CrearUnidadActiva("DIR", PadreId, tipoId: TipoUnidadOrganizativaConstantes.DireccionId);
         repo.Datos.Add(padre);
         var request = new CrearUnidadOrganizativaRequest(
@@ -534,7 +583,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var padre = CrearUnidadActiva("PADRE", PadreId);
         padre.DefinirVigencia(new DateOnly(2025, 1, 1), new DateOnly(2025, 6, 30));
         repo.Datos.Add(padre);
@@ -565,7 +614,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
             Datos = [CrearUnidadActiva("GER")]
         };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest("", "Nombre", Guid.NewGuid());
 
         var resultado = await servicio.CrearAsync(request, default);
@@ -584,7 +633,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
             Datos = [CrearUnidadActiva("GER")]
         };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest("NUEVO", "", Guid.NewGuid());
 
         var resultado = await servicio.CrearAsync(request, default);
@@ -600,7 +649,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest("", "", Guid.Empty);
 
         var resultado = await servicio.CrearAsync(request, default);
@@ -619,7 +668,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest("", TipoUnidadOrganizativaConstantes.AreaId, null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
@@ -635,7 +684,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository(); // empty — no data
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest("", TipoUnidadOrganizativaConstantes.AreaId, null, null, null, null);
 
         // Id is irrelevant because shape validation fires before GetByIdForUpdateAsync
@@ -658,7 +707,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
             Datos = [CrearUnidadActiva("GER")]
         };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest("", "Nombre", Guid.NewGuid());
 
         var resultado = await servicio.CrearAsync(request, default);
@@ -686,7 +735,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
             Datos = [CrearUnidadActiva("GER")]
         };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest("NUEVO", "", Guid.NewGuid());
 
         var resultado = await servicio.CrearAsync(request, default);
@@ -709,7 +758,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
             Datos = [CrearUnidadActiva("GER")]
         };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest("GER", "Gerencia", Guid.Empty);
 
         var resultado = await servicio.CrearAsync(request, default);
@@ -729,7 +778,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
     {
         var repo = new FakeUnidadOrganizativaWriteRepository();
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest("", "", Guid.Empty);
 
         var resultado = await servicio.CrearAsync(request, default);
@@ -755,7 +804,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest("", TipoUnidadOrganizativaConstantes.AreaId, null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
@@ -777,7 +826,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var existente = CrearUnidadActiva("GER");
         var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest("Gerencia", Guid.Empty, null, null, null, null);
 
         var resultado = await servicio.ActualizarAsync(existente.Id, request, default);
@@ -814,7 +863,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var repo = RepoConTipo();
         repo.Datos.Add(padre);
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new CrearUnidadOrganizativaRequest(
             "HIJO-279", "Hijo 279",
             TipoUnidadOrganizativaConstantes.FacultadId, null, null, null, PadreId);
@@ -837,7 +886,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         var repo = RepoConTipo();
         repo.Datos.Add(existente);
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Exist actualizado",
             TipoUnidadOrganizativaConstantes.DireccionId,
@@ -861,7 +910,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         repo.Datos.Add(padre);
         repo.Datos.Add(existente);
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
         var request = new ActualizarUnidadOrganizativaRequest(
             "Exist con padre",
             TipoUnidadOrganizativaConstantes.AreaId,
@@ -884,7 +933,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         repo.Datos.Add(unidad);
         repo.Datos.Add(padre);
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.CambiarUnidadPadreAsync(UnidadId, new CambiarUnidadPadreRequest(PadreId), default);
 
@@ -909,7 +958,7 @@ public sealed class UnidadOrganizativaServicioComandosTests
         repo.Datos.Add(padre);
         repo.Datos.Add(hijo);
         var uow = new FakeUnitOfWork();
-        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow);
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, new FakeConstraintViolationDetector());
 
         var resultado = await servicio.ReactivarAsync(HijoId, default);
 
@@ -934,9 +983,21 @@ internal sealed class FakeUnitOfWork : IUnitOfWork
 {
     public int SaveChangesCount { get; private set; }
 
+    /// <summary>
+    /// H-A3 (housekeeping release-readiness UO+Organigrama): cuando se
+    /// setea, <see cref="SaveChangesAsync"/> lanza esta excepción en vez
+    /// de retornar 1. Permite probar la traducción
+    /// <c>DbUpdateException → 409</c> sin tocar MySQL.
+    /// </summary>
+    public DbUpdateException? SaveChangesException { get; set; }
+
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         SaveChangesCount++;
+        if (SaveChangesException is not null)
+        {
+            throw SaveChangesException;
+        }
         return Task.FromResult(1);
     }
 }
@@ -1170,5 +1231,242 @@ internal sealed class FakeUnidadOrganizativaWriteRepository : IUnidadOrganizativ
     {
         return Task.FromResult<IReadOnlyList<UnidadOrganizativa>>(
             Datos.Where(u => u.IsActive).OrderBy(u => u.Codigo).ToList());
+    }
+}
+
+/// <summary>
+/// H-A3 (housekeeping release-readiness UO+Organigrama): fake del
+/// <see cref="IConstraintViolationDetector"/> para que los tests de
+/// <c>UnidadOrganizativaServicioComandos</c> puedan forzar el camino de
+/// traducción <c>DbUpdateException → 409</c> sin levantar un MySQL real.
+/// Por default simula un constraint violation genérico; los tests que
+/// necesitan un código específico setean <see cref="ConstraintName"/>.
+/// </summary>
+internal sealed class FakeConstraintViolationDetector : IConstraintViolationDetector
+{
+    /// <summary>
+    /// Cuando es false, el detector reporta que NO es constraint violation
+    /// y el servicio deja escapar la excepción al catch genérico. Default true.
+    /// </summary>
+    public bool IsConstraintViolationReturn { get; set; } = true;
+
+    public string? ConstraintName { get; set; }
+
+    public bool IsConstraintViolation(DbUpdateException exception) => IsConstraintViolationReturn;
+
+    public string? GetUniqueConstraintName(DbUpdateException exception) => ConstraintName;
+}
+
+/// <summary>
+/// H-A3 (housekeeping release-readiness UO+Organigrama): cobertura de la
+/// traducción de <see cref="DbUpdateException"/> a códigos de error 409
+/// (Conflict). Cubre las tres rutas:
+/// <list type="bullet">
+///   <item><description>SIGNAL 1644 del trigger anti-ciclos (#277) → <c>CicloJerarquico</c>.</description></item>
+///   <item><description>1062 sobre <c>IX_UnidadesOrganizativas_ActiveCodigoUnique</c> (carrera con <c>ExistsActiveCodeAsync</c>) → <c>CodigoDuplicado</c>.</description></item>
+///   <item><description>Cualquier otro constraint violation → <c>RestriccionDeIntegridad</c> genérico.</description></item>
+/// </list>
+/// Sin este cableado, una SIGNAL 1644 o una violación del índice único
+/// escapaban como 500 en producción (la propia migración del trigger
+/// documenta el contrato pero el módulo nunca lo honró).
+/// </summary>
+public sealed class UnidadOrganizativaServicioComandosConstraintViolationTests
+{
+    private static readonly Guid UnidadId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+    private static readonly Guid PadreId = Guid.Parse("20000000-0000-0000-0000-000000000002");
+    private static readonly Guid HijoId = Guid.Parse("30000000-0000-0000-0000-000000000003");
+
+    private static readonly FakeTipoUnidadOrganizativaRepository FakeTipoRepo = new()
+    {
+        Datos =
+        [
+            new("Institucion", "Institución") { Id = TipoUnidadOrganizativaConstantes.InstitucionId },
+            new("Facultad", "Facultad") { Id = TipoUnidadOrganizativaConstantes.FacultadId },
+        ]
+    };
+
+    private static CrearUnidadOrganizativaRequest CrearRequest(string codigo = "GER")
+        => new(codigo, "Gerencia General", TipoUnidadOrganizativaConstantes.InstitucionId,
+               "Desc", null, null, null);
+
+    private static DbUpdateException CreateDbUpdateException(string innerMessage)
+        => new("save-changes-failed", new Exception(innerMessage));
+
+    [Fact]
+    public async Task CrearAsync_Signal1644DelTriggerAntiCiclos_Retorna409CicloJerarquico()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository();
+        var uow = new FakeUnitOfWork
+        {
+            // El SIGNAL 1644 emite MESSAGE_TEXT = 'CicloJerarquico' (constante
+            // TriggerMensajeCiclo de la migración 20260816203122).
+            SaveChangesException = CreateDbUpdateException("CicloJerarquico")
+        };
+        var detector = new FakeConstraintViolationDetector();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, detector);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CicloJerarquico", resultado.Error.Code);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_DuplicateKeySobreCodigoActivo_Retorna409CodigoDuplicado()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository();
+        var uow = new FakeUnitOfWork
+        {
+            SaveChangesException = CreateDbUpdateException(
+                "Duplicate entry 'GER' for key 'UnidadesOrganizativas.IX_UnidadesOrganizativas_ActiveCodigoUnique'")
+        };
+        var detector = new FakeConstraintViolationDetector
+        {
+            ConstraintName = "IX_UnidadesOrganizativas_ActiveCodigoUnique"
+        };
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, detector);
+
+        var resultado = await servicio.CrearAsync(CrearRequest("GER"), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CodigoDuplicado", resultado.Error.Code);
+        Assert.Equal(1, uow.SaveChangesCount);
+    }
+
+    [Fact]
+    public async Task CrearAsync_OtroConstraintViolation_Retorna409RestriccionDeIntegridad()
+    {
+        var repo = new FakeUnidadOrganizativaWriteRepository();
+        var uow = new FakeUnitOfWork
+        {
+            // FK violation sin constraint name conocido.
+            SaveChangesException = CreateDbUpdateException(
+                "Cannot add or update a child row: a foreign key constraint fails")
+        };
+        var detector = new FakeConstraintViolationDetector { ConstraintName = null };
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, detector);
+
+        var resultado = await servicio.CrearAsync(CrearRequest(), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("RestriccionDeIntegridad", resultado.Error.Code);
+    }
+
+    [Fact]
+    public async Task ActualizarAsync_Signal1644DelTrigger_Retorna409CicloJerarquico()
+    {
+        var existente = new UnidadOrganizativa(
+            "EXIST", "Existente", TipoUnidadOrganizativaConstantes.InstitucionId, null, null)
+        {
+            Id = UnidadId
+        };
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork
+        {
+            SaveChangesException = CreateDbUpdateException("CicloJerarquico")
+        };
+        var detector = new FakeConstraintViolationDetector();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, detector);
+
+        // Sin UnidadPadreId para saltarse el check de existencia del padre
+        // y llegar hasta SaveChanges, que es donde el trigger dispara el SIGNAL.
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Nuevo nombre", TipoUnidadOrganizativaConstantes.InstitucionId,
+            "Nueva desc", null, null, null);
+
+        var resultado = await servicio.ActualizarAsync(UnidadId, request, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CicloJerarquico", resultado.Error.Code);
+    }
+
+    [Fact]
+    public async Task CambiarUnidadPadreAsync_Signal1644DelTrigger_Retorna409CicloJerarquico()
+    {
+        var existente = new UnidadOrganizativa(
+            "EXIST", "Existente", TipoUnidadOrganizativaConstantes.InstitucionId, null, null)
+        {
+            Id = UnidadId
+        };
+        var nuevoPadre = new UnidadOrganizativa(
+            "NUEVO", "Nuevo padre", TipoUnidadOrganizativaConstantes.InstitucionId, null, null)
+        {
+            Id = PadreId
+        };
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente, nuevoPadre] };
+        var uow = new FakeUnitOfWork
+        {
+            SaveChangesException = CreateDbUpdateException("CicloJerarquico")
+        };
+        var detector = new FakeConstraintViolationDetector();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, detector);
+
+        var resultado = await servicio.CambiarUnidadPadreAsync(
+            UnidadId, new CambiarUnidadPadreRequest(PadreId), default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CicloJerarquico", resultado.Error.Code);
+    }
+
+    [Fact]
+    public async Task ReactivarAsync_Signal1644DelTrigger_Retorna409CicloJerarquico()
+    {
+        // La unidad reactivada NO tiene padre: el check PadreInactivo
+        // corta antes y nunca llegamos a SaveChanges. Sin padre, la
+        // validación pasa y el SIGNAL del trigger se mapea en el catch.
+        var hijo = new UnidadOrganizativa(
+            "HIJO", "Hijo eliminado", TipoUnidadOrganizativaConstantes.InstitucionId,
+            null, null)
+        {
+            Id = HijoId
+        };
+        hijo.Desactivar();
+
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [hijo] };
+        var uow = new FakeUnitOfWork
+        {
+            SaveChangesException = CreateDbUpdateException("CicloJerarquico")
+        };
+        var detector = new FakeConstraintViolationDetector();
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, detector);
+
+        var resultado = await servicio.ReactivarAsync(HijoId, default);
+
+        Assert.False(resultado.IsSuccess);
+        Assert.Equal(UnidadOrganizativaErrorType.Conflict, resultado.Error!.Type);
+        Assert.Equal("CicloJerarquico", resultado.Error.Code);
+    }
+
+    [Fact]
+    public async Task DbUpdateException_NoEsConstraintViolation_NoSeCapturaYSigueAlCatchGenerico()
+    {
+        var existente = new UnidadOrganizativa(
+            "EXIST", "Existente", TipoUnidadOrganizativaConstantes.InstitucionId, null, null)
+        {
+            Id = UnidadId
+        };
+        var repo = new FakeUnidadOrganizativaWriteRepository { Datos = [existente] };
+        var uow = new FakeUnitOfWork
+        {
+            SaveChangesException = new DbUpdateException("deadlock transient")
+        };
+        // El detector dice "no es constraint violation" → la excepción debe
+        // escapar al catch genérico (que NO la cubre y por tanto propaga
+        // como 500, que es el comportamiento correcto para transient failures).
+        var detector = new FakeConstraintViolationDetector { IsConstraintViolationReturn = false };
+        var servicio = new UnidadOrganizativaServicioComandos(repo, FakeTipoRepo, uow, detector);
+
+        var request = new ActualizarUnidadOrganizativaRequest(
+            "Nuevo nombre", TipoUnidadOrganizativaConstantes.InstitucionId,
+            "Nueva desc", null, null, null);
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            () => servicio.ActualizarAsync(UnidadId, request, default));
     }
 }

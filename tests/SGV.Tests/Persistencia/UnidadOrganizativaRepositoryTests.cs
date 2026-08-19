@@ -303,6 +303,15 @@ public sealed class UnidadOrganizativaRepositoryTests
     /// never terminates when the chain is a cycle.
     /// </summary>
     /// <remarks>
+    /// H-I1 (housekeeping release-readiness UO+Organigrama): con el walk
+    /// acotado a la cadena del candidato (O(depth)), si el ancestorId
+    /// está en la cadena ANTES del revisita, retornamos true (descendencia
+    /// directa, e.g. A→B en un ciclo A↔B). Para verificar que el ciclo
+    /// se sigue detectando, este test usa un ancestorId que NO está en la
+    /// cadena — así el walk entra al revisita y lanza. La protección del
+    /// camino crítico sigue siendo O(depth), no O(N·depth).
+    /// </remarks>
+    /// <remarks>
     /// Required by spec <c>unidad-organizativa-crud</c> /
     /// "Detección de descendencia nunca cuelga ante ciclos" — scenario
     /// "IsDescendantAsync corta ante ciclo pre-existente sin colgar".
@@ -350,8 +359,13 @@ public sealed class UnidadOrganizativaRepositoryTests
         {
             var repo = new UnidadOrganizativaRepository(context);
 
+            // ancestorId NO está en la cadena a↔b → el walk entra al
+            // revisita y lanza CicloJerarquico. Si ancestorId == b, el walk
+            // retornaría true (porque A→B es descendencia directa).
+            var ancestorFueraDeCadena = Guid.NewGuid();
+
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => repo.IsDescendantAsync(a.Id, b.Id, default));
+                () => repo.IsDescendantAsync(a.Id, ancestorFueraDeCadena, default));
 
             Assert.Equal("CicloJerarquico", ex.Message);
         }

@@ -20,28 +20,55 @@ public class UnidadesOrganizativasController : ControllerBase
 {
     private readonly IUnidadOrganizativaServicioConsulta _servicio;
     private readonly IUnidadOrganizativaServicioComandos _comandos;
+    private readonly IDiagnosticoJerarquiaService _diagnosticoJerarquia;
 
     public UnidadesOrganizativasController(
         IUnidadOrganizativaServicioConsulta servicio,
-        IUnidadOrganizativaServicioComandos comandos)
+        IUnidadOrganizativaServicioComandos comandos,
+        IDiagnosticoJerarquiaService diagnosticoJerarquia)
     {
         _servicio = servicio;
         _comandos = comandos;
+        _diagnosticoJerarquia = diagnosticoJerarquia;
     }
+
+    /// <summary>
+    /// H-P1 (housekeeping release-readiness UO+Organigrama): tope duro
+    /// para evitar la amplificación trivial del endpoint sin paginar.
+    /// Con 10k unidades, devolver el universo completo en un solo
+    /// payload contradice el hardening del issue #278 y satura la
+    /// respuesta serializada. Los clientes que necesiten el universo
+    /// completo deben usar el endpoint paginado
+    /// <c>POST /api/v1/unidades-organizativas/consulta</c>.
+    /// </summary>
+    private const int MaxGetAllItems = 100;
 
     /// <summary>
     /// Obtiene todas las unidades organizativas activas.
     /// </summary>
     /// <param name="cancellationToken">Token de cancelación de la solicitud.</param>
-    /// <returns>Lista de unidades organizativas activas.</returns>
+    /// <returns>Lista de unidades organizativas activas (topeada).</returns>
     /// <response code="200">Lista de unidades organizativas devuelta correctamente.</response>
+    /// <response code="400">El universo activo excede el tope de <see cref="MaxGetAllItems"/>; use el endpoint paginado.</response>
+    /// <response code="401">No autenticado.</response>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<UnidadOrganizativaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<UnidadOrganizativaDto>>> GetAll(
         CancellationToken cancellationToken)
     {
         var result = await _servicio.ListAsync(cancellationToken);
+        if (result.Count > MaxGetAllItems)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Use el endpoint paginado /consulta",
+                Detail = $"El listado sin paginar está limitado a {MaxGetAllItems} unidades activas. " +
+                         $"El universo actual tiene {result.Count} unidades. " +
+                         $"Use POST /api/v1/unidades-organizativas/consulta con paginación."
+            });
+        }
         return Ok(result);
     }
 
@@ -271,5 +298,32 @@ public class UnidadesOrganizativasController : ControllerBase
         return result.IsSuccess
             ? Ok(result.Value)
             : ApiResults.ToProblemResult(result.Error!, HttpContext);
+    }
+
+    /// <summary>
+    /// H-X4 (housekeeping release-readiness UO+Organigrama): expone el
+    /// diagnóstico de ciclos al operador. Devuelve la lista de ciclos
+    /// detectados en la jerarquía activa (cada ciclo es un path que se
+    /// cierra sobre sí mismo, e.g. <c>A → B → A</c>). Solo accesible
+    /// para Administrador — un ciclo es un evento operacionalmente
+    /// grave que indica que los triggers anti-ciclos fueron deshabilitados
+    /// o que se importaron datos legados con jerarquía corrupta.
+    /// </summary>
+    /// <param name="cancellationToken">Token de cancelación.</param>
+    /// <returns>Lista vacía si la jerarquía está sana; lista de ciclos con
+    /// sus node ids en caso contrario.</returns>
+    /// <response code="200">Diagnóstico ejecutado (puede devolver lista vacía).</response>
+    /// <response code="401">No autenticado.</response>
+    /// <response code="403">No es Administrador.</response>
+    [HttpGet("diagnostico-jerarquia")]
+    [Authorize(Roles = RolesSgv.Administrador)]
+    [ProducesResponseType(typeof(IReadOnlyList<CicloDetectado>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<CicloDetectado>>> DiagnosticoJerarquia(
+        CancellationToken cancellationToken)
+    {
+        var ciclos = await _diagnosticoJerarquia.DiagnosticarAsync(cancellationToken);
+        return Ok(ciclos);
     }
 }

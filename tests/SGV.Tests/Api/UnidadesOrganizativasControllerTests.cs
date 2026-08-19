@@ -140,6 +140,91 @@ public sealed class UnidadesOrganizativasControllerTests
         Assert.Empty(dtos!);
     }
 
+    /// <summary>
+    /// H-P2 (housekeeping release-readiness UO+Organigrama): el endpoint
+    /// sin paginar devuelve 400 cuando el universo activo excede el
+    /// tope duro (<see cref="UnidadesOrganizativasController.MaxGetAllItems"/>).
+    /// Defense-in-depth contra la amplificación trivial del issue #278
+    /// (paginación sin clamp) — los clientes con universos grandes deben
+    /// usar <c>POST /api/v1/unidades-organizativas/consulta</c> paginado.
+    /// </summary>
+    [Fact]
+    public async Task GetAll_WhenUniverseExceedsTopesDevuelve400ApuntandoAConsulta()
+    {
+        // 101 unidades activas excede el tope de 100 del controller.
+        var universoGrande = Enumerable.Range(0, 101)
+            .Select(i => new UnidadOrganizativaDto(
+                Guid.NewGuid(),
+                $"UO-{i:D4}",
+                $"Unidad {i}",
+                TipoUnidadOrganizativaConstantes.AreaId,
+                "Área",
+                null, null, null, null, null, null))
+            .ToList();
+
+        var fakeConUniversoGrande = new FakeUnidadOrganizativaServicioConLista(universoGrande);
+
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IUnidadOrganizativaServicioConsulta>();
+            services.AddSingleton<IUnidadOrganizativaServicioConsulta>(fakeConUniversoGrande);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        // Verificamos por contenido porque el BadRequest del controller
+        // devuelve ProblemDetails plano (Status/Title/Detail) sin la forma
+        // estricta que esperan los helpers existentes de ProblemDetails.
+        Assert.Contains("/consulta", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("100", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// H-X4 (housekeeping release-readiness UO+Organigrama): el endpoint
+    /// admin de diagnóstico de jerarquía requiere rol Administrador.
+    /// Un usuario autenticado sin ese rol recibe 403 — defense-in-depth
+    /// contra la exposición de paths cíclicos a roles no autorizados.
+    /// </summary>
+    [Fact]
+    public async Task DiagnosticoJerarquia_WithoutAdminRole_ReturnsForbidden()
+    {
+        var factory = _fixture.RootFactory;
+        // Cliente autenticado pero sin rol Administrador.
+        var client = factory.CreateNonAdminClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/diagnostico-jerarquia");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>
+    /// H-X4: con rol Administrador y jerarquía sana, el endpoint devuelve
+    /// 200 con una lista vacía de ciclos.
+    /// </summary>
+    [Fact]
+    public async Task DiagnosticoJerarquia_WithAdminRoleAndAcyclicTree_ReturnsOkWithEmptyList()
+    {
+        var fakeDiagnostico = new FakeDiagnosticoJerarquiaService([]);
+
+        await using var factory = _fixture.RootFactory.WithOverrides(services =>
+        {
+            services.RemoveService<IDiagnosticoJerarquiaService>();
+            services.AddSingleton<IDiagnosticoJerarquiaService>(fakeDiagnostico);
+        });
+        var client = factory.CreateAdminClient();
+
+        var response = await client.GetAsync("/api/v1/unidades-organizativas/diagnostico-jerarquia");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        var ciclos = JsonSerializer.Deserialize<List<CicloDetectado>>(json, JsonOptions);
+        Assert.NotNull(ciclos);
+        Assert.Empty(ciclos!);
+    }
+
     [Fact]
     public async Task GetById_WithoutCredentials_ReturnsUnauthorized()
     {
@@ -1001,4 +1086,55 @@ public sealed class UnidadesOrganizativasControllerTests
         var problem = await ReadProblemDetailsAsync(response);
         Assert.Equal(404, problem.Status);
     }
+}
+
+/// <summary>
+/// H-P2 (housekeeping release-readiness UO+Organigrama): fake mínimo de
+/// <see cref="IUnidadOrganizativaServicioConsulta"/> que devuelve una
+/// lista fija (sin paginar). Permite a
+/// <c>GetAll_WhenUniverseExceedsTopesDevuelve400ApuntandoAConsulta</c>
+/// forzar el tope duro de 100 del controller sin tocar MySQL.
+/// </summary>
+internal sealed class FakeUnidadOrganizativaServicioConLista : IUnidadOrganizativaServicioConsulta
+{
+    private readonly IReadOnlyList<UnidadOrganizativaDto> _items;
+
+    public FakeUnidadOrganizativaServicioConLista(IReadOnlyList<UnidadOrganizativaDto> items)
+    {
+        _items = items;
+    }
+
+    public Task<IReadOnlyList<UnidadOrganizativaDto>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult(_items);
+
+    public Task<UnidadOrganizativaDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => Task.FromResult(_items.FirstOrDefault(d => d.Id == id));
+
+    public Task<PagedResult<UnidadOrganizativaDto>> QueryAsync(
+        UnidadOrganizativaQuery query, CancellationToken ct = default)
+        => Task.FromResult(new PagedResult<UnidadOrganizativaDto>(
+            _items.Take(query.PageSize).ToList(), _items.Count, query.Page, query.PageSize));
+
+    public Task<UnidadOrganizativaArbolResponse> GetTreeAsync(CancellationToken ct = default)
+        => Task.FromResult(new UnidadOrganizativaArbolResponse([], []));
+}
+
+/// <summary>
+/// H-X4 (housekeeping release-readiness UO+Organigrama): fake mínimo de
+/// <see cref="IDiagnosticoJerarquiaService"/> que devuelve una lista
+/// fija de ciclos. Permite a los tests del endpoint
+/// <c>/diagnostico-jerarquia</c> validar 200/403 sin sembrar un grafo
+/// cíclico en MySQL.
+/// </summary>
+internal sealed class FakeDiagnosticoJerarquiaService : IDiagnosticoJerarquiaService
+{
+    private readonly IReadOnlyList<CicloDetectado> _ciclos;
+
+    public FakeDiagnosticoJerarquiaService(IReadOnlyList<CicloDetectado> ciclos)
+    {
+        _ciclos = ciclos;
+    }
+
+    public Task<IReadOnlyList<CicloDetectado>> DiagnosticarAsync(CancellationToken ct = default)
+        => Task.FromResult(_ciclos);
 }

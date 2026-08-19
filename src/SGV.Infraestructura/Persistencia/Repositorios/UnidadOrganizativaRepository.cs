@@ -272,48 +272,43 @@ public sealed class UnidadOrganizativaRepository(SgvDbContext context)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        // Issue #277: previously this loop used only a sibling check on
-        // current.UnidadPadreId against ancestorId and trusted the chain
-        // would terminate. If the DB ever stores an active cycle (e.g. a
-        // bug allowed it before this fix), the while never terminated and
-        // the request thread hung forever. The visited-set bounds the
-        // walk to O(depth) in every case and surfaces a clean code
-        // ("CicloJerarquico") that the application service translates to
-        // 409 Conflict. Capacity is sized to typical hierarchies to avoid
-        // rehashing; bound remains O(depth) regardless.
         var byId = hierarchy.ToDictionary(n => n.Id, n => n.UnidadPadreId);
 
-        foreach (var node in hierarchy)
+        // H-I1 (housekeeping release-readiness UO+Organigrama): acotar el
+        // walk a la cadena de ancestros del candidato (O(depth)) en vez de
+        // escanear el grafo completo (O(N·depth)) por cada PUT/PATCH.
+        //
+        // La versión anterior (issue #277) hacía un `foreach` sobre TODAS
+        // las filas detectando ciclos en cualquier rama. Eso tenía dos
+        // consecuencias no deseadas:
+        //   1) round-trip pesado en el camino crítico de escritura (con
+        //      10k unidades, ~10⁸ comparaciones por request);
+        //   2) un ciclo en una rama TOTALMENTE ajena a la unidad editada
+        //      bloqueaba la operación, convirtiendo un dato corrupto
+        //      localizado en una caída global del módulo.
+        //
+        // Defensa en profundidad: si la cadena del candidato forma un
+        // ciclo, lanzamos el código canónico "CicloJerarquico" para que el
+        // servicio traduzca a 409. Si el ancestor aparece en la cadena
+        // antes de un revisita, retornamos true. Si la cadena termina sin
+        // tocar al ancestor, retornamos false.
+        var visited = new HashSet<Guid>(capacity: 16);
+        var currentId = candidateDescendantId;
+        while (byId.TryGetValue(currentId, out var parentId) && parentId.HasValue)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var path = new HashSet<Guid>();
-            var currentId = node.Id;
-            while (byId.TryGetValue(currentId, out var parentId) && parentId.HasValue)
+            if (!visited.Add(currentId))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if (!path.Add(currentId))
-                {
-                    throw new InvalidOperationException("CicloJerarquico");
-                }
-
-                path.Add(currentId);
-                currentId = parentId.Value;
+                throw new InvalidOperationException("CicloJerarquico");
             }
-        }
 
-        var current = hierarchy.FirstOrDefault(n => n.Id == candidateDescendantId);
-        while (current is not null && current.UnidadPadreId.HasValue)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (current.UnidadPadreId == ancestorId)
+            if (parentId.Value == ancestorId)
             {
                 return true;
             }
 
-            current = hierarchy.FirstOrDefault(n => n.Id == current.UnidadPadreId.Value);
+            currentId = parentId.Value;
         }
 
         return false;

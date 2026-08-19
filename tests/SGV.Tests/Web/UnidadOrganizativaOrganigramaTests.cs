@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Web;
 using SGV.Contracts.Organizacion.Consultas.Dtos;
@@ -383,5 +384,114 @@ public sealed partial class UnidadOrganizativaWebTests
         // como `"vigenteHasta":null`.
         Assert.Contains("\"id\":\"" + sinVigenciaHastaId.ToString() + "\"", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"vigenteHasta\":null", content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// W-1 (housekeeping release-readiness UO+Organigrama): el JS del
+    /// organigrama dibuja cada nodo con <c>allowHtml:true</c>, así que
+    /// cualquier <c>codigo</c> o <c>nombre</c> con markup se inyecta
+    /// como HTML y abre un vector de XSS almacenado cuando un
+    /// Administrador persiste una unidad con un payload malicioso.
+    /// Mitigación: el JS define <c>escapeHtml()</c> y la aplica sobre
+    /// los tres campos controlados por el usuario antes de armar la
+    /// celda del chart. Este test es el regression guard que rompe
+    /// si alguien borra el escape o si la función deja de aplicarse
+    /// en <c>flattenTree</c>.
+    /// </summary>
+    [Fact]
+    public void OrganigramaJs_HousekeepingW1_DefinesAndAppliesEscapeHtmlToUserFields()
+    {
+        var repoRoot = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var jsPath = Path.Combine(repoRoot, "src", "SGV.Web", "wwwroot", "js", "pages", "organigrama.js");
+
+        Assert.True(File.Exists(jsPath),
+            $"No se encontró organigrama.js en {jsPath}. Ajustá el path si la estructura del repo cambió.");
+
+        var content = File.ReadAllText(jsPath);
+
+        // 1) La función escapeHtml debe estar declarada.
+        Assert.Matches(@"function\s+escapeHtml\s*\(\s*value\s*\)\s*\{", content);
+
+        // 2) Debe reemplazar los cinco caracteres HTML peligrosos en
+        // el orden correcto: & primero (para no re-escapar), luego <, >,
+        // ", '. Si alguien reordena o quita uno, la inyección se cuela.
+        var ampIndex = content.IndexOf(".replace(/&/g, '&amp;')", StringComparison.Ordinal);
+        var ltIndex = content.IndexOf(".replace(/</g, '&lt;')", StringComparison.Ordinal);
+        var gtIndex = content.IndexOf(".replace(/>/g, '&gt;')", StringComparison.Ordinal);
+        var quotIndex = content.IndexOf(".replace(/\"/g, '&quot;')", StringComparison.Ordinal);
+        var aposIndex = content.IndexOf(".replace(/'/g, '&#39;')", StringComparison.Ordinal);
+
+        Assert.True(ampIndex >= 0, "escapeHtml debe reemplazar '&' por '&amp;'");
+        Assert.True(ltIndex >= 0, "escapeHtml debe reemplazar '<' por '&lt;'");
+        Assert.True(gtIndex >= 0, "escapeHtml debe reemplazar '>' por '&gt;'");
+        Assert.True(quotIndex >= 0, "escapeHtml debe reemplazar '\"' por '&quot;'");
+        Assert.True(aposIndex >= 0, "escapeHtml debe reemplazar '\\'' por '&#39;'");
+
+        Assert.True(ampIndex < ltIndex, "'&' debe reemplazarse ANTES que '<' para no re-escapar entidades");
+        Assert.True(ltIndex < gtIndex, "El orden de escape debe ser &, <, >, \", '");
+
+        // 3) Debe manejar null/undefined devolviendo string vacío.
+        Assert.Contains("if (value === null || value === undefined) return '';", content, StringComparison.Ordinal);
+
+        // 4) Debe aplicarse a los tres campos controlados por el usuario
+        // (codigo, nombre, tipo) DENTRO de flattenTree, antes de que esos
+        // strings lleguen a la celda del chart o al tooltip.
+        Assert.Contains("escapeHtml(node.codigo", content, StringComparison.Ordinal);
+        Assert.Contains("escapeHtml(node.nombre", content, StringComparison.Ordinal);
+        Assert.Contains("escapeHtml(node.tipo", content, StringComparison.Ordinal);
+
+        // 5) Ninguno de los tres campos debe aparecer concatenado SIN
+        // escape en la sección que arma la celda. Esto rompe si alguien
+        // refactoriza y vuelve a usar `node.nombre` directo.
+        var flattenSectionStart = content.IndexOf("function flattenTree", StringComparison.Ordinal);
+        var flattenSectionEnd = content.IndexOf("flattenTree(filtered, null);", StringComparison.Ordinal);
+        Assert.True(flattenSectionStart >= 0 && flattenSectionEnd > flattenSectionStart,
+            "No se pudo localizar el cuerpo de flattenTree.");
+        var flattenSection = content.Substring(flattenSectionStart, flattenSectionEnd - flattenSectionStart);
+
+        Assert.DoesNotContain("node.codigo + '", flattenSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("node.nombre + '", flattenSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("node.tipo + '", flattenSection, StringComparison.Ordinal);
+
+        // 6) El chart sigue dibujándose con allowHtml:true — el fix es
+        // escapar en origen, no apagar allowHtml. Esto rompe si alguien
+        // intenta "solucionar" el XSS apagando allowHtml y rompiendo el
+        // formato visual del chart.
+        Assert.Contains("allowHtml: true", content, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// W-6 (housekeeping release-readiness UO+Organigrama): el contenedor
+    /// del organigrama debe tener <c>role="img"</c> + <c>aria-label</c>
+    /// para que lectores de pantalla anuncien "Organigrama de unidades
+    /// organizativas" al cargar la página. La tabla que Google OrgChart
+    /// genera NO es semánticamente un árbol accesible, así que el
+    /// contenedor padre tiene que declarar el rol manualmente. Sin
+    /// esto, los usuarios que dependen de un screen reader no saben
+    /// que están viendo un organigrama.
+    /// </summary>
+    [Fact]
+    public async Task Get_Organigrama_WhenTreeHasNodes_ContainerExposesImgRoleAndAriaLabel()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse(
+            [
+                new UnidadOrganizativaTreeNodeDto(
+                    Guid.NewGuid(), "RECT", "Rectorado",
+                    Guid.NewGuid(), "Institución", [])
+            ],
+            []);
+
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/organigrama");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"orgchart\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("role=\"img\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("aria-label=\"Organigrama de unidades organizativas\"", content, StringComparison.OrdinalIgnoreCase);
     }
 }

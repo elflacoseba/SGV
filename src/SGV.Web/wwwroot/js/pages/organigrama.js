@@ -80,6 +80,22 @@
         return result;
     }
 
+    /**
+     * Escapa markup HTML para que strings provistos por el backend
+     * (codigo/nombre/tipo de unidades organizativas) no se inyecten
+     * como HTML cuando OrgChart se dibuja con allowHtml:true.
+     * Issue W-1 (housekeeping release-readiness UO+Organigrama).
+     */
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function drawOrgChart() {
         clearTimeout(timeoutId);
 
@@ -110,10 +126,18 @@
                 for (var i = 0; i < nodes.length; i++) {
                     var node = nodes[i];
                     var nodeId = String(node.id);
+                    // W-1 (housekeeping release-readiness): OrgChart se dibuja
+                    // con allowHtml:true, por lo que cualquier nombre o código
+                    // que contenga markup se inyecta como HTML. Escapamos acá
+                    // para que un nombre como "<img src=x onerror=...>" se
+                    // renderice como texto literal y no como nodo DOM.
+                    var safeCodigo = escapeHtml(node.codigo || '');
+                    var safeNombre = escapeHtml(node.nombre || '');
+                    var safeTipo = escapeHtml(node.tipo || '');
                     var displayName = options.showCode
-                        ? node.codigo + ' \u2014 ' + node.nombre
-                        : node.nombre;
-                    var tooltip = node.codigo + ' \u00B7 ' + node.tipo;
+                        ? safeCodigo + ' \u2014 ' + safeNombre
+                        : safeNombre;
+                    var tooltip = safeCodigo + ' \u00B7 ' + safeTipo;
                     data.addRow([{ v: nodeId, f: displayName }, parentId ? String(parentId) : '', tooltip]);
                     if (node.children && node.children.length > 0) {
                         flattenTree(node.children, nodeId);
