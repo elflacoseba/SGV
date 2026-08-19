@@ -23,6 +23,7 @@ using SGV.Infraestructura.Persistencia.Repositorios;
 using SGV.Infraestructura.Seguridad;
 using SGV.Infraestructura.Seguridad.PasswordChange;
 using SGV.Infraestructura.Setup;
+using SGV.Aplicacion.Seguridad.Contratos;
 
 namespace SGV.Infraestructura;
 
@@ -67,6 +68,9 @@ public static class DependencyInjection
         services.AddScoped<ISkillPersonaRepository, SkillPersonaRepository>();
         services.AddScoped<IVacanteRepository, VacanteRepository>();
         services.AddScoped<IEstadoVacanteRepository, EstadoVacanteRepository>();
+
+        // PR1b (change implementa-refresh-tokens): repositorio de refresh tokens.
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
         // Query services (application layer)
         services.AddScoped<IUnidadOrganizativaServicioConsulta, UnidadOrganizativaServicioConsulta>();
