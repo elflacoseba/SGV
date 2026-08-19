@@ -84,7 +84,7 @@
                             </div>
                         </div>
                     </div>
-                    <div id="orgchart" style="width:100%; min-height:500px; overflow:auto;" class="orgchart-container" data-orgchart-canvas></div>
+                    <div id="orgchart" role="img" aria-label="Organigrama de unidades organizativas" style="width:100%; min-height:500px; overflow:auto;" class="orgchart-container" data-orgchart-canvas></div>
                 }
             </div>
         </div>
@@ -116,8 +116,11 @@
 
 @section scripts {
     <script src="https://www.gstatic.com/charts/loader.js"></script>
-    <!-- Cache-bust con timestamp para evitar que el browser sirva la versión
-         vieja del JS después de un cambio. El query string cambia en cada
-         recompilación, lo que fuerza descarga. -->
-    <script src="/js/pages/organigrama.js?v=@DateTime.UtcNow.Ticks"></script>
+    <!-- H-W2/W3 (housekeeping release-readiness UO+Organigrama):
+         asp-append-version="true" genera un query string basado en el hash
+         del archivo (estable mientras el contenido no cambie). Antes
+         usabamos @DateTime.UtcNow.Ticks que cambiaba en CADA render y
+         forzaba al browser a re-descargar el JS en cada GET, anulando
+         el cache del navegador sin motivo. -->
+    <script src="~/js/pages/organigrama.js" asp-append-version="true"></script>
 }

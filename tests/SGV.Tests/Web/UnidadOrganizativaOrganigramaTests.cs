@@ -460,4 +460,38 @@ public sealed partial class UnidadOrganizativaWebTests
         // formato visual del chart.
         Assert.Contains("allowHtml: true", content, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// W-6 (housekeeping release-readiness UO+Organigrama): el contenedor
+    /// del organigrama debe tener <c>role="img"</c> + <c>aria-label</c>
+    /// para que lectores de pantalla anuncien "Organigrama de unidades
+    /// organizativas" al cargar la página. La tabla que Google OrgChart
+    /// genera NO es semánticamente un árbol accesible, así que el
+    /// contenedor padre tiene que declarar el rol manualmente. Sin
+    /// esto, los usuarios que dependen de un screen reader no saben
+    /// que están viendo un organigrama.
+    /// </summary>
+    [Fact]
+    public async Task Get_Organigrama_WhenTreeHasNodes_ContainerExposesImgRoleAndAriaLabel()
+    {
+        var apiClient = FakeUnidadOrganizativaApiClient.WithPages(CreatePage(1, 10, 0));
+        apiClient.TreeResult = new UnidadOrganizativaArbolResponse(
+            [
+                new UnidadOrganizativaTreeNodeDto(
+                    Guid.NewGuid(), "RECT", "Rectorado",
+                    Guid.NewGuid(), "Institución", [])
+            ],
+            []);
+
+        await using var lease = await CreateAuthenticatedClientAsync(apiClient);
+        var client = lease.Client;
+
+        var response = await client.GetAsync("/organizacion/unidades-organizativas/organigrama");
+        var content = HttpUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("id=\"orgchart\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("role=\"img\"", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("aria-label=\"Organigrama de unidades organizativas\"", content, StringComparison.OrdinalIgnoreCase);
+    }
 }
