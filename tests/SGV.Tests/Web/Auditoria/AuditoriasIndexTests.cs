@@ -411,6 +411,35 @@ public sealed class AuditoriasIndexTests
     }
 
     /// <summary>
+    /// 1.B.1.c.bis — <c>pageSize=abc</c> (string no numérico en
+    /// querystring) NO produce 400: el binder de Razor Pages para
+    /// <c>int</c> convierte el valor inválido a <c>0</c> y la
+    /// shell lo normaliza al default (20) antes de invocar al
+    /// backend. Spec <c>auditoria-page-size</c> §"PageSize no
+    /// numérico cae a default".
+    /// </summary>
+    [Fact]
+    public async Task Get_Index_PageSizeNonNumeric_FallsToDefault()
+    {
+        var apiClient = new FakeAuditoriaApiClient
+        {
+            QueryResult = new PagedResult<AuditoriaDto>([], 0, 1, IndexModel.DefaultPageSize)
+        };
+
+        await using var lease = await CreateAuditoriaLeaseAsync(apiClient, adminRole: true);
+
+        var response = await lease.Client.GetAsync("/auditorias?pageSize=abc");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // El backend recibió el default (20), NO 400 ni el valor
+        // inválido. La normalización de la shell absorbe el string
+        // no parseable (el binder lo convierte a 0, que cae al
+        // default por la rama `<= 0` de `NormalizePageSize`).
+        var query = Assert.Single(apiClient.QueryCalls);
+        Assert.Equal(IndexModel.DefaultPageSize, query.PageSize);
+    }
+
+    /// <summary>
     /// 1.B.1.d — Cambiar el criterio de orden resetea
     /// <c>page</c> a <c>1</c> y preserva el <c>pageSize</c> y los
     /// filtros vigentes. Los enlaces de los <c>&lt;th&gt;</c>
