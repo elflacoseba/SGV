@@ -13,11 +13,20 @@ namespace SGV.Web.Pages.Auth;
 /// <c>SignIn.OnGetAsync</c> redirige a <c>/auth/setup</c>.
 /// </summary>
 /// <remarks>
+/// <para>
 /// El <see cref="OnPostAsync"/> implementa el patrón PRG (Post-Redirect-Get)
 /// vía <c>RedirectToPage("/auth/sign-in")</c> + TempData. Los fallos
 /// de transporte (HttpRequestException / TaskCanceledException)
 /// producen un mensaje recuperable sin reintento ciego.
+/// </para>
+/// <para>
+/// <see cref="AutoValidateAntiforgeryTokenAttribute"/> cierra el vector
+/// C-2 (CSRF contra setup): la vista emite <c>@Html.AntiForgeryToken()</c>
+/// y el atributo rechaza POSTs cross-site que intenten crear el primer
+/// <c>Administrador</c> cuando la base está vacía.
+/// </para>
 /// </remarks>
+[AutoValidateAntiforgeryToken]
 public sealed class SetupModel(
     ISetupApiClient setupApiClient,
     ILogger<SetupModel> logger) : PageModel

@@ -19,6 +19,7 @@
 
                 <div class="card p-4">
                     <form method="post">
+                        @Html.AntiForgeryToken()
                         @if (TempData["SetupSuccess"] is string setupMessage)
                         {
                             <div class="alert alert-success alert-dismissible" role="status">

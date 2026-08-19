@@ -6,6 +6,14 @@ using SGV.Web.Integration.Auth;
 
 namespace SGV.Web.Pages.Auth;
 
+/// <summary>
+/// Cambio de contraseña por token. <see cref="AutoValidateAntiforgeryTokenAttribute"/>
+/// cierra el vector C-2: un atacante con el enlace de recuperación en
+/// mano (filtrado, eavesdropping, log) NO puede forzar al browser de la
+/// víctima a consumir el token sin el antiforgery válido, que vive en
+/// una cookie <c>SameSite=Lax</c> no enviada en cross-site POST.
+/// </summary>
+[AutoValidateAntiforgeryToken]
 public sealed class ResetPasswordModel(
     IAuthApiClient authApiClient,
     ILogger<ResetPasswordModel> logger) : PageModel
