@@ -93,7 +93,21 @@ public sealed record LoginRequest(string UserNameOrEmail, string Password);
 /// Successful login response with a bearer access token and its absolute
 /// expiration timestamp.
 /// </summary>
-public sealed record LoginResponse(string AccessToken, DateTimeOffset ExpiresAt);
+/// <remarks>
+/// PR1a (change <c>implementa-refresh-tokens</c>) adds two nullable
+/// parameters with default values so the refresh-token issuance can
+/// happen later without breaking any of the ~24 existing positional
+/// call sites (design §2.9 — breaking neutralised by
+/// <c>default(null)</c>). When the API returns a refresh token,
+/// <see cref="RefreshToken"/> carries the plain value (the Web shell
+/// persists it as the <c>sgv.rt</c> cookie); otherwise it stays
+/// <c>null</c> and the wire shape collapses to its pre-PR1a form.
+/// </remarks>
+public sealed record LoginResponse(
+    string AccessToken,
+    DateTimeOffset ExpiresAt,
+    string? RefreshToken = null,
+    DateTimeOffset? RefreshTokenExpiresAt = null);
 
 /// <summary>
 /// Request to initiate the password recovery flow. The supplied
