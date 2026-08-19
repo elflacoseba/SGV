@@ -80,6 +80,106 @@ public sealed class SmtpOptionsValidatorTests
             Mode = SmtpDeliveryMode.Smtp,
             Host = "smtp.example.com",
             Port = 587,
+            UserName = "smtp-user",
+            Password = "smtp-secret",
+            FromAddress = "no-reply@sgv.local",
+            FromName = "SGV",
+            WebBaseUrl = "https://sgv.example.com"
+        };
+
+        var results = Validate(options);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public void IValidatable_ModeSmtp_HostMissing_FailsValidation()
+    {
+        var options = new SmtpOptions
+        {
+            Mode = SmtpDeliveryMode.Smtp,
+            Port = 587,
+            UserName = "smtp-user",
+            Password = "smtp-secret",
+            FromAddress = "no-reply@sgv.local",
+            FromName = "SGV",
+            WebBaseUrl = "https://sgv.example.com"
+            // Host intentionally omitted
+        };
+
+        var results = Validate(options);
+
+        Assert.Contains(results, r => r.MemberNames.Contains(nameof(SmtpOptions.Host)));
+    }
+
+    [Fact]
+    public void IValidatable_ModeSmtp_RemoteHostWithoutCredentials_FailsValidation()
+    {
+        var options = new SmtpOptions
+        {
+            Mode = SmtpDeliveryMode.Smtp,
+            Host = "smtp.example.com",
+            Port = 587,
+            FromAddress = "no-reply@sgv.local",
+            FromName = "SGV",
+            WebBaseUrl = "https://sgv.example.com"
+            // UserName / Password intentionally omitted
+        };
+
+        var results = Validate(options);
+
+        Assert.Contains(results, r => r.MemberNames.Contains(nameof(SmtpOptions.UserName)));
+        Assert.Contains(results, r => r.MemberNames.Contains(nameof(SmtpOptions.Password)));
+    }
+
+    [Fact]
+    public void IValidatable_ModeSmtp_LocalhostWithoutCredentials_PassesValidation()
+    {
+        var options = new SmtpOptions
+        {
+            Mode = SmtpDeliveryMode.Smtp,
+            Host = "localhost",
+            Port = 1025,
+            FromAddress = "no-reply@sgv.local",
+            FromName = "SGV",
+            WebBaseUrl = "https://sgv.example.com"
+            // Localhost dev relays (e.g. MailHog) typically accept anonymous.
+        };
+
+        var results = Validate(options);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public void IValidatable_ModeSmtp_PortOutOfRange_FailsValidation()
+    {
+        var options = new SmtpOptions
+        {
+            Mode = SmtpDeliveryMode.Smtp,
+            Host = "smtp.example.com",
+            Port = 70_000,
+            UserName = "smtp-user",
+            Password = "smtp-secret",
+            FromAddress = "no-reply@sgv.local",
+            FromName = "SGV",
+            WebBaseUrl = "https://sgv.example.com"
+        };
+
+        var results = Validate(options);
+
+        Assert.Contains(results, r => r.MemberNames.Contains(nameof(SmtpOptions.Port)));
+    }
+
+    [Fact]
+    public void IValidatable_ModeLogger_DoesNotEnforceTransportDetails()
+    {
+        // Mode=Logger is a no-op; missing Host/UserName/Password MUST NOT
+        // fail validation. This protects the Development experience where
+        // the host writes outbound mail to the application logger.
+        var options = new SmtpOptions
+        {
+            Mode = SmtpDeliveryMode.Logger,
             FromAddress = "no-reply@sgv.local",
             FromName = "SGV",
             WebBaseUrl = "https://sgv.example.com"
