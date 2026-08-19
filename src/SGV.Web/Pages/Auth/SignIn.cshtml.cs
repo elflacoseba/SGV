@@ -25,6 +25,7 @@ public sealed class SignInModel(
     IAuthApiClient authApiClient,
     IAuthSessionFactory authSessionFactory,
     ISetupApiClient setupApiClient,
+    IRefreshTokenCookieAccessor refreshCookieAccessor,
     ILogger<SignInModel> logger) : PageModel
 {
     [BindProperty]
@@ -110,6 +111,27 @@ public sealed class SignInModel(
         var properties = authSessionFactory.CreateProperties(response);
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);
+
+        // PR3 (change implementa-refresh-tokens): persist the refresh token in
+        // the sgv.rt cookie. Centralised via IRefreshTokenCookieAccessor so
+        // the hardening per environment (REQ-AUTH-COOKIES-1) lives in one
+        // place. The cookie is body-based vs the API: the API is
+        // server-to-server and the Set-Cookie never reaches the browser.
+        // Legacy path: when the API does not emit a refresh token (e.g. an
+        // older API instance still around), we skip emitting the cookie and
+        // the login still works — the session will simply expire with the
+        // access token.
+        if (!string.IsNullOrWhiteSpace(response.RefreshToken)
+            && response.RefreshTokenExpiresAt is { } refreshExpiresAt)
+        {
+            refreshCookieAccessor.Set(response.RefreshToken, refreshExpiresAt);
+        }
+        else
+        {
+            logger.LogWarning(
+                "SGV.Api returned a login response without a refresh token. Skipping sgv.rt cookie issuance.");
+        }
+
         return LocalRedirect("/");
     }
 
