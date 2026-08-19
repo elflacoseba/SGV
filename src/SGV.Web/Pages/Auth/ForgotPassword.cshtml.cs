@@ -6,6 +6,14 @@ using SGV.Web.Integration.Auth;
 
 namespace SGV.Web.Pages.Auth;
 
+/// <summary>
+/// POST anónimo que dispara el envío del email de recuperación.
+/// <see cref="AutoValidateAntiforgeryTokenAttribute"/> cierra el vector
+/// C-2: la vista emite <c>@Html.AntiForgeryToken()</c> y este atributo
+/// rechaza cualquier POST cross-site que intente generar spam de
+/// recuperación contra el endpoint <c>/api/v1/auth/forgot-password</c>.
+/// </summary>
+[AutoValidateAntiforgeryToken]
 public sealed class ForgotPasswordModel(
     IAuthApiClient authApiClient,
     ILogger<ForgotPasswordModel> logger) : PageModel

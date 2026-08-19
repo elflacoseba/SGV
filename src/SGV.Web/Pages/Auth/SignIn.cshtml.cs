@@ -12,6 +12,15 @@ using SGV.Web.Integration.Setup;
 
 namespace SGV.Web.Pages.Auth;
 
+/// <summary>
+/// Pagina de inicio de sesión. <see cref="AutoValidateAntiforgeryTokenAttribute"/>
+/// protege <see cref="OnPostAsync"/> contra CSRF (C-2 release-readiness):
+/// un atacante no puede forzar al browser de la víctima a enviar un POST
+/// de login desde un sitio externo con credenciales conocidas, porque
+/// el token antiforgery vive en una cookie <c>SameSite=Lax</c> y el
+/// formulario debe incluirlo en el body.
+/// </summary>
+[AutoValidateAntiforgeryToken]
 public sealed class SignInModel(
     IAuthApiClient authApiClient,
     IAuthSessionFactory authSessionFactory,

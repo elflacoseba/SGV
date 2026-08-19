@@ -6,6 +6,14 @@ using SGV.Web.Integration.Auth;
 
 namespace SGV.Web.Pages.Auth;
 
+/// <summary>
+/// Cambio de contraseña por token. <see cref="AutoValidateAntiforgeryTokenAttribute"/>
+/// cierra el vector C-2: un atacante con el enlace de recuperación en
+/// mano (filtrado, eavesdropping, log) NO puede forzar al browser de la
+/// víctima a consumir el token sin el antiforgery válido, que vive en
+/// una cookie <c>SameSite=Lax</c> no enviada en cross-site POST.
+/// </summary>
+[AutoValidateAntiforgeryToken]
 public sealed class ResetPasswordModel(
     IAuthApiClient authApiClient,
     ILogger<ResetPasswordModel> logger) : PageModel
@@ -127,19 +135,14 @@ public sealed class ResetPasswordModel(
         => value is null ? null : Uri.UnescapeDataString(value);
 
     /// <summary>
-    /// Mirrors <c>IdentityOptions.Password</c> policy set in
-    /// <c>SGV.Api/Program.cs</c> and
-    /// <c>ResetPasswordRequestValidator</c>:
-    /// <c>RequiredLength=6</c>, requires lower, upper, digit, and
-    /// non-alphanumeric character. MUST be kept in sync with both
-    /// the server-side policy and the FluentValidation validator.
+    /// Mirror cliente de <see cref="SGV.Contracts.Seguridad.PasswordPolicy"/>
+    /// (la misma fuente única que consume <c>IdentityOptions.Password</c>
+    /// en <c>SGV.Api/Program.cs</c> y <c>ResetPasswordRequestValidator</c>).
+    /// Devuelve false si la política no se cumple para cortocircuitar el
+    /// POST antes del round-trip a la API.
     /// </summary>
     private static bool MeetsPasswordPolicy(string password)
-        => password.Length >= 6
-           && password.Any(char.IsLower)
-           && password.Any(char.IsUpper)
-           && password.Any(char.IsDigit)
-           && password.Any(character => !char.IsLetterOrDigit(character));
+        => SGV.Contracts.Seguridad.PasswordPolicy.IsCompliant(password);
 
     public sealed class InputModel
     {

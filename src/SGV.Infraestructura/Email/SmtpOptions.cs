@@ -20,10 +20,15 @@ namespace SGV.Infraestructura.Email;
 /// and the developer never actually sends mail. Any non-Development
 /// environment MUST supply every required field; the API composition
 /// root calls <c>ValidateDataAnnotations().ValidateOnStart()</c> on
-/// this type.
+/// this type. The cross-field contract (UserName/Password required
+/// for non-localhost real SMTP) is enforced by
+/// <see cref="IValidatableObject.Validate"/>, which
+/// <see cref="Validator.TryValidateObject(object, ValidationContext, ICollection{ValidationResult}, bool)"/>
+/// invokes when called with <c>validateAllProperties: true</c> — the
+/// same mode <c>ValidateDataAnnotations()</c> uses internally.
 /// </para>
 /// </remarks>
-public sealed class SmtpOptions
+public sealed class SmtpOptions : IValidatableObject
 {
     /// <summary>Configuration section name. Matches the appsettings key.</summary>
     public const string SectionName = "Smtp";
@@ -62,4 +67,54 @@ public sealed class SmtpOptions
 
     /// <summary>Transport selection. Defaults to <see cref="SmtpDeliveryMode.Logger"/>.</summary>
     public SmtpDeliveryMode Mode { get; set; } = SmtpDeliveryMode.Logger;
+
+    /// <inheritdoc />
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        // Only enforce transport details when the host actually intends to
+        // deliver mail. Mode=Logger is a no-op for development and tests.
+        if (Mode != SmtpDeliveryMode.Smtp)
+        {
+            yield break;
+        }
+
+        if (string.IsNullOrWhiteSpace(Host))
+        {
+            yield return new ValidationResult(
+                "Smtp:Host es obligatorio cuando Mode=Smtp.",
+                new[] { nameof(Host) });
+        }
+
+        if (Port < 1 || Port > 65535)
+        {
+            yield return new ValidationResult(
+                $"Smtp:Port debe estar entre 1 y 65535 (valor recibido: {Port}).",
+                new[] { nameof(Port) });
+        }
+
+        // Real-world SMTP servers (anything not localhost) virtually always
+        // require AUTH. Anonymous relay is only a dev convenience and would
+        // fail silently at first send otherwise.
+        if (!string.IsNullOrWhiteSpace(Host) && !IsLocalHost(Host))
+        {
+            if (string.IsNullOrWhiteSpace(UserName))
+            {
+                yield return new ValidationResult(
+                    "Smtp:UserName es obligatorio cuando el host no es localhost.",
+                    new[] { nameof(UserName) });
+            }
+
+            if (string.IsNullOrWhiteSpace(Password))
+            {
+                yield return new ValidationResult(
+                    "Smtp:Password es obligatorio cuando el host no es localhost.",
+                    new[] { nameof(Password) });
+            }
+        }
+    }
+
+    private static bool IsLocalHost(string host)
+        => host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+           || host.Equals("127.0.0.1", StringComparison.Ordinal)
+           || host == "::1";
 }

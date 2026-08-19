@@ -151,11 +151,16 @@ builder.Services
 builder.Services
     .AddIdentityCore<SgvIdentityUser>(options =>
     {
-        options.Password.RequireDigit = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireNonAlphanumeric = true;
-        options.Password.RequiredLength = 6;
+        // Password policy lives in SGV.Contracts.Seguridad.PasswordPolicy
+        // (single source of truth) — keep this block in sync with the
+        // FluentValidation rules in ChangePasswordRequestValidator /
+        // ResetPasswordRequestValidator and the Razor Pages pre-flight
+        // checks in CambiarContrasena / ResetPassword.
+        options.Password.RequireDigit = PasswordPolicy.RequireDigit;
+        options.Password.RequireLowercase = PasswordPolicy.RequireLowercase;
+        options.Password.RequireUppercase = PasswordPolicy.RequireUppercase;
+        options.Password.RequireNonAlphanumeric = PasswordPolicy.RequireNonAlphanumeric;
+        options.Password.RequiredLength = PasswordPolicy.MinLength;
     })
     .AddRoles<Microsoft.AspNetCore.Identity.IdentityRole>()
     .AddEntityFrameworkStores<SgvDbContext>()
@@ -240,49 +245,74 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
     options.FallBackToParentCultures = false;
 });
 
-// Rate limiting (issue #181): two named fixed-window policies for the
-// password recovery endpoints. Both are applied BEFORE authentication
-// (see pipeline order below) so anonymous bursts are still subject to
-// quota. The OnRejected callback writes Retry-After so polite clients
-// can back off without polling.
+// Rate limiting (issue #181 + C-1 release-readiness): each policy is
+// partitioned by IP address (anonymous endpoints) or by user subject
+// (authenticated ChangePassword). Antes usábamos AddFixedWindowLimiter
+// sin partitioner — el contador era global del proceso y un atacante
+// con IP rotativa podía agotar la quota de los usuarios legítimos.
+// All policies are applied BEFORE authentication (see pipeline order
+// below) so anonymous bursts are still subject to quota; the partition
+// key for ChangePassword degrada a IP si por algún motivo no hay
+// principal resuelto.
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter(AuthApiRoutes.ForgotPasswordPolicyName, policy =>
-    {
-        policy.PermitLimit = 3;
-        policy.Window = TimeSpan.FromMinutes(15);
-        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        policy.QueueLimit = 0;
-    });
+    // Anon endpoint: keyed by RemoteIpAddress. Fallback "unknown" covers
+    // test contexts without a real socket.
+    options.AddPolicy(AuthApiRoutes.ForgotPasswordPolicyName, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: PartitionKeyByIp(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 3,
+                Window = TimeSpan.FromMinutes(15),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 
-    options.AddFixedWindowLimiter(AuthApiRoutes.ResetPasswordPolicyName, policy =>
-    {
-        policy.PermitLimit = 5;
-        policy.Window = TimeSpan.FromMinutes(15);
-        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        policy.QueueLimit = 0;
-    });
+    options.AddPolicy(AuthApiRoutes.ResetPasswordPolicyName, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: PartitionKeyByIp(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 
     // Issue #195: rate limiting para el setup one-time del primer
     // Administrador. 5 req / 15 min: más permisivo que ForgotPassword
     // (3) porque el formulario tiene 9 campos con probabilidad alta
     // de error humano, y más estricto que ResetPassword (5) en la
-    // misma ventana porque crea un admin.
-    options.AddFixedWindowLimiter(SetupApiRoutes.SetupPolicyName, policy =>
-    {
-        policy.PermitLimit = 5;
-        policy.Window = TimeSpan.FromMinutes(15);
-        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        policy.QueueLimit = 0;
-    });
+    // misma ventana porque crea un admin. Particionado por IP.
+    options.AddPolicy(SetupApiRoutes.SetupPolicyName, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: PartitionKeyByIp(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 
-    options.AddFixedWindowLimiter(AuthApiRoutes.ChangePasswordPolicyName, policy =>
-    {
-        policy.PermitLimit = 5;
-        policy.Window = TimeSpan.FromMinutes(15);
-        policy.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        policy.QueueLimit = 0;
-    });
+    // Authenticated endpoint: keyed por subject (user id). Si el principal
+    // aún no resolvió (escenario anómalo porque [Authorize] corre antes),
+    // cae a IP para no abrir una llave global.
+    options.AddPolicy(AuthApiRoutes.ChangePasswordPolicyName, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: PartitionKeyBySubjectOrIp(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
@@ -303,6 +333,17 @@ builder.Services.AddRateLimiter(options =>
         return ValueTask.CompletedTask;
     };
 });
+
+// Helpers de partition key. Mantener como funciones estáticas en
+// Program.cs (no necesitan ser internal public) para que las
+// closures de AddPolicy las invoquen consistentemente.
+static string PartitionKeyByIp(HttpContext httpContext)
+    => httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+static string PartitionKeyBySubjectOrIp(HttpContext httpContext)
+    => httpContext.User?.Identity?.IsAuthenticated == true
+        ? $"sub:{httpContext.User.Identity.Name}"
+        : $"ip:{PartitionKeyByIp(httpContext)}";
 
 // CORS: allow web app origin in development; fail loud if unconfigured outside Development.
 // The AllowedOrigins read happens inside the AddDefaultPolicy callback so it observes the

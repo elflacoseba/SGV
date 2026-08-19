@@ -89,6 +89,9 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 // forwarding every typed client request would land as anonymous and the API's
 // [Authorize] guard would reject it.
 builder.Services.AddHttpContextAccessor();
+// I-3 release-readiness: el circuit state del revalidator es singleton
+// porque debe sobrevivir entre requests (el revalidator es scoped).
+builder.Services.AddSingleton<CookieRevalidatorCircuitState>();
 builder.Services.AddScoped<CookiePrincipalRevalidator>();
 builder.Services.AddTransient<ApiBearerTokenHandler>();
 

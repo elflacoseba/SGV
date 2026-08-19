@@ -125,4 +125,64 @@ public sealed class AuthSessionRedirectorTests
         var redirect = Assert.IsType<RedirectResult>(result);
         Assert.Equal("/auth/sign-in", redirect.Url);
     }
+
+    /// <summary>
+    /// Vectores clásicos de open-redirect que el guard anti-F9 debe
+    /// rechazar descartando el <c>returnUrl</c> y redirigiendo al login
+    /// sin él. La lista cubre tanto URLs absolutas externas como
+    /// variantes que confunden al parser de URI (credenciales embebidas,
+    /// backslashes, control chars y esquemas no-http).
+    /// </summary>
+    [Theory]
+    [InlineData("https://evil.example.com/oauth")]
+    [InlineData("//evil.example.com/oauth")]
+    [InlineData("https://user:pass@evil.example.com/")]
+    [InlineData("https://safe.example.com@evil.example.com/")]
+    [InlineData("/\\evil.example.com/oauth")]      // algunos browsers interpretan /\\ como //
+    [InlineData("\\\\evil.example.com\\oauth")]    // UNC-style
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,<script>alert(1)</script>")]
+    [InlineData("vbscript:msgbox(1)")]
+    [InlineData("file:///etc/passwd")]
+    [InlineData(" https://evil.example.com")]       // leading whitespace
+    [InlineData("https://evil.example.com\n/oauth")] // embedded newline
+    [InlineData("HTTP://EVIL.EXAMPLE.COM/oauth")]  // case-fold
+    [InlineData("HtTpS://EvIl.ExAmPlE.cOm/oAuth")]  // mixed case
+    public void TryRedirectToLogin_WithMaliciousReturnUrl_DropsReturnUrl(string maliciousReturnUrl)
+    {
+        // Arrange
+        var redirector = BuildRedirector(out _);
+
+        // Act
+        var result = redirector.TryRedirectToLogin(maliciousReturnUrl);
+
+        // Assert
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/auth/sign-in", redirect.Url);
+    }
+
+    /// <summary>
+    /// URLs que NO son vectores open-redirect y deben preservarse como
+    /// <c>returnUrl</c> local válido. Complementa el test anterior para
+    /// garantizar que el guard no rechaza en exceso (falso positivo).
+    /// </summary>
+    [Theory]
+    [InlineData("/organizacion/cargos")]
+    [InlineData("/auth/sign-in")]                  // mismo path, válido
+    [InlineData("/api/v1/usuarios?page=1")]        // query string
+    [InlineData("/path/with#fragment")]             // fragment
+    [InlineData("/path-with-dashes_and_underscores")] // caracteres seguros
+    public void TryRedirectToLogin_WithLocalReturnUrl_PreservesReturnUrl(string localReturnUrl)
+    {
+        // Arrange
+        var redirector = BuildRedirector(out _);
+
+        // Act
+        var result = redirector.TryRedirectToLogin(localReturnUrl);
+
+        // Assert
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.StartsWith("/auth/sign-in?returnUrl=", redirect.Url);
+        Assert.NotEqual("/auth/sign-in", redirect.Url);
+    }
 }

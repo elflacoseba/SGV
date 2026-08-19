@@ -908,6 +908,16 @@ openssl rand -base64 48
 
 …y guardar el resultado en *Settings → Secrets and variables → Actions → JWT_SIGNING_KEY* del repositorio, scope `Environment: production` si aplica.
 
+## ClockSkew de validación JWT (30 segundos)
+
+`JwtTokenValidationParameters.Create` aplica `ClockSkew = TimeSpan.FromSeconds(30)` para tolerar drift de reloj entre hosts (API + Web + balanceadores + contenedores) sin admitir uso post-expiración de tokens. La constante vive en `src/SGV.Contracts/Seguridad/JwtTokenValidationParameters.cs` como `TokenValidationClockSkew` y se reutiliza por `SGV.Api` (middleware `JwtBearer`) y `SGV.Web` (`AuthSessionFactory` antes de aceptar claims en la cookie).
+
+**Por qué 30 segundos y no `TimeSpan.Zero`.** El default .NET (`5 minutos`) era demasiado laxo: admitía tokens emitidos 5 minutos después de su `exp` declarada, ventana suficiente para reproducir un bearer "robado" en un ataque de replay. El valor `Zero` original generaba 401 espurios bajo drift >1s entre hosts (típico en contenedores sin NTP estricto) y producía tickets de soporte falsos. **30 segundos** absorbe drift de NTP realista y mantiene el tiempo de exposición post-`exp` en el orden de un heartbeat de monitor.
+
+**Tests de regresión.** `tests/SGV.Tests/Seguridad/JwtRealAuthTests.TokenExpirado_DentroDelClockSkewDefault_Rechazado_401` firma un JWT con `expires = UtcNow - 1min` y verifica 401. Bajo skew 30s, un token con 60s de expiración sigue siendo rechazado (60s > 30s). Si en el futuro se sube la tolerancia, hay que actualizar este test al mismo tiempo.
+
+**Operación.** Si en producción se observa una racha de 401 inmediatamente después del login, lo primero a verificar es la sincronía NTP entre los hosts (no la clave JWT). El skew es local a cada host; cada host debe tener `chronyc tracking` (o equivalente) reportando offset <1s contra la fuente de tiempo autoritativa.
+
 ## Inmutabilidad de `Codigo` en `UnidadOrganizativa`
 
 `UnidadOrganizativa.Codigo` es la identidad lógica de la unidad. Una vez creada, **no puede cambiar**. El contrato se sostiene en tres capas, cada una con un mecanismo distinto pero convergente:
