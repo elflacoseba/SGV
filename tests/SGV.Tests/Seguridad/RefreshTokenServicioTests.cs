@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
@@ -229,6 +231,7 @@ public sealed class RefreshTokenServicioTests
             new FakeAccessTokenIssuer(),
             auditoria,
             clock,
+            NullLogger<RefreshTokenServicio>.Instance,
             Options.Create(new RefreshTokenOptions()));
 
         return (servicio, repository, auditoria, clock);

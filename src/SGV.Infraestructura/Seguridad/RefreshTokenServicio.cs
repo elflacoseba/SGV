@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SGV.Aplicacion.Auditoria;
 using SGV.Aplicacion.Comun.Persistencia;
@@ -24,6 +25,13 @@ namespace SGV.Infraestructura.Seguridad;
 /// revocations. Every revocation path therefore writes an explicit entry
 /// through <see cref="IAuditoriaServicio"/> (risk R5 of the design). The
 /// audit payload never carries the plain token nor its digest.
+///
+/// Observability contract (PR4): every refresh outcome issues a
+/// structured log event tagged with the logical event name. Log events
+/// NEVER carry the plain token nor its hash. Levels:
+/// <c>Information</c> for success and family revocation,
+/// <c>Warning</c> for invalid/expired tokens, <c>Error</c> for replay
+/// detection (security event).
 /// </remarks>
 public sealed class RefreshTokenServicio(
     IRefreshTokenRepository repository,
@@ -31,6 +39,7 @@ public sealed class RefreshTokenServicio(
     IAccessTokenIssuer accessTokenIssuer,
     IAuditoriaServicio auditoria,
     TimeProvider timeProvider,
+    ILogger<RefreshTokenServicio> logger,
     IOptions<RefreshTokenOptions> options) : IRefreshTokenServicio
 {
     /// <summary>Audited logical entity name (matches the EF interceptor naming).</summary>
@@ -41,6 +50,18 @@ public sealed class RefreshTokenServicio(
 
     /// <summary>Audit operation recorded when a user logs out.</summary>
     internal const string OperacionLogout = "Logout";
+
+    /// <summary>Log event name for a successful refresh rotation.</summary>
+    internal const string EventoRefreshSuccess = "RefreshSuccess";
+
+    /// <summary>Log event name for a refresh rejection (invalid or expired token).</summary>
+    internal const string EventoRefreshFailure = "RefreshFailure";
+
+    /// <summary>Log event name for a replay attack (consumed token re-presented).</summary>
+    internal const string EventoRefreshReplayDetected = "RefreshReplayDetected";
+
+    /// <summary>Log event name for a logout-triggered family revocation.</summary>
+    internal const string EventoFamilyRevocation = "FamilyRevocation";
 
     /// <summary>Entropy of the plain refresh token, in bytes.</summary>
     private const int TokenBytes = 32;
@@ -105,6 +126,13 @@ public sealed class RefreshTokenServicio(
             .ConfigureAwait(false);
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+        logger.LogInformation(
+            "{Event} userId={UserId} familyId={FamilyId} newTokenExpiresAt={NewTokenExpiresAt:o}",
+            EventoRefreshSuccess,
+            consumido.UserId,
+            consumido.FamilyId,
+            rotado.ExpiresAt);
+
         return new RefreshResult(
             RefreshOutcome.Success,
             accessToken.AccessToken,
@@ -164,6 +192,13 @@ public sealed class RefreshTokenServicio(
                 },
                 cancellationToken)
             .ConfigureAwait(false);
+
+        logger.LogInformation(
+            "{Event} userId={UserId} revokedTokensCount={RevokedTokensCount} familyId={FamilyId}",
+            EventoFamilyRevocation,
+            userId,
+            revocados,
+            familyId?.ToString() ?? "(none)");
     }
 
     /// <summary>
@@ -183,11 +218,21 @@ public sealed class RefreshTokenServicio(
 
         if (existente is null)
         {
+            logger.LogWarning(
+                "{Event} error={Error}",
+                EventoRefreshFailure,
+                "InvalidToken");
             return RefreshResult.Failure(RefreshOutcome.Invalid);
         }
 
         if (existente.RevokedAt is null && existente.ExpiresAt <= nowUtc)
         {
+            logger.LogWarning(
+                "{Event} error={Error} userId={UserId} familyId={FamilyId}",
+                EventoRefreshFailure,
+                "ExpiredToken",
+                existente.UserId,
+                existente.FamilyId);
             return RefreshResult.Failure(RefreshOutcome.Expired);
         }
 
@@ -211,6 +256,13 @@ public sealed class RefreshTokenServicio(
                 },
                 cancellationToken)
             .ConfigureAwait(false);
+
+        logger.LogError(
+            "{Event} userId={UserId} familyId={FamilyId} affectedFamilySize={AffectedFamilySize}",
+            EventoRefreshReplayDetected,
+            existente.UserId,
+            existente.FamilyId,
+            revocados);
 
         return RefreshResult.Failure(RefreshOutcome.ReplayDetected);
     }
