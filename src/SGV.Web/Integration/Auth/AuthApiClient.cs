@@ -107,6 +107,82 @@ public sealed class AuthApiClient : IAuthApiClient
             statusCode: response.StatusCode);
     }
 
+    /// <inheritdoc />
+    public async Task<RefreshResponse?> RefreshAsync(
+        RefreshRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Refresh is anonymous at the API: the API is body-based and does NOT
+        // honour Set-Cookie. The transport is the anonymous client so the
+        // bearer pipeline does not run (we are not authenticated yet).
+        using var response = await anonymousHttpClient.PostAsJsonAsync(
+            AuthApiRoutes.Refresh,
+            request,
+            cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            // Refresh token rejected (expired, revoked, replay detected).
+            return null;
+        }
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            // Rate-limit partition is separate from login by policy design.
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<RefreshResponse>(cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> LogoutAsync(
+        LogoutRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Logout uses the AUTHENTICATED pipeline so ApiBearerTokenHandler
+        // forwards the bearer token from the inbound cookie. The JWT is what
+        // resolves the user identity server-side; the refresh token in the
+        // body is just a hint for the audit entry.
+        // We use a manually-built HttpRequestMessage so we can opt out of
+        // HttpCompletionOption.ResponseContentRead (the default of
+        // PostAsJsonAsync). ResponseContentRead eagerly buffers the response
+        // body and, in the in-memory transport used by
+        // WebApplicationFactory, can race with the EmptyContent disposal
+        // and throw ObjectDisposedException.
+        using var json = JsonContent.Create(request);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, AuthApiRoutes.Logout)
+        {
+            Content = json
+        };
+        var response = await httpClient.SendAsync(
+            httpRequest,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+
+        try
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                return false;
+            }
+
+            response.EnsureSuccessStatusCode();
+            return true;
+        }
+        finally
+        {
+            response.Dispose();
+        }
+    }
+
     private async Task<PasswordResetOutcome> PostAnonymousAsync<TRequest>(
         string route,
         TRequest request,

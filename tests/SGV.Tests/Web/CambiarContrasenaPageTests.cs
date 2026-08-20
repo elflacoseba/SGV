@@ -299,5 +299,15 @@ public sealed class CambiarContrasenaPageTests
 
             return Task.FromResult(ChangePasswordOutcome);
         }
+
+        public Task<RefreshResponse?> RefreshAsync(
+            RefreshRequest request,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<RefreshResponse?>(null);
+
+        public Task<bool> LogoutAsync(
+            LogoutRequest request,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(true);
     }
 }

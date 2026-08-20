@@ -137,5 +137,15 @@ public sealed class WebShellSmokeTests
             ChangePasswordRequest request,
             CancellationToken cancellationToken = default)
             => Task.FromResult(ChangePasswordOutcome.Success);
+
+        public Task<RefreshResponse?> RefreshAsync(
+            RefreshRequest request,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<RefreshResponse?>(null);
+
+        public Task<bool> LogoutAsync(
+            LogoutRequest request,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(true);
     }
 }

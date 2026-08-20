@@ -59,4 +59,37 @@ public interface IAuthApiClient
     Task<ChangePasswordOutcome> ChangePasswordAsync(
         ChangePasswordRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rotates the refresh token against <c>POST /api/v1/auth/refresh</c>.
+    /// The caller is responsible for persisting the returned
+    /// <see cref="RefreshResponse.RefreshToken"/> in the <c>sgv.rt</c> cookie
+    /// via <see cref="IRefreshTokenCookieAccessor.Set"/>.
+    /// </summary>
+    /// <param name="request">Anonymous refresh payload (the refresh token
+    /// travels in the body — the API is body-based, <c>SGV.Web</c> is the
+    /// only <c>sgv.rt</c> emitter).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The new pair on success; <c>null</c> on
+    /// <c>401 Unauthorized</c> or <c>429 Too Many Requests</c>. Other failures
+    /// propagate as <see cref="HttpRequestException"/>.</returns>
+    Task<RefreshResponse?> RefreshAsync(
+        RefreshRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls <c>POST /api/v1/auth/logout</c> to revoke the refresh-token
+    /// family server-side. Uses the authenticated pipeline so the bearer
+    /// token travels in the <c>Authorization</c> header.
+    /// </summary>
+    /// <param name="request">Logout payload. <see cref="LogoutRequest.RefreshToken"/>
+    /// may be null for legacy sessions that never received a refresh token.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> on <c>200 OK</c>; <c>false</c> on
+    /// <c>401 Unauthorized</c> (the session expired server-side). Other
+    /// failures propagate as <see cref="HttpRequestException"/> so the caller
+    /// can decide whether to fail-open and still clean local cookies.</returns>
+    Task<bool> LogoutAsync(
+        LogoutRequest request,
+        CancellationToken cancellationToken = default);
 }
