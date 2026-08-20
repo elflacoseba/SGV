@@ -2077,3 +2077,309 @@ SIGNAL del trigger anti-ciclos (constante `TriggerMensajeCiclo` en la
 migración `20260816203122`). Si se cambia el valor del trigger, hay
 que actualizar tanto la constante de la migración como
 `UnidadOrganizativaErrorCodigos.CicloJerarquico` simultáneamente.
+
+## Refresh tokens con rotación single-use y revocación familiar (change `implementa-refresh-tokens`)
+
+> Change: `implementa-refresh-tokens`. Artefactos SDD en
+> `openspec/changes/feature/implementar-refresh-tokens` (proposal,
+> spec, design, tasks). Chain strategy: `stacked-to-develop` con 4 PRs
+> encadenados. PR1a (#306, merged), PR1b (#307, merged), PR2a (#308,
+> merged), PR3 (#309, merged), PR4 (#310, este documento):
+> observabilidad + cierre del change. Este documento resume la decisión
+> técnica y consolidada el settle del change.
+
+### Contexto
+
+La ventana de exposición de 60 minutos del JWT sin revocación
+server-side quedó aceptada en el issue #97 (archivado) como decisión
+de diseño. Este change reemplaza esa decisión: introduce refresh
+tokens con persistencia MySQL, rotación single-use agrupada por
+`FamilyId`, detección de replay que revoca la familia completa y
+revocación server-side en logout. Sustituye el modelo vigente
+(«token robado permanece válido hasta su expiración natural») por
+uno signal-of-compromise: ante replay, todos los dispositivos del
+usuario se desconectan.
+
+### D-RT-1 — Persistencia MySQL con `RefreshTokens` y hash determinístico
+
+`RefreshTokenEntity` vive en
+`src/SGV.Infraestructura/Persistencia/Entidades/RefreshTokenEntity.cs`
+y hereda `EntityBase` (PK `Guid Id`) — no PK `BIGINT UNSIGNED`
+porque `AuditoriaSaveChangesInterceptor` filtra `e.Entity is
+EntityBase`. La tabla `RefreshTokens` se crea vía migración
+`AddRefreshTokens` con:
+
+- `Id: CHAR(36)` PK Guid.
+- `UserId: VARCHAR(450)` FK a `AspNetUsers.Id` con `ON DELETE CASCADE`.
+- `FamilyId: CHAR(36)` Guid de la familia (nuevo por login).
+- `TokenHash: VARCHAR(64)` SHA-256 hex (lowercase) del token plain.
+- `CreatedAt`, `ExpiresAt`, `LastUsedAt`, `RevokedAt`, `ReplacedById`.
+- Índices: `UNIQUE(IX_RefreshTokens_TokenHash)`, `IX_RefreshTokens_UserId`,
+  `IX_RefreshTokens_FamilyId`.
+- Charset `utf8mb4_0900_ai_ci` en columnas string; `datetime(6)` en
+  timestamps.
+
+`RefreshTokenHashing.ComputeSha256Hex(token)` vive en
+`src/SGV.Aplicacion/Seguridad/Servicios/` y aplica
+`SHA256.HashData(Encoding.UTF8.GetBytes(token))` con output hex
+lowercase de 64 chars. Testeado por `RefreshTokenHasherTests`
+(determinístico, regex `^[0-9a-f]{64}$`, entropía de `Generate()`).
+
+El plain token se genera con `RandomNumberGenerator.GetBytes(32)` →
+Base64Url sin padding (`TokenBytes = 32`, 256 bits de entropía).
+Solo viaja en memoria; nunca se persiste ni aparece en logs.
+
+### D-RT-2 — Auditoría con `EsCampoSensible` por convención de nombre
+
+`AuditoriaSaveChangesInterceptor` no se modificó. `EsCampoSensible`
+ya filtra cualquier propiedad cuyo nombre contenga `Token`,
+`Password` o `Stamp`. Por eso:
+
+- `TokenHash` queda excluido automáticamente (no aparece en
+  `NewValuesJson`).
+- La columna de relación se llama `ReplacedById` (no
+  `ReplacedByTokenId`) — el nombre original caía en el filtro y
+  excluía incorrectamente este campo de la auditoría.
+
+Verificado por `RefreshTokenAuditoriaTests`: tras `AddAsync` +
+`SaveChangesAsync`, el `NewValuesJson` contiene `FamilyId`, `UserId`,
+`ExpiresAt`, `ReplacedById` y NO contiene `TokenHash`.
+
+### D-RT-3 — API body-based, `SGV.Web` único emisor de `sgv.rt`
+
+`SGV.Web` consume `SGV.Api` server-to-server vía `HttpClient`. Un
+`Set-Cookie` emitido por la API muere dentro del proceso —
+nunca llega al browser. Por eso:
+
+- La API es **body-based**: `RefreshRequest(string RefreshToken)`.
+- `SGV.Web` es el **único emisor** de la cookie `sgv.rt`.
+
+El refresh cookie se gestiona íntegramente en
+`src/SGV.Web/Integration/Auth/RefreshTokenCookieAccessor.cs` con
+atributos `HttpOnly=true`, `SameSite=Lax`, `Path=/`. El flag
+`Secure` se calcula igual que `Program.cs:54` para `sgv.auth`:
+`_environment.IsDevelopment() ? isHttps : true`. La expiración
+coincide con `RefreshTokenExpiresAt`.
+
+### D-RT-4 — Rotación single-use y revocación familiar
+
+Cada login emite un `FamilyId` Guid nuevo. El `RefreshTokenServicio`
+(`src/SGV.Infraestructura/Seguridad/RefreshTokenServicio.cs`)
+orquesta la rotación:
+
+1. `RefreshAsync(plain)` calcula el hash, llama
+   `IRefreshTokenRepository.TryConsumeAsync(hash, replacementId, now)`
+   — un `ExecuteUpdateAsync` atómico con `WHERE TokenHash=@h AND
+   RevokedAt IS NULL AND ExpiresAt > @now`.
+2. Si la fila no estaba activa: distingue `Invalid` (fila no existe),
+   `Expired` (expirada, **NO** se revoca la familia per
+   REQ-AUTH-REFRESH-2) y `ReplayDetected` (fila revocada → revoca
+   toda la familia per REQ-AUTH-REFRESH-3).
+3. Si la fila era current: emite un nuevo access JWT, inserta T2
+   con la misma `FamilyId`, persiste, retorna `RefreshResult.Success`.
+
+La concurrencia se resuelve por el `UPDATE` condicional atómico, no
+por `SELECT FOR UPDATE`. Si dos requests presentan T1 en paralelo,
+uno gana (`Success`) y el otro pierde (`ReplayDetected` +
+revocación familiar). Ver `REQ-RTM-CONCURRENCY-1` y
+`RefreshTokenRepositoryConcurrentTests`.
+
+**Trade-off documentado (R8 del design):** ante replay, el usuario
+legítimo también queda desconectado. Es la señal de compromiso
+buscada (OAuth RFC 6819). El ganador de la carrera con doble-pestaña
+recibe `200`; sólo el perdedor gatilla la revocación.
+
+### D-RT-5 — `RevokeAsync` cubre TODAS las familias del usuario
+
+`RevokeAsync(userId, plainToken?)` revoca **todas** las familias
+activas del usuario, no sólo la de la cookie presentada. El token
+presentado sólo enriquece la auditoría cuando coincide con un
+`UserId` conocido. Esto convierte el logout en un sign-out global
+(superset de REQ-AUTH-LOGOUT-1): nadie con un refresh válido
+emitido por el mismo `UserId` sobrevive a la revocación.
+
+Si el usuario no tiene refresh tokens activos (sesión legacy, pre
+PR1a), `RevokeAsync` es un no-op gracioso sin entrada de auditoría
+(REQ-AUTH-LOGOUT-1, escenario 2).
+
+### D-RT-6 — Lifetime absoluto 14 días, sin sliding window
+
+`RefreshTokenOptions.RefreshTokenLifetimeDays = 14` (default) en
+`appsettings.json`. `ExpiresAt = CreatedAt + 14 días` con precisión
+`DATETIME(6)`. NO se implementa sliding window en v1 — la actividad
+silenciosa complica debugging y auditoría. Diferido a v2.
+
+### D-RT-7 — Rate limiting independiente en `/api/v1/auth/refresh`
+
+Política `Refresh` en `AddRateLimiter` de `Program.cs`, partition
+key por IP, ventana configurable (`RefreshToken:RateLimitPermitLimit
+= 20`, `RateLimitWindowMinutes = 15`). `[EnableRateLimiting("Refresh")]`
+se aplica sólo al endpoint `/refresh` — el login usa su propia
+partición. Tras agotar la cuota de `Refresh`, un `POST /api/v1/auth/login`
+responde normalmente (ver `AuthRefreshRateLimitTests`).
+
+### D-RT-8 — Observabilidad con `ILogger` estructurado (PR4)
+
+`RefreshTokenServicio` emite eventos de log estructurados a través
+de `ILogger<RefreshTokenServicio>`. La observabilidad existe al
+margen de la auditoría: las trazas de auditoría viven en
+`Auditorias` y son inmutables; los logs son efímeros y operan-dor
+oriented. Cobertura:
+
+| Evento | Nivel | Trigger | Campos |
+|---|---|---|---|
+| `RefreshSuccess` | `Information` | Rotación exitosa | `UserId`, `FamilyId`, `NewTokenExpiresAt` |
+| `RefreshFailure` | `Warning` | `InvalidToken` o `ExpiredToken` | `Error`, `UserId` (si conocido), `FamilyId` (si conocido) |
+| `RefreshReplayDetected` | `Error` | Replay o carrera perdida | `UserId`, `FamilyId`, `AffectedFamilySize` |
+| `FamilyRevocation` | `Information` | Logout (revocación familiar) | `UserId`, `RevokedTokensCount`, `FamilyId` |
+
+**Privacidad por construcción:** ningún log incluye el token plain
+ni su hash. Verificado por `RefreshTokenServicioLoggingTests`.
+`Logs_NeverContainPlainTokenOrHash` corre la traza completa
+(success + replay + invalid + expired + logout) y assertea que
+plain/hash no aparecen en ningún Message.
+
+### D-RT-9 — `AllowRefresh = false` se mantiene
+
+El ticket de cookie auth actual (`AuthSessionFactory.CreateProperties`)
+tiene `AllowRefresh = false`. Esto **no se toca**. La rotación
+opera vía la cookie separada `sgv.rt`, no dentro del ticket de
+`sgv.auth`. Refactor ese flag es un cambio de contrato ortogonal al
+refresh token.
+
+### D-RT-10 — Ruta `api/v1/auth/...` sin `v2` planificado
+
+`AuthApiRoutes.Base = "api/v1/auth"` se mantiene (8 callers, 3 tests
+de estabilidad). Toda mención de `/api/auth/...` en la spec o en
+los PRs se lee como `/api/v1/auth/...`. No hay un `v2` planificado;
+el prefijo `v1` queda vigente por coherencia con el resto de la API.
+
+### D-RT-11 — Decisiones heredadas del design (no re-litigadas)
+
+Estos son los trade-offs explícitos del design #1866/#1867 que se
+mantienen cerrados durante la implementación:
+
+- **PK Guid heredando `EntityBase`**. Razón: `Audit_*` audita
+  `e.Entity is EntityBase`; un PK `long` no podría auditarse.
+- **`RefreshRequest(string RefreshToken)` body-based**. Razón: la
+  API no emite cookies; un `Set-Cookie` nunca llegaría al browser.
+- **`ReplacedById` (no `ReplacedByTokenId`)**. Razón: `EsCampoSensible`
+  filtra nombres con substring `Token`.
+- **`AuditoriaSaveChangesInterceptor` intacto**. Razón: ya cubre
+  `TokenHash`, `ReplacedById`, etc. Refactor a `[NotAudited]`
+  declarativo queda diferido.
+- **Concurrencia por UPDATE condicional atómico**, no por
+  `SELECT FOR UPDATE`. Razón: más simple, suficiente para el volumen
+  de SGV, unit-testeable sin `SgvDbContext`.
+- **`RefreshTokenLifetimeDays = 14` absolute**, sin sliding.
+  Decisión #1864.
+- **Una familia por login** (no por dispositivo). Decisión #1864.
+- **No auto-refresh en cada API call**. Decisión #1864.
+
+### Capas y archivos clave
+
+| Capa | Tipo | Archivo | Rol |
+|---|---|---|---|
+| Wire | `record` | `src/SGV.Contracts/Seguridad/Usuarios/RefreshContracts.cs` | `RefreshRequest`, `RefreshResponse`, `LogoutRequest`, `LogoutResponse`. |
+| Wire | `record` | `src/SGV.Contracts/Seguridad/Usuarios/UsuarioContracts.cs` | `LoginResponse` extendido con `RefreshToken`/`RefreshTokenExpiresAt` nullable con default. |
+| Wire | `class` | `src/SGV.Contracts/Seguridad/RefreshTokenOptions.cs` | `SectionName="RefreshToken"`, defaults de lifetime y rate limit. |
+| Wire | `static class` | `src/SGV.Contracts/Auth/AuthApiRoutes.cs` | `Refresh`, `Logout`, `RefreshPolicyName`. |
+| Puerto | `interface` | `src/SGV.Aplicacion/Seguridad/Contratos/IRefreshTokenServicio.cs` | `IssueAsync`, `RefreshAsync`, `RevokeAsync` + `RefreshOutcome` + `RefreshResult`. |
+| Puerto | `interface` | `src/SGV.Aplicacion/Seguridad/Contratos/IRefreshTokenRepository.cs` | `AddAsync`, `GetByHashAsync`, `TryConsumeAsync`, `RevokeFamilyAsync`, `RevokeAllForUserAsync`. |
+| Puerto | `interface` | `src/SGV.Aplicacion/Seguridad/Contratos/IAccessTokenIssuer.cs` | Claim set extraído de `AuthServicio`. |
+| Hashing | `static class` | `src/SGV.Aplicacion/Seguridad/Servicios/RefreshTokenHashing.cs` | `ComputeSha256Hex(plain)` 64 hex lowercase. |
+| Persistence | `class` | `src/SGV.Infraestructura/Persistencia/Entidades/RefreshTokenEntity.cs` | POCO heredando `EntityBase`. |
+| Persistence | `class` | `src/SGV.Infraestructura/Persistencia/Configuraciones/RefreshTokenConfiguracion.cs` | Fluent config: charset, indices, FK. |
+| Persistence | `class` | `src/SGV.Infraestructura/Seguridad/Repositorios/RefreshTokenRepository.cs` | `ExecuteUpdateAsync` atómico. |
+| Service | `sealed class` | `src/SGV.Infraestructura/Seguridad/RefreshTokenServicio.cs` | Orquesta rotación, replay, auditoría explícita, logging. |
+| Service | `sealed class` | `src/SGV.Infraestructura/Seguridad/JwtAccessTokenIssuer.cs` | Reuso del claim set del access token. |
+| API | `controller` | `src/SGV.Api/Controllers/AuthController.cs` | `Refresh` (`[AllowAnonymous] [EnableRateLimiting("Refresh")]`), `Logout` (`[Authorize]`). |
+| API | `Program.cs` | `AddOptions<RefreshTokenOptions>().BindConfiguration(...).ValidateOnStart()`, `AddRateLimiter` con policy `Refresh`, DI de `IRefreshTokenServicio`. |
+| Web | `class` | `src/SGV.Web/Integration/Auth/RefreshTokenCookieAccessor.cs` | Cookie `sgv.rt` con `Secure` derivado de `IWebHostEnvironment`. |
+| Web | `class` | `src/SGV.Web/Integration/Auth/AuthApiClient.cs` | `RefreshAsync` (anonymous) + `LogoutAsync` (bearer). |
+| Web | `PageModel` | `src/SGV.Web/Pages/Auth/SignIn.cshtml.cs` | Persiste `sgv.rt` tras `SignInAsync`. |
+| Web | `PageModel` | `src/SGV.Web/Pages/Auth/Logout.cshtml.cs` | POST fail-open: API logout → `SignOutAsync` → `Delete(sgv.rt)`. |
+| Tests | `[Fact]` | `tests/SGV.Tests/Seguridad/RefreshTokenServicioTests.cs` | 12 unit (rotación, replay, expiración, familia, concurrencia). |
+| Tests | `[Fact]` | `tests/SGV.Tests/Seguridad/RefreshTokenServicioLoggingTests.cs` | 6 unit (PR4): success/failure/replay/revoke + privacidad del log. |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Persistencia/RefreshTokensMigrationTests.cs` | Schema `RefreshTokens`: columnas, índices, FK. |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Persistencia/RefreshTokenRepositoryTests.cs` | Insert → get → rotate → family revoke. |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Persistencia/RefreshTokenRepositoryConcurrentTests.cs` | `Task.WhenAll` con dos `SgvDbContext` independientes. |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Persistencia/RefreshTokenAuditoriaTests.cs` | `EsCampoSensible` excluye `TokenHash`. |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Api/AuthRefreshEndpointTests.cs` | 7 endpoint tests (200, 401, replay intact). |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Api/AuthRefreshReplayTests.cs` | Replay → 401 + family revoked + audit. |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Api/AuthRefreshChainTests.cs` | Login → refresh → refresh → logout → 401. |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Api/AuthLogoutEndpointTests.cs` | Logout con/sin refresh en body. |
+| Tests | `[MySqlFact]` | `tests/SGV.Tests/Api/AuthRefreshRateLimitTests.cs` | `PermitLimit + 1` → 429; login no limitado. |
+| Tests | `[Fact]` | `tests/SGV.Tests/Web/Auth/RefreshTokenCookieAccessorTests.cs` | 11 unit: Development/Production Secure, Delete. |
+| Tests | `[Fact]` | `tests/SGV.Tests/Web/Auth/AuthApiClientRefreshTests.cs` | 9 client tests con `DelegatingHandler` captor. |
+| Tests | smoke | `tests/SGV.Tests/Web/Auth/SignInCookieIssuanceTests.cs` | `sgv.rt` emitida/omitida según `RefreshToken`. |
+| Tests | smoke | `tests/SGV.Tests/Web/Auth/LogoutCookieClearingTests.cs` | Logout API failure → fail-open local. |
+| Docs | `infra` | `docs/migracion-add-refresh-tokens.sql` | Script idempotente (revisión manual del DDL). |
+
+### Estado de release del change
+
+Al cierre de PR4, el change `implementa-refresh-tokens` queda
+**release-ready** en lo que respecta al scope original:
+
+- ✅ Build verde, 0 errores.
+- ✅ Suite de refresh tokens focal: 100% estable con MySQL local
+  disponible.
+- ✅ 4 PRs merged a `develop` (PR1a #306, PR1b #307, PR2a #308,
+  PR3 #309, más PR4 #310).
+- ✅ Suite global: 3764 passed / 2 failed (pre-existing
+  `VacantesCubrirConcurrencyTests` issue #260, sin relación con
+  este change).
+- ✅ Auditoría persiste `RotacionExitosa`, `RevocarFamilia`, `Logout`
+  con `FamilyId` + `UserId` (sin `TokenHash` por D-RT-2).
+- ✅ Observabilidad: 4 eventos de log estructurados (PR4) cubriendo
+  success, failure, replay, family revocation.
+- ✅ Rate limiting independiente en `/api/v1/auth/refresh` (PR4).
+- ✅ Documentación consolidada en este apartado + `docs/migracion-add-refresh-tokens.sql`.
+
+### Riesgos residuales
+
+1. **Sin CI activo** `#1`: `.github/workflows/ci.yml` está activado
+   según `AGENTS.md` pero la cobertura de `[MySqlFact]` se skipea
+   silenciosamente sin MySQL local. Mitigación: cada PR reporta
+   `dotnet test SGV.slnx` con conteo de skipped/failed.
+2. **Crecimiento sin límite de `RefreshTokens` (R9)**: no hay barrido
+   de expirados en v1. ~2 filas por sesión de usuario por día al
+   volumen actual. Job de purga (`DELETE WHERE ExpiresAt < NOW() -
+   INTERVAL 30 DAY`) diferido a un change propio.
+3. **Doble-pestaña detectada como replay**: dos pestañas refrescando
+   en simultáneo pueden gatillar la revocación familiar. Mitigación
+   operativa: el ganador de la carrera recibe `200`; sólo el perdedor
+   dispara la revocación. Documentar en onboarding de usuario.
+4. **`RefreshTokenHashing` y `RefreshTokenServicio` separados
+   (PR1a vs PR2a)**: la separación refleja la decisión de PR1a de
+   no exponer `Generate()` al exterior. El servicio emite su propio
+   token con `GenerarToken()` privado. Si en el futuro se quiere
+   unificar, refactor explícito a un `IRefreshTokenGenerator`.
+5. **No-op de `RevokeAsync` sin audit trail**: cuando el usuario no
+   tiene refresh tokens activos, no se registra entry en
+   `Auditorias`. Razón: el logout sigue siendo exitoso para
+   sesiones legacy (cookie `sgv.auth`); no hay nada que auditar.
+   Mitigación aceptable: el cookie auth ya registra su propia
+   expiración al `SignOutAsync`.
+
+### Fuera de alcance del v1 (deferido a v2+)
+
+- **Sliding window** del refresh token (D-RT-6): el lifetime absoluto
+  es 14 días sin extensión por uso.
+- **Per-device families**: actualmente una familia por login. Si en
+  el futuro se quiere mantener sesiones múltiples simultáneas por
+  usuario, el diseño de la familia cambia (no es un simple parámetro).
+- **Auto-refresh en cada API call**: cuando el access token está
+  cerca de expirar, no se refresca automáticamente. El refresh
+  ocurre sólo en endpoints explícitos (`/api/v1/auth/refresh`,
+  login). Decisión #1864.
+- **Refactor a `[NotAudited]` declarativo**: la sensibilidad de
+  campos en la auditoría sigue viviendo como convención de nombre
+  en `EsCampoSensible`. Refactor a atributo declarativo deferred
+  por riesgo de regresión.
+- **Job de barrido de expirados**: ver R9.
+- **Métrica con `System.Diagnostics.Metrics`**: el proyecto no
+  cuenta con infraestructura de métricas (no hay `IMeterFactory`
+  registrado). Diferido a un change que introduzca la medición
+  end-to-end. Los logs estructurados de PR4 son la única señal
+  operativa vigente.
