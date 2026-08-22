@@ -12,7 +12,9 @@ namespace SGV.Tests.Persistencia;
 /// <see cref="RefreshTokenEntity"/> POCO + fluent config but the actual DDL
 /// lands in this migration. These tests assert the runtime schema matches the
 /// shape documented in design §4 (DDL explícito MySQL) and the
-/// idempotent script in <c>docs/migracion-add-refresh-tokens.sql</c>:
+/// idempotent script in <c>docs/migracion-inicial-sgv.sql</c>
+/// (la migración <c>AddRefreshTokens</c> es la última del set de 21
+/// migraciones EF Core del proyecto):
 ///
 /// <list type="bullet">
 ///   <item>Table <c>RefreshTokens</c> with charset <c>utf8mb4</c>.</item>

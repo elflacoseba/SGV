@@ -401,9 +401,9 @@ Antes del primer `dotnet run` de `SGV.Api`, configurá los secretos locales con 
 - `src/SGV.Web/Pages/Error/`: páginas de error HTTP de la shell web.
 - `tests/SGV.Tests/`: pruebas unitarias, de persistencia, integración API, compatibilidad y smoke tests web.
 - `docs/decisiones-implementacion.md`: decisiones técnicas vigentes.
-- `docs/migracion-inicial-sgv.sql`: script SQL idempotente generado contra MySQL 8.
-- `docs/migracion-inicial-sgv-mariadb.sql`: variante del script anterior generada contra MariaDB (collation y `stored columns` distintas).
-- `docs/migracion-add-softdelete-usuarios.sql`: script idempotente específico de la migración de soft delete en `AspNetUsers`.
+- `docs/migracion-inicial-sgv.sql`: script SQL idempotente generado contra MySQL 8 (21 migraciones EF Core aplicadas; usable sobre DB vacía o para sincronizar entornos existentes).
+- `docs/migracion-inicial-sgv-mariadb.sql`: variante lineal del script anterior para MariaDB (collation `utf8mb4_unicode_ci` y columnas generadas `STORED`; aplicar una sola vez sobre DB vacía).
+- `docs/script-listar-ciclos-jerarquia-unidades-organizativas.sql`: utilitario de diagnóstico para detectar ciclos en la jerarquía de unidades organizativas (relacionado con el trigger anti-ciclos de la migración `20260816203122`).
 - `openspec/config.yaml`: configuración SDD/OpenSpec del repo.
 - `openspec/changes/<cambio>/`: artefactos de cambio.
 - `InspinaTemplate/`: template de referencia importado para la shell web.

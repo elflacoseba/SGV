@@ -1477,8 +1477,8 @@ Antes de aplicar la migración a un ambiente productivo:
 
 ### Archivos clave del PR1
 
-- Migración: `src/SGV.Infraestructura/Persistencia/Migraciones/20260715145121_AddSoftDeleteToAspNetUsers.cs`.
-- Script SQL idempotente: `docs/migracion-add-softdelete-usuarios.sql`.
+- Migración: `src/SGV.Infraestructura/Persistencia/Migraciones/20260715145121_AddSoftDeleteToAspNetUsers.cs` (revertida en producción por `20260716120000_DropSoftDeleteFromAspNetUsers` — el path release-readiness opta por `LockoutEnd` futuro en lugar de `IsDeleted`; ver `docs/decisiones-implementacion.md` bloque D-7).
+- Script SQL release-ready: `docs/migracion-inicial-sgv.sql` (MySQL 8) y `docs/migracion-inicial-sgv-mariadb.sql` (MariaDB). No existe script aditivo para esta migración individual — el script inicial cubre el estado actual del snapshot EF.
 - Modelo Identity: `src/SGV.Infraestructura/Seguridad/SgvIdentityUser.cs` + `SgvIdentityUserConfiguracion.cs`.
 - Gateway: `src/SGV.Infraestructura/Seguridad/UsuarioIdentityGateway.cs` (consulta paginada/segmentada sin N+1, actualización atómica, baja, reactivación).
 - Aplicación: `src/SGV.Aplicacion/Seguridad/Usuarios/UsuarioServicioComandos.cs` (D-01..D-04), `IAuditoriaServicio.cs`.
@@ -2377,7 +2377,7 @@ mantienen cerrados durante la implementación:
 | Tests | `[Fact]` | `tests/SGV.Tests/Web/Auth/AuthApiClientRefreshTests.cs` | 9 client tests con `DelegatingHandler` captor. |
 | Tests | smoke | `tests/SGV.Tests/Web/Auth/SignInCookieIssuanceTests.cs` | `sgv.rt` emitida/omitida según `RefreshToken`. |
 | Tests | smoke | `tests/SGV.Tests/Web/Auth/LogoutCookieClearingTests.cs` | Logout API failure → fail-open local. |
-| Docs | `infra` | `docs/migracion-add-refresh-tokens.sql` | Script idempotente (revisión manual del DDL). |
+| Docs | `infra` | `docs/migracion-inicial-sgv.sql` | Script idempotente release-ready (cubre las 21 migraciones EF Core, incluida `AddRefreshTokens`); revisión manual del DDL. |
 
 ### Estado de release del change
 
@@ -2397,7 +2397,7 @@ Al cierre de PR4, el change `implementa-refresh-tokens` queda
 - ✅ Observabilidad: 4 eventos de log estructurados (PR4) cubriendo
   success, failure, replay, family revocation.
 - ✅ Rate limiting independiente en `/api/v1/auth/refresh` (PR4).
-- ✅ Documentación consolidada en este apartado + `docs/migracion-add-refresh-tokens.sql`.
+- ✅ Documentación consolidada en este apartado + `docs/migracion-inicial-sgv.sql` (incluye la migración `AddRefreshTokens` en su set de 21).
 
 ### Riesgos residuales
 
