@@ -2999,7 +2999,7 @@ BEGIN
 
     -- Paso 9: ADD UNIQUE INDEX PersonaId (canónico, mismo
     -- nombre que el índice temporal — el DROP/CREATE atómico
-    -- podría optimizarse, pero rompería la barerra del
+    -- podría optimizarse, pero rompería la barrera del
     -- preflight fail-loud).
     SET @step9 := IF(@needsD7 > 0,
         'ALTER TABLE `AspNetUsers`
@@ -3631,6 +3631,41 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260723203015_AddCategoriaHabilidadCatalog', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260730000000_SemillaTipoUnidadOrganizativaAmpliada') THEN
+
+    -- Issue #? - ampliación del catálogo TiposUnidadOrganizativa con 13 nuevas entradas
+    -- (Sede, Región, Gerencia, etc.). EF omite esta migración del script
+    -- porque su Up() solo tiene InsertData sin cambios de schema. Se incluye
+    -- manualmente para que __EFMigrationsHistory la registre y EF no intente
+    -- reaplicarla. Forward-only: el catálogo es append-only por convención.
+    INSERT INTO `TiposUnidadOrganizativa` (`Id`, `Codigo`, `Nombre`)
+    VALUES ('60000000-0000-0000-0000-000000000008', 'Sede', 'Sede'),
+    ('60000000-0000-0000-0000-000000000009', 'Region', 'Región'),
+    ('60000000-0000-0000-0000-00000000000a', 'Gerencia', 'Gerencia'),
+    ('60000000-0000-0000-0000-00000000000b', 'Vicepresidencia', 'Vicepresidencia'),
+    ('60000000-0000-0000-0000-00000000000c', 'Subgerencia', 'Subgerencia'),
+    ('60000000-0000-0000-0000-00000000000d', 'Coordinacion', 'Coordinación'),
+    ('60000000-0000-0000-0000-00000000000e', 'Seccion', 'Sección'),
+    ('60000000-0000-0000-0000-00000000000f', 'Oficina', 'Oficina'),
+    ('60000000-0000-0000-0000-000000000010', 'Equipo', 'Equipo'),
+    ('60000000-0000-0000-0000-000000000011', 'Celula', 'Célula'),
+    ('60000000-0000-0000-0000-000000000012', 'Planta', 'Planta'),
+    ('60000000-0000-0000-0000-000000000013', 'Sucursal', 'Sucursal'),
+    ('60000000-0000-0000-0000-000000000014', 'Escuela', 'Escuela');
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260730000000_SemillaTipoUnidadOrganizativaAmpliada', '9.0.0');
 
     END IF;
 END //
@@ -4426,6 +4461,215 @@ BEGIN
 
     INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
     VALUES ('20260805000000_AddEstadoVacanteFlags', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260813120000_FixEstadoVacanteEnSeleccionEncoding') THEN
+
+    -- Issue #273 (Slice B): reparar el mojibake "Ã³" -> "ó" en la fila
+    -- Codigo='EnSeleccion' del catalogo EstadosVacante. La operacion es
+    -- idempotente (solo afecta filas que aun muestran el byte mal
+    -- codificado) pero EF Core omite esta migracion del script
+    -- --idempotent porque su Up() no genera cambios de schema. Se incluye
+    -- manualmente para que __EFMigrationsHistory la registre y EF no
+    -- intente reaplicarla contra DBs preexistentes con mojibake.
+    UPDATE `EstadosVacante`
+    SET `Nombre` = 'En Selección'
+    WHERE `Codigo` = 'EnSeleccion'
+      AND `Nombre` LIKE '%Ã³%';
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260813120000_FixEstadoVacanteEnSeleccionEncoding', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260816203122_AddTriggerAntiCiclosUnidadesOrganizativas') THEN
+
+
+    CREATE TRIGGER trg_UnidadesOrganizativas_BeforeInsert_Ciclo
+    BEFORE INSERT ON UnidadesOrganizativas
+    FOR EACH ROW
+    BEGIN
+      IF NEW.UnidadPadreId IS NOT NULL THEN
+        SET @sgv_ciclo_count := 0;
+        WITH RECURSIVE padre_chain (id, depth) AS (
+          SELECT NEW.UnidadPadreId, 0
+          UNION ALL
+          SELECT u.UnidadPadreId, p.depth + 1
+          FROM UnidadesOrganizativas u
+          INNER JOIN padre_chain p ON u.Id = p.id
+          WHERE u.IsDeleted = 0 AND p.depth < 32
+        )
+        SELECT COUNT(*) INTO @sgv_ciclo_count FROM padre_chain WHERE id = NEW.Id;
+        IF @sgv_ciclo_count > 0 THEN
+          SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'CicloJerarquico';
+        END IF;
+      END IF;
+    END
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260816203122_AddTriggerAntiCiclosUnidadesOrganizativas') THEN
+
+
+    CREATE TRIGGER trg_UnidadesOrganizativas_BeforeUpdate_Ciclo
+    BEFORE UPDATE ON UnidadesOrganizativas
+    FOR EACH ROW
+    BEGIN
+      IF NEW.UnidadPadreId IS NOT NULL THEN
+        SET @sgv_ciclo_count := 0;
+        WITH RECURSIVE padre_chain (id, depth) AS (
+          SELECT NEW.UnidadPadreId, 0
+          UNION ALL
+          SELECT u.UnidadPadreId, p.depth + 1
+          FROM UnidadesOrganizativas u
+          INNER JOIN padre_chain p ON u.Id = p.id
+          WHERE u.IsDeleted = 0 AND p.depth < 32
+        )
+        SELECT COUNT(*) INTO @sgv_ciclo_count FROM padre_chain WHERE id = NEW.Id;
+        IF @sgv_ciclo_count > 0 THEN
+          SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'CicloJerarquico';
+        END IF;
+      END IF;
+    END
+
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260816203122_AddTriggerAntiCiclosUnidadesOrganizativas') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260816203122_AddTriggerAntiCiclosUnidadesOrganizativas', '9.0.0');
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260819223914_AddRefreshTokens') THEN
+
+    CREATE TABLE `RefreshTokens` (
+        `Id` char(36) COLLATE ascii_general_ci NOT NULL,
+        `UserId` varchar(450) CHARACTER SET utf8mb4 NOT NULL,
+        `FamilyId` char(36) COLLATE ascii_general_ci NOT NULL,
+        `TokenHash` varchar(64) CHARACTER SET utf8mb4 NOT NULL,
+        `CreatedAt` datetime(6) NOT NULL,
+        `ExpiresAt` datetime(6) NOT NULL,
+        `RevokedAt` datetime(6) NULL,
+        `ReplacedById` char(36) COLLATE ascii_general_ci NULL,
+        `LastUsedAt` datetime(6) NOT NULL,
+        CONSTRAINT `PK_RefreshTokens` PRIMARY KEY (`Id`),
+        CONSTRAINT `FK_RefreshTokens_AspNetUsers_UserId` FOREIGN KEY (`UserId`) REFERENCES `AspNetUsers` (`Id`) ON DELETE CASCADE
+    ) CHARACTER SET=utf8mb4;
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260819223914_AddRefreshTokens') THEN
+
+    CREATE INDEX `IX_RefreshTokens_FamilyId` ON `RefreshTokens` (`FamilyId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260819223914_AddRefreshTokens') THEN
+
+    CREATE INDEX `IX_RefreshTokens_ReplacedById` ON `RefreshTokens` (`ReplacedById`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260819223914_AddRefreshTokens') THEN
+
+    CREATE UNIQUE INDEX `IX_RefreshTokens_TokenHash` ON `RefreshTokens` (`TokenHash`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260819223914_AddRefreshTokens') THEN
+
+    CREATE INDEX `IX_RefreshTokens_UserId` ON `RefreshTokens` (`UserId`);
+
+    END IF;
+END //
+DELIMITER ;
+CALL MigrationsScript();
+DROP PROCEDURE MigrationsScript;
+
+DROP PROCEDURE IF EXISTS MigrationsScript;
+DELIMITER //
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM `__EFMigrationsHistory` WHERE `MigrationId` = '20260819223914_AddRefreshTokens') THEN
+
+    INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+    VALUES ('20260819223914_AddRefreshTokens', '9.0.0');
 
     END IF;
 END //

@@ -1,63 +1,32 @@
--- ============================================================================
+﻿-- ============================================================================
 -- SGV - Script de provision inicial MARIADB
 -- ============================================================================
--- Origen: docs/migracion-inicial-sgv.sql (regenerado para MySQL 8 con
---         'dotnet ef migrations script' sin --idempotent).
---         NO usar ese script contra MariaDB: contiene 'utf8mb4_0900_ai_ci'
---         (collation MySQL 8 exclusiva) y columnas VIRTUALES indexadas con
---         UNIQUE (MariaDB NO permite indices sobre columnas VIRTUALES).
--- Generador: este archivo fue producido por el orquestador a pedido del
---            operador para habilitar el path MariaDB-definitivo sin tocar
---            el historial de migraciones del proyecto.
+-- Origen: regenerado contra MySQL 8 con 'dotnet ef migrations script'
+--         (sin --idempotent, esquema lineal) y luego transformado para
+--         MariaDB.
 --
 -- Aplicabilidad:
 --   * MySQL 8.x   -> usar docs/migracion-inicial-sgv.sql
 --   * MariaDB     -> usar este script (docs/migracion-inicial-sgv-mariadb.sql)
 --
--- Transformaciones aplicadas respecto al script MySQL 8:
---   1) Collation: utf8mb4_0900_ai_ci -> utf8mb4_unicode_ci (default MariaDB).
---      Comportamiento UCA 9.0.0 -> UCA 5.2.0 (ligera diferencia en tildes).
---   2) Las columnas GENERATED ... VIRTUAL se convierten a STORED para que
---      MariaDB permita UNIQUE INDEX sobre ellas (mismo patron que el
---      camino EF MySQL 8: columna CASE WHEN STORED + UNIQUE INDEX sobre
---      esa columna).
+-- Transformaciones aplicadas respecto al script MySQL 8 base:
+--   1) Collation: utf8mb4_0900_ai_ci -> utf8mb4_unicode_ci
+--      (utf8mb4_0900_ai_ci es exclusiva de MySQL 8; MariaDB no la reconoce).
+--   2) Inclusion manual del bloque FixEstadoVacanteEnSeleccionEncoding
+--      (issue #273). EF omite esta migracion del script porque su Up()
+--      solo tiene un UPDATE sin cambios de schema, pero el INSERT en
+--      __EFMigrationsHistory es necesario para evitar que EF intente
+--      reaplicarla.
 --
--- Validado empiricamente contra MariaDB 10.11.13 (sgvapi.elflacoseba.dev).
--- Soporta multiples soft-deleted con el mismo Codigo/DNI/Email/Legajo
--- porque la columna CASE WHEN devuelve NULL para filas con IsDeleted=1
--- (o FechaFin IS NOT NULL en Ocupaciones), y SQL estandar permite
--- multiples NULL en UNIQUE INDEX. Un segundo activo con la misma clave
--- es rechazado correctamente por el UNIQUE INDEX.
---
--- Limitaciones / notas:
---   - Este script NO usa la tabla __EFMigrationsHistory porque no viene
---     de un 'dotnet ef migrations script' valido contra MariaDB. La
---     trazabilidad queda a cargo del archivo fuente + este script.
---     Aun asi crea __EFMigrationsHistory con las 13 migraciones EF
---     marcadas, para mantener consistencia si en el futuro se decide
---     migrar a EF puro contra MariaDB.
---   - SI incluye datos semilla hardcoded, en el mismo orden que las
---     migraciones EF los aplicarian. Catalogos incluidos (10):
---     AspNetRoles (3 finales via 5 iniciales + DELETE + INSERT 2 en la
---     migracion VincularIdentityUsuariosAPersonas), NivelesHabilidad,
---     EstadosVacante, EstadosPostulacion, NivelesCargo, Cargos (con
---     NivelId via migracion CambiarNivelStringANivelId), Habilidades
---     (con CategoriaId via migracion AddCategoriaHabilidadCatalog),
---     TiposUnidadOrganizativa, TiposDocumento, CategoriasHabilidad.
---     Single source of truth: src/SGV.Infraestructura/Persistencia/
---     DatosSemilla.cs (referenciado desde el model snapshot EF Core
---     via HasData). Migracion EF 'AgregarDatosSemillaBase' intencional-
---     mente vacia: los seeds viven en DatosSemilla, no como InsertData
---     de una migracion especifica. Cualquier drift entre los seeds
---     hardcoded de este script y DatosSemilla.cs lo detectan los tests
---     'DatosSemilla_*_SeedIdsMatchConstantes' (correr localmente con
---     'dotnet test SGV.slnx --filter DatosSemilla').
---   - No incluye: setup inicial de admin (issue #195). Ese se hace en
---     runtime via POST /api/setup, no como INSERTs en este script.
---     Para datos demo adicionales (UnidadOrganizativa raiz, Puesto demo,
---     Persona demo) aplicar via la app o agregar manualmente.
---   - DROP TABLE IF EXISTS + CREATE para re-ejecucion idempotente. NO usar
---     contra una DB MySQL 8 preexistente.
+-- Notas de uso:
+--   - Este script NO es idempotente. Aplicar UNA SOLA VEZ sobre una base
+--     de datos vacia. Para reaplicar, restaurar desde un backup limpio.
+--     La idempotencia operativa se mantiene a nivel de EF Core contra el
+--     historial __EFMigrationsHistory: una vez aplicadas todas las
+--     migraciones, 'dotnet ef database update' es no-op.
+--   - Incluye datos semilla hardcoded (catalogos) en el mismo orden que
+--     las migraciones EF los aplican.
+--   - Validado contra MariaDB 10.11+.
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS `__EFMigrationsHistory` (
@@ -117,6 +86,7 @@ CREATE TABLE `Cargos` (
     `Descripcion` varchar(1000) CHARACTER SET utf8mb4 NULL,
     `Nivel` varchar(50) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
+    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -126,8 +96,6 @@ CREATE TABLE `Cargos` (
     `DeletedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     CONSTRAINT `PK_Cargos` PRIMARY KEY (`Id`)
 ) CHARACTER SET=utf8mb4;
-
-ALTER TABLE `Cargos` ADD COLUMN `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED;
 
 CREATE TABLE `EstadosPostulacion` (
     `Id` char(36) COLLATE ascii_general_ci NOT NULL,
@@ -155,6 +123,7 @@ CREATE TABLE `Habilidades` (
     `Descripcion` varchar(1000) CHARACTER SET utf8mb4 NULL,
     `Categoria` varchar(100) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
+    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -164,8 +133,6 @@ CREATE TABLE `Habilidades` (
     `DeletedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     CONSTRAINT `PK_Habilidades` PRIMARY KEY (`Id`)
 ) CHARACTER SET=utf8mb4;
-
-ALTER TABLE `Habilidades` ADD COLUMN `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED;
 
 CREATE TABLE `NivelesHabilidad` (
     `Id` char(36) COLLATE ascii_general_ci NOT NULL,
@@ -187,6 +154,9 @@ CREATE TABLE `Personas` (
     `NumeroDocumento` varchar(50) CHARACTER SET utf8mb4 NULL,
     `Telefono` varchar(50) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
+    `ActiveDocumentoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `TipoDocumento` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumento`, ':', `NumeroDocumento`) ELSE NULL END) NULL,
+    `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END) NULL,
+    `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END) NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -196,9 +166,6 @@ CREATE TABLE `Personas` (
     `DeletedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     CONSTRAINT `PK_Personas` PRIMARY KEY (`Id`)
 ) CHARACTER SET=utf8mb4;
-
-ALTER TABLE `Personas` ADD COLUMN `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 GENERATED ALWAYS AS (CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END) STORED;
-ALTER TABLE `Personas` ADD COLUMN `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 GENERATED ALWAYS AS (CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END) STORED;
 
 CREATE TABLE `UnidadesOrganizativas` (
     `Id` char(36) COLLATE ascii_general_ci NOT NULL,
@@ -210,6 +177,7 @@ CREATE TABLE `UnidadesOrganizativas` (
     `VigenteDesde` date NULL,
     `VigenteHasta` date NULL,
     `IsActive` tinyint(1) NOT NULL,
+    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -221,8 +189,6 @@ CREATE TABLE `UnidadesOrganizativas` (
     CONSTRAINT `CK_UnidadesOrganizativas_UnidadPadre` CHECK (`UnidadPadreId` IS NULL OR `UnidadPadreId` <> `Id`),
     CONSTRAINT `FK_UnidadesOrganizativas_UnidadesOrganizativas_UnidadPadreId` FOREIGN KEY (`UnidadPadreId`) REFERENCES `UnidadesOrganizativas` (`Id`) ON DELETE RESTRICT
 ) CHARACTER SET=utf8mb4;
-
-ALTER TABLE `UnidadesOrganizativas` ADD COLUMN `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED;
 
 CREATE TABLE `AspNetRoleClaims` (
     `Id` int NOT NULL AUTO_INCREMENT,
@@ -297,13 +263,14 @@ CREATE TABLE `PersonaHabilidades` (
 
 CREATE TABLE `Postulantes` (
     `Id` char(36) COLLATE ascii_general_ci NOT NULL,
-    `PersonaId` varchar(36) COLLATE ascii_general_ci NULL,
+    `PersonaId` char(36) COLLATE ascii_general_ci NULL,
     `Nombres` varchar(100) CHARACTER SET utf8mb4 NULL,
     `Apellidos` varchar(100) CHARACTER SET utf8mb4 NULL,
     `Email` varchar(320) CHARACTER SET utf8mb4 NULL,
     `Telefono` varchar(50) CHARACTER SET utf8mb4 NULL,
     `Fuente` varchar(100) CHARACTER SET utf8mb4 NULL,
     `Observaciones` varchar(1000) CHARACTER SET utf8mb4 NULL,
+    `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (CASE WHEN `PersonaId` IS NOT NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -315,8 +282,6 @@ CREATE TABLE `Postulantes` (
     CONSTRAINT `FK_Postulantes_Personas_PersonaId` FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`) ON DELETE RESTRICT
 ) CHARACTER SET=utf8mb4;
 
-ALTER TABLE `Postulantes` ADD COLUMN `ActivePersonaIdUnique` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS (CASE WHEN `PersonaId` IS NOT NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED;
-
 CREATE TABLE `Puestos` (
     `Id` char(36) COLLATE ascii_general_ci NOT NULL,
     `UnidadOrganizativaId` char(36) COLLATE ascii_general_ci NOT NULL,
@@ -326,6 +291,7 @@ CREATE TABLE `Puestos` (
     `Nombre` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
     `Descripcion` varchar(1000) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
+    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -340,16 +306,16 @@ CREATE TABLE `Puestos` (
     CONSTRAINT `FK_Puestos_UnidadesOrganizativas_UnidadOrganizativaId` FOREIGN KEY (`UnidadOrganizativaId`) REFERENCES `UnidadesOrganizativas` (`Id`) ON DELETE RESTRICT
 ) CHARACTER SET=utf8mb4;
 
-ALTER TABLE `Puestos` ADD COLUMN `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED;
-
 CREATE TABLE `Ocupaciones` (
     `Id` char(36) COLLATE ascii_general_ci NOT NULL,
-    `PersonaId` varchar(36) COLLATE ascii_general_ci NOT NULL,
-    `PuestoId` varchar(36) COLLATE ascii_general_ci NOT NULL,
+    `PersonaId` char(36) COLLATE ascii_general_ci NOT NULL,
+    `PuestoId` char(36) COLLATE ascii_general_ci NOT NULL,
     `FechaInicio` date NOT NULL,
     `FechaFin` date NULL,
     `TipoAsignacion` varchar(50) CHARACTER SET utf8mb4 NOT NULL,
     `Observaciones` varchar(1000) CHARACTER SET utf8mb4 NULL,
+    `ActivePersonaIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) NULL,
+    `ActivePuestoIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -362,10 +328,6 @@ CREATE TABLE `Ocupaciones` (
     CONSTRAINT `FK_Ocupaciones_Personas_PersonaId` FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`) ON DELETE RESTRICT,
     CONSTRAINT `FK_Ocupaciones_Puestos_PuestoId` FOREIGN KEY (`PuestoId`) REFERENCES `Puestos` (`Id`) ON DELETE RESTRICT
 ) CHARACTER SET=utf8mb4;
-
-ALTER TABLE `Ocupaciones` ADD COLUMN `ActivePersonaIdUnique` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED;
-ALTER TABLE `Ocupaciones` ADD COLUMN `ActivePuestoIdUnique` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) STORED;
-ALTER TABLE `Ocupaciones` ADD COLUMN `ActivePersonaPuestoUnique` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(`PersonaId`, ':', `PuestoId`) ELSE NULL END) STORED;
 
 CREATE TABLE `Vacantes` (
     `Id` char(36) COLLATE ascii_general_ci NOT NULL,
@@ -586,6 +548,7 @@ CREATE INDEX `IX_PersonaHabilidades_NivelHabilidadId` ON `PersonaHabilidades` (`
 
 CREATE UNIQUE INDEX `IX_PersonaHabilidades_PersonaId_HabilidadId` ON `PersonaHabilidades` (`PersonaId`, `HabilidadId`);
 
+CREATE UNIQUE INDEX `IX_Personas_ActiveDocumentoUnique` ON `Personas` (`ActiveDocumentoUnique`);
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveEmailUnique` ON `Personas` (`ActiveEmailUnique`);
 
@@ -887,6 +850,10 @@ ALTER TABLE `AspNetUsers` ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId` FOR
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260621202540_VincularIdentityUsuariosAPersonas', '9.0.0');
 
+ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePersonaIdUnique`;
+
+ALTER TABLE `Ocupaciones` DROP COLUMN `ActivePersonaIdUnique`;
+
 UPDATE `Ocupaciones` SET `TipoAsignacion` = '0' WHERE `TipoAsignacion` = 'Permanente';
 
 UPDATE `Ocupaciones` SET `TipoAsignacion` = '1' WHERE `TipoAsignacion` = 'Interina';
@@ -895,12 +862,18 @@ UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Tempor
 
 ALTER TABLE `Ocupaciones` MODIFY COLUMN `TipoAsignacion` int NOT NULL;
 
+ALTER TABLE `Ocupaciones` ADD `ActivePersonaPuestoUnique` varchar(100) CHARACTER SET utf8mb4 AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(`PersonaId`, ':', `PuestoId`) ELSE NULL END) NULL;
 
 CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePersonaPuestoUnique` ON `Ocupaciones` (`ActivePersonaPuestoUnique`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad', '9.0.0');
 
+ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePuestoIdUnique`;
+
+ALTER TABLE `Ocupaciones` MODIFY COLUMN `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL;
+
+CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePuestoIdUnique` ON `Ocupaciones` (`ActivePuestoIdUnique`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260711181615_FixActivePuestoIdUniqueType', '9.0.0');
@@ -910,7 +883,16 @@ ALTER TABLE `AspNetUsers`
   ALGORITHM=INPLACE,
   LOCK=NONE;
 
+ALTER TABLE `AspNetUsers`
+  ADD COLUMN `ActiveUserNameUnique` VARCHAR(256)
+    COLLATE `utf8mb4_unicode_ci`
+    GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN LOWER(`UserName`) ELSE NULL END) STORED,
+  ALGORITHM=COPY;
 
+ALTER TABLE `AspNetUsers`
+  ADD UNIQUE INDEX `IX_AspNetUsers_ActiveUserNameUnique` (`ActiveUserNameUnique`),
+  ALGORITHM=INPLACE,
+  LOCK=NONE;
 
 ALTER TABLE `AspNetUsers`
   DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
@@ -933,82 +915,147 @@ ALTER TABLE `AspNetUsers`
   ON DELETE RESTRICT,
   ALGORITHM=COPY;
 
+ALTER TABLE `AspNetUsers`
+  ADD COLUMN `ActivePersonaIdUnique` CHAR(36)
+    COLLATE `ascii_general_ci`
+    GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED,
+  ALGORITHM=COPY;
 
+ALTER TABLE `AspNetUsers`
+  ADD UNIQUE INDEX `IX_AspNetUsers_ActivePersonaIdUnique` (`ActivePersonaIdUnique`),
+  ALGORITHM=INPLACE,
+  LOCK=NONE;
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260715145121_AddSoftDeleteToAspNetUsers', '9.0.0');
 
-DROP PROCEDURE IF EXISTS __sgvApplyD7;
+-- Bandera de reentrancia: 1 si la columna IsDeleted existe
+-- (estado pre-D7); 0 si ya fue dropeada (estado post-D7).
+SET @needsD7 := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE table_schema = DATABASE()
+      AND table_name = 'AspNetUsers'
+      AND column_name = 'IsDeleted'
+);
 
-DELIMITER $$
-CREATE PROCEDURE __sgvApplyD7()
-BEGIN
-    DECLARE _needsD7 INT;
-    SET _needsD7 = (
-        SELECT COUNT(*) FROM information_schema.COLUMNS
-        WHERE table_schema = DATABASE()
-          AND table_name = 'AspNetUsers'
-          AND column_name = 'IsDeleted'
-    );
-    IF _needsD7 > 0 THEN
-        -- Paso 1: preflight fail-loud
-        SET @duplicatePersonas = (
-            SELECT COUNT(*) FROM (
-                SELECT `PersonaId` FROM `AspNetUsers`
-                GROUP BY `PersonaId` HAVING COUNT(*) > 1
-            ) AS dupes
-        );
-        SET @preflightMsg = CONCAT(
-            'Backfill fail-loud: ', @duplicatePersonas,
-            ' PersonaId duplicados entre AspNetUsers activas. ',
-            'Resolver duplicados manualmente antes de aplicar esta migración.'
-        );
-        IF @duplicatePersonas > 0 THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = @preflightMsg;
-        END IF;
+-- Paso 1: preflight fail-loud vía ADD UNIQUE INDEX temporal
+-- sobre PersonaId. Si hay duplicados activos, MySQL devuelve
+-- ERROR 1062 y aborta el script antes de cualquier mutación
+-- destructiva. Reemplaza al SIGNAL SQLSTATE custom previo
+-- (no disponible fuera de un stored procedure).
+SET @step1 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        ADD UNIQUE INDEX `__sgvD7_PreflightUnique` (`PersonaId`),
+        ALGORITHM=INPLACE, LOCK=NONE',
+    'DO 0');
+PREPARE step1Stmt FROM @step1;
+EXECUTE step1Stmt;
+DEALLOCATE PREPARE step1Stmt;
 
-        -- Paso 2: backfill
-        UPDATE `AspNetUsers`
+-- Paso 2: backfill IsDeleted=1 → LockoutEnd futuro.
+SET @step2 := IF(@needsD7 > 0,
+    'UPDATE `AspNetUsers`
         SET `LockoutEnabled` = 1,
-            `LockoutEnd` = '9999-12-31 23:59:59.999999'
-        WHERE `IsDeleted` = 1;
+            `LockoutEnd` = ''9999-12-31 23:59:59.999999''
+        WHERE `IsDeleted` = 1',
+    'DO 0');
+PREPARE step2Stmt FROM @step2;
+EXECUTE step2Stmt;
+DEALLOCATE PREPARE step2Stmt;
 
-        -- Paso 3: DROP FK
-        ALTER TABLE `AspNetUsers`
-          DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
-          ALGORITHM=INPLACE, LOCK=NONE;
+-- Paso 3: DROP FK (metadata-only, INPLACE).
+SET @step3 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        DROP FOREIGN KEY `FK_AspNetUsers_Personas_PersonaId`,
+        ALGORITHM=INPLACE, LOCK=NONE',
+    'DO 0');
+PREPARE step3Stmt FROM @step3;
+EXECUTE step3Stmt;
+DEALLOCATE PREPARE step3Stmt;
 
-        -- Paso 4: DROP INDEX ActiveUserNameUnique
-        
-        -- Paso 5: DROP INDEX ActivePersonaIdUnique
-        
-        -- Paso 6: DROP COLUMNs
-        ALTER TABLE `AspNetUsers`
-          DROP COLUMN `IsDeleted`,
-          ALGORITHM=INPLACE, LOCK=NONE;
+-- Paso 4: DROP INDEX ActiveUserNameUnique.
+SET @step4 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        DROP INDEX `IX_AspNetUsers_ActiveUserNameUnique`,
+        ALGORITHM=INPLACE, LOCK=NONE',
+    'DO 0');
+PREPARE step4Stmt FROM @step4;
+EXECUTE step4Stmt;
+DEALLOCATE PREPARE step4Stmt;
 
-        -- Paso 7: DROP INDEX PersonaId
-        ALTER TABLE `AspNetUsers`
-          DROP INDEX `IX_AspNetUsers_PersonaId`,
-          ALGORITHM=INPLACE, LOCK=NONE;
+-- Paso 5: DROP INDEX ActivePersonaIdUnique.
+SET @step5 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        DROP INDEX `IX_AspNetUsers_ActivePersonaIdUnique`,
+        ALGORITHM=INPLACE, LOCK=NONE',
+    'DO 0');
+PREPARE step5Stmt FROM @step5;
+EXECUTE step5Stmt;
+DEALLOCATE PREPARE step5Stmt;
 
-        -- Paso 8: ADD UNIQUE INDEX PersonaId
-        ALTER TABLE `AspNetUsers`
-          ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
-          ALGORITHM=INPLACE, LOCK=NONE;
+-- Paso 6: DROP COLUMNs (incluye IsDeleted, libera columnas
+-- generadas STORED referenciadas por los índices dropeados).
+SET @step6 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        DROP COLUMN `ActiveUserNameUnique`,
+        DROP COLUMN `ActivePersonaIdUnique`,
+        DROP COLUMN `IsDeleted`,
+        ALGORITHM=INPLACE, LOCK=NONE',
+    'DO 0');
+PREPARE step6Stmt FROM @step6;
+EXECUTE step6Stmt;
+DEALLOCATE PREPARE step6Stmt;
 
-        -- Paso 9: ADD CONSTRAINT FK
-        ALTER TABLE `AspNetUsers`
-          ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
-          FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
-          ON DELETE RESTRICT,
-          ALGORITHM=COPY;
-    END IF;
-END$$
+-- Paso 7: DROP INDEX PersonaId no-único vigente desde la
+-- migración AddSoftDeleteToAspNetUsers paso 3. Este índice
+-- fue creado como no-único para liberar la unicidad que
+-- originalmente sostenía la FK; ahora lo reemplazamos por
+-- una versión UNIQUE.
+SET @step7 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        DROP INDEX `IX_AspNetUsers_PersonaId`,
+        ALGORITHM=INPLACE, LOCK=NONE',
+    'DO 0');
+PREPARE step7Stmt FROM @step7;
+EXECUTE step7Stmt;
+DEALLOCATE PREPARE step7Stmt;
 
-DELIMITER ;
-CALL __sgvApplyD7();
-DROP PROCEDURE __sgvApplyD7;
+-- Paso 8: DROP INDEX temporal preflight.
+SET @step8 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        DROP INDEX `__sgvD7_PreflightUnique`,
+        ALGORITHM=INPLACE, LOCK=NONE',
+    'DO 0');
+PREPARE step8Stmt FROM @step8;
+EXECUTE step8Stmt;
+DEALLOCATE PREPARE step8Stmt;
+
+-- Paso 9: ADD UNIQUE INDEX PersonaId (canónico, mismo
+-- nombre que el índice temporal — el DROP/CREATE atómico
+-- podría optimizarse, pero rompería la barrera del
+-- preflight fail-loud).
+SET @step9 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        ADD UNIQUE INDEX `IX_AspNetUsers_PersonaId` (`PersonaId`),
+        ALGORITHM=INPLACE, LOCK=NONE',
+    'DO 0');
+PREPARE step9Stmt FROM @step9;
+EXECUTE step9Stmt;
+DEALLOCATE PREPARE step9Stmt;
+
+-- Paso 10: ADD CONSTRAINT FK PersonaId RESTRICT.
+-- ALGORITHM=COPY porque MySQL 8 no permite INPLACE para
+-- ADD CONSTRAINT sobre FKs en este contexto.
+SET @step10 := IF(@needsD7 > 0,
+    'ALTER TABLE `AspNetUsers`
+        ADD CONSTRAINT `FK_AspNetUsers_Personas_PersonaId`
+        FOREIGN KEY (`PersonaId`) REFERENCES `Personas` (`Id`)
+        ON DELETE RESTRICT,
+        ALGORITHM=COPY',
+    'DO 0');
+PREPARE step10Stmt FROM @step10;
+EXECUTE step10Stmt;
+DEALLOCATE PREPARE step10Stmt;
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260716120000_DropSoftDeleteFromAspNetUsers', '9.0.0');
@@ -1061,7 +1108,7 @@ CREATE UNIQUE INDEX `IX_TiposDocumento_Codigo` ON `TiposDocumento` (`Codigo`);
                 DROP TEMPORARY TABLE IF EXISTS _DirtyTipoDocumento;
             
 
-ALTER TABLE `Personas` ADD `TipoDocumentoId` varchar(36) COLLATE ascii_general_ci NULL;
+ALTER TABLE `Personas` ADD `TipoDocumentoId` char(36) COLLATE ascii_general_ci NULL;
 
 CREATE INDEX `IX_Personas_TipoDocumentoId` ON `Personas` (`TipoDocumentoId`);
 
@@ -1072,7 +1119,9 @@ CREATE INDEX `IX_Personas_TipoDocumentoId` ON `Personas` (`TipoDocumentoId`);
                 WHERE p.TipoDocumento IS NOT NULL;
             
 
-ALTER TABLE `Personas` ADD COLUMN `ActiveDocumentoUnique` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci GENERATED ALWAYS AS (CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(CAST(`TipoDocumentoId` AS CHAR CHARACTER SET utf8mb4), ':', `NumeroDocumento`) ELSE NULL END) STORED;
+ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveDocumentoUnique`;
+
+ALTER TABLE `Personas` MODIFY COLUMN `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END) NULL;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveDocumentoUnique` ON `Personas` (`ActiveDocumentoUnique`);
 
@@ -1196,58 +1245,240 @@ ALTER TABLE `Habilidades` DROP COLUMN `Categoria`;
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260723203015_AddCategoriaHabilidadCatalog', '9.0.0');
 
+-- Issue #? - ampliacion del catalogo TiposUnidadOrganizativa con 13 nuevas entradas
+-- (Sede, Region, Gerencia, etc.). EF omite esta migracion del script porque su
+-- Up() solo tiene InsertData sin cambios de schema. Se incluye manualmente
+-- para que __EFMigrationsHistory la registre y EF no intente reaplicarla.
+-- Forward-only: el catalogo es append-only por convencion.
+INSERT INTO `TiposUnidadOrganizativa` (`Id`, `Codigo`, `Nombre`)
+VALUES ('60000000-0000-0000-0000-000000000008', 'Sede', 'Sede'),
+('60000000-0000-0000-0000-000000000009', 'Region', 'Región'),
+('60000000-0000-0000-0000-00000000000a', 'Gerencia', 'Gerencia'),
+('60000000-0000-0000-0000-00000000000b', 'Vicepresidencia', 'Vicepresidencia'),
+('60000000-0000-0000-0000-00000000000c', 'Subgerencia', 'Subgerencia'),
+('60000000-0000-0000-0000-00000000000d', 'Coordinacion', 'Coordinación'),
+('60000000-0000-0000-0000-00000000000e', 'Seccion', 'Sección'),
+('60000000-0000-0000-0000-00000000000f', 'Oficina', 'Oficina'),
+('60000000-0000-0000-0000-000000000010', 'Equipo', 'Equipo'),
+('60000000-0000-0000-0000-000000000011', 'Celula', 'Célula'),
+('60000000-0000-0000-0000-000000000012', 'Planta', 'Planta'),
+('60000000-0000-0000-0000-000000000013', 'Sucursal', 'Sucursal'),
+('60000000-0000-0000-0000-000000000014', 'Escuela', 'Escuela');
 
+INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260730000000_SemillaTipoUnidadOrganizativaAmpliada', '9.0.0');
 
+ALTER TABLE `UnidadesOrganizativas` DROP INDEX `IX_UnidadesOrganizativas_ActiveCodigoUnique`;
 
+ALTER TABLE `UnidadesOrganizativas` DROP COLUMN `ActiveCodigoUnique`;
 
+ALTER TABLE `UnidadesOrganizativas` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED NULL;
 
+CREATE UNIQUE INDEX `IX_UnidadesOrganizativas_ActiveCodigoUnique` ON `UnidadesOrganizativas` (`ActiveCodigoUnique`);
 
+ALTER TABLE `Puestos` DROP INDEX `IX_Puestos_ActiveCodigoUnique`;
 
+ALTER TABLE `Puestos` DROP COLUMN `ActiveCodigoUnique`;
 
+ALTER TABLE `Puestos` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED NULL;
 
+CREATE UNIQUE INDEX `IX_Puestos_ActiveCodigoUnique` ON `Puestos` (`ActiveCodigoUnique`);
 
+ALTER TABLE `Postulantes` DROP INDEX `IX_Postulantes_ActivePersonaIdUnique`;
 
+ALTER TABLE `Postulantes` DROP COLUMN `ActivePersonaIdUnique`;
 
+ALTER TABLE `Postulantes` ADD `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (CASE WHEN `PersonaId` IS NOT NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED NULL;
 
+CREATE UNIQUE INDEX `IX_Postulantes_ActivePersonaIdUnique` ON `Postulantes` (`ActivePersonaIdUnique`);
 
+ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveLegajoUnique`;
 
+ALTER TABLE `Personas` DROP COLUMN `ActiveLegajoUnique`;
 
+ALTER TABLE `Personas` ADD `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END) STORED NULL;
 
+CREATE UNIQUE INDEX `IX_Personas_ActiveLegajoUnique` ON `Personas` (`ActiveLegajoUnique`);
 
+ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveEmailUnique`;
 
+ALTER TABLE `Personas` DROP COLUMN `ActiveEmailUnique`;
+
+ALTER TABLE `Personas` ADD `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END) STORED NULL;
+
+CREATE UNIQUE INDEX `IX_Personas_ActiveEmailUnique` ON `Personas` (`ActiveEmailUnique`);
+
+ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveDocumentoUnique`;
+
+ALTER TABLE `Personas` DROP COLUMN `ActiveDocumentoUnique`;
+
+ALTER TABLE `Personas` ADD `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END) STORED NULL;
+
+CREATE UNIQUE INDEX `IX_Personas_ActiveDocumentoUnique` ON `Personas` (`ActiveDocumentoUnique`);
+
+ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePuestoIdUnique`;
+
+ALTER TABLE `Ocupaciones` DROP COLUMN `ActivePuestoIdUnique`;
+
+ALTER TABLE `Ocupaciones` ADD `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) STORED NULL;
+
+CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePuestoIdUnique` ON `Ocupaciones` (`ActivePuestoIdUnique`);
+
+ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePersonaPuestoUnique`;
+
+ALTER TABLE `Ocupaciones` DROP COLUMN `ActivePersonaPuestoUnique`;
+
+ALTER TABLE `Ocupaciones` ADD `ActivePersonaPuestoUnique` varchar(100) CHARACTER SET utf8mb4 AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(`PersonaId`, ':', `PuestoId`) ELSE NULL END) STORED NULL;
+
+CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePersonaPuestoUnique` ON `Ocupaciones` (`ActivePersonaPuestoUnique`);
+
+ALTER TABLE `Habilidades` DROP INDEX `IX_Habilidades_ActiveCodigoUnique`;
+
+ALTER TABLE `Habilidades` DROP COLUMN `ActiveCodigoUnique`;
+
+ALTER TABLE `Habilidades` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED NULL;
+
+CREATE UNIQUE INDEX `IX_Habilidades_ActiveCodigoUnique` ON `Habilidades` (`ActiveCodigoUnique`);
+
+ALTER TABLE `Cargos` DROP INDEX `IX_Cargos_ActiveCodigoUnique`;
+
+ALTER TABLE `Cargos` DROP COLUMN `ActiveCodigoUnique`;
+
+ALTER TABLE `Cargos` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED NULL;
+
+CREATE UNIQUE INDEX `IX_Cargos_ActiveCodigoUnique` ON `Cargos` (`ActiveCodigoUnique`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260729145632_MariaDbStoredColumnsAndCollation', '9.0.0');
 
--- ============================================================================
--- Migración: 20260731173842_AddActivePuestoIdUniqueToVacantes
--- Forward-only (precedente FixActivePuestoIdUniqueType).
--- Issue #238 — TOCTOU de CrearAsync de vacantes (issue paralelo al patrón
--- ya vigente en Ocupaciones desde la migración MariaDbStoredColumnsAndCollation).
--- Patrón: columna calculada STORED `ActivePuestoIdUnique` + UNIQUE INDEX
--- parcial sobre la misma. La columna evalúa a NULL cuando la vacante está
--- cerrada o soft-deleted — MariaDB ignora NULL en UNIQUE INDEX, permitiendo
--- múltiples filas con la constraint satisfecha.
---
--- Source-of-truth C#: src/SGV.Infraestructura/Persistencia/
---   Migraciones/20260731173842_AddActivePuestoIdUniqueToVacantes.cs
--- Configuración EF: src/SGV.Infraestructura/Persistencia/Configuraciones/
---   VacanteConfiguracion.cs (shadow property "ActivePuestoIdUnique").
---
--- Notas MariaDB:
---   * STORED es obligatorio para UNIQUE INDEX sobre columna generada
---     (mismo motivo que MariaDbStoredColumnsAndCollation).
---   * Collation `ascii_general_ci` matches el snapshot de modelo EF y la
---     FixActivePuestoIdUniqueType previa para Ocupaciones. PuestoId es
---     Guid de 36 chars → solo ASCII 0-9 a-f '-'; utf8mb4_unicode_ci
---     funciona pero es más caro en comparaciones.
--- ============================================================================
-ALTER TABLE `Vacantes` ADD COLUMN `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci GENERATED ALWAYS AS (CASE WHEN `FechaCierre` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) STORED;
+ALTER TABLE `Vacantes` ADD `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaCierre` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) STORED NULL;
 
 CREATE UNIQUE INDEX `IX_Vacantes_ActivePuestoIdUnique` ON `Vacantes` (`ActivePuestoIdUnique`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260731173842_AddActivePuestoIdUniqueToVacantes', '9.0.0');
+
+ALTER TABLE `Auditorias` DROP INDEX `IX_Auditorias_CorrelationId`;
+
+CREATE INDEX `IX_Auditorias_CorrelationId_OccurredAt` ON `Auditorias` (`CorrelationId`, `OccurredAt`);
+
+INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260801014133_IndiceAuditoriaCorrelationIdOccurredAt', '9.0.0');
+
+ALTER TABLE `Ocupaciones` ADD `VacanteId` char(36) COLLATE ascii_general_ci NULL;
+
+CREATE INDEX `IX_Ocupaciones_VacanteId` ON `Ocupaciones` (`VacanteId`);
+
+ALTER TABLE `Ocupaciones` ADD CONSTRAINT `FK_Ocupaciones_Vacantes_VacanteId` FOREIGN KEY (`VacanteId`) REFERENCES `Vacantes` (`Id`) ON DELETE RESTRICT;
+
+INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260804235936_AddVacanteIdToOcupaciones', '9.0.0');
+
+ALTER TABLE `EstadosVacante` ADD `EsCubierta` tinyint(1) NOT NULL DEFAULT FALSE;
+
+ALTER TABLE `EstadosVacante` ADD `EsCancelada` tinyint(1) NOT NULL DEFAULT FALSE;
+
+UPDATE `EstadosVacante` SET `EsCubierta` = TRUE
+WHERE `Id` = '20000000-0000-0000-0000-000000000003';
+SELECT ROW_COUNT();
+
+
+UPDATE `EstadosVacante` SET `EsCancelada` = TRUE
+WHERE `Id` = '20000000-0000-0000-0000-000000000004';
+SELECT ROW_COUNT();
+
+
+INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260805000000_AddEstadoVacanteFlags', '9.0.0');
+
+-- Issue #273 (Slice B): reparar el mojibake "Ã³" -> "ó" en la fila
+-- Codigo='EnSeleccion' del catalogo EstadosVacante. La operacion es
+-- idempotente (solo afecta filas que aun muestran el byte mal
+-- codificado) pero EF Core omite esta migracion del script porque su
+-- Up() no genera cambios de schema. Se incluye manualmente para que
+-- __EFMigrationsHistory la registre y EF no intente reaplicarla contra
+-- DBs preexistentes con mojibake.
+UPDATE `EstadosVacante`
+SET `Nombre` = 'En Selección'
+WHERE `Codigo` = 'EnSeleccion'
+  AND `Nombre` LIKE '%Ã³%';
+
+INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260813120000_FixEstadoVacanteEnSeleccionEncoding', '9.0.0');
+
+
+CREATE TRIGGER trg_UnidadesOrganizativas_BeforeInsert_Ciclo
+BEFORE INSERT ON UnidadesOrganizativas
+FOR EACH ROW
+BEGIN
+  IF NEW.UnidadPadreId IS NOT NULL THEN
+    SET @sgv_ciclo_count := 0;
+    WITH RECURSIVE padre_chain (id, depth) AS (
+      SELECT NEW.UnidadPadreId, 0
+      UNION ALL
+      SELECT u.UnidadPadreId, p.depth + 1
+      FROM UnidadesOrganizativas u
+      INNER JOIN padre_chain p ON u.Id = p.id
+      WHERE u.IsDeleted = 0 AND p.depth < 32
+    )
+    SELECT COUNT(*) INTO @sgv_ciclo_count FROM padre_chain WHERE id = NEW.Id;
+    IF @sgv_ciclo_count > 0 THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'CicloJerarquico';
+    END IF;
+  END IF;
+END
+
+
+
+CREATE TRIGGER trg_UnidadesOrganizativas_BeforeUpdate_Ciclo
+BEFORE UPDATE ON UnidadesOrganizativas
+FOR EACH ROW
+BEGIN
+  IF NEW.UnidadPadreId IS NOT NULL THEN
+    SET @sgv_ciclo_count := 0;
+    WITH RECURSIVE padre_chain (id, depth) AS (
+      SELECT NEW.UnidadPadreId, 0
+      UNION ALL
+      SELECT u.UnidadPadreId, p.depth + 1
+      FROM UnidadesOrganizativas u
+      INNER JOIN padre_chain p ON u.Id = p.id
+      WHERE u.IsDeleted = 0 AND p.depth < 32
+    )
+    SELECT COUNT(*) INTO @sgv_ciclo_count FROM padre_chain WHERE id = NEW.Id;
+    IF @sgv_ciclo_count > 0 THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'CicloJerarquico';
+    END IF;
+  END IF;
+END
+
+
+INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260816203122_AddTriggerAntiCiclosUnidadesOrganizativas', '9.0.0');
+
+CREATE TABLE `RefreshTokens` (
+    `Id` char(36) COLLATE ascii_general_ci NOT NULL,
+    `UserId` varchar(450) CHARACTER SET utf8mb4 NOT NULL,
+    `FamilyId` char(36) COLLATE ascii_general_ci NOT NULL,
+    `TokenHash` varchar(64) CHARACTER SET utf8mb4 NOT NULL,
+    `CreatedAt` datetime(6) NOT NULL,
+    `ExpiresAt` datetime(6) NOT NULL,
+    `RevokedAt` datetime(6) NULL,
+    `ReplacedById` char(36) COLLATE ascii_general_ci NULL,
+    `LastUsedAt` datetime(6) NOT NULL,
+    CONSTRAINT `PK_RefreshTokens` PRIMARY KEY (`Id`),
+    CONSTRAINT `FK_RefreshTokens_AspNetUsers_UserId` FOREIGN KEY (`UserId`) REFERENCES `AspNetUsers` (`Id`) ON DELETE CASCADE
+) CHARACTER SET=utf8mb4;
+
+CREATE INDEX `IX_RefreshTokens_FamilyId` ON `RefreshTokens` (`FamilyId`);
+
+CREATE INDEX `IX_RefreshTokens_ReplacedById` ON `RefreshTokens` (`ReplacedById`);
+
+CREATE UNIQUE INDEX `IX_RefreshTokens_TokenHash` ON `RefreshTokens` (`TokenHash`);
+
+CREATE INDEX `IX_RefreshTokens_UserId` ON `RefreshTokens` (`UserId`);
+
+INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
+VALUES ('20260819223914_AddRefreshTokens', '9.0.0');
 
 COMMIT;
 
