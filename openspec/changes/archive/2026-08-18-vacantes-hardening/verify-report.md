@@ -370,3 +370,97 @@ Ninguna es blocker para `archive`. Ningún CRITICAL fue detectado. El comportami
 | Tests nuevos del change | 58 (9 unit D-1/D-4 + 3 reflection D-3 + 2 MySqlFact D-4 + 47 smoke Web) |
 | Co-Authored-By | 0 |
 | Amend/force/merge intrusivo | 0 |
+
+---
+
+## Re-check post-archive — Issue #312
+
+**Fecha del re-check**: 2026-08-22
+**Issue**: `#312` — "[Vacantes] Cerrar 2 SUGGESTIONS triviales del verify report del change #301 archivado"
+**Verificador**: `gentle-orchestrator` (lectura directa de los archivos referenciados en este verify-report)
+
+### Contexto
+
+El archive quedó con verify status `PASS WITH WARNINGS (0 CRITICAL, 3 WARNING, 2 SUGGESTION)`. La issue `#312` recoge las dos SUGGESTIONS del bloque §"Issues agrupados por severidad → SUGGESTION" para resolverlas. Tras relectura directa de los archivos en su forma actual, se concluye que ambas son malinterpretaciones del verify phase original: ninguna representa deuda técnica real.
+
+### SUGGESTION 1 — Comentario en `src/SGV.Web/Pages/Organizacion/Vacantes/Create.cshtml.cs:117-120`
+
+**Estado del archivo verificado** (lectura directa, offsets 117-120):
+
+```csharp
+// Cambio vacantes-hardening D-3: VacanteCreateInputModel ya no
+// expone EstadoVacanteId; el workaround ModelState.Remove que
+// aplicaba en este punto se eliminó porque la separación de
+// modelos hace que cada formulario valide exactamente sus campos.
+```
+
+**Análisis**: el comentario **es trazabilidad intencional**, no residuo huérfano. Documenta tres hechos cuya pérdida de memoria sería dañina:
+
+1. El vínculo entre este punto de `Create.cshtml.cs` y la decisión D-3 del diseño.
+2. El hecho de que aquí _existía_ un workaround `ModelState.Remove` y fue eliminado a propósito.
+3. El rationale por el cual cada formulario (Create vs Edit) valida exactamente sus propios campos.
+
+Borrarlo cumpliría literalmente el "0 menciones" del contrato grep (`grep -rn 'ModelState.Remove' src/.../Create.cshtml.cs` retornaría 0 hits), pero a costa de perder el contexto histórico. El contrato del grep debe interpretarse como "0 invocaciones reales", no "0 menciones textuales", y el comentario explicitamente aclara esa distinción.
+
+**Decisión**: A — cerrar como **no-aplicable**. El comentario permanece intencionalmente.
+
+### SUGGESTION 2 — Reclasificación de 3 `[Fact]` a `[MySqlFact]` en `tests/SGV.Tests/Setup/SetupServicioTests.cs`
+
+**Estado del archivo verificado** (lectura directa, offsets 40-181):
+
+```csharp
+[Collection(MySqlIntegrationCollection.Name)]
+public sealed class SetupServicioTests
+{
+    // ---- [Fact] tests — no DB required -----------------------------------
+
+    [Fact]   // línea 47: CrearAdminAsync_ValidacionFalla_DevuelveDatosInvalidosConFieldErrors
+    [Fact]   // línea 69: CrearAdminAsync_PasswordCorta_DevuelvePasswordDebil
+    [Fact]   // línea 95: CrearAdminAsync_UserNameDuplicado_DevuelveUserNameDuplicado
+
+    // ---- [MySqlFact] tests — DB required ---------------------------------
+
+    [MySqlFact]   // línea 122: CrearAdminAsync_DBVacia_DatosValidos_DevuelveSuccess
+    [MySqlFact]   // línea 160: CrearAdminAsync_DBTieneUsuarios_DevuelveSetupYaCompletado
+    [MySqlFact]   // línea 181: CrearAdminAsync_DBVacia_RegistraAuditoriaConUsuarioOperadorSystem
+}
+```
+
+**Análisis**: la clasificación `[Fact]` vs `[MySqlFact]` es **correcta y está documentada explícitamente** en la doc XML de la clase (offsets 24-39):
+
+> "The PasswordTooShort and DuplicateUserName mappings are hard to reproduce end-to-end (DuplicateUserName requires a race condition; PasswordTooShort is normally caught by our `SetupRequestValidator`). These run as `FactAttribute` with a fake `IUsuarioIdentityGateway` injected via DI override."
+
+Cada uno de los tres `[Fact]` se sostiene sin MySQL:
+
+- **Línea 47** — falla la validación FluentValidation con `nombres: ""` antes de tocar DB; verifica solo el path de `SetupRequestValidator`.
+- **Líneas 69 y 95** — usan `CreateFactoryWithFakeGatewayAsync(...)` que inyecta un `IUsuarioIdentityGateway` **fake** que simula `PasswordTooShort` y `UserNameDuplicado` por código, sin interacción real con Identity ni con `AspNetUsers`.
+
+Reclasificarlos a `[MySqlFact]` los haría skipeables localmente cuando MySQL no está disponible, pero **CI ya prueba contra MySQL 8** (`mysql:8.0` service en `.github/workflows/ci.yml`) — la reclasificación añade carga en CI sin valor observable.
+
+**Decisión**: A — cerrar como **no-aplicable**. La clasificación `[Fact]` actual es correcta y está defendida por la doc XML de la clase.
+
+### Estado del reporte posterior al re-check
+
+| Severidad original | Pendientes tras #312 |
+|---|---|
+| CRITICAL | 0 |
+| WARNING | 3 (sin cambio — siguen documentadas en §"Issues agrupados por severidad → WARNING" y §"Recomendaciones para archive phase") |
+| SUGGESTION | **0** (ambas cerradas como no-aplicables por este re-check) |
+
+### Verificación local al cierre
+
+Ejecutado durante el resolver de la issue:
+
+```
+dotnet build SGV.slnx                    → 0 errors, 98 warnings (analizadores xUnit/EF pre-existentes, ajenos al cambio)
+dotnet test SGV.slnx --no-build \
+   --filter "FullyQualifiedName~Setup"   → Passed: 44, Failed: 0, Skipped: 0, Duration: 7 s
+```
+
+Build limpio. Los 3 `[Fact]` de `SetupServicioTests` y los 3 `[MySqlFact]` que el filtro abarca pasan en este ambiente (MySQL local disponible en `localhost:3306`). El comportamiento de skip limpio sigue siendo válido cuando MySQL no está disponible.
+
+### Referencias
+
+- Issue: `https://github.com/elflacoseba/SGV/issues/312`
+- PR #301: `refactor(vacantes): harden module — propagate user identity, remove orphan surface, add Cubrir concurrency tests`
+- Doc XML de `SetupServicioTests`: `tests/SGV.Tests/Setup/SetupServicioTests.cs:24-39`
