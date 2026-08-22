@@ -17,6 +17,19 @@
 --      solo tiene un UPDATE sin cambios de schema, pero el INSERT en
 --      __EFMigrationsHistory es necesario para evitar que EF intente
 --      reaplicarla.
+--   3) Columnas generadas STORED: MariaDB rechaza la nulabilidad explicita
+--      (NULL/NOT NULL) en columnas generadas. Se quita el 'NULL' final en
+--      todas las columnas generadas STORED (CREATE TABLE y ALTER TABLE).
+--   4) Columnas generadas con fuentes CHAR(36): MariaDB 12+ rechaza por
+--      defecto expresiones CASE WHEN que referencian columnas CHAR (riesgo
+--      de inconsistencia con PAD_CHAR_TO_FULL_LENGTH sql_mode). Se envuelven
+--      con RTRIM() las referencias a PersonaId, PuestoId y TipoDocumentoId
+--      dentro de las expresiones CASE WHEN.
+--   5) CREATE TRIGGER: el cliente mariadb procesa ';' como fin de statement,
+--      por lo que los BEGIN..END de los triggers se rompen. Se envuelven
+--      los dos CREATE TRIGGER con DELIMITER // ... DELIMITER ; (el script
+--      MySQL 8 usa el patron CREATE PROCEDURE MigrationsScript() que
+--      funciona contra el cliente MySQL pero no contra mariadb sin ajuste).
 --
 -- Notas de uso:
 --   - Este script NO es idempotente. Aplicar UNA SOLA VEZ sobre una base
@@ -86,7 +99,7 @@ CREATE TABLE `Cargos` (
     `Descripcion` varchar(1000) CHARACTER SET utf8mb4 NULL,
     `Nivel` varchar(50) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
-    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) NULL,
+    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END)STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -123,7 +136,7 @@ CREATE TABLE `Habilidades` (
     `Descripcion` varchar(1000) CHARACTER SET utf8mb4 NULL,
     `Categoria` varchar(100) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
-    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) NULL,
+    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END)STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -154,9 +167,9 @@ CREATE TABLE `Personas` (
     `NumeroDocumento` varchar(50) CHARACTER SET utf8mb4 NULL,
     `Telefono` varchar(50) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
-    `ActiveDocumentoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `TipoDocumento` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumento`, ':', `NumeroDocumento`) ELSE NULL END) NULL,
-    `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END) NULL,
-    `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END) NULL,
+    `ActiveDocumentoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `TipoDocumento` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumento`, ':', `NumeroDocumento`) ELSE NULL END)STORED,
+    `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END)STORED,
+    `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END)STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -177,7 +190,7 @@ CREATE TABLE `UnidadesOrganizativas` (
     `VigenteDesde` date NULL,
     `VigenteHasta` date NULL,
     `IsActive` tinyint(1) NOT NULL,
-    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) NULL,
+    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END)STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -270,7 +283,7 @@ CREATE TABLE `Postulantes` (
     `Telefono` varchar(50) CHARACTER SET utf8mb4 NULL,
     `Fuente` varchar(100) CHARACTER SET utf8mb4 NULL,
     `Observaciones` varchar(1000) CHARACTER SET utf8mb4 NULL,
-    `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (CASE WHEN `PersonaId` IS NOT NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) NULL,
+    `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (CASE WHEN RTRIM(`PersonaId`) IS NOT NULL AND `IsDeleted` = 0 THEN RTRIM(`PersonaId`) ELSE NULL END)STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -291,7 +304,7 @@ CREATE TABLE `Puestos` (
     `Nombre` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
     `Descripcion` varchar(1000) CHARACTER SET utf8mb4 NULL,
     `IsActive` tinyint(1) NOT NULL,
-    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) NULL,
+    `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END)STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -314,8 +327,8 @@ CREATE TABLE `Ocupaciones` (
     `FechaFin` date NULL,
     `TipoAsignacion` varchar(50) CHARACTER SET utf8mb4 NOT NULL,
     `Observaciones` varchar(1000) CHARACTER SET utf8mb4 NULL,
-    `ActivePersonaIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) NULL,
-    `ActivePuestoIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL,
+    `ActivePersonaIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN RTRIM(`PersonaId`) ELSE NULL END)STORED,
+    `ActivePuestoIdUnique` int AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN RTRIM(`PuestoId`) ELSE NULL END)STORED,
     `CreatedAt` datetime(6) NOT NULL,
     `CreatedByUserId` varchar(450) CHARACTER SET utf8mb4 NULL,
     `UpdatedAt` datetime(6) NULL,
@@ -862,7 +875,7 @@ UPDATE `Ocupaciones` SET `TipoAsignacion` = '2' WHERE `TipoAsignacion` = 'Tempor
 
 ALTER TABLE `Ocupaciones` MODIFY COLUMN `TipoAsignacion` int NOT NULL;
 
-ALTER TABLE `Ocupaciones` ADD `ActivePersonaPuestoUnique` varchar(100) CHARACTER SET utf8mb4 AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(`PersonaId`, ':', `PuestoId`) ELSE NULL END) NULL;
+ALTER TABLE `Ocupaciones` ADD `ActivePersonaPuestoUnique` varchar(100) CHARACTER SET utf8mb4 AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(RTRIM(`PersonaId`), ':', RTRIM(`PuestoId`)) ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePersonaPuestoUnique` ON `Ocupaciones` (`ActivePersonaPuestoUnique`);
 
@@ -871,7 +884,7 @@ VALUES ('20260624153353_ConvertirTipoAsignacionAEnumYActualizarUnicidad', '9.0.0
 
 ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePuestoIdUnique`;
 
-ALTER TABLE `Ocupaciones` MODIFY COLUMN `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) NULL;
+ALTER TABLE `Ocupaciones` MODIFY COLUMN `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN RTRIM(`PuestoId`) ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePuestoIdUnique` ON `Ocupaciones` (`ActivePuestoIdUnique`);
 
@@ -918,7 +931,7 @@ ALTER TABLE `AspNetUsers`
 ALTER TABLE `AspNetUsers`
   ADD COLUMN `ActivePersonaIdUnique` CHAR(36)
     COLLATE `ascii_general_ci`
-    GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED,
+    GENERATED ALWAYS AS (CASE WHEN `IsDeleted` = 0 THEN RTRIM(`PersonaId`) ELSE NULL END) STORED,
   ALGORITHM=COPY;
 
 ALTER TABLE `AspNetUsers`
@@ -1121,7 +1134,7 @@ CREATE INDEX `IX_Personas_TipoDocumentoId` ON `Personas` (`TipoDocumentoId`);
 
 ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveDocumentoUnique`;
 
-ALTER TABLE `Personas` MODIFY COLUMN `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END) NULL;
+ALTER TABLE `Personas` MODIFY COLUMN `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (CASE WHEN RTRIM(`TipoDocumentoId`) IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(RTRIM(`TipoDocumentoId`), ':', `NumeroDocumento`) ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveDocumentoUnique` ON `Personas` (`ActiveDocumentoUnique`);
 
@@ -1272,7 +1285,7 @@ ALTER TABLE `UnidadesOrganizativas` DROP INDEX `IX_UnidadesOrganizativas_ActiveC
 
 ALTER TABLE `UnidadesOrganizativas` DROP COLUMN `ActiveCodigoUnique`;
 
-ALTER TABLE `UnidadesOrganizativas` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED NULL;
+ALTER TABLE `UnidadesOrganizativas` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_UnidadesOrganizativas_ActiveCodigoUnique` ON `UnidadesOrganizativas` (`ActiveCodigoUnique`);
 
@@ -1280,7 +1293,7 @@ ALTER TABLE `Puestos` DROP INDEX `IX_Puestos_ActiveCodigoUnique`;
 
 ALTER TABLE `Puestos` DROP COLUMN `ActiveCodigoUnique`;
 
-ALTER TABLE `Puestos` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED NULL;
+ALTER TABLE `Puestos` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Puestos_ActiveCodigoUnique` ON `Puestos` (`ActiveCodigoUnique`);
 
@@ -1288,7 +1301,7 @@ ALTER TABLE `Postulantes` DROP INDEX `IX_Postulantes_ActivePersonaIdUnique`;
 
 ALTER TABLE `Postulantes` DROP COLUMN `ActivePersonaIdUnique`;
 
-ALTER TABLE `Postulantes` ADD `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (CASE WHEN `PersonaId` IS NOT NULL AND `IsDeleted` = 0 THEN `PersonaId` ELSE NULL END) STORED NULL;
+ALTER TABLE `Postulantes` ADD `ActivePersonaIdUnique` char(36) COLLATE ascii_general_ci AS (CASE WHEN RTRIM(`PersonaId`) IS NOT NULL AND `IsDeleted` = 0 THEN RTRIM(`PersonaId`) ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Postulantes_ActivePersonaIdUnique` ON `Postulantes` (`ActivePersonaIdUnique`);
 
@@ -1296,7 +1309,7 @@ ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveLegajoUnique`;
 
 ALTER TABLE `Personas` DROP COLUMN `ActiveLegajoUnique`;
 
-ALTER TABLE `Personas` ADD `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END) STORED NULL;
+ALTER TABLE `Personas` ADD `ActiveLegajoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Legajo` IS NOT NULL AND `IsDeleted` = 0 THEN `Legajo` ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveLegajoUnique` ON `Personas` (`ActiveLegajoUnique`);
 
@@ -1304,7 +1317,7 @@ ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveEmailUnique`;
 
 ALTER TABLE `Personas` DROP COLUMN `ActiveEmailUnique`;
 
-ALTER TABLE `Personas` ADD `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END) STORED NULL;
+ALTER TABLE `Personas` ADD `ActiveEmailUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `Email` IS NOT NULL AND `IsDeleted` = 0 THEN `Email` ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveEmailUnique` ON `Personas` (`ActiveEmailUnique`);
 
@@ -1312,7 +1325,7 @@ ALTER TABLE `Personas` DROP INDEX `IX_Personas_ActiveDocumentoUnique`;
 
 ALTER TABLE `Personas` DROP COLUMN `ActiveDocumentoUnique`;
 
-ALTER TABLE `Personas` ADD `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (CASE WHEN `TipoDocumentoId` IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(`TipoDocumentoId`, ':', `NumeroDocumento`) ELSE NULL END) STORED NULL;
+ALTER TABLE `Personas` ADD `ActiveDocumentoUnique` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (CASE WHEN RTRIM(`TipoDocumentoId`) IS NOT NULL AND `NumeroDocumento` IS NOT NULL AND `IsDeleted` = 0 THEN CONCAT(RTRIM(`TipoDocumentoId`), ':', `NumeroDocumento`) ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Personas_ActiveDocumentoUnique` ON `Personas` (`ActiveDocumentoUnique`);
 
@@ -1320,7 +1333,7 @@ ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePuestoIdUnique`;
 
 ALTER TABLE `Ocupaciones` DROP COLUMN `ActivePuestoIdUnique`;
 
-ALTER TABLE `Ocupaciones` ADD `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) STORED NULL;
+ALTER TABLE `Ocupaciones` ADD `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN RTRIM(`PuestoId`) ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePuestoIdUnique` ON `Ocupaciones` (`ActivePuestoIdUnique`);
 
@@ -1328,7 +1341,7 @@ ALTER TABLE `Ocupaciones` DROP INDEX `IX_Ocupaciones_ActivePersonaPuestoUnique`;
 
 ALTER TABLE `Ocupaciones` DROP COLUMN `ActivePersonaPuestoUnique`;
 
-ALTER TABLE `Ocupaciones` ADD `ActivePersonaPuestoUnique` varchar(100) CHARACTER SET utf8mb4 AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(`PersonaId`, ':', `PuestoId`) ELSE NULL END) STORED NULL;
+ALTER TABLE `Ocupaciones` ADD `ActivePersonaPuestoUnique` varchar(100) CHARACTER SET utf8mb4 AS (CASE WHEN `FechaFin` IS NULL AND `IsDeleted` = 0 THEN CONCAT(RTRIM(`PersonaId`), ':', RTRIM(`PuestoId`)) ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Ocupaciones_ActivePersonaPuestoUnique` ON `Ocupaciones` (`ActivePersonaPuestoUnique`);
 
@@ -1336,7 +1349,7 @@ ALTER TABLE `Habilidades` DROP INDEX `IX_Habilidades_ActiveCodigoUnique`;
 
 ALTER TABLE `Habilidades` DROP COLUMN `ActiveCodigoUnique`;
 
-ALTER TABLE `Habilidades` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED NULL;
+ALTER TABLE `Habilidades` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Habilidades_ActiveCodigoUnique` ON `Habilidades` (`ActiveCodigoUnique`);
 
@@ -1344,14 +1357,14 @@ ALTER TABLE `Cargos` DROP INDEX `IX_Cargos_ActiveCodigoUnique`;
 
 ALTER TABLE `Cargos` DROP COLUMN `ActiveCodigoUnique`;
 
-ALTER TABLE `Cargos` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END) STORED NULL;
+ALTER TABLE `Cargos` ADD `ActiveCodigoUnique` varchar(255) CHARACTER SET utf8mb4 AS (CASE WHEN `IsDeleted` = 0 THEN `Codigo` ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Cargos_ActiveCodigoUnique` ON `Cargos` (`ActiveCodigoUnique`);
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260729145632_MariaDbStoredColumnsAndCollation', '9.0.0');
 
-ALTER TABLE `Vacantes` ADD `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaCierre` IS NULL AND `IsDeleted` = 0 THEN `PuestoId` ELSE NULL END) STORED NULL;
+ALTER TABLE `Vacantes` ADD `ActivePuestoIdUnique` varchar(36) COLLATE ascii_general_ci AS (CASE WHEN `FechaCierre` IS NULL AND `IsDeleted` = 0 THEN RTRIM(`PuestoId`) ELSE NULL END)STORED;
 
 CREATE UNIQUE INDEX `IX_Vacantes_ActivePuestoIdUnique` ON `Vacantes` (`ActivePuestoIdUnique`);
 
@@ -1407,6 +1420,7 @@ INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
 VALUES ('20260813120000_FixEstadoVacanteEnSeleccionEncoding', '9.0.0');
 
 
+DELIMITER //
 CREATE TRIGGER trg_UnidadesOrganizativas_BeforeInsert_Ciclo
 BEFORE INSERT ON UnidadesOrganizativas
 FOR EACH ROW
@@ -1426,7 +1440,7 @@ BEGIN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'CicloJerarquico';
     END IF;
   END IF;
-END
+END //
 
 
 
@@ -1449,7 +1463,8 @@ BEGIN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'CicloJerarquico';
     END IF;
   END IF;
-END
+END //
+DELIMITER ;
 
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
