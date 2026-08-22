@@ -47,10 +47,18 @@ public sealed class OcupacionRepositoryQueryAsyncTests
                 new OcupacionListQuery(1, 20, null, null, OcupacionSegmentoListado.Eliminadas),
                 default);
 
-            Assert.Equal(2, result.TotalCount);
+            // Contrato del segmento `Eliminadas`: filas con `FechaFin != null`
+            // o `IsDeleted == true`; las activas (sin `FechaFin` y no borradas)
+            // NO deben aparecer. `result.TotalCount` no se asserta absoluto
+            // porque depende de residuos paralelos en `sgv_test` (issue #313
+            // / secuela de #260): otros tests que insertan Ocupaciones pueden
+            // inflarlo. En su lugar, contamos solo nuestros IDs únicos en
+            // `Items` (acotado por `PageSize = 20`).
+            var ownIds = new HashSet<Guid> { finalizada.Id, eliminada.Id };
             Assert.Contains(result.Items, o => o.Id == finalizada.Id);
             Assert.Contains(result.Items, o => o.Id == eliminada.Id);
             Assert.DoesNotContain(result.Items, o => o.Id == activa.Id);
+            Assert.Equal(2, result.Items.Count(o => ownIds.Contains(o.Id)));
         }
         finally
         {

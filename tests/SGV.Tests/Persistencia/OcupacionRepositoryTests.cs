@@ -68,7 +68,13 @@ public sealed class OcupacionRepositoryTests
             Assert.Contains(result, o => o.Id == active.Id);
             Assert.Contains(result, o => o.Id == finalized.Id);
             Assert.Contains(result, o => o.Id == deleted.Id);
-            Assert.Equal(3, result.Count);
+
+            // `ListAllIncludingHistoryAsync` no aplica ningún filtro, por lo
+            // que `result.Count` depende de residuos paralelos en `sgv_test`
+            // (issue #313 / secuela de #260). Verificamos el contrato
+            // contando solo los IDs únicos sembrados por este test.
+            var ownIds = new[] { active.Id, finalized.Id, deleted.Id };
+            Assert.Equal(3, result.Count(o => ownIds.Contains(o.Id)));
         }
         finally
         {

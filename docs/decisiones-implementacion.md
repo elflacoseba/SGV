@@ -1159,6 +1159,69 @@ Si las 3 corridas no son idénticas, el cambio reintroduce no-determinismo y no 
 
 > **Nota (issue #121, PR size:exception)**: el presente change estableció el límite `maxParallelThreads: 4` por experimentación con la suite completa de 1773 tests (3 corridas consecutivas ~42 min c/u). Equipos que reduzcan la suite deberían re-evaluar este número. Ver `openspec/changes/2026-07-11-hacer-suite-tests-determinista/verify-report.md`.
 
+## Anti-patrón: conteos absolutos sobre tablas compartidas de `sgv_test` (issues #260 y #313)
+
+> Issues: #260 (cerrado), #313 (resuelto). Patrón vigente desde `develop`
+> post-merge del fix #313.
+
+### Regla
+
+**Prohibido** escribir tests `[MySqlFact]` que asserten `Assert.Equal(N, result.Count)` o `Assert.Equal(N, queryResult.TotalCount)` cuando `N > 1` y el resultado proviene de una tabla compartida de `sgv_test` (`Ocupaciones`, `Puestos`, `UnidadesOrganizativas`, `Personas`, `Cargos`, `Habilidades`, `Vacantes`, `AspNetUsers`, etc.) **sin** un filtro que aísle la consulta a las filas sembradas por el propio test.
+
+**Permitido** (en orden de preferencia):
+
+1. **Filtro de scope** vía parámetros del query (PersonaId, PuestoId, CargoId, búsqueda con sufijo único) — patrón `BloquearDesbloquearEliminarGatewayTests.Marker`, `PuestoRepositoryQueryAsyncTests.sufijo`, `OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_FiltroPorPersonaId`. La aserción absoluta es correcta porque el resultado está acotado a las filas sembradas.
+2. **Predicado relativo sobre IDs únicos** sembrados por el test — patrón adoptado por los dos fixes de #313. Útil cuando el método no acepta filtros de scope (p.ej. `ListAllIncludingHistoryAsync`):
+
+   ```csharp
+   var ownIds = new[] { active.Id, finalized.Id, deleted.Id };
+   Assert.Contains(result, o => o.Id == active.Id);
+   Assert.Equal(3, result.Count(o => ownIds.Contains(o.Id)));
+   ```
+
+3. **Predicado sobre `Items`** (acotado por `PageSize`) en lugar de `TotalCount` cuando el método devuelve `(Items, TotalCount)` y el `Items.Count` es ≤ `PageSize` (típicamente 20). El predicado sigue siendo relativo a IDs únicos sembrados.
+4. **`Assert.InRange`** o `Assert.True(count >= N)` — válido solo cuando el contrato del método es "al menos N filas" (poco habitual).
+
+### Rationale
+
+`sgv_test` es una base de datos compartida: `MySqlTestDatabaseBootstrap` aplica migraciones una vez por sesión pero **no** trunca las tablas transaccionales entre tests (ver `SgvTestDatabaseCleaner.CleanAsync` — solo se invoca desde setups dedicados, no por defecto). El paralelismo entre clases serializadas por `[Collection(MySqlIntegrationCollection.Name)]` evita carreras de FK/Identity pero **no** evita que una consulta sin filtro lea filas de tests anteriores. Resultado: `Assert.Equal(3, result.Count)` falla con flakiness reproducible cuando otra clase insertó filas en `Ocupaciones` durante una corrida anterior o en el mismo slot.
+
+`Assert.Equal(1, …)` con filtro por `Guid.NewGuid()` es seguro (las IDs son únicas). `Assert.Equal(2, …)` sin filtro sobre una tabla que recibe inserciones de otros tests es **frágil por diseño**. `Assert.Equal(N, result.Count)` sobre métodos sin filtro (p.ej. `ListAllIncludingHistoryAsync`) es **siempre** frágil.
+
+### Audit del resto del suite (resuelto por #313)
+
+Búsqueda por `Assert.Equal(N`, `Assert.Single`, `Assert.Empty` en `tests/SGV.Tests/Persistencia/` (snapshot al momento del fix). Resultado:
+
+| Test | Patrón | Estado |
+|---|---|---|
+| `OcupacionRepositoryTests.ListAllIncludingHistoryAsync_ReturnsAllRows` | `Assert.Equal(3, result.Count)` sobre tabla sin scope | **Flaky — resuelto** (#313) |
+| `OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_SegmentoEliminadas_RetornaSoloEliminadasYFinalizadas` | `Assert.Equal(2, result.TotalCount)` sin filtro por PersonaId | **Flaky — resuelto** (#313) |
+| `OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_FiltroPorPersonaId` | `Assert.Single` con filtro PersonaId | OK |
+| `OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_FiltroPorPuestoId` | `Assert.Single` con filtro PuestoId | OK |
+| `OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_FiltrosCombinadosSinCoincidencia` | PersonaId + PuestoId `Guid.NewGuid()` | OK |
+| `OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_Paginacion_TotalCountReflejaFiltros` | `Assert.Equal(3, result.TotalCount)` con filtro PersonaId | OK |
+| `OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_SearchEscapaWildcardPorcentaje` | `Assert.Single` con `Search` por sufijo único | OK |
+| `PuestoRepositoryQueryAsyncTests.*` | Todos usan `sufijo` como `Search` → scope automático | OK |
+| `UnidadOrganizativaRepositoryQueryAsyncTests.*` | Todos usan `sufijo` como `Search` → scope automático | OK |
+| `BloquearDesbloquearEliminarGatewayTests.*` | `fixture.Marker` como `Search` → scope automático | OK |
+| `CargoRepositoryTests.QueryAsync_MySql_*` con `Assert.Equal(5, totalCount)`, `Assert.Equal(2, page1.Count)` etc. | Filtran por `Codigo.Contains(sufijo)` | OK |
+| `VacanteRepositoryQueryTests.*` | Filtran por `Codigo.Contains(sufijo)` | OK |
+
+Patrón vigente de scope para tests de repositorio: usar un `sufijo` (GUID truncado) como `Search` en el query, o pasar `PersonaId`/`PuestoId`/`CargoId` cuando la entidad lo permita. Tests que cubran `ListAllIncludingHistoryAsync` o equivalentes sin filtro deben usar **siempre** predicados relativos sobre IDs únicos.
+
+### Cómo verificar
+
+```bash
+# Repetir N veces para confirmar determinismo contra sgv_test con residuos:
+for i in 1 2 3; do
+  dotnet test SGV.slnx --no-build \
+    --filter "FullyQualifiedName~OcupacionRepositoryTests.ListAllIncludingHistoryAsync_ReturnsAllRows|FullyQualifiedName~OcupacionRepositoryQueryAsyncTests.QueryAsync_MySql_SegmentoEliminadas"
+done
+
+# Suite del módulo completo:
+dotnet test SGV.slnx --no-build --filter "FullyQualifiedName~Ocupaciones"
+```
+
 ## Issue #125 — Taxonomía de errores para `CommandResult` y clientes HTTP de Web
 
 > Change: `2026-07-13-taxonomia-errores-commandresult` (slice 1 de 4). Artefactos SDD completos en `openspec/changes/2026-07-13-taxonomia-errores-commandresult/`.
