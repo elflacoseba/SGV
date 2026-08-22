@@ -3,6 +3,7 @@ using SGV.Aplicacion.Habilidades.Consultas;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Contracts.Personas.Comandos;
 using SGV.Contracts.Personas.Consultas.Dtos;
+using SGV.Dominio.Habilidades;
 using SGV.Dominio.Personas;
 
 namespace SGV.Aplicacion.Personas.Comandos;

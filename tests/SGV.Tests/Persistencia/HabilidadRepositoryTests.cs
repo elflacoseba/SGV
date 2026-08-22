@@ -227,6 +227,201 @@ public sealed class HabilidadRepositoryTests
         }
     }
 
+    /// <summary>
+    /// Issue #311 — asimetría residual del tech debt cleanup #298:
+    /// <see cref="HabilidadRepository.GetByIdForUpdateAsync"/> comparte el
+    /// contrato de exposición de la navegación <c>Categoria</c> declarado en
+    /// el comentario de clase del repositorio: la FK opcional debe llegar
+    /// como navegación hidratada para que cualquier consumidor que proyecte
+    /// <c>CategoriaNombre</c> reciba el mismo contrato uniforme que ya
+    /// ofrecen <c>GetByIdAsync</c>, <c>ListAllAsync</c> y <c>QueryAsync</c>.
+    /// </summary>
+    [MySqlFact]
+    public async Task GetByIdForUpdateAsync_CargaNavegacionCategoria_PermiteProyectarCategoriaNombre()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new HabilidadRepository(context);
+        var habilidad = new Habilidad("TEST-HAB-FUPD-CAT", "Test Habilidad For Update Categoria",
+            CategoriaHabilidadConstantes.AcademicaId, "Test desc");
+
+        await repo.AddAsync(habilidad, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var obtenido = await repo.GetByIdForUpdateAsync(habilidad.Id, default);
+
+            Assert.NotNull(obtenido);
+            Assert.Equal(CategoriaHabilidadConstantes.AcademicaId, obtenido!.CategoriaId);
+            Assert.NotNull(obtenido.Categoria);
+            Assert.Equal("Académica", obtenido.Categoria!.Nombre);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>().Where(h => h.Id == habilidad.Id).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Issue #311: cuando la habilidad activa no tiene categoría asignada,
+    /// <see cref="HabilidadRepository.GetByIdForUpdateAsync"/> debe devolver
+    /// la navegación <c>Categoria</c> en <c>null</c> (no se debe inventar
+    /// un objeto vacío ni disparar una query adicional).
+    /// </summary>
+    [MySqlFact]
+    public async Task GetByIdForUpdateAsync_SinCategoria_NavegacionEsNull()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new HabilidadRepository(context);
+        var habilidad = new Habilidad("TEST-HAB-FUPD-NUL", "Test Habilidad For Update Sin Categoria",
+            categoriaId: null, descripcion: "Test desc");
+
+        await repo.AddAsync(habilidad, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var obtenido = await repo.GetByIdForUpdateAsync(habilidad.Id, default);
+
+            Assert.NotNull(obtenido);
+            Assert.Null(obtenido!.CategoriaId);
+            Assert.Null(obtenido.Categoria);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>().Where(h => h.Id == habilidad.Id).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Issue #311: <see cref="HabilidadRepository.GetByIdIncludingDeletedAsync"/>
+    /// también debe hidratar <c>Categoria</c>. El camino se usa en flujos de
+    /// reactivación y todo consumidor que proyecte <c>CategoriaNombre</c>
+    /// sobre filas soft-deleted recibe la navegación poblada, alineado con
+    /// los demás paths del repositorio.
+    /// </summary>
+    [MySqlFact]
+    public async Task GetByIdIncludingDeletedAsync_CargaNavegacionCategoria_InclusoEnEliminadas()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new HabilidadRepository(context);
+        var entity = RepositoryTestData.CreateHabilidad("HAB-INCL-CAT");
+        entity.CategoriaId = CategoriaHabilidadConstantes.DominioId;
+        await context.Set<HabilidadEntity>().AddAsync(entity);
+        await context.SaveChangesAsync();
+
+        // Soft-delete para forzar el camino "incluyendo eliminadas".
+        await repo.DeleteAsync(entity.Id, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            var obtenido = await repo.GetByIdIncludingDeletedAsync(entity.Id, default);
+
+            Assert.NotNull(obtenido);
+            Assert.Equal(CategoriaHabilidadConstantes.DominioId, obtenido!.CategoriaId);
+            Assert.NotNull(obtenido.Categoria);
+            Assert.Equal("Dominio", obtenido.Categoria!.Nombre);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>().Where(h => h.Id == entity.Id).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Issue #311: <see cref="HabilidadRepository.UpdateAsync"/> debe mantener
+    /// el contrato de exposición de la navegación <c>Categoria</c> en el
+    /// contexto, de modo que una lectura posterior (o un servicio que
+    /// comparta el mismo <c>SgvDbContext</c>) vea la navegación hidratada
+    /// sin disparar una segunda query. El cambio de scalar fields sigue
+    /// funcionando idéntico a versiones previas.
+    /// </summary>
+    /// <remarks>
+    /// Test validity note: entre <c>AddAsync</c> y <c>UpdateAsync</c> se
+    /// ejecuta <c>ChangeTracker.Clear()</c> para que la carga de
+    /// <c>UpdateAsync</c> sea genuina — sin este paso la entidad ya estaría
+    /// tracked por <c>AddAsync</c> (con la navegación intacta de la siembra
+    /// EF) y la aserción pasaría aunque <c>UpdateAsync</c> no incluyese
+    /// <c>Categoria</c>. La inspección final se hace con un
+    /// <c>FirstOrDefaultAsync</c> <b>sin</b> <c>Include</c>: si
+    /// <c>UpdateAsync</c> cumple el contrato del issue #311, la instancia
+    /// tracked — recuperada por identity map — tiene <c>Categoria</c>
+    /// poblada; si no, llegaría en <c>null</c>.
+    /// </remarks>
+    [MySqlFact]
+    public async Task UpdateAsync_CargaCategoriaEnContexto_YActualizaScalarFields()
+    {
+        await using var context = new TestSgvDbContextFactory().CreateDbContext([]);
+        var repo = new HabilidadRepository(context);
+        var habilidad = new Habilidad("TEST-HAB-UPD-CAT", "Test Habilidad Update Categoria",
+            CategoriaHabilidadConstantes.ConduccionId, "Test desc");
+
+        await repo.AddAsync(habilidad, default);
+        await context.SaveChangesAsync();
+
+        try
+        {
+            // Desvinculamos la entidad del tracker para que el Include de
+            // UpdateAsync sea el responsable de hidratar Categoria. Sin
+            // esto el test sería espurio: la entidad ya estaría tracked
+            // con su navegación desde AddAsync.
+            context.ChangeTracker.Clear();
+
+            // Construimos el domain object "fresco" (mismo Id, valores
+            // nuevos) sin pasar por GetByIdForUpdateAsync. Equivale a un
+            // request entrante del servicio de comandos con un payload
+            // modificado — el repositorio debe manejarlo sin pre-loads
+            // del caller.
+            //
+            // Conservamos el mismo CategoriaId a propósito: si lo rotamos,
+            // EF Core invalida la navegación Categoria por cambio de FK y
+            // la aserción no podría distinguir "Include ausente" de "FK
+            // cambiado". El contrato bajo prueba es que el Include de
+            // UpdateAsync hidrata la navegación, no el comportamiento ante
+            // reasignación de categoría (eso lo cubre el servicio de
+            // comandos con su propia validación).
+            var actualizar = new Habilidad("TEST-HAB-UPD-CAT-V2", "Nombre Modificado",
+                CategoriaHabilidadConstantes.ConduccionId, "Desc modificada")
+            {
+                Id = habilidad.Id
+            };
+
+            await repo.UpdateAsync(actualizar, default);
+            await context.SaveChangesAsync();
+
+            // Inspeccionamos la entidad tracked SIN volver a hacer Include
+            // (sería redundante y no probaría nada). La instancia es la
+            // misma que cargó UpdateAsync (identity map de EF Core).
+            var tracked = await context.Set<HabilidadEntity>()
+                .FirstOrDefaultAsync(h => h.Id == habilidad.Id);
+
+            Assert.NotNull(tracked);
+
+            // Scalar fields: UpdateEntity aplicó los valores del payload.
+            Assert.Equal("TEST-HAB-UPD-CAT-V2", tracked!.Codigo);
+            Assert.Equal("Nombre Modificado", tracked.Nombre);
+            Assert.Equal("Desc modificada", tracked.Descripcion);
+
+            // Navegación Categoria hidratada por UpdateAsync.Include — esta
+            // es la aserción que rompe si se quita el Include del repo.
+            Assert.NotNull(tracked.Categoria);
+            Assert.Equal("Conducción", tracked.Categoria!.Nombre);
+        }
+        finally
+        {
+            context.Set<HabilidadEntity>().RemoveRange(
+                await context.Set<HabilidadEntity>().Where(h => h.Id == habilidad.Id).ToListAsync());
+            await context.SaveChangesAsync();
+        }
+    }
+
     // ===================== Write tests =====================
 
     [MySqlFact]

@@ -1,4 +1,5 @@
 using SGV.Dominio.Comun;
+using SGV.Dominio.Habilidades;
 using SGV.Dominio.Ocupaciones;
 
 namespace SGV.Dominio.Personas;

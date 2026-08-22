@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Aplicacion.Personas.Consultas;
 using SGV.Contracts.Personas.Consultas.Dtos;
+using SGV.Dominio.Habilidades;
 using SGV.Dominio.Personas;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Mapeos;

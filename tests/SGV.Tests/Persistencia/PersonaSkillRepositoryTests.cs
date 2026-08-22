@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SGV.Infraestructura.Persistencia;
 using SGV.Infraestructura.Persistencia.Entidades;
 using SGV.Infraestructura.Persistencia.Repositorios;
+using SGV.Dominio.Habilidades;
 using SGV.Dominio.Personas;
 using Xunit;
 
