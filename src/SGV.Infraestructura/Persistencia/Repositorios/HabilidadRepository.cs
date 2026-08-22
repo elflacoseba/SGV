@@ -10,6 +10,31 @@ namespace SGV.Infraestructura.Persistencia.Repositorios;
 public sealed class HabilidadRepository(SgvDbContext context)
     : ReadOnlyRepository<HabilidadEntity, Habilidad>(context), IHabilidadRepository
 {
+    /// <summary>
+    /// Contrato de exposición de la navegación <see cref="HabilidadEntity.Categoria"/>
+    /// (issue #311 — asimetría residual del tech debt cleanup #298).
+    ///
+    /// <para>
+    /// Todo path público que materializa un <see cref="Habilidad"/> de
+    /// dominio para consumo aguas arriba (servicios de consulta, comandos,
+    /// UI, Web) debe devolver la navegación <c>Categoria</c> hidratada
+    /// (LEFT JOIN contra el catálogo <c>CategoriasHabilidad</c>), de modo
+    /// que cualquier consumidor que proyecte <c>CategoriaNombre</c> — ver
+    /// por ejemplo <c>HabilidadServicioConsulta.MapToDto</c> o
+    /// <c>HabilidadServicioComandos</c> cuando reporta
+    /// <c>CategoriaInexistente</c> — reciba la navegación ya poblada y
+    /// opere sobre un contrato uniforme. Si la habilidad no tiene
+    /// categoría asignada, la navegación es <c>null</c> y
+    /// <c>CategoriaNombre</c> queda en <c>null</c> — coherente con
+    /// <see cref="Habilidad.CategoriaId"/> opcional.
+    /// </para>
+    ///
+    /// <para>
+    /// Excepción explícita: <see cref="ExistsCategoriaAsync"/> no carga
+    /// <c>Categoria</c> porque su contrato es verificar la existencia de
+    /// un id de catálogo, no devolver un agregado.
+    /// </para>
+    /// </summary>
     protected override IQueryable<HabilidadEntity> Query => base
         .Query
         .Where(h => h.IsActive);
@@ -55,30 +80,64 @@ public sealed class HabilidadRepository(SgvDbContext context)
         await Context.Set<HabilidadEntity>().AddAsync(entity, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Devuelve una <see cref="Habilidad"/> activa y no borrada para edición,
+    /// hidratando la navegación <see cref="HabilidadEntity.Categoria"/> (ver
+    /// el comentario de clase sobre el contrato de exposición de la navegación).
+    /// Filtra por <c>IsActive &amp;&amp; !IsDeleted</c>; retorna <c>null</c>
+    /// cuando no hay coincidencia.
+    /// </summary>
     public async Task<Habilidad?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var entity = await Context
             .Set<HabilidadEntity>()
+            .Include(h => h.Categoria)
             .FirstOrDefaultAsync(h => h.Id == id && h.IsActive && !h.IsDeleted, cancellationToken)
             .ConfigureAwait(false);
 
         return entity is null ? null : MapToDomain(entity);
     }
 
+    /// <summary>
+    /// Devuelve una <see cref="Habilidad"/> incluyendo soft-deleted, hidratando
+    /// la navegación <see cref="HabilidadEntity.Categoria"/> (ver el comentario
+    /// de clase sobre el contrato de exposición de la navegación). No filtra
+    /// por <c>IsActive</c> ni <c>IsDeleted</c>; se usa para flujos de
+    /// reactivación desde la UI administrativa.
+    /// </summary>
     public async Task<Habilidad?> GetByIdIncludingDeletedAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var entity = await Context
             .Set<HabilidadEntity>()
+            .Include(h => h.Categoria)
             .FirstOrDefaultAsync(h => h.Id == id, cancellationToken)
             .ConfigureAwait(false);
 
         return entity is null ? null : MapToDomain(entity);
     }
 
+    /// <summary>
+    /// Persiste los scalar fields editables de una <see cref="Habilidad"/>
+    /// existente. La carga del <see cref="HabilidadEntity"/> tracked incluye
+    /// <c>Include(h =&gt; h.Categoria)</c> para preservar el contrato de
+    /// exposición de la navegación declarado a nivel de clase (issue #311):
+    /// el patch opera sobre scalar fields vía
+    /// <c>DomainToPersistenceMapper.UpdateEntity</c>, pero EF Core adjunta la
+    /// entidad completa para que posteriores lecturas vía ese mismo
+    /// <see cref="SgvDbContext"/> encuentren la navegación hidratada — un
+    /// consumidor que proyecte <c>CategoriaNombre</c> aguas arriba no tiene
+    /// que asumir un contrato distinto al de los demás paths.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Se lanza si no existe la <see cref="HabilidadEntity"/> para el id
+    /// indicado (mismo contrato que las versiones previas; el cambio de
+    /// esta firma es aditivo).
+    /// </exception>
     public async Task UpdateAsync(Habilidad habilidad, CancellationToken cancellationToken = default)
     {
         var entity = await Context
             .Set<HabilidadEntity>()
+            .Include(h => h.Categoria)
             .FirstOrDefaultAsync(h => h.Id == habilidad.Id, cancellationToken)
             .ConfigureAwait(false);
 

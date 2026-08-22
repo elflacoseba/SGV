@@ -2383,3 +2383,223 @@ Al cierre de PR4, el change `implementa-refresh-tokens` queda
   registrado). Diferido a un change que introduzca la medición
   end-to-end. Los logs estructurados de PR4 son la única señal
   operativa vigente.
+
+## Módulo Habilidades — asimetrías residuales del tech debt cleanup (issue #311)
+
+> Issue: `[Habilidades] Asimetrías residuales del tech debt cleanup
+> (issue #298 out-of-scope)`. Cierra las dos asimetrías que PR #299
+> (`refactor(habilidad): tech debt cleanup`) dejó explícitamente fuera
+> de scope. Cero cambios de persistencia, cero cambios de contrato
+> HTTP público, cero migraciones: es housekeeping de código puro.
+
+### Contexto y problema
+
+El PR #299 cerró 4 housekeeping items dentro del scope del
+release-readiness del módulo Habilidades. El análisis original del
+issue #298 había mapeado dos asimetrías residuales que quedaron
+documentadas como fuera de scope:
+
+- **(a)** `HabilidadRepository` exponía la navegación `Categoria`
+  de forma asimétrica entre paths. La hipótesis del issue era que
+  las inconsistencias producían N+1 en alguna vista, pero la
+  verificación contra el código actual al cierre de #311 muestra un
+  cuadro más matizado (ver § D-311-1 abajo): los paths que ya
+  cubrían el Index y los listados paginados (`QueryAsync`,
+  `ListAllAsync`, `GetByIdAsync`) sí cargaban la navegación, por
+  lo que el N+1 hipotético **no se reproduce en el código actual**.
+  Lo que sí existía era un contrato de exposición desigual: tres
+  paths materiales no incluían `Categoria`, dejando a cualquier
+  consumidor aguas arriba sin garantías uniformes sobre la
+  navegación.
+- **(b)** `PersonaHabilidad` vivía en `src/SGV.Dominio/Personas/`
+  y `CargoHabilidad` en `src/SGV.Dominio/Habilidades/`. Ambos son
+  join entities entre una raíz y `Habilidad`; la asimetría rompía
+  el patrón "bounded context por carpeta" que el resto del repo
+  respeta y complicaba búsquedas globales (`grep "Habilidad"` en
+  `SGV.Dominio` daba dos raíces).
+
+Ninguno de los dos hallazgos era bloqueante, pero la deuda se notaba
+a medida que casos de uso cruzados entre Persona y Cargo se sumaban.
+
+### D-311-1 — Contrato único de exposición de la navegación `Categoria` (issue #311, asimetría a)
+
+#### Hipótesis de la issue vs. evidencia al cierre
+
+El issue #311 planteaba que la UI hacía N+1 para mostrar el nombre
+de la categoría al editar o ver detalle. **Esa hipótesis no se
+reproduce contra el código actual**: la verificación al cierre
+muestra que
+
+- `HabilidadRepository.QueryAsync` (camino del Index paginado)
+  ya cargaba `Include(h => h.Categoria)` antes del Skip/Take
+  desde el change `migrar-campo-categoria-habilidades-a-tabla`.
+- `HabilidadRepository.ListAllAsync` y `GetByIdAsync` también lo
+  hacían.
+- `HabilidadServicioConsulta.MapToDto`
+  (`src/SGV.Aplicacion/Habilidades/Consultas/HabilidadServicioConsulta.cs:52`)
+  proyecta `entity.Categoria?.Nombre` sobre el wire.
+- `HabilidadServicioComandos.MapToDto`
+  (`src/SGV.Aplicacion/Habilidades/Comandos/HabilidadServicioComandos.cs:228`)
+  proyecta `habilidad.Categoria?.Nombre` sobre el wire en el camino
+  de éxito (`CrearAsync` / `ActualizarAsync` / `ReactivarAsync`
+  retornan `HabilidadCommandResult.Success(MapToDto(habilidad))`).
+  La falla por categoría inexistente usa un código y mensaje propios
+  (`HabilidadErrorType.CategoriaInexistente` /
+  `HabilidadErrorCodes.CategoriaHabilidadNoExiste` /
+  `CategoriaInexistenteMessage = "La categoría indicada no existe."`,
+  vía `FailureCategoriaInexistente()`) y nunca llega a proyectar la
+  navegación.
+
+Por lo tanto, **el Index y los listados vigentes ya hacían eager
+loading** y no había N+1 observable al momento de cerrar #311. La
+asimetría real era de **contrato**: tres paths materiales
+(`GetByIdForUpdateAsync`, `GetByIdIncludingDeletedAsync`,
+`UpdateAsync`) no incluían la navegación, lo que significaba que
+un consumidor que proyectara `CategoriaNombre` no podía asumir un
+contrato uniforme entre paths — debía conocer qué método estaba
+invocando para saber si la navegación llegaba poblada.
+
+#### Decisión: contrato único de exposición de la navegación
+
+`HabilidadRepository` ahora carga `HabilidadEntity.Categoria` con
+`Include(h => h.Categoria)` en todos los paths públicos que
+materializan un `Habilidad` de dominio: `GetByIdAsync`,
+`GetByIdForUpdateAsync`, `GetByIdIncludingDeletedAsync`,
+`ListAllAsync`, `QueryAsync` y `UpdateAsync`. La excepción explícita
+es `ExistsCategoriaAsync`, cuyo contrato es verificar la existencia
+de un id de catálogo y no devuelve un agregado.
+
+| Path | Pre-#311 | Post-#311 |
+|---|---|---|
+| `GetByIdAsync` | `Include` | `Include` (sin cambio) |
+| `ListAllAsync` | `Include` | `Include` (sin cambio) |
+| `QueryAsync` | `Include` después del sort | `Include` después del sort (sin cambio) |
+| `GetByIdForUpdateAsync` | sin `Include` | `Include` (uniformiza el contrato) |
+| `GetByIdIncludingDeletedAsync` | sin `Include` | `Include` (uniformiza el contrato) |
+| `UpdateAsync` | sin `Include` | `Include` (uniformiza el contrato) |
+
+El delta observable es la unificación del contrato: cualquier
+consumidor que proyecte `CategoriaNombre` puede tratar a todos los
+paths por igual. No se elimina N+1 existente (no había); se
+garantiza que ninguno de los seis paths materiales introduzca
+uno accidentalmente.
+
+El contrato queda documentado a nivel de clase en
+`src/SGV.Infraestructura/Persistencia/Repositorios/HabilidadRepository.cs`
+con un `<summary>` que explica:
+
+- Qué paths materiales exponen la navegación y por qué.
+- Por qué la navegación puede ser `null` cuando `CategoriaId` es
+  `null` (la FK es opcional).
+- Cuál es la excepción explícita (`ExistsCategoriaAsync`).
+
+Cada uno de los 3 paths modificados gana su propio XMLDoc que
+referencia el contrato de clase y deja explícito el filtro
+aplicado. Se preserva la semántica existente de `UpdateAsync`
+(sigue siendo patch de scalar fields vía
+`DomainToPersistenceMapper.UpdateEntity`); el `Include` es aditivo.
+
+**Por qué incluir y no quitar**: el dominio modela `Categoria` como
+navegación opcional accesible (`Habilidad.Categoria` está
+`public CategoriaHabilidad? Categoria { get; private set; }` y se
+hidrata en `Reconstitute`). El servicio de consulta y el de
+comandos proyectan `CategoriaNombre`. La alternativa de ocultar
+la navegación en todos los paths rompería REQ-CAT-07 y obligaría
+a un redesign del contrato `HabilidadDto`.
+
+**Impacto de performance**: el cambio introduce un `LEFT JOIN`
+extra contra `CategoriasHabilidad` (4 filas seed) en los 3 paths
+modificados. Sin diferencias materiales — el catálogo es inmutable
+y la PK cubre el JOIN. En `QueryAsync` el `Include` ya existía;
+en `UpdateAsync` la carga tracked es comparable al `GetByIdAsync`
+que ya lo hacía.
+
+**Verificación negativa**: el test
+`HabilidadRepositoryTests.UpdateAsync_CargaCategoriaEnContexto_YActualizaScalarFields`
+fue diseñado con `ChangeTracker.Clear()` + `CategoriaId` invariante
+para que sea sensible a la presencia del `Include` en
+`UpdateAsync`; quitar el `Include` lo hace fallar en
+`Assert.NotNull(tracked.Categoria)`. Eso confirma que el delta
+está protegido.
+
+### D-311-2 — `PersonaHabilidad` se muda a `SGV.Dominio.Habilidades` (issue #311, asimetría b)
+
+Se eligió la **Opción A** recomendada por el issue: mover
+`PersonaHabilidad` desde `src/SGV.Dominio/Personas/PersonaHabilidad.cs`
+a `src/SGV.Dominio/Habilidades/PersonaHabilidad.cs` para que ambos
+join entities (`PersonaHabilidad` y `CargoHabilidad`) vivan con
+su agregado (`Habilidad`).
+
+**Por qué Habilidades y no Organizacion**: el agregado conceptual
+del join es la habilidad. `Habilidad` vive en `SGV.Dominio.Habilidades`,
+y tanto `Persona` (que tiene `List<PersonaHabilidad>` como colección
+de skills poseídas) como `Cargo` (que tiene una relación de skills
+requeridas vía `CargoHabilidad`) consumen `Habilidad` desde el
+módulo que la define. Mover `CargoHabilidad` a `Organizacion`
+habría dejado `PersonaHabilidad` huérfana del módulo que define la
+entidad raíz — exactamente el patrón que estamos cerrando.
+
+**Cambios aplicados** (mínimos y verificables):
+
+- `src/SGV.Dominio/Personas/PersonaHabilidad.cs` → movido a
+  `src/SGV.Dominio/Habilidades/PersonaHabilidad.cs` con
+  `namespace SGV.Dominio.Habilidades`. La `using SGV.Dominio.Personas;`
+  se agrega al archivo movido para resolver la navegación `Persona`.
+- El archivo movido gana un `<summary>` que documenta el motivo
+  del cambio (issue #311, asimetría residual de #298) y un
+  `<remarks>` que apunta a este apartado de
+  `docs/decisiones-implementacion.md`.
+- Callers actualizados para agregar `using SGV.Dominio.Habilidades;`:
+  - `src/SGV.Dominio/Personas/Persona.cs` (colección `_habilidades`
+    y `AgregarHabilidad`).
+  - `src/SGV.Aplicacion/Personas/Comandos/PersonaSkillServicio.cs`
+    (construcción de `new PersonaHabilidad(...)`).
+  - `src/SGV.Aplicacion/Personas/Consultas/IPersonaSkillRepository.cs`
+    (interface).
+  - `src/SGV.Infraestructura/Persistencia/Repositorios/PersonaSkillRepository.cs`
+    (implementación).
+- Los mappers `PersistenceToDomainMapper` y
+  `DomainToPersistenceMapper` ya importaban
+  `using SGV.Dominio.Habilidades;` por `CargoHabilidad` /
+  `Habilidad`, así que no requieren cambios.
+- Los archivos de migración `.Designer.cs` contienen el string
+  `"SGV.Dominio.Personas.PersonaHabilidad"` como identificador
+  opaco del snapshot del modelo EF Core — no es una referencia
+  CLR, sólo se usa como key en el diff entre migraciones. **No se
+  tocan** porque son artefactos históricos congelados que se
+  regenerarían únicamente al agregar una migración nueva.
+
+**Compatibilidad preservada**:
+
+- Cero cambios en `PersonaHabilidadEntity`
+  (`src/SGV.Infraestructura/Persistencia/Entidades/`), que sigue
+  en su namespace.
+- Cero cambios en la tabla `PersonaHabilidades`, en su FK, ni en
+  el índice único `IX_PersonaHabilidades_PersonaId_HabilidadId`.
+- Cero cambios en `PersonaSkillRepository` ni en
+  `IPersonaSkillRepository` a nivel de comportamiento.
+- Los tests existentes `PersonaSkillServicioTests` (8 tests) y
+  `PersonaSkillRepositoryTests` (9 tests) ejercen
+  `new PersonaHabilidad(...)`, la `List<PersonaHabilidad>` del
+  fake y el ciclo Upsert/Delete/Query completo, y siguen pasando
+  sin cambios.
+
+### Criterio de mantenimiento
+
+- **Si se agrega un nuevo path de materialización en
+  `HabilidadRepository`** (ej. un futuro `GetByCodigoAsync`,
+  `ReactivateAsync` con re-fetch, etc.): debe cargar la navegación
+  `Categoria` salvo que su contrato sea explícitamente scalar-only
+  (análogo a `ExistsCategoriaAsync`). El `<summary>` de la clase
+  es la referencia canónica.
+- **Si se agrega un nuevo join entity hacia `Habilidad`** (ej.
+  `ProyectoHabilidad`, `EquipoHabilidad`): vive en
+  `SGV.Dominio.Habilidades`, junto a `CargoHabilidad` y
+  `PersonaHabilidad`, salvo que el agregado raíz tenga un bounded
+  context distinto y bien definido que justifique lo contrario
+  (en cuyo caso se documenta la excepción en este archivo).
+- **Si una migración futura re-numera snapshots**: los
+  `.Designer.cs` viejos siguen conteniendo
+  `"SGV.Dominio.Personas.PersonaHabilidad"` como string opaco.
+  EF Core lo trata como key estable y no rompe el pipeline; no
+  requieren reescritura retroactiva.

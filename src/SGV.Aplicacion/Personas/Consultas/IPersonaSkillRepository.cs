@@ -1,6 +1,7 @@
 using SGV.Contracts.Habilidades.Consultas.Dtos;
 using SGV.Contracts.Personas.Consultas.Dtos;
 using SGV.Aplicacion.Comun.Persistencia;
+using SGV.Dominio.Habilidades;
 using SGV.Dominio.Personas;
 
 namespace SGV.Aplicacion.Personas.Consultas;

@@ -1,8 +1,23 @@
 using SGV.Dominio.Comun;
-using SGV.Dominio.Habilidades;
+using SGV.Dominio.Personas;
 
-namespace SGV.Dominio.Personas;
+namespace SGV.Dominio.Habilidades;
 
+/// <summary>
+/// Join entity que asocia una <see cref="Persona"/> con una
+/// <see cref="Habilidad"/> y un <see cref="NivelHabilidad"/> (nivel poseído
+/// por la persona, no nivel requerido del cargo).
+/// </summary>
+/// <remarks>
+/// Vive en el bounded context <c>SGV.Dominio.Habilidades</c> (issue #311)
+/// junto con su par <see cref="CargoHabilidad"/>, con quien comparte el
+/// hecho de ser una entidad de asociación hacia <see cref="Habilidad"/>.
+/// La asimetría original (Persona en <c>SGV.Dominio.Personas</c>,
+/// Cargo en <c>SGV.Dominio.Habilidades</c>) quedaba documentada en
+/// el issue #298 como fuera de scope del PR #299.
+/// La decisión arquitectónica de reubicación está consolidada en
+/// <c>docs/decisiones-implementacion.md</c>.
+/// </remarks>
 public sealed record class PersonaHabilidad : EntidadBase
 {
     private PersonaHabilidad()
